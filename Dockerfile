@@ -26,7 +26,7 @@ RUN pip install --upgrade pip && \
         "fastapi>=0.110.0" \
         "uvicorn[standard]>=0.27.0" \
         "sqlalchemy>=2.0.27" \
-        "alembic>=1.13.1" \
+        # alembic upgrade head   # desactivado temporalmente
         "pydantic>=2.6.0" \
         "pydantic-settings>=2.2.0" \
         "python-multipart>=0.0.9" \
