@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 1) Metadata primero (aprovecha cache de Docker layer)
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 
 # 2) Instalar dependencias Python
 RUN pip install --upgrade pip && \
