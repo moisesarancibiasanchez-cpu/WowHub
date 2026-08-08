@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% block dash_title %}Dashboard{% endblock %} — WowHub{% endblock %}
+
+{% block topbar %}
+<header class="topbar">
+  <a class="brand" href="/dashboard">
+    <span class="brand-mark">W</span>
+    <span>WowHub</span>
+  </a>
+  <span class="spacer"></span>
+  <span id="user-chip" class="text-muted" style="font-size: 13px;"></span>
+  <a class="btn btn-ghost btn-sm" href="/" target="_blank">Ver sitio</a>
+  <button class="btn btn-sm" id="logout-btn">Salir</button>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="dash-layout">
+  <aside class="dash-side">
+    <h4>Negocio</h4>
+    <a href="/dashboard" class="nav-link" data-route="dashboard">
+      <span class="ico">▦</span> Resumen
+    </a>
+    <a href="/dashboard/products" class="nav-link" data-route="products">
+      <span class="ico">📦</span> Productos
+    </a>
+    <a href="/dashboard/promotions" class="nav-link" data-route="promotions">
+      <span class="ico">🎉</span> Promociones
+    </a>
+    <a href="/dashboard/qrs" class="nav-link" data-route="qrs">
+      <span class="ico">📱</span> QRs
+    </a>
+    <a href="/dashboard/customers" class="nav-link" data-route="customers">
+      <span class="ico">👥</span> Clientes
+    </a>
+    <a href="/dashboard/landing" class="nav-link" data-route="landing">
+      <span class="ico">🎨</span> Landing
+    </a>
+    <h4>Avanzado</h4>
+    <a href="/docs" target="_blank">
+      <span class="ico">📘</span> API Docs
+    </a>
+  </aside>
+
+  <main class="dash-main">
+    {% block dash_content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+WH.Auth.requireLogin();
+const user = WH.Auth.user();
+const tenant = WH.Auth.tenant();
+if (user) {
+  document.getElementById("user-chip").innerHTML =
+    `<strong>${user.full_name}</strong> · ${tenant ? tenant.tenant_display_name : "Sin negocio"}`;
+}
+document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.logout());
+const route = document.body.dataset.route;
+if (route) {
+  document.querySelectorAll(".nav-link").forEach(a => {
+    if (a.dataset.route === route) a.classList.add("active");
+  });
+}
+</script>
+{% block dash_scripts %}{% endblock %}
+{% endblock %}

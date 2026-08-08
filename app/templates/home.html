@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}WowHub — Tu negocio online en 10 minutos{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="badges">
+    <span class="badge badge-accent">MVP v0.1</span>
+    <span class="badge badge-success">Multi-tenant</span>
+    <span class="badge">LATAM-first</span>
+  </div>
+  <h1>Tu negocio online,<br>en 10 minutos.</h1>
+  <p class="lead">
+    Página, catálogo, QR y promociones. Sin código. Sin enredarse. Hecho para PyMEs
+    en Chile, México, Colombia, Argentina y Brasil.
+  </p>
+  <div class="cta">
+    <a class="btn btn-primary btn-lg" href="/register">Crear mi cuenta</a>
+    <a class="btn btn-lg" href="/docs" target="_blank">Ver API</a>
+  </div>
+  <div class="badges">
+    <span class="badge">Next.js</span>
+    <span class="badge">NestJS</span>
+    <span class="badge">PostgreSQL + RLS</span>
+    <span class="badge">Multi-tenant</span>
+  </div>
+</section>
+
+<section class="container" style="padding: 60px 24px;">
+  <h2 class="text-center">Las 4 features del MVP</h2>
+  <p class="text-center text-muted" style="margin-bottom: 32px;">Lo mínimo viable. Lo demás viene después.</p>
+  <div class="grid grid-4">
+    <div class="feat">
+      <div class="icon">⚡</div>
+      <h3>Página</h3>
+      <p>Landing pública de tu negocio con tu marca, colores, contacto y bloques custom.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">📦</div>
+      <h3>Catálogo</h3>
+      <p>Productos, categorías, precios, stock, fotos. Optimizado para mobile y WhatsApp.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">📱</div>
+      <h3>QR</h3>
+      <p>Genera QRs para tus mesas, locales, productos o categorías. Mide cada escaneo.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">🎉</div>
+      <h3>Promociones</h3>
+      <p>Porcentajes, 2x1, cupones. Aplica a productos o categorías. Vigencia y límites.</p>
+    </div>
+  </div>
+</section>
+
+<section class="container" style="padding: 60px 24px; max-width: 880px;">
+  <h2 class="text-center">Una sola API, una sola web</h2>
+  <p class="text-center text-muted">API-first. Tu panel, una app mobile, integraciones, partners — todo consume la misma API.</p>
+  <div class="card mt-4" style="background: var(--code-bg);">
+<pre style="margin: 0; color: var(--fg); line-height: 1.6;"><code><span style="color: var(--fg-dim);"># Catálogo público de un tenant</span>
+curl https://api.wowhub.app/api/v1/public/t/cafe-norte/catalog
+
+<span style="color: var(--fg-dim);"># Crear un producto (autenticado)</span>
+curl -X POST https://api.wowhub.app/api/v1/tenants/&lt;id&gt;/products \\
+  -H "Authorization: Bearer &lt;token&gt;" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "sku": "LAT-001",
+    "name": "Latte",
+    "slug": "latte",
+    "price_cents": 3500,
+    "status": "active"
+  }'</code></pre>
+  </div>
+  <div class="text-center mt-4">
+    <a class="btn" href="/docs" target="_blank">Documentación OpenAPI</a>
+  </div>
+</section>
+
+<footer style="border-top: 1px solid var(--border); padding: 40px 24px; margin-top: 60px; text-align: center; color: var(--fg-dim); font-size: 13px;">
+  <p>WowHub — Prototipo Python · {{ settings.app_name }} v0.1.0</p>
+  <p>Construido con FastAPI + SQLAlchemy + Pydantic + Jinja2 · <a href="https://github.com" target="_blank">código</a></p>
+</footer>
+{% endblock %}

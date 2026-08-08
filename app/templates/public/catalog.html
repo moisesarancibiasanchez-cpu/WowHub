@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo — <span id="brand">…</span></title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+
+<header class="public-header">
+  <div class="container row">
+    <a class="brand" href="/u/{{ slug }}" style="color: var(--fg);">
+      <span class="brand-mark">W</span>
+      <span id="brand">…</span>
+    </a>
+    <span class="spacer" style="flex:1;"></span>
+    <a class="btn btn-sm" href="/u/{{ slug }}">← Volver</a>
+  </div>
+</header>
+
+<main class="container" style="padding: 24px;">
+  <div class="row" style="gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+    <input class="form-input" id="search" placeholder="Buscar productos..." style="max-width: 300px;">
+    <select class="form-select" id="category" style="max-width: 220px;">
+      <option value="">Todas las categorías</option>
+    </select>
+  </div>
+
+  <div class="catalog-grid" id="grid">
+    <div class="text-muted" style="grid-column: 1/-1; text-align: center; padding: 40px;">Cargando…</div>
+  </div>
+</main>
+
+<script>
+const slug = {{ slug | tojson }};
+let categories = [];
+
+async function load() {
+  const [profile, catRes, prodRes] = await Promise.all([
+    fetch(`/api/v1/public/t/${slug}/profile`).then(r => r.json()),
+    fetch(`/api/v1/public/t/${slug}/categories`).then(r => r.ok ? r.json() : []),
+    fetch(`/api/v1/public/t/${slug}/catalog?page_size=100`).then(r => r.json()),
+  ]);
+  document.getElementById("brand").textContent = profile.display_name;
+  document.title = `Catálogo — ${profile.display_name}`;
+  if (profile.branding?.brand_color) document.documentElement.style.setProperty("--accent", profile.branding.brand_color);
+
+  categories = catRes;
+  const sel = document.getElementById("category");
+  sel.innerHTML = '<option value="">Todas las categorías</option>' +
+    categories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+  render(prodRes.items);
+}
+
+async function search() {
+  const search = document.getElementById("search").value;
+  const category = document.getElementById("category").value;
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  if (category) qs.set("category", category);
+  qs.set("page_size", "100");
+  const data = await fetch(`/api/v1/public/t/${slug}/catalog?${qs}`).then(r => r.json());
+  render(data.items);
+}
+
+function render(items) {
+  const grid = document.getElementById("grid");
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column: 1/-1;"><div class="icon">📦</div>No hay productos para mostrar.</div>';
+    return;
+  }
+  grid.innerHTML = items.map(p => `
+    <div class="product-card">
+      ${p.image_url ? `<img class="img" src="${p.image_url}" alt="${p.name}">` : '<div class="img placeholder">📦</div>'}
+      ${p.on_sale ? `<div class="promo-badge">-${p.discount_pct}%</div>` : ''}
+      <div class="body">
+        <div class="name">${p.name}</div>
+        <div class="desc">${p.short_description || ''}</div>
+        <div class="price-row">
+          <span class="price">${fmt(p.price_cents)}</span>
+          ${p.on_sale ? `<span class="price-compare">${fmt(p.compare_at_cents)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
+
+let to;
+document.getElementById("search").addEventListener("input", () => { clearTimeout(to); to = setTimeout(search, 300); });
+document.getElementById("category").addEventListener("change", search);
+
+load();
+</script>
+</body>
+</html>

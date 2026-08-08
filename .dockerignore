@@ -1,0 +1,53 @@
+# ─── .dockerignore ─────────────────────────────
+# Reduce el contexto de build de Docker
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Variables de entorno (nunca al imagen)
+.env
+.env.local
+
+# DB local (se regenera dentro del contenedor)
+*.db
+*.sqlite
+*.sqlite3
+
+# Almacenamiento local
+storage/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentación
+*.md
+LICENSE
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

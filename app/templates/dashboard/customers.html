@@ -1,0 +1,126 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Clientes{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Clientes</h1>
+    <p class="sub">Tu base. Segmenta, etiqueta y mide.</p>
+  </div>
+  <button class="btn btn-primary" id="new-btn">+ Nuevo cliente</button>
+</div>
+
+<div class="row mt-3" style="gap: 8px;">
+  <input class="form-input" id="search" placeholder="Buscar por nombre, email o teléfono..." style="max-width: 360px;">
+</div>
+
+<div class="table-wrap mt-3">
+  <table class="table">
+    <thead>
+      <tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Pedidos</th><th>Gastado</th><th>Puntos</th><th></th></tr>
+    </thead>
+    <tbody id="tbody"><tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Modal simple -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nuevo cliente</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="customer-form">
+        <div class="form-group">
+          <label class="form-label">Nombre completo <span class="req">*</span></label>
+          <input class="form-input" id="cu_name" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" id="cu_email">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input class="form-input" id="cu_phone">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ciudad</label>
+          <input class="form-input" id="cu_city">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea class="form-textarea" id="cu_notes"></textarea>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+const tbody = document.getElementById("tbody");
+function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
+
+async function load() {
+  const search = document.getElementById("search").value;
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  qs.set("page_size", "100");
+  const data = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers?${qs}`);
+  if (data.items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">👥</div>No hay clientes. Agrega el primero.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.items.map(c => `
+    <tr>
+      <td><strong>${c.full_name}</strong></td>
+      <td>${c.email || '<span class="text-dim">—</span>'}</td>
+      <td>${c.phone || '<span class="text-dim">—</span>'}</td>
+      <td>${c.total_orders}</td>
+      <td>${fmt(c.total_spent_cents)}</td>
+      <td>${c.points}</td>
+      <td class="text-right"><button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button></td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll("[data-action=del]").forEach((b, i) => b.addEventListener("click", async () => {
+    const id = data.items[i].id;
+    if (!confirm("¿Eliminar cliente?")) return;
+    await WH.api.del(`/api/v1/tenants/${tenant.tenant_id}/customers/${id}`);
+    WH.Toast.show("Cliente eliminado");
+    load();
+  }));
+}
+
+document.getElementById("new-btn").addEventListener("click", () => document.getElementById("modal").classList.remove("hidden"));
+document.getElementById("modal-close").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("modal-cancel").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("modal-save").addEventListener("click", async () => {
+  const body = {
+    full_name: document.getElementById("cu_name").value,
+    email: document.getElementById("cu_email").value || null,
+    phone: document.getElementById("cu_phone").value || null,
+    city: document.getElementById("cu_city").value || null,
+    notes: document.getElementById("cu_notes").value || null,
+  };
+  try {
+    await WH.api.post(`/api/v1/tenants/${tenant.tenant_id}/customers`, body);
+    WH.Toast.show("Cliente guardado");
+    document.getElementById("modal").classList.add("hidden");
+    document.getElementById("customer-form").reset();
+    load();
+  } catch (err) { WH.Toast.show(err.message, "error"); }
+});
+
+let to;
+document.getElementById("search").addEventListener("input", () => { clearTimeout(to); to = setTimeout(load, 300); });
+load();
+</script>
+{% endblock %}

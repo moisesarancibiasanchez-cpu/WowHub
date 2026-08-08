@@ -1,0 +1,256 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Productos{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Productos</h1>
+    <p class="sub">Tu catálogo. Edita precios, fotos y stock.</p>
+  </div>
+  <button class="btn btn-primary" id="new-btn">+ Nuevo producto</button>
+</div>
+
+<div class="row mt-3" style="gap: 8px;">
+  <input class="form-input" id="search" placeholder="Buscar por nombre, SKU..." style="max-width: 320px;">
+  <select class="form-select" id="status-filter" style="max-width: 180px;">
+    <option value="">Todos los estados</option>
+    <option value="active">Activo</option>
+    <option value="draft">Borrador</option>
+    <option value="out_of_stock">Sin stock</option>
+    <option value="archived">Archivado</option>
+  </select>
+  <select class="form-select" id="order-by" style="max-width: 180px;">
+    <option value="position">Orden manual</option>
+    <option value="name">Nombre</option>
+    <option value="price">Precio</option>
+    <option value="created">Más recientes</option>
+    <option value="sold">Más vendidos</option>
+  </select>
+</div>
+
+<div class="table-wrap mt-3">
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width: 70px;">Foto</th>
+        <th>Producto</th>
+        <th>SKU</th>
+        <th>Precio</th>
+        <th>Stock</th>
+        <th>Estado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="products-tbody">
+      <tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal de edición -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nuevo producto</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="product-form">
+        <input type="hidden" id="p_id">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">SKU <span class="req">*</span></label>
+            <input class="form-input" id="p_sku" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Slug <span class="req">*</span></label>
+            <input class="form-input" id="p_slug" required>
+            <span class="form-help">URL: /catalogo/<strong>slug</strong></span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre <span class="req">*</span></label>
+          <input class="form-input" id="p_name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción corta</label>
+          <input class="form-input" id="p_short_description">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-textarea" id="p_description"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Precio (CLP) <span class="req">*</span></label>
+            <input class="form-input" type="number" id="p_price" min="0" step="1" required>
+            <span class="form-help">En pesos chilenos. Sin decimales.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Precio tachado (CLP)</label>
+            <input class="form-input" type="number" id="p_compare_at" min="0" step="1">
+            <span class="form-help">Opcional. Muestra descuento.</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Stock</label>
+            <input class="form-input" type="number" id="p_stock" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select class="form-select" id="p_status">
+              <option value="draft">Borrador</option>
+              <option value="active" selected>Activo</option>
+              <option value="out_of_stock">Sin stock</option>
+              <option value="archived">Archivado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL imagen</label>
+          <input class="form-input" type="url" id="p_image_url" placeholder="https://...">
+        </div>
+        <label class="row" style="gap: 6px;">
+          <input type="checkbox" id="p_is_featureed"> Destacado
+        </label>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+const tbody = document.getElementById("products-tbody");
+let categories = [];
+
+function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
+
+function statusBadge(s) {
+  const map = {
+    active: ["badge-success", "Activo"],
+    draft: ["badge", "Borrador"],
+    out_of_stock: ["badge-warn", "Sin stock"],
+    archived: ["badge", "Archivado"],
+  };
+  const [cls, label] = map[s] || ["badge", s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+async function loadCategories() {
+  try {
+    categories = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/categories`);
+  } catch { categories = []; }
+}
+
+async function load() {
+  const search = document.getElementById("search").value;
+  const status = document.getElementById("status-filter").value;
+  const order_by = document.getElementById("order-by").value;
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  if (status) qs.set("status", status);
+  if (order_by) qs.set("order_by", order_by);
+  qs.set("page_size", "100");
+  const data = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?${qs}`);
+  if (data.items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">📦</div>No hay productos. Crea el primero.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.items.map(p => `
+    <tr data-id="${p.id}">
+      <td>${p.image_url ? `<img src="${p.image_url}" style="width: 50px; height: 50px; border-radius: 6px; object-fit: cover;">` : '<div style="width:50px;height:50px;background:var(--bg-elev-2);border-radius:6px;display:grid;place-items:center;color:var(--fg-dim);">∅</div>'}</td>
+      <td>
+        <div style="font-weight: 600;">${p.name}${p.is_featured ? ' <span class="badge badge-accent">★</span>' : ''}</div>
+        <div class="text-muted" style="font-size: 12px;">${p.short_description || ''}</div>
+      </td>
+      <td><code>${p.sku}</code></td>
+      <td>
+        <strong>${fmt(p.price_cents)}</strong>
+        ${p.on_sale ? `<br><span class="text-dim" style="text-decoration: line-through; font-size: 12px;">${fmt(p.compare_at_cents)}</span> <span class="badge badge-err">-${p.discount_pct}%</span>` : ''}
+      </td>
+      <td>${p.stock}</td>
+      <td>${statusBadge(p.status)}</td>
+      <td class="text-right">
+        <button class="btn btn-sm" data-action="edit">Editar</button>
+        <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button>
+      </td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll("button[data-action=edit]").forEach(b => b.addEventListener("click", onEdit));
+  tbody.querySelectorAll("button[data-action=del]").forEach(b => b.addEventListener("click", onDelete));
+}
+
+function openModal(p) {
+  document.getElementById("modal-title").textContent = p ? "Editar producto" : "Nuevo producto";
+  document.getElementById("p_id").value = p?.id || "";
+  document.getElementById("p_sku").value = p?.sku || "";
+  document.getElementById("p_slug").value = p?.slug || "";
+  document.getElementById("p_name").value = p?.name || "";
+  document.getElementById("p_short_description").value = p?.short_description || "";
+  document.getElementById("p_description").value = p?.description || "";
+  document.getElementById("p_price").value = p ? p.price_cents / 100 : "";
+  document.getElementById("p_compare_at").value = p?.compare_at_cents ? p.compare_at_cents / 100 : "";
+  document.getElementById("p_stock").value = p?.stock || 0;
+  document.getElementById("p_status").value = p?.status || "active";
+  document.getElementById("p_image_url").value = p?.image_url || "";
+  document.getElementById("p_is_featureed").checked = !!p?.is_featured;
+  document.getElementById("modal").classList.remove("hidden");
+}
+function closeModal() { document.getElementById("modal").classList.add("hidden"); }
+
+async function onEdit(e) {
+  const id = e.target.closest("tr").dataset.id;
+  const p = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products/${id}`);
+  openModal(p);
+}
+async function onDelete(e) {
+  const id = e.target.closest("tr").dataset.id;
+  if (!confirm("¿Eliminar este producto?")) return;
+  await WH.api.del(`/api/v1/tenants/${tenant.tenant_id}/products/${id}`);
+  WH.Toast.show("Producto eliminado");
+  load();
+}
+
+document.getElementById("new-btn").addEventListener("click", () => openModal(null));
+document.getElementById("modal-close").addEventListener("click", closeModal);
+document.getElementById("modal-cancel").addEventListener("click", closeModal);
+document.getElementById("modal-save").addEventListener("click", async () => {
+  const id = document.getElementById("p_id").value;
+  const body = {
+    sku: document.getElementById("p_sku").value,
+    slug: document.getElementById("p_slug").value,
+    name: document.getElementById("p_name").value,
+    short_description: document.getElementById("p_short_description").value || null,
+    description: document.getElementById("p_description").value || null,
+    price_cents: Math.round(Number(document.getElementById("p_price").value) * 100),
+    compare_at_cents: document.getElementById("p_compare_at").value ? Math.round(Number(document.getElementById("p_compare_at").value) * 100) : null,
+    stock: Number(document.getElementById("p_stock").value),
+    status: document.getElementById("p_status").value,
+    image_url: document.getElementById("p_image_url").value || null,
+    is_featured: document.getElementById("p_is_featureed").checked,
+  };
+  try {
+    if (id) await WH.api.patch(`/api/v1/tenants/${tenant.tenant_id}/products/${id}`, body);
+    else await WH.api.post(`/api/v1/tenants/${tenant.tenant_id}/products`, body);
+    WH.Toast.show("Producto guardado");
+    closeModal();
+    load();
+  } catch (err) {
+    WH.Toast.show(err.message, "error");
+  }
+});
+
+["search", "status-filter", "order-by"].forEach(id => {
+  document.getElementById(id).addEventListener("input", debounce(load, 300));
+});
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+(async function init() { await loadCategories(); await load(); })();
+</script>
+{% endblock %}

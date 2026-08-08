@@ -1,0 +1,86 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Resumen{% endblock %}
+{% block dash_content %}
+<h1>Hola, <span id="user-name">{{ user.full_name if user else "" }}</span></h1>
+<p class="sub">Este es tu panel. Empieza creando productos y categorías, o explora las funciones del menú.</p>
+
+<div id="alert-no-tenant" class="alert alert-info" style="display:none;">
+  Aún no tienes un negocio creado. <a href="#" id="create-tenant-link">Crea uno ahora</a>.
+</div>
+
+<div class="grid grid-3">
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Productos activos</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-products">—</div>
+    <a href="/dashboard/products" style="font-size: 13px;">Gestionar →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Promociones vigentes</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-promos">—</div>
+    <a href="/dashboard/promotions" style="font-size: 13px;">Gestionar →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">QRs generados</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-qrs">—</div>
+    <a href="/dashboard/qrs" style="font-size: 13px;">Gestionar →</a>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-header">
+    <h2 class="card-title">Tu página pública</h2>
+    <a class="btn btn-sm" id="open-public" target="_blank">Abrir ↗</a>
+  </div>
+  <p class="text-muted" id="public-url-help">Configura tu landing y compártela con tus clientes.</p>
+  <code id="public-url" style="font-size: 14px;"></code>
+</div>
+
+<div class="card mt-4">
+  <h2 class="card-title">Primeros pasos</h2>
+  <ol style="margin: 12px 0 0 0; padding-left: 20px; line-height: 1.8;">
+    <li>Edita tu <a href="/dashboard/landing">landing</a> (colores, contacto, redes).</li>
+    <li>Crea <a href="/dashboard/products">productos</a> y agrúpalos en categorías.</li>
+    <li>Diseña <a href="/dashboard/promotions">promociones</a> (2x1, %, cupones).</li>
+    <li>Genera <a href="/dashboard/qrs">QRs</a> para tus mesas, locales o productos.</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+if (!tenant) {
+  document.getElementById("alert-no-tenant").style.display = "block";
+  document.getElementById("create-tenant-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    const slug = prompt("URL de tu negocio (solo letras, números y guiones):", "mi-negocio");
+    if (!slug) return;
+    const legal_name = prompt("Nombre legal:", "Mi Negocio SpA");
+    if (!legal_name) return;
+    WH.api.post("/api/v1/tenants", { slug, legal_name, display_name: legal_name })
+      .then(t => {
+        WH.Toast.show("Negocio creado");
+        setTimeout(() => location.reload(), 600);
+      })
+      .catch(err => WH.Toast.show(err.message, "error"));
+  });
+} else {
+  const url = `${location.origin}/u/${tenant.tenant_slug}`;
+  document.getElementById("public-url").textContent = url;
+  document.getElementById("open-public").href = url;
+  document.getElementById("public-url-help").textContent = "Comparte este link con tus clientes:";
+
+  // Stats
+  Promise.all([
+    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
+    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
+    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
+  ]).then(([p, pr, q]) => {
+    document.getElementById("stat-products").textContent = p.total;
+    const now = Date.now();
+    document.getElementById("stat-promos").textContent = pr.filter(x => x.is_valid_now).length;
+    document.getElementById("stat-qrs").textContent = q.length;
+  }).catch(err => console.warn("Stats err", err));
+}
+</script>
+{% endblock %}

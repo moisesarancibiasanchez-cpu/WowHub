@@ -1,0 +1,132 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Landing{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Landing de tu negocio</h1>
+    <p class="sub">Personaliza cómo se ve tu página pública.</p>
+  </div>
+  <a class="btn" id="preview-link" target="_blank">Vista previa ↗</a>
+</div>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+  <div class="card">
+    <h2 class="card-title">Hero</h2>
+    <div class="form-group">
+      <label class="form-label">Título</label>
+      <input class="form-input" id="hero_title">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subtítulo</label>
+      <textarea class="form-textarea" id="hero_subtitle"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Imagen URL</label>
+      <input class="form-input" id="hero_image_url">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Texto botón principal</label>
+      <input class="form-input" id="hero_cta_text">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Marca</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Color principal</label>
+        <input class="form-input" type="color" id="brand_color">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Color acento</label>
+        <input class="form-input" type="color" id="accent_color">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Logo URL</label>
+      <input class="form-input" id="logo_url">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Contacto</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">WhatsApp</label>
+        <input class="form-input" id="contact_whatsapp" placeholder="+56 9 ...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teléfono</label>
+        <input class="form-input" id="contact_phone">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="contact_email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dirección</label>
+      <input class="form-input" id="contact_address">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Instagram</label>
+        <input class="form-input" id="social_instagram" placeholder="@cafe.norte">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Facebook</label>
+        <input class="form-input" id="social_facebook">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Secciones</h2>
+    <p class="text-muted" style="font-size: 13px;">Activa o desactiva bloques en tu landing.</p>
+    <label class="row" style="gap: 6px; margin-bottom: 8px;"><input type="checkbox" id="show_categories"> Categorías</label>
+    <label class="row" style="gap: 6px; margin-bottom: 8px;"><input type="checkbox" id="show_featured_products"> Productos destacados</label>
+    <label class="row" style="gap: 6px; margin-bottom: 8px;"><input type="checkbox" id="show_promotions"> Promociones</label>
+    <label class="row" style="gap: 6px; margin-bottom: 8px;"><input type="checkbox" id="show_branches"> Sucursales</label>
+    <label class="row" style="gap: 6px; margin-bottom: 8px;"><input type="checkbox" id="show_contact"> Contacto</label>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <button class="btn btn-primary" id="save-btn">Guardar cambios</button>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+document.getElementById("preview-link").href = `/u/${tenant.tenant_slug}`;
+
+async function load() {
+  const c = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/landing`);
+  for (const k of ["hero_title","hero_subtitle","hero_image_url","hero_cta_text","brand_color","accent_color","logo_url","contact_whatsapp","contact_phone","contact_email","contact_address","social_instagram","social_facebook"]) {
+    const el = document.getElementById(k);
+    if (el) el.value = c[k] || "";
+  }
+  for (const k of ["show_categories","show_featured_products","show_promotions","show_branches","show_contact"]) {
+    document.getElementById(k).checked = !!c[k];
+  }
+}
+
+document.getElementById("save-btn").addEventListener("click", async () => {
+  const body = {};
+  for (const k of ["hero_title","hero_subtitle","hero_image_url","hero_cta_text","brand_color","accent_color","logo_url","contact_whatsapp","contact_phone","contact_email","contact_address","social_instagram","social_facebook"]) {
+    const v = document.getElementById(k).value;
+    if (v) body[k] = v;
+  }
+  for (const k of ["show_categories","show_featured_products","show_promotions","show_branches","show_contact"]) {
+    body[k] = document.getElementById(k).checked;
+  }
+  try {
+    await WH.api.patch(`/api/v1/tenants/${tenant.tenant_id}/landing`, body);
+    WH.Toast.show("Landing actualizada");
+  } catch (err) { WH.Toast.show(err.message, "error"); }
+});
+
+load();
+</script>
+{% endblock %}

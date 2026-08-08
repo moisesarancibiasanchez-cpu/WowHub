@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Ingresar — WowHub{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="card">
+      <h1 style="font-size: 24px; margin-bottom: 4px;">Bienvenido</h1>
+      <p class="text-muted" style="margin-bottom: 24px;">Ingresa a tu panel WowHub</p>
+
+      <div id="alert"></div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="email">Email <span class="req">*</span></label>
+          <input class="form-input" type="email" id="email" name="email" required autocomplete="email" placeholder="tu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Contraseña <span class="req">*</span></label>
+          <input class="form-input" type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button class="btn btn-primary btn-block btn-lg" type="submit" id="submit-btn">Ingresar</button>
+      </form>
+
+      <p class="text-center text-muted mt-4" style="font-size: 13px;">
+        ¿No tienes cuenta? <a href="/register">Crear una</a>
+      </p>
+      <hr>
+      <p class="text-center text-dim" style="font-size: 12px;">
+        Demo: <code>maria@cafenorte.cl</code> / <code>demo1234</code>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true; btn.textContent = "Ingresando...";
+  document.getElementById("alert").innerHTML = "";
+  try {
+    const data = await WH.api.post("/api/v1/auth/login", {
+      email: document.getElementById("email").value,
+      password: document.getElementById("password").value,
+    });
+    WH.TokenStore.set(data);
+    WH.startAutoRefresh();
+    const next = new URLSearchParams(location.search).get("next") || "/dashboard";
+    window.location.href = next;
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    btn.disabled = false; btn.textContent = "Ingresar";
+  }
+});
+</script>
+{% endblock %}

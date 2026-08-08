@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}WowHub{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%237c5cff'/%3E%3Ctext x='50' y='65' font-size='52' text-anchor='middle' fill='%230b0d12' font-family='sans-serif' font-weight='800'%3EW%3C/text%3E%3C/svg%3E">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+{% block topbar %}
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark">W</span>
+    <span>WowHub</span>
+  </a>
+  <nav class="topbar-nav" id="topbar-nav">
+    <a href="/docs" target="_blank">API</a>
+    <a href="https://github.com" target="_blank">Repo</a>
+  </nav>
+  <span class="spacer"></span>
+  <span id="auth-area">
+    <a class="btn btn-ghost btn-sm" href="/login">Ingresar</a>
+    <a class="btn btn-primary btn-sm" href="/register">Crear cuenta</a>
+  </span>
+</header>
+{% endblock %}
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,137 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}QRs{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Códigos QR</h1>
+    <p class="sub">Genera QRs para mesas, locales, productos o categorías. Mide cada escaneo.</p>
+  </div>
+  <button class="btn btn-primary" id="new-btn">+ Nuevo QR</button>
+</div>
+
+<div class="grid grid-3 mt-3" id="qrs-grid">
+  <div class="card text-center text-muted">Cargando…</div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Nuevo QR</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="qr-form">
+        <div class="form-group">
+          <label class="form-label">Etiqueta <span class="req">*</span></label>
+          <input class="form-input" id="qr_label" required placeholder="Mesa 1, Mostrador, Producto X...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Destino</label>
+          <select class="form-select" id="qr_target_type">
+            <option value="catalog">Catálogo completo</option>
+            <option value="landing">Landing del negocio</option>
+            <option value="product">Producto específico</option>
+            <option value="category">Categoría</option>
+            <option value="external">URL externa</option>
+          </select>
+        </div>
+        <div class="form-group" id="qr-target-external-group" style="display:none;">
+          <label class="form-label">URL externa</label>
+          <input class="form-input" type="url" id="qr_external_url" placeholder="https://...">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Generar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+const grid = document.getElementById("qrs-grid");
+
+async function load() {
+  const items = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`);
+  if (items.length === 0) {
+    grid.innerHTML = `<div class="card text-center text-muted" style="grid-column: 1/-1;"><div class="empty"><div class="icon">📱</div>No hay QRs. Crea el primero.</div></div>`;
+    return;
+  }
+  grid.innerHTML = items.map(q => `
+    <div class="card" data-id="${q.id}">
+      <div class="row" style="gap: 12px;">
+        <div class="qr-preview" style="width: 100px; height: 100px;">
+          <img src="${q.qr_image_data_url}" alt="QR ${q.short_code}">
+        </div>
+        <div style="flex: 1;">
+          <h3 style="margin: 0 0 4px;">${q.label}</h3>
+          <p class="text-muted" style="font-size: 12px; margin: 0 0 4px;">${q.target_type}</p>
+          <code style="font-size: 11px;">/r/${q.short_code}</code>
+          <div class="row" style="gap: 12px; margin-top: 8px; font-size: 12px;">
+            <span><strong>${q.scan_count}</strong> <span class="text-muted">escaneos</span></span>
+            ${q.unique_scans ? `<span><strong>${q.unique_scans}</strong> <span class="text-muted">únicos</span></span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3" style="gap: 6px;">
+        <a class="btn btn-sm" href="${q.full_url}" target="_blank">Probar ↗</a>
+        <button class="btn btn-sm" data-action="copy">Copiar link</button>
+        <button class="btn btn-sm" data-action="dl">Descargar PNG</button>
+        <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err); margin-left: auto;">Eliminar</button>
+      </div>
+    </div>
+  `).join("");
+
+  grid.querySelectorAll("[data-action=copy]").forEach(b => b.addEventListener("click", e => {
+    const url = e.target.closest("[data-id]").querySelector("code").textContent;
+    const full = location.origin + url;
+    navigator.clipboard.writeText(full);
+    WH.Toast.show("Link copiado");
+  }));
+  grid.querySelectorAll("[data-action=dl]").forEach(b => b.addEventListener("click", e => {
+    const id = e.target.closest("[data-id]").dataset.id;
+    const q = items.find(x => x.id === id);
+    const a = document.createElement("a");
+    a.href = q.qr_image_data_url;
+    a.download = `qr-${q.short_code}.png`;
+    a.click();
+  }));
+  grid.querySelectorAll("[data-action=del]").forEach(b => b.addEventListener("click", async e => {
+    const id = e.target.closest("[data-id]").dataset.id;
+    if (!confirm("¿Eliminar este QR?")) return;
+    await WH.api.del(`/api/v1/tenants/${tenant.tenant_id}/qrs/${id}`);
+    WH.Toast.show("QR eliminado");
+    load();
+  }));
+}
+
+document.getElementById("qr_target_type").addEventListener("change", (e) => {
+  document.getElementById("qr-target-external-group").style.display = e.target.value === "external" ? "block" : "none";
+});
+
+document.getElementById("new-btn").addEventListener("click", () => document.getElementById("modal").classList.remove("hidden"));
+document.getElementById("modal-close").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("modal-cancel").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("modal-save").addEventListener("click", async () => {
+  const body = {
+    label: document.getElementById("qr_label").value,
+    target_type: document.getElementById("qr_target_type").value,
+    external_url: document.getElementById("qr_external_url").value || null,
+  };
+  try {
+    await WH.api.post(`/api/v1/tenants/${tenant.tenant_id}/qrs`, body);
+    WH.Toast.show("QR generado");
+    document.getElementById("modal").classList.add("hidden");
+    document.getElementById("qr_label").value = "";
+    document.getElementById("qr_external_url").value = "";
+    load();
+  } catch (err) { WH.Toast.show(err.message, "error"); }
+});
+
+load();
+</script>
+{% endblock %}

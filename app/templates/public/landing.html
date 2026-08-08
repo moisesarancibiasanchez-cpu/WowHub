@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">{{ slug }} — WowHub</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <style id="custom-css"></style>
+</head>
+<body>
+
+<header class="public-header">
+  <div class="container row">
+    <div class="row" style="gap: 12px;">
+      <img id="logo" src="" alt="" style="height: 40px; display: none;">
+      <div>
+        <div class="brand-name" id="brand-name">…</div>
+        <div class="text-muted" style="font-size: 13px;" id="industry"></div>
+      </div>
+    </div>
+    <span class="spacer" style="flex:1;"></span>
+    <a class="btn btn-sm" href="/u/{{ slug }}/catalogo">Ver catálogo</a>
+  </div>
+</header>
+
+<section class="hero" id="hero-section" style="padding: 60px 20px;">
+  <div class="container-sm text-center">
+    <h1 id="hero-title">…</h1>
+    <p class="lead" id="hero-subtitle"></p>
+    <div class="cta">
+      <a class="btn btn-primary btn-lg" id="hero-cta" href="#">Ver catálogo</a>
+    </div>
+  </div>
+</section>
+
+<section class="container" id="categories-section" style="padding: 40px 24px;">
+  <h2>Categorías</h2>
+  <div class="row" id="categories-row" style="flex-wrap: wrap; gap: 8px;"></div>
+</section>
+
+<section class="container" id="promos-section" style="padding: 40px 24px;">
+  <h2>Promociones vigentes</h2>
+  <div class="grid grid-3" id="promos-grid"></div>
+</section>
+
+<section class="container" id="featured-section" style="padding: 40px 24px;">
+  <div class="row-between">
+    <h2>Destacados</h2>
+    <a class="btn btn-sm" href="/u/{{ slug }}/catalogo">Ver todo →</a>
+  </div>
+  <div class="catalog-grid" id="featured-grid"></div>
+</section>
+
+<section class="container" id="branches-section" style="padding: 40px 24px;">
+  <h2>Nuestras sucursales</h2>
+  <div class="grid grid-3" id="branches-grid"></div>
+</section>
+
+<section class="container" id="contact-section" style="padding: 40px 24px; margin-bottom: 60px;">
+  <h2>Contacto</h2>
+  <div class="card">
+    <div class="stack" id="contact-info"></div>
+    <div class="row mt-3" style="gap: 8px;" id="social-row"></div>
+  </div>
+</section>
+
+<footer style="border-top: 1px solid var(--border); padding: 30px 24px; text-align: center; color: var(--fg-dim); font-size: 12px;">
+  Hecho con <a href="/">WowHub</a>
+</footer>
+
+<script>
+const slug = {{ slug | tojson }};
+
+(async function init() {
+  try {
+    const [profile, landing, promos, featured, categories, branches] = await Promise.all([
+      fetch(`/api/v1/public/t/${slug}/profile`).then(r => r.json()),
+      fetch(`/api/v1/public/t/${slug}/landing`).then(r => r.ok ? r.json() : null),
+      fetch(`/api/v1/public/t/${slug}/promotions`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/v1/public/t/${slug}/catalog?is_featured=true&page_size=8`).then(r => r.ok ? r.json() : { items: [] }),
+      fetch(`/api/v1/public/t/${slug}/categories`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/v1/public/t/${slug}/branches`).then(r => r.ok ? r.json() : []),
+    ]);
+
+    document.title = `${profile.display_name} — WowHub`;
+    document.getElementById("brand-name").textContent = profile.display_name;
+    document.getElementById("industry").textContent = profile.industry;
+
+    const brand = profile.branding || {};
+    if (brand.logo_url) {
+      const img = document.getElementById("logo");
+      img.src = brand.logo_url; img.style.display = "block";
+    }
+    if (brand.brand_color) {
+      document.documentElement.style.setProperty("--accent", brand.brand_color);
+      const heroCta = document.getElementById("hero-cta");
+      heroCta.style.background = brand.brand_color;
+    }
+    if (brand.accent_color) {
+      document.documentElement.style.setProperty("--accent-2", brand.accent_color);
+    }
+
+    if (landing) {
+      document.getElementById("hero-title").textContent = landing.hero_title;
+      document.getElementById("hero-subtitle").textContent = landing.hero_subtitle || "";
+      document.getElementById("hero-cta").textContent = landing.hero_cta_text || "Ver catálogo";
+      if (landing.hero_image_url) {
+        const hero = document.getElementById("hero-section");
+        hero.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${landing.hero_image_url}')`;
+        hero.style.backgroundSize = "cover";
+        hero.style.backgroundPosition = "center";
+        hero.querySelector("h1").style.color = "white";
+        hero.querySelector(".lead").style.color = "rgba(255,255,255,0.9)";
+      }
+      if (landing.seo_title) document.title = landing.seo_title;
+      if (landing.custom_css) document.getElementById("custom-css").textContent = landing.custom_css;
+
+      // Secciones
+      document.getElementById("categories-section").style.display = landing.show_categories ? "block" : "none";
+      document.getElementById("promos-section").style.display = (landing.show_promotions && promos.length > 0) ? "block" : "none";
+      document.getElementById("featured-section").style.display = (landing.show_featured_products && featured.items.length > 0) ? "block" : "none";
+      document.getElementById("branches-section").style.display = (landing.show_branches && branches.length > 0) ? "block" : "none";
+      document.getElementById("contact-section").style.display = landing.show_contact ? "block" : "none";
+    } else {
+      // sin landing, ocultar secciones vacías
+      document.getElementById("promos-section").style.display = promos.length ? "block" : "none";
+      document.getElementById("featured-section").style.display = featured.items.length ? "block" : "none";
+      document.getElementById("branches-section").style.display = branches.length ? "block" : "none";
+    }
+
+    // Categorías
+    const catRow = document.getElementById("categories-row");
+    catRow.innerHTML = categories.length === 0
+      ? '<span class="text-muted">Sin categorías aún</span>'
+      : categories.map(c => `<a class="badge" href="/u/${slug}/catalogo?category=${c.slug}" style="padding: 8px 14px; font-size: 13px; text-decoration: none; color: var(--fg);">${c.icon ? c.icon + ' ' : ''}${c.name}</a>`).join("");
+
+    // Promos
+    const promosGrid = document.getElementById("promos-grid");
+    promosGrid.innerHTML = promos.length === 0
+      ? '<div class="text-muted">No hay promociones vigentes.</div>'
+      : promos.map(p => `
+        <div class="card" style="border-left: 4px solid ${p.color || '#ff6b6b'};">
+          ${p.badge_text ? `<span class="badge" style="background:${p.color}; color: white; margin-bottom: 8px;">${p.badge_text}</span>` : ''}
+          <h3 style="margin: 0 0 4px;">${p.name}</h3>
+          <p class="text-muted" style="font-size: 13px;">${p.description || ''}</p>
+          ${p.code ? `<p style="margin-top: 12px;">Cupón: <code style="font-size: 14px;">${p.code}</code></p>` : ''}
+        </div>
+      `).join("");
+
+    // Productos destacados
+    const featGrid = document.getElementById("featured-grid");
+    featGrid.innerHTML = featured.items.length === 0 ? '<div class="text-muted">Sin productos destacados.</div>' : featured.items.map(p => renderProduct(p)).join("");
+
+    // Sucursales
+    const brGrid = document.getElementById("branches-grid");
+    brGrid.innerHTML = branches.length === 0 ? '<div class="text-muted">Sin sucursales.</div>' : branches.map(b => `
+      <div class="card">
+        <h3 style="margin: 0 0 4px;">${b.name} ${b.is_main ? '<span class="badge badge-accent">Principal</span>' : ''}</h3>
+        <p class="text-muted" style="font-size: 13px; margin: 4px 0;">${b.address}, ${b.city}</p>
+        ${b.phone ? `<p style="font-size: 13px;">📞 ${b.phone}</p>` : ''}
+        ${b.hours && Object.keys(b.hours).length ? `<p class="text-dim" style="font-size: 12px;">${Object.entries(b.hours).map(([k,v]) => `${k}: ${v}`).join(' · ')}</p>` : ''}
+      </div>
+    `).join("");
+
+    // Contacto
+    const contactInfo = document.getElementById("contact-info");
+    const ci = landing || {};
+    let html = "";
+    if (ci.contact_address) html += `<p>📍 ${ci.contact_address}</p>`;
+    if (ci.contact_phone) html += `<p>📞 <a href="tel:${ci.contact_phone}">${ci.contact_phone}</a></p>`;
+    if (ci.contact_whatsapp) html += `<p>💬 <a href="https://wa.me/${ci.contact_whatsapp.replace(/\\D/g,'')}" target="_blank">WhatsApp</a></p>`;
+    if (ci.contact_email) html += `<p>✉️ <a href="mailto:${ci.contact_email}">${ci.contact_email}</a></p>`;
+    contactInfo.innerHTML = html || '<p class="text-muted">Sin datos de contacto.</p>';
+    const socialRow = document.getElementById("social-row");
+    let shtml = "";
+    if (ci.social_instagram) shtml += `<a class="btn btn-sm" href="https://instagram.com/${ci.social_instagram.replace('@','')}" target="_blank">Instagram</a>`;
+    if (ci.social_facebook) shtml += `<a class="btn btn-sm" href="${ci.social_facebook}" target="_blank">Facebook</a>`;
+    if (ci.social_tiktok) shtml += `<a class="btn btn-sm" href="${ci.social_tiktok}" target="_blank">TikTok</a>`;
+    socialRow.innerHTML = shtml;
+  } catch (e) {
+    document.body.innerHTML = `<div class="container" style="padding: 60px 24px; text-align: center;"><h1>No encontrado</h1><p>El negocio "${slug}" no existe o está inactivo.</p><a href="/" class="btn btn-primary">Volver</a></div>`;
+  }
+})();
+
+function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
+function renderProduct(p) {
+  return `
+    <a class="product-card" href="/u/${slug}/catalogo?product=${p.slug}">
+      ${p.image_url ? `<img class="img" src="${p.image_url}" alt="${p.name}">` : '<div class="img placeholder">📦</div>'}
+      ${p.on_sale ? `<div class="promo-badge">-${p.discount_pct}%</div>` : ''}
+      <div class="body">
+        <div class="name">${p.name}</div>
+        <div class="desc">${p.short_description || ''}</div>
+        <div class="price-row">
+          <span class="price">${fmt(p.price_cents)}</span>
+          ${p.on_sale ? `<span class="price-compare">${fmt(p.compare_at_cents)}</span>` : ''}
+        </div>
+      </div>
+    </a>`;
+}
+</script>
+</body>
+</html>

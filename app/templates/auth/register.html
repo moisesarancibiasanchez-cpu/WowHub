@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta — WowHub{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="card">
+      <h1 style="font-size: 24px; margin-bottom: 4px;">Crea tu cuenta</h1>
+      <p class="text-muted" style="margin-bottom: 24px;">Y tu primer negocio en 10 minutos</p>
+
+      <div id="alert"></div>
+
+      <form id="register-form">
+        <div class="form-group">
+          <label class="form-label">Nombre completo <span class="req">*</span></label>
+          <input class="form-input" type="text" id="full_name" required minlength="2">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email <span class="req">*</span></label>
+          <input class="form-input" type="email" id="email" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono</label>
+          <input class="form-input" type="tel" id="phone" placeholder="+56 9 1234 5678">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña <span class="req">*</span></label>
+          <input class="form-input" type="password" id="password" required minlength="8" placeholder="Mínimo 8 caracteres, mezcla letras y números">
+          <span class="form-help">Combina letras y números.</span>
+        </div>
+
+        <hr style="margin: 20px 0;">
+        <p style="font-size: 13px; color: var(--fg-muted); margin-bottom: 8px;">Datos de tu negocio (opcional — los puedes agregar después)</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre del negocio</label>
+            <input class="form-input" type="text" id="tenant_legal_name" placeholder="Café Norte SpA">
+          </div>
+          <div class="form-group">
+            <label class="form-label">URL (slug)</label>
+            <input class="form-input" type="text" id="tenant_slug" placeholder="cafe-norte">
+            <span class="form-help">wowhub.app/u/<strong>cafe-norte</strong></span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rubro</label>
+          <select class="form-select" id="tenant_industry">
+            <option value="gastro">Gastronomía</option>
+            <option value="retail">Retail / Tienda</option>
+            <option value="services">Servicios</option>
+            <option value="beauty">Belleza y estética</option>
+            <option value="education">Educación</option>
+            <option value="health">Salud</option>
+            <option value="other" selected>Otro</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary btn-block btn-lg" type="submit" id="submit-btn">Crear cuenta</button>
+      </form>
+
+      <p class="text-center text-muted mt-4" style="font-size: 13px;">
+        ¿Ya tienes cuenta? <a href="/login">Ingresar</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("register-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true; btn.textContent = "Creando...";
+  document.getElementById("alert").innerHTML = "";
+
+  const tenant_legal_name = document.getElementById("tenant_legal_name").value.trim();
+  const tenant_slug = document.getElementById("tenant_slug").value.trim();
+  const tenant_industry = document.getElementById("tenant_industry").value;
+  const create_tenant = !!(tenant_legal_name && tenant_slug);
+
+  try {
+    const data = await WH.api.post("/api/v1/auth/register", {
+      full_name: document.getElementById("full_name").value,
+      email: document.getElementById("email").value,
+      phone: document.getElementById("phone").value || null,
+      password: document.getElementById("password").value,
+      create_tenant,
+      tenant_legal_name: tenant_legal_name || null,
+      tenant_slug: tenant_slug || null,
+      tenant_industry: create_tenant ? tenant_industry : null,
+    });
+    WH.TokenStore.set(data);
+    WH.startAutoRefresh();
+    WH.Toast.show("Cuenta creada. ¡Bienvenido!");
+    setTimeout(() => window.location.href = "/dashboard", 600);
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    btn.disabled = false; btn.textContent = "Crear cuenta";
+  }
+});
+</script>
+{% endblock %}

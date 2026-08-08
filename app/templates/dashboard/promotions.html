@@ -1,0 +1,218 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Promociones{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Promociones</h1>
+    <p class="sub">Descuentos, 2x1, cupones. Aplica a todo el catálogo o a productos específicos.</p>
+  </div>
+  <button class="btn btn-primary" id="new-btn">+ Nueva promoción</button>
+</div>
+
+<div class="grid grid-3 mt-3" id="promos-grid">
+  <div class="card text-center text-muted">Cargando…</div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nueva promoción</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="promo-form">
+        <input type="hidden" id="pr_id">
+        <div class="form-group">
+          <label class="form-label">Nombre <span class="req">*</span></label>
+          <input class="form-input" id="pr_name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-textarea" id="pr_description"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <select class="form-select" id="pr_promo_type">
+              <option value="percent">Porcentaje</option>
+              <option value="fixed">Monto fijo</option>
+              <option value="buy_x_get_y">2x1 / 3x2</option>
+              <option value="free_shipping">Envío gratis</option>
+              <option value="bundle">Bundle</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valor descuento</label>
+            <input class="form-input" type="number" id="pr_discount_value" min="0" value="10">
+            <span class="form-help" id="pr-help">Si es %, ingresa 10 para 10%.</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Compra mínima (CLP)</label>
+            <input class="form-input" type="number" id="pr_min_purchase" min="0" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cupón (opcional)</label>
+            <input class="form-input" id="pr_code" placeholder="VERANO20">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Empieza</label>
+            <input class="form-input" type="datetime-local" id="pr_starts_at">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Termina</label>
+            <input class="form-input" type="datetime-local" id="pr_ends_at">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Límite de usos</label>
+            <input class="form-input" type="number" id="pr_usage_limit" min="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Por cliente</label>
+            <input class="form-input" type="number" id="pr_usage_per_customer" min="1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Badge</label>
+            <input class="form-input" id="pr_badge" placeholder="-20%">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <input class="form-input" type="color" id="pr_color" value="#ff6b6b">
+          </div>
+        </div>
+        <div class="row" style="gap: 16px;">
+          <label class="row" style="gap: 6px;"><input type="checkbox" id="pr_is_active" checked> Activa</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" id="pr_is_public" checked> Pública</label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+const tenant = WH.Auth.tenant();
+const grid = document.getElementById("promos-grid");
+
+function badge(p) {
+  if (!p.is_valid_now) return `<span class="badge">Inactiva</span>`;
+  if (p.promo_type === "percent") return `<span class="badge badge-err">-${p.discount_value}%</span>`;
+  if (p.promo_type === "fixed") return `<span class="badge badge-err">-$${p.discount_value}</span>`;
+  if (p.promo_type === "buy_x_get_y") return `<span class="badge badge-err">2x1</span>`;
+  if (p.promo_type === "free_shipping") return `<span class="badge badge-accent">Envío gratis</span>`;
+  return `<span class="badge">${p.promo_type}</span>`;
+}
+
+async function load() {
+  const items = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions`);
+  if (items.length === 0) {
+    grid.innerHTML = `<div class="card text-center text-muted" style="grid-column: 1/-1;"><div class="empty"><div class="icon">🎉</div>No hay promociones. Crea la primera.</div></div>`;
+    return;
+  }
+  grid.innerHTML = items.map(p => `
+    <div class="card" data-id="${p.id}">
+      <div class="row" style="gap: 8px; margin-bottom: 8px;">
+        ${badge(p)}
+        ${p.code ? `<code>${p.code}</code>` : ''}
+        ${!p.is_active ? '<span class="badge">Pausada</span>' : ''}
+      </div>
+      <h3 style="margin: 0 0 4px;">${p.name}</h3>
+      <p class="text-muted" style="font-size: 13px; min-height: 40px;">${p.description || ''}</p>
+      <div class="text-dim" style="font-size: 11px; margin-bottom: 12px;">
+        ${p.starts_at ? 'Desde ' + new Date(p.starts_at).toLocaleDateString() : ''}
+        ${p.ends_at ? ' hasta ' + new Date(p.ends_at).toLocaleDateString() : ''}
+        ${p.usage_limit ? ' · máx ' + p.usage_limit : ''}
+      </div>
+      <div class="row" style="gap: 6px;">
+        <button class="btn btn-sm" data-action="edit">Editar</button>
+        <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button>
+      </div>
+    </div>
+  `).join("");
+  grid.querySelectorAll("button[data-action=edit]").forEach(b => b.addEventListener("click", onEdit));
+  grid.querySelectorAll("button[data-action=del]").forEach(b => b.addEventListener("click", onDelete));
+}
+
+function openModal(p) {
+  document.getElementById("modal-title").textContent = p ? "Editar promoción" : "Nueva promoción";
+  document.getElementById("pr_id").value = p?.id || "";
+  document.getElementById("pr_name").value = p?.name || "";
+  document.getElementById("pr_description").value = p?.description || "";
+  document.getElementById("pr_promo_type").value = p?.promo_type || "percent";
+  document.getElementById("pr_discount_value").value = p?.discount_value || 10;
+  document.getElementById("pr_min_purchase").value = p ? p.min_purchase_cents / 100 : 0;
+  document.getElementById("pr_code").value = p?.code || "";
+  document.getElementById("pr_starts_at").value = p?.starts_at ? p.starts_at.slice(0, 16) : "";
+  document.getElementById("pr_ends_at").value = p?.ends_at ? p.ends_at.slice(0, 16) : "";
+  document.getElementById("pr_usage_limit").value = p?.usage_limit || "";
+  document.getElementById("pr_usage_per_customer").value = p?.usage_limit_per_customer || "";
+  document.getElementById("pr_badge").value = p?.badge_text || "";
+  document.getElementById("pr_color").value = p?.color || "#ff6b6b";
+  document.getElementById("pr_is_active").checked = p ? p.is_active : true;
+  document.getElementById("pr_is_public").checked = p ? p.is_public : true;
+  document.getElementById("modal").classList.remove("hidden");
+}
+function closeModal() { document.getElementById("modal").classList.add("hidden"); }
+
+async function onEdit(e) {
+  const id = e.target.closest("[data-id]").dataset.id;
+  const p = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions/${id}`);
+  openModal(p);
+}
+async function onDelete(e) {
+  const id = e.target.closest("[data-id]").dataset.id;
+  if (!confirm("¿Eliminar esta promoción?")) return;
+  await WH.api.del(`/api/v1/tenants/${tenant.tenant_id}/promotions/${id}`);
+  WH.Toast.show("Promoción eliminada");
+  load();
+}
+
+document.getElementById("new-btn").addEventListener("click", () => openModal(null));
+document.getElementById("modal-close").addEventListener("click", closeModal);
+document.getElementById("modal-cancel").addEventListener("click", closeModal);
+document.getElementById("modal-save").addEventListener("click", async () => {
+  const id = document.getElementById("pr_id").value;
+  const body = {
+    name: document.getElementById("pr_name").value,
+    description: document.getElementById("pr_description").value || null,
+    promo_type: document.getElementById("pr_promo_type").value,
+    discount_type: document.getElementById("pr_promo_type").value === "fixed" ? "fixed" : "percent",
+    discount_value: Number(document.getElementById("pr_discount_value").value),
+    min_purchase_cents: Math.round(Number(document.getElementById("pr_min_purchase").value) * 100),
+    code: document.getElementById("pr_code").value || null,
+    starts_at: document.getElementById("pr_starts_at").value ? new Date(document.getElementById("pr_starts_at").value).toISOString() : null,
+    ends_at: document.getElementById("pr_ends_at").value ? new Date(document.getElementById("pr_ends_at").value).toISOString() : null,
+    usage_limit: document.getElementById("pr_usage_limit").value ? Number(document.getElementById("pr_usage_limit").value) : null,
+    usage_limit_per_customer: document.getElementById("pr_usage_per_customer").value ? Number(document.getElementById("pr_usage_per_customer").value) : null,
+    badge_text: document.getElementById("pr_badge").value || null,
+    color: document.getElementById("pr_color").value,
+    is_active: document.getElementById("pr_is_active").checked,
+    is_public: document.getElementById("pr_is_public").checked,
+  };
+  try {
+    if (id) await WH.api.patch(`/api/v1/tenants/${tenant.tenant_id}/promotions/${id}`, body);
+    else await WH.api.post(`/api/v1/tenants/${tenant.tenant_id}/promotions`, body);
+    WH.Toast.show("Promoción guardada");
+    closeModal();
+    load();
+  } catch (err) {
+    WH.Toast.show(err.message, "error");
+  }
+});
+
+load();
+</script>
+{% endblock %}
