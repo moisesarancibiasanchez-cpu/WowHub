@@ -1,24 +1,19 @@
 # ─── WowHub · Render Blueprint ─────────────────────
 # Archivo declarativo para Render (https://render.com/docs/blueprint-spec)
-# Para usarlo: Render Dashboard → New → Blueprint → conectar repo → seleccionar este archivo
 
 services:
   # ── PostgreSQL ──────────────────────────
   - type: pserv
-    name: wowhub-db
-    plan: starter               # $7/mes (free 90d). Cambiar a "free" para el trial.
-    region: oregon              # Cambiar a "ohio" para menor latencia LATAM
-    databaseName: wowhub
-    databaseUser: wowhub
-    ipAllowList:                # Solo accesible desde el web service
+    name: wowhub                # ← El `name` se usa como DB y como user automáticamente
+    plan: starter
+    region: oregon
+    ipAllowList:
       - source: wowhub-api
-    # Disk opcional para backups (gratis en plan free, $1/mes en starter)
-
 
   # ── Web Service (API) ───────────────────
   - type: web
     name: wowhub-api
-    plan: starter               # $7/mes. Cambiar a "free" para 0 USD (con sleep).
+    plan: starter
     region: oregon
     branch: main
     runtime: docker
@@ -27,7 +22,6 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
-      # ── App
       - key: APP_NAME
         value: WowHub
       - key: APP_ENV
@@ -37,16 +31,14 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: SECRET_KEY
-        generateValue: true      # Render genera uno aleatorio
+        generateValue: true
       - key: BASE_URL
-        sync: false              # Lo configurás manualmente post-deploy
-      # ── DB (Render inyecta DATABASE_URL automáticamente desde el pserv)
+        sync: false
       - key: DATABASE_URL
         fromService:
           type: pserv
-          name: wowhub-db
+          name: wowhub
           property: connectionString
-      # ── Auth
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_ALGORITHM
@@ -55,10 +47,8 @@ services:
         value: "60"
       - key: JWT_REFRESH_TTL_DAYS
         value: "14"
-      # ── CORS
       - key: CORS_ORIGINS
         value: "*"
-      # ── Storage
       - key: STORAGE_BACKEND
         value: local
       - key: STORAGE_PATH
