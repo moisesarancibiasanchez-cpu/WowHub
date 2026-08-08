@@ -1,6 +1,6 @@
 # WowHub — Prototipo Python
 
-Plataforma SaaS modular para PyMEs en LATAM. **MVP**: Página, Catálogo, QR y Promociones.
+Plataforma SaaS modular para PyMEs en LATAM. **MVP**: Página, Catálogo, QR y Promociones
 
 Construido con **FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Jinja2 + HTMX**.
 
