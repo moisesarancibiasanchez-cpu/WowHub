@@ -40,6 +40,7 @@ RUN pip install --upgrade pip && \
         "httpx>=0.27.0" \
         "tenacity>=8.2.3" \
         "psycopg2-binary>=2.9.0" \
+        "psycopg[binary]>=3.1.0" \
         "gunicorn>=21.2.0"
         
 # 3) Copiar el código de la app
