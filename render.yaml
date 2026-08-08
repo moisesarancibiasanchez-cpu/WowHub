@@ -1,55 +1,16 @@
-# ─── WowHub · Render Blueprint ─────────────────────
-# Archivo declarativo para Render (https://render.com/docs/blueprint-spec)
-
-services:
-  # ── PostgreSQL ──────────────────────────
-  - type: pserv
-    name: wowhub                # ← El `name` se usa como DB y como user automáticamente
+databases:           # ← NUEVO: clave top-level para PostgreSQL
+  - name: wowhub
     plan: starter
     region: oregon
     ipAllowList:
       - source: wowhub-api
 
-  # ── Web Service (API) ───────────────────
+services:            # ← solo para web/worker/cron
   - type: web
     name: wowhub-api
-    plan: starter
-    region: oregon
-    branch: main
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    healthCheckPath: /health
-    autoDeploy: true
     envVars:
-      - key: APP_NAME
-        value: WowHub
-      - key: APP_ENV
-        value: production
-      - key: DEBUG
-        value: "false"
-      - key: LOG_LEVEL
-        value: INFO
-      - key: SECRET_KEY
-        generateValue: true
-      - key: BASE_URL
-        sync: false
       - key: DATABASE_URL
-        fromService:
-          type: pserv
+        fromDatabase:    # ← cambiado de fromService
           name: wowhub
           property: connectionString
-      - key: JWT_SECRET
-        generateValue: true
-      - key: JWT_ALGORITHM
-        value: HS256
-      - key: JWT_ACCESS_TTL_MINUTES
-        value: "60"
-      - key: JWT_REFRESH_TTL_DAYS
-        value: "14"
-      - key: CORS_ORIGINS
-        value: "*"
-      - key: STORAGE_BACKEND
-        value: local
-      - key: STORAGE_PATH
-        value: /app/storage
