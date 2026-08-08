@@ -2,8 +2,7 @@ databases:           # ← NUEVO: clave top-level para PostgreSQL
   - name: wowhub
     plan: starter
     region: oregon
-    ipAllowList:
-      - source: wowhub-api
+
 
 services:            # ← solo para web/worker/cron
   - type: web
