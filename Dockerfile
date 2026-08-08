@@ -26,7 +26,6 @@ RUN pip install --upgrade pip && \
         "fastapi>=0.110.0" \
         "uvicorn[standard]>=0.27.0" \
         "sqlalchemy>=2.0.27" \
-        # alembic upgrade head   # desactivado temporalmente
         "pydantic>=2.6.0" \
         "pydantic-settings>=2.2.0" \
         "python-multipart>=0.0.9" \
@@ -40,9 +39,9 @@ RUN pip install --upgrade pip && \
         "python-slugify>=8.0.1" \
         "httpx>=0.27.0" \
         "tenacity>=8.2.3" \
-        "psycopg[binary]>=3.1.0" \
+        "psycopg2-binary>=2.9.0" \
         "gunicorn>=21.2.0"
-
+        
 # 3) Copiar el código de la app
 COPY app ./app
 COPY scripts ./scripts
