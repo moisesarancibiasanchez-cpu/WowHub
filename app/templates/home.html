@@ -1,114 +1,87 @@
 {% extends "base.html" %}
-{% block title %}WowHub — Tu negocio online en minutos{% endblock %}
+{% block title %}WowHub — Tu negocio online, en minutos{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <div class="badges">
-    <span class="badge badge-accent">MVP v0.2</span>
-    <span class="badge badge-success">Multi-tenant</span>
-    <span class="badge">LATAM-first</span>
-    <span class="badge">PWA</span>
-  </div>
-  <h1>Tu negocio online,<br>en minutos.</h1>
-  <p class="lead">
-    Página, catálogo, QR, promociones, pedidos, pagos y reservas. Sin código.
-    Sin enredarse. Hecho para PyMEs en Chile, México, Colombia, Argentina y Brasil.
-  </p>
-  <div class="cta">
-    <a class="btn btn-primary btn-lg" href="/register">Crear mi cuenta</a>
-    <a class="btn btn-lg" href="/docs" target="_blank">Ver API</a>
-  </div>
-  <div class="badges">
-    <span class="badge">FastAPI</span>
-    <span class="badge">SQLAlchemy</span>
-    <span class="badge">Pydantic</span>
-    <span class="badge">Jinja2</span>
-    <span class="badge">PostgreSQL / SQLite</span>
+<!-- ─── HERO ─── -->
+<section class="hero hero-portada">
+  <div class="container">
+    <div class="badges" style="justify-content: center;">
+      <span class="badge badge-accent">MVP v0.2</span>
+      <span class="badge badge-success">Multi-tenant</span>
+      <span class="badge">LATAM-first</span>
+      <span class="badge">PWA</span>
+    </div>
+    <h1 class="hero-title">Tu negocio online,<br><span class="highlight">en minutos.</span></h1>
+    <p class="lead hero-lead">
+      Página, catálogo, QR, promociones, pedidos, pagos y reservas. Sin código.
+      Sin enredarse. Hecho para PyMEs en <strong>Chile, México, Colombia, Argentina y Brasil</strong>.
+    </p>
+    <div class="cta cta-center">
+      <a class="btn btn-primary btn-lg" href="/register">
+        Crea tu cuenta
+      </a>
+      <a class="btn btn-lg" href="/docs" target="_blank">Ver API</a>
+    </div>
   </div>
 </section>
 
-<section class="container" style="padding: 60px 24px;">
-  <h2 class="text-center">Funciones del MVP</h2>
-  <p class="text-center text-muted" style="margin-bottom: 32px;">Lo mínimo viable, más todo lo que tu PyME necesita el día 1.</p>
+<!-- ─── FUNCIONES DEL MVP ─── -->
+<section class="container funciones-mvp" style="padding: 80px 24px 60px;">
+  <div class="text-center" style="margin-bottom: 48px;">
+    <h2>Funciones del MVP</h2>
+    <p class="text-muted lead" style="margin-top: 12px;">
+      Lo mínimo viable, más todo lo que tu PyME necesita el día 1.
+    </p>
+  </div>
+
   <div class="grid grid-4">
     <div class="feat">
-      <div class="icon">⚡</div>
+      <div class="icon" aria-hidden="true">⚡</div>
       <h3>Página</h3>
       <p>Landing pública de tu negocio con tu marca, colores, contacto y bloques custom.</p>
     </div>
     <div class="feat">
-      <div class="icon">📦</div>
+      <div class="icon" aria-hidden="true">📦</div>
       <h3>Catálogo</h3>
       <p>Productos, categorías, precios, stock, fotos. Optimizado para mobile y WhatsApp.</p>
     </div>
     <div class="feat">
-      <div class="icon">📱</div>
+      <div class="icon" aria-hidden="true">📱</div>
       <h3>QR</h3>
       <p>Genera QRs para tus mesas, locales, productos o categorías. Mide cada escaneo.</p>
     </div>
     <div class="feat">
-      <div class="icon">🎉</div>
+      <div class="icon" aria-hidden="true">🎉</div>
       <h3>Promociones</h3>
       <p>Porcentajes, 2x1, cupones. Aplica a productos o categorías. Vigencia y límites.</p>
     </div>
   </div>
+
   <div class="grid grid-4" style="margin-top: 24px;">
     <div class="feat">
-      <div class="icon">🧾</div>
+      <div class="icon" aria-hidden="true">🧾</div>
       <h3>Pedidos</h3>
       <p>Flujo completo: PENDIENTE → CONFIRMADO → PREPARANDO → LISTO → ENTREGADO.</p>
     </div>
     <div class="feat">
-      <div class="icon">💳</div>
+      <div class="icon" aria-hidden="true">💳</div>
       <h3>Pagos</h3>
       <p>MercadoPago, transferencia, efectivo o contra entrega. Webhooks firmados.</p>
     </div>
     <div class="feat">
-      <div class="icon">📅</div>
+      <div class="icon" aria-hidden="true">📅</div>
       <h3>Reservas</h3>
       <p>Ideal para servicios: belleza, salud, educación. Confirma por WhatsApp.</p>
     </div>
     <div class="feat">
-      <div class="icon">📊</div>
+      <div class="icon" aria-hidden="true">📊</div>
       <h3>Estadísticas</h3>
       <p>Ventas, top productos, QRs más escaneados, serie diaria, ticket promedio.</p>
     </div>
   </div>
-</section>
 
-<section class="container" style="padding: 60px 24px; max-width: 880px;">
-  <h2 class="text-center">Una sola API, una sola web</h2>
-  <p class="text-center text-muted">API-first. Tu panel, una app mobile, integraciones, partners — todo consume la misma API.</p>
-  <div class="card mt-4" style="background: var(--code-bg);">
-<pre style="margin: 0; color: var(--fg); line-height: 1.6;"><code><span style="color: var(--fg-dim);"># Catálogo público de un tenant</span>
-curl {{ settings.public_base_url }}/api/v1/public/t/cafe-norte/catalog
-
-<span style="color: var(--fg-dim);"># Crear un pedido desde el checkout público</span>
-curl -X POST {{ settings.public_base_url }}/api/v1/public/t/cafe-norte/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_name": "Ana",
-    "customer_phone": "+56912345678",
-    "items": [{"product_id": "&lt;id&gt;", "quantity": 2}]
-  }'
-
-<span style="color: var(--fg-dim);"># Ver estadísticas del panel</span>
-curl -H "Authorization: Bearer &lt;token&gt;" \
-  {{ settings.public_base_url }}/api/v1/tenants/&lt;id&gt;/stats/overview</code></pre>
-  </div>
-  <div class="text-center mt-4">
-    <a class="btn" href="/docs" target="_blank">Documentación OpenAPI</a>
-    <a class="btn" href="/legal/terms">Términos</a>
-    <a class="btn" href="/legal/privacy">Privacidad</a>
+  <div class="text-center" style="margin-top: 48px;">
+    <a class="btn btn-primary btn-lg" href="/register">Crea tu cuenta</a>
   </div>
 </section>
-
-<footer style="border-top: 1px solid var(--border); padding: 40px 24px; margin-top: 60px; text-align: center; color: var(--fg-dim); font-size: 13px;">
-  <p>WowHub — {{ settings.app_name }} v0.2.0</p>
-  <p>Construido con FastAPI + SQLAlchemy + Pydantic + Jinja2 ·
-     <a href="https://github.com/moisesarancibiasanchez-cpu/WowHub" target="_blank">código</a> ·
-     <a href="/legal/terms">Términos</a> ·
-     <a href="/legal/privacy">Privacidad</a>
-  </p>
-</footer>
 {% endblock %}
