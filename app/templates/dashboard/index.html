@@ -1,7 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Resumen{% endblock %}
 {% block dash_content %}
-<h1>Hola, <span id="user-name">{{ user.full_name if user else "" }}</span></h1>
+<h1>Hola, <span id="user-name">cargando…</span></h1>
 <p class="sub">Este es tu panel. Empieza creando productos y categorías, o explora las funciones del menú.</p>
 
 <div id="alert-no-tenant" class="alert alert-info" style="display:none;">
@@ -31,7 +31,7 @@
     <h2 class="card-title">Tu página pública</h2>
     <a class="btn btn-sm" id="open-public" target="_blank">Abrir ↗</a>
   </div>
-  <p class="text-muted" id="public-url-help">Configura tu landing y compártela con tus clientes.</p>
+  <p class="text-muted" id="public-url-help">Cargando…</p>
   <code id="public-url" style="font-size: 14px;"></code>
 </div>
 
@@ -48,39 +48,74 @@
 
 {% block dash_scripts %}
 <script>
-const tenant = WH.Auth.tenant();
-if (!tenant) {
-  document.getElementById("alert-no-tenant").style.display = "block";
-  document.getElementById("create-tenant-link").addEventListener("click", (e) => {
-    e.preventDefault();
-    const slug = prompt("URL de tu negocio (solo letras, números y guiones):", "mi-negocio");
-    if (!slug) return;
-    const legal_name = prompt("Nombre legal:", "Mi Negocio SpA");
-    if (!legal_name) return;
-    WH.api.post("/api/v1/tenants", { slug, legal_name, display_name: legal_name })
-      .then(t => {
-        WH.Toast.show("Negocio creado");
-        setTimeout(() => location.reload(), 600);
-      })
-      .catch(err => WH.Toast.show(err.message, "error"));
-  });
-} else {
-  const url = `${location.origin}/u/${tenant.tenant_slug}`;
-  document.getElementById("public-url").textContent = url;
-  document.getElementById("open-public").href = url;
-  document.getElementById("public-url-help").textContent = "Comparte este link con tus clientes:";
+(async function initResumen() {
+  const $ = (id) => document.getElementById(id);
 
-  // Stats
-  Promise.all([
-    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
-    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
-    WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
-  ]).then(([p, pr, q]) => {
-    document.getElementById("stat-products").textContent = p.total;
-    const now = Date.now();
-    document.getElementById("stat-promos").textContent = pr.filter(x => x.is_valid_now).length;
-    document.getElementById("stat-qrs").textContent = q.length;
-  }).catch(err => console.warn("Stats err", err));
-}
+  // 1) Resolver sesión: primero localStorage, sino /me/session del server
+  let tenant = WH.Auth.tenant();
+  let user = WH.Auth.user();
+  if (!tenant || !user) {
+    try {
+      const session = await WH.api.get("/api/v1/auth/me/session");
+      if (session) {
+        // actualizar localStorage con info fresca del server
+        const tokens = WH.TokenStore.get() || {};
+        if (session.user) tokens.user = session.user;
+        if (session.current_tenant) tokens.current_tenant = session.current_tenant;
+        WH.TokenStore.set(tokens);
+        tenant = session.current_tenant;
+        user = session.user;
+      }
+    } catch (e) {
+      console.warn("No se pudo rehidratar la sesión desde el server:", e);
+    }
+  }
+
+  // 2) Pintar H1 con el nombre
+  if (user && user.full_name) {
+    $("user-name").textContent = user.full_name;
+  } else {
+    $("user-name").textContent = "";
+  }
+
+  // 3) Si no hay tenant, mostrar CTA de crear
+  if (!tenant || !tenant.tenant_id) {
+    $("public-url-help").textContent = "Crea tu primer negocio para obtener tu página pública.";
+    $("alert-no-tenant").style.display = "block";
+    $("create-tenant-link").addEventListener("click", (e) => {
+      e.preventDefault();
+      const slug = prompt("URL de tu negocio (solo letras, números y guiones):", "mi-negocio");
+      if (!slug) return;
+      const legal_name = prompt("Nombre legal:", "Mi Negocio SpA");
+      if (!legal_name) return;
+      WH.api.post("/api/v1/tenants", { slug, legal_name, display_name: legal_name })
+        .then(t => {
+          WH.Toast.show("Negocio creado");
+          setTimeout(() => location.reload(), 600);
+        })
+        .catch(err => WH.Toast.show(err.message, "error"));
+    });
+    return;
+  }
+
+  // 4) Hay tenant: poblar URL pública y cargar stats
+  const url = `${location.origin}/u/${tenant.tenant_slug}`;
+  $("public-url").textContent = url;
+  $("open-public").href = url;
+  $("public-url-help").textContent = "Comparte este link con tus clientes:";
+
+  try {
+    const [p, pr, q] = await Promise.all([
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
+    ]);
+    $("stat-products").textContent = (p && typeof p.total === "number") ? p.total : 0;
+    $("stat-promos").textContent = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
+    $("stat-qrs").textContent = Array.isArray(q) ? q.length : 0;
+  } catch (err) {
+    console.warn("Stats err", err);
+  }
+})();
 </script>
 {% endblock %}

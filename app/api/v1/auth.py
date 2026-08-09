@@ -1,11 +1,14 @@
 """Auth endpoints: register, login, refresh, me, switch tenant."""
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models.tenant import Tenant
+from app.models.tenant import Tenant, TenantMembership
 from app.models.user import User
 from app.schemas.auth import (
     MembershipOut, TokenPair, TokenRefresh, UserCreate, UserLogin, UserOut, UserUpdate,
@@ -124,3 +127,41 @@ def update_me(payload: UserUpdate, user: User = Depends(get_current_user), db: S
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.get("/me/session")
+def my_session(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Estado completo de la sesión: user + current_tenant + todas las membresías activas.
+
+    Usado por el frontend para rehidratar localStorage cuando el token fue
+    refrescado (lo que puede perder `current_tenant` del lado del cliente) o
+    cuando el usuario abrió el dashboard sin pasar por login.
+    """
+    memberships = list(
+        db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == str(user.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+        ).scalars()
+    )
+    current = next((m for m in memberships if m.is_owner), memberships[0] if memberships else None)
+    current_tenant = None
+    if current is not None:
+        t = db.get(Tenant, current.tenant_id)
+        if t is not None:
+            current_tenant = {
+                "id": str(current.id),
+                "tenant_id": str(t.id),
+                "role": current.role.value if hasattr(current.role, "value") else str(current.role),
+                "is_owner": bool(current.is_owner),
+                "is_active": bool(current.is_active),
+                "last_login_at": current.last_login_at,
+                "tenant_slug": t.slug,
+                "tenant_display_name": t.display_name,
+            }
+    return {
+        "user": UserOut.model_validate(user).model_dump(mode="json"),
+        "current_tenant": current_tenant,
+        "memberships_count": len(memberships),
+    }
