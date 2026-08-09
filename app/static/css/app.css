@@ -283,3 +283,109 @@
   .hero-portada .hero-title br { display: none; }
 }
 
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Topbar (≤ 700px)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .topbar { padding: 0 12px; gap: 8px; height: 52px; }
+  .topbar .brand { gap: 0; }
+  .topbar .brand > span:not(.brand-mark) { display: none; } /* oculta texto "WowHub" */
+  .topbar #user-chip { font-size: 12px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar #user-chip strong { font-weight: 600; }
+  .topbar .btn-sm { padding: 5px 8px; font-size: 12px; }
+}
+@media (max-width: 480px) {
+  .topbar #user-chip { max-width: 90px; }
+  .topbar .btn-sm { padding: 4px 6px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Dashboard sidebar (≤ 900px) — scroll-snap tabs
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .dash-side {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .dash-side a { scroll-snap-align: start; white-space: nowrap; padding: 8px 10px; font-size: 13px; }
+  .dash-side a .ico { font-size: 13px; }
+  .dash-main { padding: 20px 16px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Dashboard pages (≤ 600px)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .dash-main { padding: 16px 12px; }
+  .dash-main h1 { font-size: 22px; }
+  .dash-main .sub { font-size: 13px; margin-bottom: 16px; }
+
+  /* row-between: título + botón se apilan, botón full-width */
+  .row-between { flex-direction: column; align-items: stretch; gap: 12px; }
+  .row-between h1 { margin: 0; }
+  .row-between .btn { width: 100%; justify-content: center; }
+
+  /* row de filtros: inputs full-width */
+  .row { flex-wrap: wrap; }
+  .row > .form-input,
+  .row > .form-select,
+  .row > input,
+  .row > select { min-width: 0; flex: 1 1 100%; max-width: none !important; }
+
+  /* grid-2 (2 cols) -> 1 col en móvil */
+  .grid-2 { grid-template-columns: 1fr !important; }
+
+  /* iOS: evita zoom al enfocar inputs */
+  .form-input, .form-select, .form-textarea { font-size: 16px; }
+
+  /* Cards con padding reducido */
+  .card { padding: 16px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Tables — scroll horizontal limpio
+   ════════════════════════════════════════════════════════════ */
+.table-wrap { -webkit-overflow-scrolling: touch; }
+.table { min-width: 600px; } /* fuerza scroll en lugar de comprimir */
+
+@media (max-width: 600px) {
+  .table th, .table td { padding: 8px 10px; font-size: 13px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Modals (≤ 600px)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .modal-overlay { padding: 8px; }
+  .modal { max-width: 100%; max-height: 95vh; border-radius: 8px; }
+  .modal-header, .modal-body, .modal-footer { padding: 12px 14px; }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-width: 0; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: QR cards (≤ 480px) — usado en qrs.html
+   ════════════════════════════════════════════════════════════ */
+.qr-card { display: flex; gap: 12px; align-items: flex-start; }
+.qr-card-img { width: 100px; height: 100px; flex-shrink: 0; }
+.qr-card-body { flex: 1; min-width: 0; }
+.qr-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.qr-card-actions .btn { white-space: nowrap; }
+.qr-card-actions .btn[data-action="del"] { margin-left: 0; }
+@media (max-width: 480px) {
+  .qr-card { flex-direction: column; align-items: center; text-align: center; }
+  .qr-card-img { width: 140px; height: 140px; }
+  .qr-card-body { width: 100%; }
+  .qr-card-actions { justify-content: center; width: 100%; }
+  .qr-card-actions .btn { flex: 1 1 calc(50% - 3px); justify-content: center; min-width: 0; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE: Toast notifications (≤ 600px)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  #toast-container { top: 60px; right: 8px; left: 8px; }
+  .toast { min-width: 0; width: 100%; }
+}
+
