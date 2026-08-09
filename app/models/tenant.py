@@ -8,6 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 from app.models.user import UserRole
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
 
 class TenantPlan(str, enum.Enum):
@@ -94,18 +96,19 @@ class TenantMembership(BaseModel):
         # (lo manejamos con UniqueConstraint via service)
     )
 
-    user_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    tenant_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+user_id: Mapped[uuid.UUID] = mapped_column(
+    UUID(as_uuid=True),
+    ForeignKey("users.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+)
+tenant_id: Mapped[uuid.UUID] = mapped_column(
+    UUID(as_uuid=True),
+    ForeignKey("tenants.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+)
+
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="membership_role"),
         default=UserRole.STAFF,
@@ -113,7 +116,12 @@ class TenantMembership(BaseModel):
     )
     is_owner: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    invited_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    
+    # invited_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    invited_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+    UUID(as_uuid=True),
+    nullable=True,
+)
     last_login_at: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
     user: Mapped["User"] = relationship(  # noqa: F821
