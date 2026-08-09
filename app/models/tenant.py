@@ -96,13 +96,13 @@ class TenantMembership(BaseModel):
         # (lo manejamos con UniqueConstraint via service)
     )
 
-user_id: Mapped[uuid.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
     UUID(as_uuid=True),
     ForeignKey("users.id", ondelete="CASCADE"),
     nullable=False,
     index=True,
 )
-tenant_id: Mapped[uuid.UUID] = mapped_column(
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
     UUID(as_uuid=True),
     ForeignKey("tenants.id", ondelete="CASCADE"),
     nullable=False,
