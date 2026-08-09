@@ -104,7 +104,7 @@
 
 {% block dash_scripts %}
 <script>
-const tenant = WH.Auth.tenant();
+let tenant = WH.Auth.tenant();
 const grid = document.getElementById("promos-grid");
 
 function badge(p) {
@@ -213,6 +213,16 @@ document.getElementById("modal-save").addEventListener("click", async () => {
   }
 });
 
-load();
+(async function init() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    grid.innerHTML = `<div class="card text-center text-muted" style="grid-column: 1/-1; padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</div>`;
+    return;
+  }
+  await load();
+})();
 </script>
 {% endblock %}

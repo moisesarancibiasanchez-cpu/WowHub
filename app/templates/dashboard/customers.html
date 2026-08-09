@@ -65,7 +65,7 @@
 
 {% block dash_scripts %}
 <script>
-const tenant = WH.Auth.tenant();
+let tenant = WH.Auth.tenant();
 const tbody = document.getElementById("tbody");
 function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
 
@@ -121,6 +121,16 @@ document.getElementById("modal-save").addEventListener("click", async () => {
 
 let to;
 document.getElementById("search").addEventListener("input", () => { clearTimeout(to); to = setTimeout(load, 300); });
-load();
+(async function init() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+    return;
+  }
+  await load();
+})();
 </script>
 {% endblock %}

@@ -55,12 +55,15 @@
 {{ super() }}
 <script>
 WH.Auth.requireLogin();
-const user = WH.Auth.user();
-const tenant = WH.Auth.tenant();
-if (user) {
-  document.getElementById("user-chip").innerHTML =
-    `<strong>${user.full_name}</strong> · ${tenant ? tenant.tenant_display_name : "Sin negocio"}`;
-}
+(async function paintChip() {
+  const session = await WH.Auth.ensureSession();
+  const user = session.user || WH.Auth.user();
+  const tenant = session.tenant || WH.Auth.tenant();
+  if (user) {
+    document.getElementById("user-chip").innerHTML =
+      `<strong>${user.full_name}</strong> · ${tenant ? tenant.tenant_display_name : "Sin negocio"}`;
+  }
+})();
 document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.logout());
 const route = document.body.dataset.route;
 if (route) {
