@@ -57,6 +57,7 @@ def init_db() -> None:
     # Importar modelos para que SQLAlchemy los registre
     from app.models import (  # noqa: F401
         user, tenant, branch, category, product, customer,
-        promotion, qr, landing, order,  # noqa
+        promotion, qr, landing, order,
+        site_config,  # noqa
     )
     Base.metadata.create_all(bind=engine)

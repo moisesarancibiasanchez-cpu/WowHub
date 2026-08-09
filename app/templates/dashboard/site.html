@@ -1,0 +1,191 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Apariencia del sitio{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Apariencia del sitio</h1>
+    <p class="sub">Cambia el tema de la portada pública (<code>/</code>).</p>
+  </div>
+  <a class="btn" id="preview-link" target="_blank">Ver portada ↗</a>
+</div>
+
+<div class="alert alert-info">
+  <strong>Tema activo:</strong> <span id="active-theme-label" class="badge badge-accent">—</span>
+  <span class="text-muted" style="margin-left:8px;">Último cambio: <span id="updated-at">—</span></span>
+</div>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+  <!-- Tema dark (actual) -->
+  <div class="card theme-card" data-theme="dark">
+    <h2 class="card-title">🌙 Tema <code>dark</code> (actual)</h2>
+    <p class="text-muted" style="font-size:13px;">Estilo dark con gradiente morado/verde, tipografía bold y badges MVP.</p>
+    <div class="theme-preview preview-dark">
+      <div class="mini-hero">
+        <div class="mini-badge"></div>
+        <div class="mini-badge"></div>
+        <div class="mini-title"></div>
+        <div class="mini-lead"></div>
+        <div class="mini-cta"></div>
+      </div>
+      <div class="mini-grid">
+        <div class="mini-card"></div>
+        <div class="mini-card"></div>
+        <div class="mini-card"></div>
+        <div class="mini-card"></div>
+      </div>
+    </div>
+    <div class="row mt-3" style="justify-content: space-between;">
+      <span class="text-muted" style="font-size:12px;">Plantilla: <code>home.html</code></span>
+      <button class="btn btn-secondary btn-sm" data-action="set-theme" data-theme="dark">Activar dark</button>
+    </div>
+  </div>
+
+  <!-- Tema pro (prototipo claro) -->
+  <div class="card theme-card" data-theme="pro">
+    <h2 class="card-title">☀️ Tema <code>pro</code> (prototipo)</h2>
+    <p class="text-muted" style="font-size:13px;">Estilo claro/limpio con azul, verde y ámbar. Incluye demo, pricing, testimonios, FAQ y footer completos.</p>
+    <div class="theme-preview preview-pro">
+      <div class="mini-nav"></div>
+      <div class="mini-hero pro">
+        <div class="mini-title pro"></div>
+        <div class="mini-lead pro"></div>
+        <div class="mini-cta pro"></div>
+      </div>
+      <div class="mini-grid pro">
+        <div class="mini-card pro"></div>
+        <div class="mini-card pro"></div>
+        <div class="mini-card pro"></div>
+        <div class="mini-card pro"></div>
+      </div>
+    </div>
+    <div class="row mt-3" style="justify-content: space-between;">
+      <span class="text-muted" style="font-size:12px;">Plantilla: <code>home_pro.html</code></span>
+      <button class="btn btn-primary btn-sm" data-action="set-theme" data-theme="pro">Activar pro</button>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <h2 class="card-title">Modo mantenimiento (opcional)</h2>
+  <p class="text-muted" style="font-size:13px;">Próximamente: muestra una página de mantenimiento a usuarios no autenticados.</p>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Estado</label>
+      <select class="form-select" id="maintenance_mode" disabled>
+        <option value="false">Desactivado</option>
+        <option value="true">Activado</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mensaje (opcional)</label>
+      <input class="form-input" id="maintenance_message" disabled placeholder="Volvemos pronto...">
+    </div>
+  </div>
+  <p class="text-muted" style="font-size:11px; margin-top: 4px;">⚠️ Por seguridad, el modo mantenimiento sólo puede activarlo un OWNER y aún no está conectado al middleware.</p>
+</div>
+
+<style>
+.theme-preview {
+  height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.preview-dark {
+  background: linear-gradient(135deg, #0b0d12, #161a23);
+  border: 1px solid #1f2532;
+}
+.preview-pro {
+  background: linear-gradient(135deg, #f9fafb, #ffffff);
+  border: 1px solid #e5e7eb;
+}
+.mini-hero, .mini-grid, .mini-nav {
+  display: flex; gap: 6px; align-items: center;
+}
+.mini-hero { flex-direction: column; align-items: flex-start; padding: 8px 0; }
+.mini-hero.pro { align-items: center; }
+.mini-grid { flex-wrap: wrap; gap: 4px; }
+.mini-grid .mini-card { flex: 1; min-width: 0; height: 28px; }
+.mini-badge, .mini-title, .mini-lead, .mini-cta, .mini-card, .mini-nav {
+  border-radius: 4px;
+  background: rgba(124, 92, 255, 0.2);
+}
+.preview-dark .mini-badge { background: rgba(124, 92, 255, 0.4); height: 10px; width: 50px; }
+.preview-dark .mini-title { background: linear-gradient(90deg, #7c5cff, #00d4a8); height: 14px; width: 70%; }
+.preview-dark .mini-lead { background: rgba(255,255,255,0.1); height: 8px; width: 90%; }
+.preview-dark .mini-cta { background: #7c5cff; height: 18px; width: 80px; }
+.preview-dark .mini-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
+.preview-pro .mini-nav { background: #e5e7eb; height: 12px; width: 100%; }
+.preview-pro .mini-title { background: linear-gradient(90deg, #2563eb, #7c3aed); height: 14px; width: 70%; }
+.preview-pro .mini-lead { background: #e5e7eb; height: 8px; width: 90%; }
+.preview-pro .mini-cta { background: #2563eb; height: 18px; width: 80px; }
+.preview-pro .mini-card { background: #f3f4f6; border: 1px solid #e5e7eb; }
+.theme-card[data-active="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+</style>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+document.getElementById("preview-link").href = "/";
+
+async function load() {
+  try {
+    const c = await WH.api.get(`/api/v1/admin/site-config`);
+    applyTheme(c.home_theme, c.updated_at);
+    if (c.maintenance_mode !== undefined) {
+      document.getElementById("maintenance_mode").value = String(c.maintenance_mode);
+    }
+    if (c.maintenance_message) {
+      document.getElementById("maintenance_message").value = c.maintenance_message;
+    }
+  } catch (err) {
+    WH.Toast.show("Error cargando config: " + err.message, "error");
+  }
+}
+
+function applyTheme(theme, updatedAt) {
+  document.getElementById("active-theme-label").textContent = theme;
+  document.querySelectorAll(".theme-card").forEach(card => {
+    card.style.borderColor = "";
+    card.style.boxShadow = "";
+    if (card.dataset.theme === theme) {
+      card.dataset.active = "true";
+      card.style.borderColor = "var(--accent)";
+      card.style.boxShadow = "0 0 0 1px var(--accent)";
+    } else {
+      delete card.dataset.active;
+    }
+  });
+  if (updatedAt) {
+    const d = new Date(updatedAt);
+    document.getElementById("updated-at").textContent = d.toLocaleString();
+  }
+}
+
+document.querySelectorAll("[data-action='set-theme']").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const theme = btn.dataset.theme;
+    btn.disabled = true;
+    try {
+      const c = await WH.api.put(`/api/v1/admin/site-config/home-theme`, { theme });
+      applyTheme(c.home_theme, c.updated_at);
+      WH.Toast.show(`Tema cambiado a "${c.home_theme}". Recargando…`, "success");
+      setTimeout(() => location.reload(), 800);
+    } catch (err) {
+      WH.Toast.show("Error: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
+load();
+</script>
+{% endblock %}

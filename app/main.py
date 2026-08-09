@@ -17,6 +17,7 @@ from app.api.v1 import (
     orders, payments, webhooks, stats, uploads, password,
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
+    site_config,
 )
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
@@ -24,6 +25,7 @@ from app.core.security import RateLimitMiddleware
 from app.database import SessionLocal, init_db
 from app.models.qr import QrCode, QrTarget
 from app.services.qr_service import QrService
+from app.services.site_config_service import SiteConfigService
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger("wowhub")
@@ -132,12 +134,20 @@ app.include_router(audit.router, prefix="/api/v1")
 app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(branch_products.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
+app.include_router(site_config.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request):
-    return templates.TemplateResponse(request, "home.html", {"settings": settings})
+    """Portada: renderiza home.html (tema dark) o home_pro.html (tema pro)
+    según la configuración global SiteConfig.home_theme."""
+    with SessionLocal() as db:
+        theme = SiteConfigService(db).get_theme()
+    template = "home_pro.html" if theme == "pro" else "home.html"
+    return templates.TemplateResponse(
+        request, template, {"settings": settings, "site_theme": theme}
+    )
 
 
 @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -190,6 +200,12 @@ def dashboard_customers(request: Request):
 @app.get("/dashboard/landing", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_landing(request: Request):
     return templates.TemplateResponse(request, "dashboard/landing.html", {"settings": settings})
+
+
+@app.get("/dashboard/site", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_site(request: Request):
+    """Admin UI: cambiar tema de la portada (dark | pro)."""
+    return templates.TemplateResponse(request, "dashboard/site.html", {"settings": settings})
 
 
 # Nuevas páginas de dashboard (v0.2.0)

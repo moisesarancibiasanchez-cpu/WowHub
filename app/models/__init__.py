@@ -21,3 +21,4 @@ from app.models.booking import Booking, BookingStatus  # noqa: F401
 from app.models.legal import LegalConsent  # noqa: F401
 from app.models.onboarding import OnboardingState  # noqa: F401
 from app.models.upload import Upload  # noqa: F401
+from app.models.site_config import SiteConfig  # noqa: F401
