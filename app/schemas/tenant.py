@@ -26,10 +26,34 @@ class TenantCreate(TenantBase):
     @field_validator("slug")
     @classmethod
     def slug_format(cls, v: str) -> str:
-        v = v.strip()
-        if not re.match(r"^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$", v):
-            raise ValueError("slug debe ser kebab-case (a-z, 0-9, -); no se permiten mayúsculas")
-        return v
+        """Normaliza el slug y valida el formato kebab-case.
+
+        Reglas de normalización (tolerantes, para que "MasRedes",
+        "Mas Redes", "  Café Bar  " funcionen en el formulario web):
+          * strip de espacios al inicio/fin
+          * lower-case
+          * cualquier carácter fuera de [a-z0-9-] se reemplaza por '-'
+          * guiones múltiples se colapsan en uno
+          * guiones al inicio/fin se eliminan
+        """
+        if not isinstance(v, str):
+            raise ValueError("slug debe ser una cadena")
+        normalized = v.strip().lower()
+        # Reemplazar cualquier carácter no permitido por '-'
+        normalized = re.sub(r"[^a-z0-9-]+", "-", normalized)
+        # Colapsar guiones múltiples
+        normalized = re.sub(r"-+", "-", normalized)
+        # Quitar guiones al inicio/fin
+        normalized = normalized.strip("-")
+        if len(normalized) < 3:
+            raise ValueError(
+                "slug debe tener al menos 3 caracteres alfanuméricos después de normalizar"
+            )
+        if len(normalized) > 60:
+            raise ValueError("slug debe tener máximo 60 caracteres")
+        if not re.match(r"^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$", normalized):
+            raise ValueError("slug debe ser kebab-case (a-z, 0-9, -)")
+        return normalized
 
 
 class TenantUpdate(BaseModel):

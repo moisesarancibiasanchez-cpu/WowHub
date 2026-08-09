@@ -43,9 +43,29 @@ def test_tenant_slug_format(client):
         "email": "a@b.com", "password": "test1234", "full_name": "Test User A",
     })
     token = r.json()["access_token"]
-    # uppercase not allowed
+    # MAYUSCULAS debe normalizarse a "mayusculas" (lowercase) y aceptarse (201)
     r = client.post("/api/v1/tenants", json={
         "legal_name": "X SpA", "display_name": "X Display", "slug": "MAYUSCULAS",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+    assert r.json()["slug"] == "mayusculas"
+
+    # "Mas Redes" (con espacio) debe normalizarse a "mas-redes"
+    r = client.post("/api/v1/tenants", json={
+        "legal_name": "Y SpA", "display_name": "Y Display", "slug": "Mas Redes",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+    assert r.json()["slug"] == "mas-redes"
+
+    # slug vacío tras normalizar (solo caracteres no permitidos) debe rechazarse
+    r = client.post("/api/v1/tenants", json={
+        "legal_name": "Z SpA", "display_name": "Z Display", "slug": "@@@",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 422
+
+    # slug demasiado corto debe rechazarse
+    r = client.post("/api/v1/tenants", json={
+        "legal_name": "W SpA", "display_name": "W Display", "slug": "ab",
     }, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 422
 

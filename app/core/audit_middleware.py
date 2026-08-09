@@ -55,16 +55,27 @@ class AuditMiddleware(BaseHTTPMiddleware):
     def _log_async(self, request: Request, status_code: int, duration: float):
         """Escribe el log en una sesión separada (no afecta el request)."""
         from app.deps import get_current_user_optional
-        # Para evitar acoplar con deps, simplemente registramos el path
-        # y la metadata del request. El tenant_id se infiere del header X-Tenant-Id
+
         tenant_id = request.headers.get("X-Tenant-Id")
         if not tenant_id:
             return  # No loguear requests sin tenant (login, health, etc.)
+
+        # Resolver user (opcional) sin cortar el flujo si falla.
+        actor = None
+        try:
+            with SessionLocal() as _db:
+                actor = get_current_user_optional(
+                    authorization=request.headers.get("authorization"),
+                    db=_db,
+                )
+        except Exception:
+            actor = None
 
         with SessionLocal() as db:
             audit = AuditService(db)
             audit.log(
                 tenant_id=tenant_id,
+                actor=actor,
                 action=f"{request.method.lower()}.{request.url.path.replace('/', '.')}",
                 method=request.method,
                 path=str(request.url.path),

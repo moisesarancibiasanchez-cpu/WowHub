@@ -42,6 +42,37 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Variante opcional: devuelve el User si el token es válido, o None.
+
+    Usada por middlewares (audit, analytics) donde NO se debe cortar el
+    request si no hay auth — sólo queremos enriquecer el log con el
+    `user_id` cuando haya un token válido.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    try:
+        payload = decode_token(authorization.split(" ", 1)[1].strip())
+    except Exception:
+        return None
+    if payload.get("type") != "access":
+        return None
+    sub = payload.get("sub")
+    if not sub:
+        return None
+    try:
+        uid = UUID(sub)
+    except (ValueError, TypeError):
+        return None
+    user = db.get(User, uid)
+    if not user or not user.is_active:
+        return None
+    return user
+
+
 def get_current_membership(
     tenant_id: Optional[UUID] = None,
     x_tenant_id: Optional[str] = Header(default=None, alias="X-Tenant-Id"),
