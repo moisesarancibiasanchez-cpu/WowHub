@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Pedidos — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 1200px;">
+  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <h1 style="margin: 0;">Pedidos</h1>
+    <div>
+      <select id="status-filter" class="form-input" style="display: inline-block; width: auto;">
+        <option value="">Todos los estados</option>
+        <option value="PENDING">Pendientes</option>
+        <option value="CONFIRMED">Confirmados</option>
+        <option value="PREPARING">Preparando</option>
+        <option value="READY">Listos</option>
+        <option value="DELIVERED">Entregados</option>
+        <option value="CANCELED">Cancelados</option>
+      </select>
+      <button class="btn" id="refresh-btn">Actualizar</button>
+    </div>
+  </div>
+
+  <div id="alert"></div>
+  <div id="orders-list" class="card">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTenantId = null;
+
+async function loadOrders() {
+  const status = document.getElementById("status-filter").value;
+  const memberships = await WH.api.get("/api/v1/me/memberships");
+  if (!memberships.length) {
+    document.getElementById("orders-list").innerHTML =
+      '<p class="text-muted text-center" style="padding:40px;">No perteneces a ningún tenant.</p>';
+    return;
+  }
+  currentTenantId = memberships[0].tenant_id;
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const url = `/api/v1/tenants/${currentTenantId}/orders?${params.toString()}`;
+  const orders = await WH.api.get(url);
+  if (!orders.length) {
+    document.getElementById("orders-list").innerHTML =
+      '<p class="text-muted text-center" style="padding:40px;">No hay pedidos.</p>';
+    return;
+  }
+  const rows = orders.map(o => `
+    <div class="card mb-2" style="padding: 16px;">
+      <div class="flex" style="justify-content: space-between; align-items: start;">
+        <div>
+          <strong>${o.order_number}</strong> · ${o.customer_name} · ${o.customer_phone}
+          <br><span class="text-dim" style="font-size: 12px;">${new Date(o.created_at).toLocaleString()}</span>
+        </div>
+        <div>
+          <span class="badge">${o.status}</span>
+          <strong>$${(o.total_cents/100).toFixed(2)}</strong>
+        </div>
+      </div>
+      <div class="mt-2">
+        ${(o.items || []).map(i => `${i.quantity}× ${i.product_name}`).join(", ")}
+      </div>
+      <div class="mt-2 flex" style="gap: 8px;">
+        ${nextTransitions(o.status).map(s =>
+          `<button class="btn btn-sm" onclick="transition('${o.id}','${s}')">${s}</button>`).join("")}
+        <button class="btn btn-sm" onclick="cancelOrder('${o.id}')">Cancelar</button>
+      </div>
+    </div>`).join("");
+  document.getElementById("orders-list").innerHTML = rows;
+}
+
+function nextTransitions(status) {
+  const map = {
+    PENDING: ["CONFIRMED"],
+    CONFIRMED: ["PREPARING"],
+    PREPARING: ["READY"],
+    READY: ["DELIVERED"],
+  };
+  return map[status] || [];
+}
+
+async function transition(orderId, toStatus) {
+  try {
+    await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${orderId}/transition`, { to_status: toStatus });
+    loadOrders();
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+  }
+}
+
+async function cancelOrder(orderId) {
+  if (!confirm("¿Cancelar este pedido?")) return;
+  try {
+    await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${orderId}/cancel`, { reason: "Cancelado desde panel" });
+    loadOrders();
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+  }
+}
+
+document.getElementById("status-filter").addEventListener("change", loadOrders);
+document.getElementById("refresh-btn").addEventListener("click", loadOrders);
+loadOrders();
+</script>
+{% endblock %}

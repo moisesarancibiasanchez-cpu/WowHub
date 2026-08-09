@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Webhooks — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 1200px;">
+  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <h1 style="margin: 0;">Webhooks</h1>
+    <button class="btn btn-primary" id="new-webhook-btn">+ Nuevo webhook</button>
+  </div>
+  <p class="text-muted">
+    Recibe notificaciones firmadas (HMAC-SHA256) cuando ocurren eventos en tu tienda.
+  </p>
+
+  <div id="alert"></div>
+  <div id="webhooks-list" class="card">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+
+  <h2 class="mt-4">Entregas recientes</h2>
+  <div id="deliveries-list" class="card">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+</section>
+
+<!-- Modal: crear webhook -->
+<div id="webhook-modal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;">
+  <div class="card" style="max-width: 500px; margin: 80px auto;">
+    <h3>Nuevo webhook</h3>
+    <form id="webhook-form">
+      <div class="form-group">
+        <label class="form-label" for="wh-url">URL de destino</label>
+        <input class="form-input" type="url" id="wh-url" required placeholder="https://tuserver.com/webhook">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="wh-events">Eventos (separados por coma)</label>
+        <input class="form-input" type="text" id="wh-events" placeholder="order.paid, order.created, payment.confirmed">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="wh-secret">Secret (opcional, se genera si vacío)</label>
+        <input class="form-input" type="text" id="wh-secret" placeholder="Generado automáticamente">
+      </div>
+      <div class="flex" style="gap: 8px;">
+        <button class="btn btn-primary" type="submit">Crear</button>
+        <button class="btn" type="button" id="cancel-modal">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTenantId = null;
+
+async function loadWebhooks() {
+  const memberships = await WH.api.get("/api/v1/me/memberships");
+  if (!memberships.length) {
+    document.getElementById("webhooks-list").innerHTML =
+      '<p class="text-muted text-center" style="padding:40px;">No perteneces a ningún tenant.</p>';
+    return;
+  }
+  currentTenantId = memberships[0].tenant_id;
+  const items = await WH.api.get(`/api/v1/tenants/${currentTenantId}/webhooks`);
+  document.getElementById("webhooks-list").innerHTML = items.length ? items.map(w => `
+    <div class="card mb-2" style="padding: 16px;">
+      <div class="flex" style="justify-content: space-between; align-items: start;">
+        <div>
+          <strong>${w.url}</strong>
+          <br><span class="text-dim" style="font-size: 12px;">Eventos: ${(w.events || []).join(", ")}</span>
+        </div>
+        <div>
+          <span class="badge">${w.is_active ? "activo" : "inactivo"}</span>
+          <button class="btn btn-sm" onclick="toggleWebhook('${w.id}', ${!w.is_active})">
+            ${w.is_active ? "Desactivar" : "Activar"}
+          </button>
+          <button class="btn btn-sm" onclick="deleteWebhook('${w.id}')">Eliminar</button>
+        </div>
+      </div>
+      <div class="text-dim mt-2" style="font-size: 11px;">Secret: ${w.secret.substring(0, 8)}…</div>
+    </div>`).join("") :
+    '<p class="text-muted text-center" style="padding:40px;">Aún no tienes webhooks. Crea uno.</p>';
+
+  const deliveries = await WH.api.get(`/api/v1/tenants/${currentTenantId}/webhooks/deliveries?limit=20`);
+  document.getElementById("deliveries-list").innerHTML = deliveries.length ? deliveries.map(d => `
+    <div style="padding: 8px; border-bottom: 1px solid var(--border); font-size: 12px;">
+      <span class="badge">${d.status_code || "—"}</span>
+      ${d.event} → ${d.webhook_url}
+      <span class="text-dim"> · ${new Date(d.created_at).toLocaleString()} · ${d.attempts} intento(s)</span>
+    </div>`).join("") : '<p class="text-muted text-center" style="padding:20px;">Sin entregas aún.</p>';
+}
+
+async function toggleWebhook(id, active) {
+  await WH.api.patch(`/api/v1/tenants/${currentTenantId}/webhooks/${id}`, { is_active: active });
+  loadWebhooks();
+}
+
+async function deleteWebhook(id) {
+  if (!confirm("¿Eliminar este webhook?")) return;
+  await WH.api.delete(`/api/v1/tenants/${currentTenantId}/webhooks/${id}`);
+  loadWebhooks();
+}
+
+document.getElementById("new-webhook-btn").addEventListener("click", () => {
+  document.getElementById("webhook-modal").style.display = "block";
+});
+document.getElementById("cancel-modal").addEventListener("click", () => {
+  document.getElementById("webhook-modal").style.display = "none";
+});
+document.getElementById("webhook-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {
+    url: document.getElementById("wh-url").value,
+    events: document.getElementById("wh-events").value
+      .split(",").map(s => s.trim()).filter(Boolean),
+  };
+  const secret = document.getElementById("wh-secret").value.trim();
+  if (secret) payload.secret = secret;
+  try {
+    await WH.api.post(`/api/v1/tenants/${currentTenantId}/webhooks`, payload);
+    document.getElementById("webhook-modal").style.display = "none";
+    loadWebhooks();
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+  }
+});
+
+loadWebhooks();
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 """Modelos del dominio. Importar aquí para que SQLAlchemy los registre."""
-from app.models.base import BaseModel, TimestampMixin, TenantMixin  # noqa: F401
+from app.models.base import BaseModel, TimestampMixin, TenantMixin, GUID  # noqa: F401
 from app.models.user import User, UserRole  # noqa: F401
 from app.models.tenant import Tenant, TenantMembership, TenantPlan, TenantStatus, Industry  # noqa: F401
 from app.models.branch import Branch  # noqa: F401
@@ -10,3 +10,14 @@ from app.models.promotion import Promotion, PromotionType, DiscountType  # noqa:
 from app.models.qr import QrCode, QrTarget  # noqa: F401
 from app.models.landing import LandingConfig  # noqa: F401
 from app.models.order import Order, OrderItem, OrderStatus  # noqa: F401
+from app.models.payment import Payment, PaymentMethod, PaymentStatus  # noqa: F401
+from app.models.webhook import Webhook, WebhookEvent, WebhookDelivery  # noqa: F401
+from app.models.audit import AuditLog  # noqa: F401
+from app.models.branch_product import BranchProduct  # noqa: F401
+from app.models.token import AuthToken, TokenType  # noqa: F401
+from app.models.cart import Cart, CartItem  # noqa: F401
+from app.models.invoice import Invoice, InvoiceStatus  # noqa: F401
+from app.models.booking import Booking, BookingStatus  # noqa: F401
+from app.models.legal import LegalConsent  # noqa: F401
+from app.models.onboarding import OnboardingState  # noqa: F401
+from app.models.upload import Upload  # noqa: F401

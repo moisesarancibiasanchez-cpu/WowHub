@@ -35,6 +35,11 @@ class OrderCreate(BaseModel):
         return v
 
 
+class OrderTransition(BaseModel):
+    new_status: OrderStatus
+    notes: Optional[str] = None
+
+
 class OrderItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,10 +54,27 @@ class OrderItemOut(BaseModel):
     options: dict
 
 
+class OrderListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    number: str
+    status: OrderStatus
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    total_cents: int
+    currency: str
+    item_count: int = 0
+    source: str
+    created_at: datetime
+
+
 class OrderOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    tenant_id: UUID
     number: str
     status: OrderStatus
     customer_id: Optional[UUID] = None
@@ -63,6 +85,7 @@ class OrderOut(BaseModel):
     tax_cents: int
     total_cents: int
     currency: str
+    promotion_ids: list[str] = Field(default_factory=list)
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
@@ -72,3 +95,4 @@ class OrderOut(BaseModel):
     qr_code_id: Optional[UUID] = None
     items: list[OrderItemOut]
     created_at: datetime
+    updated_at: datetime

@@ -1,7 +1,7 @@
 [project]
 name = "wowhub"
-version = "0.1.0"
-description = "WowHub — plataforma SaaS modular para PyMEs en LATAM"
+version = "0.2.0"
+description = "WowHub — plataforma SaaS modular para PyMEs en LATAM (página, catálogo, QR, promociones, pedidos, pagos, reservas, multi-sucursal)"
 authors = [{name = "WowHub Team"}]
 requires-python = ">=3.11"
 dependencies = [
@@ -23,6 +23,9 @@ dependencies = [
     "httpx>=0.27.0",
     "tenacity>=8.2.3",
     "psycopg2-binary>=2.9.0",
+    # v0.2.0 — nuevas dependencias
+    "pillow>=10.2.0",                # validación de imágenes en uploads
+    "python-dateutil>=2.8.2",        # parsing de fechas en CSV
 ]
 
 [project.optional-dependencies]
@@ -32,6 +35,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "ruff>=0.3.0",
     "faker>=24.0.0",
+    "resend>=0.7.0",                 # backend de email opcional
 ]
 
 [build-system]
@@ -40,6 +44,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["app"]
+
+[tool.setuptools.package-data]
+app = ["i18n/*.json", "templates/**/*", "static/**/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -41,7 +41,9 @@ RUN pip install --upgrade pip && \
         "tenacity>=8.2.3" \
         "psycopg2-binary>=2.9.0" \
         "psycopg[binary]>=3.1.0" \
-        "gunicorn>=21.2.0"
+        "gunicorn>=21.2.0" \
+        "pillow>=10.2.0" \
+        "python-dateutil>=2.8.2"
         
 # 3) Copiar el código de la app
 COPY app ./app

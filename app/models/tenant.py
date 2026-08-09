@@ -6,9 +6,8 @@ from typing import Optional
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, GUID
 from app.models.user import UserRole
-from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
 
@@ -97,13 +96,13 @@ class TenantMembership(BaseModel):
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-    UUID(as_uuid=True),
+    GUID(),
     ForeignKey("users.id", ondelete="CASCADE"),
     nullable=False,
     index=True,
 )
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-    UUID(as_uuid=True),
+    GUID(),
     ForeignKey("tenants.id", ondelete="CASCADE"),
     nullable=False,
     index=True,
@@ -119,7 +118,7 @@ class TenantMembership(BaseModel):
     
     # invited_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     invited_by: Mapped[Optional[uuid.UUID]] = mapped_column(
-    UUID(as_uuid=True),
+    GUID(),
     nullable=True,
 )
     last_login_at: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)

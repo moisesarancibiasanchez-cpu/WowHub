@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Estadísticas — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 1200px;">
+  <h1>Estadísticas</h1>
+  <p class="text-muted">Resumen de los últimos 30 días.</p>
+
+  <div id="alert"></div>
+
+  <div class="grid grid-4 mb-4" id="kpi-cards">
+    <div class="card"><div class="text-muted">Pedidos</div><h2 id="kpi-orders">—</h2></div>
+    <div class="card"><div class="text-muted">Ingresos</div><h2 id="kpi-revenue">—</h2></div>
+    <div class="card"><div class="text-muted">Ticket promedio</div><h2 id="kpi-ticket">—</h2></div>
+    <div class="card"><div class="text-muted">Escaneos QR</div><h2 id="kpi-scans">—</h2></div>
+  </div>
+
+  <div class="card mb-4">
+    <h3>Top productos</h3>
+    <div id="top-products">Cargando…</div>
+  </div>
+
+  <div class="card mb-4">
+    <h3>QRs más escaneados</h3>
+    <div id="top-qrs">Cargando…</div>
+  </div>
+
+  <div class="card">
+    <h3>Serie diaria (últimos 30 días)</h3>
+    <div id="daily-series" style="font-family: monospace; white-space: pre; font-size: 12px;">Cargando…</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStats() {
+  const memberships = await WH.api.get("/api/v1/me/memberships");
+  if (!memberships.length) {
+    document.getElementById("kpi-orders").textContent = "0";
+    return;
+  }
+  const tenantId = memberships[0].tenant_id;
+  const stats = await WH.api.get(`/api/v1/tenants/${tenantId}/stats/overview?days=30`);
+
+  document.getElementById("kpi-orders").textContent = stats.orders_count || 0;
+  document.getElementById("kpi-revenue").textContent = `$${((stats.revenue_cents||0)/100).toFixed(2)}`;
+  document.getElementById("kpi-ticket").textContent = `$${((stats.avg_ticket_cents||0)/100).toFixed(2)}`;
+  document.getElementById("kpi-scans").textContent = stats.qr_scans || 0;
+
+  document.getElementById("top-products").innerHTML = (stats.top_products || []).length
+    ? "<ol>" + stats.top_products.map(p =>
+        `<li>${p.name} — ${p.quantity} uds · $${(p.revenue_cents/100).toFixed(2)}</li>`).join("") + "</ol>"
+    : '<p class="text-muted">Sin datos aún.</p>';
+
+  document.getElementById("top-qrs").innerHTML = (stats.top_qrs || []).length
+    ? "<ol>" + stats.top_qrs.map(q =>
+        `<li>${q.label || q.short_code} — ${q.scans} escaneos</li>`).join("") + "</ol>"
+    : '<p class="text-muted">Sin datos aún.</p>';
+
+  const series = stats.daily_series || [];
+  const max = Math.max(1, ...series.map(s => s.revenue_cents || 0));
+  const lines = series.map(d => {
+    const bar = "█".repeat(Math.round(((d.revenue_cents || 0) / max) * 30));
+    return `${d.date}  $${((d.revenue_cents||0)/100).toFixed(0).padStart(7)}  ${bar}`;
+  });
+  document.getElementById("daily-series").textContent = lines.join("\n") || "Sin datos";
+}
+
+loadStats();
+</script>
+{% endblock %}

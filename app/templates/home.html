@@ -1,33 +1,35 @@
 {% extends "base.html" %}
-{% block title %}WowHub — Tu negocio online en 10 minutos{% endblock %}
+{% block title %}WowHub — Tu negocio online en minutos{% endblock %}
 
 {% block content %}
 <section class="hero">
   <div class="badges">
-    <span class="badge badge-accent">MVP v0.1</span>
+    <span class="badge badge-accent">MVP v0.2</span>
     <span class="badge badge-success">Multi-tenant</span>
     <span class="badge">LATAM-first</span>
+    <span class="badge">PWA</span>
   </div>
-  <h1>Tu negocio online,<br>en 10 minutos.</h1>
+  <h1>Tu negocio online,<br>en minutos.</h1>
   <p class="lead">
-    Página, catálogo, QR y promociones. Sin código. Sin enredarse. Hecho para PyMEs
-    en Chile, México, Colombia, Argentina y Brasil.
+    Página, catálogo, QR, promociones, pedidos, pagos y reservas. Sin código.
+    Sin enredarse. Hecho para PyMEs en Chile, México, Colombia, Argentina y Brasil.
   </p>
   <div class="cta">
     <a class="btn btn-primary btn-lg" href="/register">Crear mi cuenta</a>
     <a class="btn btn-lg" href="/docs" target="_blank">Ver API</a>
   </div>
   <div class="badges">
-    <span class="badge">Next.js</span>
-    <span class="badge">NestJS</span>
-    <span class="badge">PostgreSQL + RLS</span>
-    <span class="badge">Multi-tenant</span>
+    <span class="badge">FastAPI</span>
+    <span class="badge">SQLAlchemy</span>
+    <span class="badge">Pydantic</span>
+    <span class="badge">Jinja2</span>
+    <span class="badge">PostgreSQL / SQLite</span>
   </div>
 </section>
 
 <section class="container" style="padding: 60px 24px;">
-  <h2 class="text-center">Las 4 features del MVP</h2>
-  <p class="text-center text-muted" style="margin-bottom: 32px;">Lo mínimo viable. Lo demás viene después.</p>
+  <h2 class="text-center">Funciones del MVP</h2>
+  <p class="text-center text-muted" style="margin-bottom: 32px;">Lo mínimo viable, más todo lo que tu PyME necesita el día 1.</p>
   <div class="grid grid-4">
     <div class="feat">
       <div class="icon">⚡</div>
@@ -50,6 +52,28 @@
       <p>Porcentajes, 2x1, cupones. Aplica a productos o categorías. Vigencia y límites.</p>
     </div>
   </div>
+  <div class="grid grid-4" style="margin-top: 24px;">
+    <div class="feat">
+      <div class="icon">🧾</div>
+      <h3>Pedidos</h3>
+      <p>Flujo completo: PENDIENTE → CONFIRMADO → PREPARANDO → LISTO → ENTREGADO.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">💳</div>
+      <h3>Pagos</h3>
+      <p>MercadoPago, transferencia, efectivo o contra entrega. Webhooks firmados.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">📅</div>
+      <h3>Reservas</h3>
+      <p>Ideal para servicios: belleza, salud, educación. Confirma por WhatsApp.</p>
+    </div>
+    <div class="feat">
+      <div class="icon">📊</div>
+      <h3>Estadísticas</h3>
+      <p>Ventas, top productos, QRs más escaneados, serie diaria, ticket promedio.</p>
+    </div>
+  </div>
 </section>
 
 <section class="container" style="padding: 60px 24px; max-width: 880px;">
@@ -57,27 +81,34 @@
   <p class="text-center text-muted">API-first. Tu panel, una app mobile, integraciones, partners — todo consume la misma API.</p>
   <div class="card mt-4" style="background: var(--code-bg);">
 <pre style="margin: 0; color: var(--fg); line-height: 1.6;"><code><span style="color: var(--fg-dim);"># Catálogo público de un tenant</span>
-curl https://api.wowhub.app/api/v1/public/t/cafe-norte/catalog
+curl {{ settings.public_base_url }}/api/v1/public/t/cafe-norte/catalog
 
-<span style="color: var(--fg-dim);"># Crear un producto (autenticado)</span>
-curl -X POST https://api.wowhub.app/api/v1/tenants/&lt;id&gt;/products \\
-  -H "Authorization: Bearer &lt;token&gt;" \\
-  -H "Content-Type: application/json" \\
+<span style="color: var(--fg-dim);"># Crear un pedido desde el checkout público</span>
+curl -X POST {{ settings.public_base_url }}/api/v1/public/t/cafe-norte/orders \
+  -H "Content-Type: application/json" \
   -d '{
-    "sku": "LAT-001",
-    "name": "Latte",
-    "slug": "latte",
-    "price_cents": 3500,
-    "status": "active"
-  }'</code></pre>
+    "customer_name": "Ana",
+    "customer_phone": "+56912345678",
+    "items": [{"product_id": "&lt;id&gt;", "quantity": 2}]
+  }'
+
+<span style="color: var(--fg-dim);"># Ver estadísticas del panel</span>
+curl -H "Authorization: Bearer &lt;token&gt;" \
+  {{ settings.public_base_url }}/api/v1/tenants/&lt;id&gt;/stats/overview</code></pre>
   </div>
   <div class="text-center mt-4">
     <a class="btn" href="/docs" target="_blank">Documentación OpenAPI</a>
+    <a class="btn" href="/legal/terms">Términos</a>
+    <a class="btn" href="/legal/privacy">Privacidad</a>
   </div>
 </section>
 
 <footer style="border-top: 1px solid var(--border); padding: 40px 24px; margin-top: 60px; text-align: center; color: var(--fg-dim); font-size: 13px;">
-  <p>WowHub — Prototipo Python · {{ settings.app_name }} v0.1.0</p>
-  <p>Construido con FastAPI + SQLAlchemy + Pydantic + Jinja2 · <a href="https://github.com" target="_blank">código</a></p>
+  <p>WowHub — {{ settings.app_name }} v0.2.0</p>
+  <p>Construido con FastAPI + SQLAlchemy + Pydantic + Jinja2 ·
+     <a href="https://github.com/moisesarancibiasanchez-cpu/WowHub" target="_blank">código</a> ·
+     <a href="/legal/terms">Términos</a> ·
+     <a href="/legal/privacy">Privacidad</a>
+  </p>
 </footer>
 {% endblock %}

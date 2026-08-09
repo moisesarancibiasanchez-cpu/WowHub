@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Pagos — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 1200px;">
+  <h1>Pagos</h1>
+  <p class="text-muted">Historial de pagos recibidos.</p>
+
+  <div id="alert"></div>
+  <div id="payments-list" class="card">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadPayments() {
+  const memberships = await WH.api.get("/api/v1/me/memberships");
+  if (!memberships.length) {
+    document.getElementById("payments-list").innerHTML =
+      '<p class="text-muted text-center" style="padding:40px;">No perteneces a ningún tenant.</p>';
+    return;
+  }
+  const tenantId = memberships[0].tenant_id;
+  const payments = await WH.api.get(`/api/v1/tenants/${tenantId}/payments`);
+  if (!payments.length) {
+    document.getElementById("payments-list").innerHTML =
+      '<p class="text-muted text-center" style="padding:40px;">No hay pagos aún.</p>';
+    return;
+  }
+  const rows = payments.map(p => `
+    <div class="card mb-2" style="padding: 16px;">
+      <div class="flex" style="justify-content: space-between; align-items: start;">
+        <div>
+          <strong>${p.id.substring(0,8)}</strong> · ${p.method} · ${p.provider}
+          <br><span class="text-dim" style="font-size: 12px;">${new Date(p.created_at).toLocaleString()}</span>
+        </div>
+        <div>
+          <span class="badge">${p.status}</span>
+          <strong>$${(p.amount_cents/100).toFixed(2)} ${p.currency}</strong>
+        </div>
+      </div>
+      ${p.order_id ? `<div class="mt-2 text-dim" style="font-size: 12px;">Pedido: ${p.order_id.substring(0,8)}</div>` : ""}
+    </div>`).join("");
+  document.getElementById("payments-list").innerHTML = rows;
+}
+
+loadPayments();
+</script>
+{% endblock %}

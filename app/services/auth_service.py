@@ -154,7 +154,11 @@ class AuthService:
 
     # ── Tokens ──────────────────────────────────────────
     def issue_tokens(self, user: User, current: Optional[TenantMembership]) -> tuple[str, str, int]:
-        tenant_id = UUID(current.tenant_id) if current else None
+        if current and current.tenant_id is not None:
+            tid = current.tenant_id
+            tenant_id = tid if isinstance(tid, UUID) else UUID(str(tid))
+        else:
+            tenant_id = None
         role = current.role.value if current else user.default_role.value
         access = create_access_token(user.id, tenant_id=tenant_id, role=role)
         refresh = create_refresh_token(user.id)

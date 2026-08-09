@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Pago de prueba — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 600px;">
+  <div class="card">
+    <h1>Pago de prueba</h1>
+    <p class="text-muted">
+      Estás en un entorno sin MercadoPago configurado. Esta pantalla simula un checkout
+      para que puedas probar el flujo completo.
+    </p>
+    <p><strong>ID de pago:</strong> <code>{{ payment_id }}</code></p>
+
+    <div id="alert"></div>
+
+    <div class="mt-4">
+      <button class="btn btn-primary btn-block btn-lg" id="approve-btn">
+        Aprobar pago (test)
+      </button>
+      <button class="btn btn-block btn-lg mt-2" id="reject-btn" style="background: #ef4444; color: white;">
+        Rechazar pago (test)
+      </button>
+    </div>
+
+    <p class="text-dim mt-4" style="font-size: 12px;">
+      En producción, esta pantalla se reemplaza por el checkout oficial de MercadoPago.
+    </p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("approve-btn").addEventListener("click", () => simulate("approve"));
+document.getElementById("reject-btn").addEventListener("click", () => simulate("reject"));
+
+async function simulate(action) {
+  const url = `/api/v1/public/payments/{{ payment_id }}/mock?action=${action}`;
+  try {
+    await WH.api.post(url, {});
+    document.getElementById("alert").innerHTML =
+      `<div class="alert alert-success">Pago ${action === "approve" ? "aprobado" : "rechazado"}. Vuelve a la tienda.</div>`;
+  } catch (err) {
+    document.getElementById("alert").innerHTML =
+      `<div class="alert alert-error">${err.message}</div>`;
+  }
+}
+</script>
+{% endblock %}

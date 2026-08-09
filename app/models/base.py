@@ -26,11 +26,18 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        if not isinstance(value, UUID):
-            value = UUID(str(value))
+        if isinstance(value, UUID):
+            uuid_obj = value
+        else:
+            try:
+                uuid_obj = UUID(str(value))
+            except (TypeError, ValueError, AttributeError):
+                # Si llega un valor no-uuid-like, lo dejamos pasar tal cual;
+                # SQLAlchemy reportará el error apropiado.
+                return value
         if dialect.name == "postgresql":
-            return value
-        return value.hex
+            return uuid_obj
+        return uuid_obj.hex
 
     def process_result_value(self, value, dialect):
         if value is None:
