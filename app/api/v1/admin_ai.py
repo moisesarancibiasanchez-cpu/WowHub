@@ -38,7 +38,10 @@ router = APIRouter(prefix="/admin/ai", tags=["admin-ai"])
 
 
 def _require_admin(user: User) -> None:
-    if user.role not in (UserRole.OWNER, UserRole.ADMIN):
+    # El modelo User tiene `default_role` (no `role`).
+    # Soportamos ambos por compat.
+    role = getattr(user, "role", None) or getattr(user, "default_role", None)
+    if role not in (UserRole.OWNER, UserRole.ADMIN):
         raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
 
 
