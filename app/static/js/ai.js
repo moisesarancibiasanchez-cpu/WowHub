@@ -23,10 +23,22 @@
   }
 
   async function api(path, opts = {}) {
-    if (window.WH && window.WH.api && window.WH.api.request) {
-      return window.WH.api.request(path, opts);
+    if (window.WH && window.WH.api) {
+      const method = (opts.method || "GET").toUpperCase();
+      const hasBody = opts.body !== undefined && opts.body !== null;
+      // POST/PUT/PATCH con body → usar helper .post() que ya hace JSON.stringify
+      if ((method === "POST" || method === "PUT" || method === "PATCH") && hasBody) {
+        if (method === "POST" && typeof window.WH.api.post === "function") {
+          return window.WH.api.post(path, opts.body);
+        }
+        // Fallback: stringify manual
+        return window.WH.api.request(path, { method, body: JSON.stringify(opts.body) });
+      }
+      return typeof window.WH.api.get === "function" && method === "GET"
+        ? window.WH.api.get(path)
+        : window.WH.api.request(path, { method });
     }
-    // Fallback: fetch directo
+    // Fallback: fetch directo (sin app.js)
     const token = localStorage.getItem("wowhub_access_token");
     const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
     if (token) headers["Authorization"] = "Bearer " + token;
@@ -35,7 +47,11 @@
       const t = JSON.parse(tenantRaw);
       if (t && t.tenant_id) headers["X-Tenant-Id"] = t.tenant_id;
     } catch (_) {}
-    const r = await fetch(path, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const r = await fetch(path, {
+      method: opts.method || "GET",
+      headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
     if (!r.ok) {
       const text = await r.text();
       throw new Error("HTTP " + r.status + ": " + text.slice(0, 300));
@@ -94,6 +110,33 @@
 
   function scrollToBottom() {
     thread.scrollTop = thread.scrollHeight;
+  }
+
+  // ── Limpia mensajes de error de Pydantic/FastAPI ──
+  function prettyError(e) {
+    const raw = (e && e.message) || String(e);
+    // FastAPI 422: detalle es un array de objetos
+    const m = raw.match(/HTTP\s+(\d+):\s*(\[.*\])/s);
+    if (m) {
+      try {
+        const arr = JSON.parse(m[2]);
+        if (Array.isArray(arr) && arr[0] && arr[0].msg) {
+          const code = m[1];
+          const msgs = arr.map((x) => x.msg).filter(Boolean);
+          if (code === "422") {
+            return "La solicitud no es válida. Revisa los datos enviados e inténtalo de nuevo.";
+          }
+          return `Error ${code}: ${msgs.join("; ")}`;
+        }
+      } catch (_) {}
+    }
+    // Errores específicos
+    if (/401/.test(raw))  return "Tu sesión expiró. Inicia sesión de nuevo.";
+    if (/403/.test(raw))  return "No tienes permisos para esta acción.";
+    if (/404/.test(raw))  return "Recurso no encontrado.";
+    if (/429/.test(raw))  return "Has alcanzado el límite diario de mensajes.";
+    if (/5\d\d/.test(raw)) return "El servicio está teniendo problemas. Intenta en unos segundos.";
+    return raw.replace(/^HTTP\s+\d+:\s*/, "").slice(0, 200);
   }
 
   // ── Conversaciones ────────────────────────────
@@ -243,10 +286,7 @@
       loadStatus();
     } catch (e) {
       placeholder.remove();
-      const labels = {
-        marketing: "marketing", growth: "growth", automation: "automation", marketplace: "marketplace",
-      };
-      renderAssistantMsg(state.agent, "⚠️ " + (e.message || "Error"), { fallback: true });
+      renderAssistantMsg(state.agent, "⚠️ " + prettyError(e), { fallback: true });
     } finally {
       state.sending = false;
       $("ai-send").disabled = false;
