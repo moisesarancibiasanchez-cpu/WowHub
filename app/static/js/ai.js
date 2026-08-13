@@ -22,7 +22,7 @@
     return null;
   }
 
-  async function api(path, opts = {}) {
+  async function aiApi(path, opts = {}) {
     const method = (opts.method || "GET").toUpperCase();
     // Bypass total del cliente global: fetch directo con headers correctos.
     // (El cliente global en app.js usa spread de opts que en algunos navegadores
@@ -136,7 +136,7 @@
   async function loadConversations() {
     const list = $("ai-convs");
     try {
-      const data = await api("/api/v1/ai/conversations?page=1&page_size=30");
+      const data = await aiApi("/api/v1/ai/conversations?page=1&page_size=30");
       if (!data.items || !data.items.length) {
         list.innerHTML = '<p class="ai-empty">Sin conversaciones aún. ¡Empieza una!</p>';
         return;
@@ -161,7 +161,7 @@
 
   async function loadConversation(id) {
     try {
-      const data = await api("/api/v1/ai/conversations/" + id + "/messages?limit=200");
+      const data = await aiApi("/api/v1/ai/conversations/" + id + "/messages?limit=200");
       thread.innerHTML = "";
       for (const m of data.items) {
         if (m.role === "user") renderUserMsg(m.content);
@@ -205,7 +205,7 @@
   // ── Status ───────────────────────────────────
   async function loadStatus() {
     try {
-      const s = await api("/api/v1/ai/status");
+      const s = await aiApi("/api/v1/ai/status");
       const pill = $("ai-circuit-pill");
       pill.textContent = "● " + (s.llm_enabled ? "LLM OK" : "LLM no configurado");
       pill.classList.toggle("ai-warn", s.circuit_state === "open");
@@ -266,7 +266,7 @@
         message: { content: text, conversation_id: state.conversationId, force_agent: state.agent },
         stream: false,
       };
-      const resp = await api("/api/v1/ai/chat", { method: "POST", body });
+      const resp = await aiApi("/api/v1/ai/chat", { method: "POST", body });
       // Reemplazar placeholder
       placeholder.remove();
       renderAssistantMsg(resp.agent, resp.content, {
