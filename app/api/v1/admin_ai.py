@@ -73,12 +73,24 @@ def get_overview(
         .limit(1)
     ).scalar_one_or_none()
     if last_24h is None:
-        # Devolvemos un "vacío"
+        # Devolvemos un "vacío" con todos los campos inicializados a 0
+        # para que Pydantic pueda validarlo correctamente.
         last_24h = AIMetricDaily(
             id=UUID(int=0),
-            tenant_id=tenant_ids[0],
+            tenant_id=UUID(tenant_ids[0]) if isinstance(tenant_ids[0], str) else tenant_ids[0],
             day=today,
             agent=AgentKind.MARKETING,
+            requests=0,
+            success=0,
+            fallback=0,
+            errors=0,
+            timeouts=0,
+            rate_limited=0,
+            tokens_in=0,
+            tokens_out=0,
+            avg_latency_ms=0,
+            p95_latency_ms=0,
+            unique_users=0,
         )
 
     last_7d = db.execute(
