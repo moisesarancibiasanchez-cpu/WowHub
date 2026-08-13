@@ -101,42 +101,77 @@
 const $ = (id) => document.getElementById(id);
 function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
-async function api(path) {
-  const token = localStorage.getItem("wowhub_access_token");
-  const tenantRaw = localStorage.getItem("wowhub_current_tenant");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = "Bearer " + token;
+// Lee el token de la key real ("wowhub.tokens") o fallback a la key vieja
+function getAuth() {
+  // Primero, el TokenStore global si está disponible
+  if (window.WH && window.WH.TokenStore) {
+    const tk = window.WH.TokenStore.access();
+    const tn = window.WH.TokenStore.currentTenant();
+    return { token: tk, tenant_id: tn && tn.tenant_id };
+  }
+  // Fallback: leer la key real "wowhub.tokens" (no "wowhub_access_token")
+  let tk = null, tn = null;
   try {
-    const t = JSON.parse(tenantRaw);
-    if (t && t.tenant_id) headers["X-Tenant-Id"] = t.tenant_id;
-  } catch(_){}
+    const raw = localStorage.getItem("wowhub.tokens");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      tk = parsed && parsed.access_token;
+      if (parsed && parsed.current_tenant) tn = parsed.current_tenant.tenant_id;
+    }
+  } catch (_) {}
+  // Último fallback: keys legacy
+  if (!tk) tk = localStorage.getItem("wowhub_access_token");
+  if (!tn) {
+    try { const t = JSON.parse(localStorage.getItem("wowhub.currentTenant") || "null"); tn = t && t.tenant_id; } catch (_) {}
+    if (!tn) {
+      try { const t = JSON.parse(localStorage.getItem("wowhub_current_tenant") || "null"); tn = t && t.tenant_id; } catch (_) {}
+    }
+  }
+  return { token: tk, tenant_id: tn };
+}
+
+async function api(path) {
+  const { token, tenant_id } = getAuth();
+  const headers = { "Accept": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
   const r = await fetch(path, { headers });
-  if (!r.ok) throw new Error("HTTP " + r.status);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
   return r.json();
 }
 async function post(path) {
-  const token = localStorage.getItem("wowhub_access_token");
-  const tenantRaw = localStorage.getItem("wowhub_current_tenant");
+  const { token, tenant_id } = getAuth();
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
-  try { const t = JSON.parse(tenantRaw); if (t && t.tenant_id) headers["X-Tenant-Id"] = t.tenant_id; } catch(_){}
+  if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
   const r = await fetch(path, { method: "POST", headers });
-  if (!r.ok) throw new Error("HTTP " + r.status);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
   return r.json();
 }
 
 async function loadOverview() {
   try {
     const o = await api("/api/v1/admin/ai/overview");
-    $("ai-cb-state").textContent = o.circuit_state;
+    $("ai-cb-state").textContent = o.circuit_state || "—";
     $("ai-llm-enabled").textContent = o.llm_enabled ? "Sí" : "No";
-    $("ai-total-conv").textContent = o.total_conversations;
-    $("ai-total-msg").textContent  = o.total_messages;
-    $("ai-active-users").textContent = o.active_users_7d;
-    $("ai-req-24h").textContent = o.last_24h.requests || 0;
+    $("ai-llm-model").textContent = o.model || "—";
+    $("ai-total-conv").textContent = o.total_conversations ?? 0;
+    $("ai-total-msg").textContent  = o.total_messages ?? 0;
+    $("ai-active-users").textContent = o.active_users_7d ?? 0;
+    $("ai-req-24h").textContent = (o.last_24h && o.last_24h.requests) || 0;
     $("ai-req-24h-meta").textContent = `success ${o.last_24h.success} · fallback ${o.last_24h.fallback} · err ${o.last_24h.errors}`;
   } catch (e) {
     console.error("overview:", e);
+    // Mostrar el error en los cards en vez de "—"
+    $("ai-cb-state").textContent = "Error";
+    $("ai-llm-enabled").textContent = "—";
+    $("ai-llm-enabled").title = e.message;
   }
 }
 
