@@ -62,22 +62,31 @@ def get_overview(
     if not tenant_ids:
         raise HTTPException(status_code=400, detail="Sin tenants asignados")
 
+    # Convertir a UUID para todas las queries (PostgreSQL requiere UUID nativo)
+    tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
+
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    last_24h = db.execute(
-        select(AIMetricDaily)
-        .where(
-            AIMetricDaily.day >= today,
-            AIMetricDaily.tenant_id.in_(tenant_ids),
-        )
-        .order_by(desc(AIMetricDaily.requests))
-        .limit(1)
-    ).scalar_one_or_none()
+    last_24h = None
+    try:
+        last_24h = db.execute(
+            select(AIMetricDaily)
+            .where(
+                AIMetricDaily.day >= today,
+                AIMetricDaily.tenant_id.in_(tenant_uuids),
+            )
+            .order_by(desc(AIMetricDaily.requests))
+            .limit(1)
+        ).scalar_one_or_none()
+    except Exception as e:
+        logger.warning("[admin/overview] error consultando AIMetricDaily: %s", e)
+        db.rollback()
+
     if last_24h is None:
         # Devolvemos un "vacío" con todos los campos inicializados a 0
         # para que Pydantic pueda validarlo correctamente.
         last_24h = AIMetricDaily(
             id=UUID(int=0),
-            tenant_id=UUID(tenant_ids[0]) if isinstance(tenant_ids[0], str) else tenant_ids[0],
+            tenant_id=tenant_uuids[0],
             day=today,
             agent=AgentKind.MARKETING,
             requests=0,
@@ -93,41 +102,66 @@ def get_overview(
             unique_users=0,
         )
 
-    last_7d = db.execute(
-        select(AIMetricDaily)
-        .where(
-            AIMetricDaily.day >= today - timedelta(days=7),
-            AIMetricDaily.tenant_id.in_(tenant_ids),
-        )
-        .order_by(AIMetricDaily.day.asc())
-    ).scalars().all()
+    last_7d: list = []
+    try:
+        last_7d = db.execute(
+            select(AIMetricDaily)
+            .where(
+                AIMetricDaily.day >= today - timedelta(days=7),
+                AIMetricDaily.tenant_id.in_(tenant_uuids),
+            )
+            .order_by(AIMetricDaily.day.asc())
+        ).scalars().all()
+    except Exception as e:
+        logger.warning("[admin/overview] error consultando last_7d: %s", e)
+        db.rollback()
 
     from app.models.ai import AIConversation, AIMessage
-    total_conv = db.execute(
-        select(func.count(AIConversation.id))
-        .where(AIConversation.tenant_id.in_(tenant_ids))
-    ).scalar_one() or 0
-    total_msgs = db.execute(
-        select(func.count(AIMessage.id))
-        .where(AIMessage.tenant_id.in_(tenant_ids))
-    ).scalar_one() or 0
-    active_users = db.execute(
-        select(func.count(func.distinct(AIMessage.user_id)))
-        .where(
-            AIMessage.tenant_id.in_(tenant_ids),
-            AIMessage.created_at >= today - timedelta(days=7),
-        )
-    ).scalar_one() or 0
+    total_conv = 0
+    total_msgs = 0
+    active_users = 0
+    try:
+        total_conv = db.execute(
+            select(func.count(AIConversation.id))
+            .where(AIConversation.tenant_id.in_(tenant_uuids))
+        ).scalar_one() or 0
+    except Exception as e:
+        logger.warning("[admin/overview] error contando conversaciones: %s", e)
+        db.rollback()
+    try:
+        total_msgs = db.execute(
+            select(func.count(AIMessage.id))
+            .where(AIMessage.tenant_id.in_(tenant_uuids))
+        ).scalar_one() or 0
+    except Exception as e:
+        logger.warning("[admin/overview] error contando mensajes: %s", e)
+        db.rollback()
+    try:
+        active_users = db.execute(
+            select(func.count(func.distinct(AIMessage.user_id)))
+            .where(
+                AIMessage.tenant_id.in_(tenant_uuids),
+                AIMessage.created_at >= today - timedelta(days=7),
+            )
+        ).scalar_one() or 0
+    except Exception as e:
+        logger.warning("[admin/overview] error contando usuarios activos: %s", e)
+        db.rollback()
 
-    return AIOverviewOut(
-        last_24h=MetricDailyOut.model_validate(last_24h),
-        last_7d=[MetricDailyOut.model_validate(m) for m in last_7d],
-        circuit_state=get_circuit().snapshot(),
-        llm_enabled=settings.llm_enabled,
-        total_conversations=int(total_conv),
-        total_messages=int(total_msgs),
-        active_users_7d=int(active_users),
-    )
+    try:
+        return AIOverviewOut(
+            last_24h=MetricDailyOut.model_validate(last_24h),
+            last_7d=[MetricDailyOut.model_validate(m) for m in last_7d],
+            circuit_state=str(get_circuit().snapshot()),
+            llm_enabled=settings.llm_enabled,
+            total_conversations=int(total_conv),
+            total_messages=int(total_msgs),
+            active_users_7d=int(active_users),
+        )
+    except Exception as e:
+        logger.exception("[admin/overview] error construyendo respuesta: %s", e)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error en overview: {e}")
 
 
 @router.get("/metrics", response_model=list[MetricDailyOut])
@@ -141,19 +175,25 @@ def get_metrics(
     tenant_ids = _user_tenants(db, str(user.id))
     if not tenant_ids:
         return []
+    tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
     since = datetime.now(timezone.utc) - timedelta(days=days)
     stmt = (
         select(AIMetricDaily)
         .where(
-            AIMetricDaily.tenant_id.in_(tenant_ids),
+            AIMetricDaily.tenant_id.in_(tenant_uuids),
             AIMetricDaily.day >= since,
         )
         .order_by(AIMetricDaily.day.asc())
     )
     if agent:
         stmt = stmt.where(AIMetricDaily.agent == agent)
-    rows = db.execute(stmt).scalars().all()
-    return [MetricDailyOut.model_validate(r) for r in rows]
+    try:
+        rows = db.execute(stmt).scalars().all()
+        return [MetricDailyOut.model_validate(r) for r in rows]
+    except Exception as e:
+        logger.exception("[admin/metrics] error: %s", e)
+        db.rollback()
+        return []
 
 
 @router.get("/logs", response_model=LogListOut)
@@ -169,25 +209,31 @@ def get_logs(
     tenant_ids = _user_tenants(db, str(user.id))
     if not tenant_ids:
         return LogListOut(items=[], total=0, page=page, page_size=page_size)
-    base = select(AILog).where(AILog.tenant_id.in_(tenant_ids))
-    if status_filter:
-        base = base.where(AILog.status == status_filter)
-    if agent:
-        base = base.where(AILog.agent == agent)
-    base = base.order_by(desc(AILog.created_at))
+    tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
+    try:
+        base = select(AILog).where(AILog.tenant_id.in_(tenant_uuids))
+        if status_filter:
+            base = base.where(AILog.status == status_filter)
+        if agent:
+            base = base.where(AILog.agent == agent)
+        base = base.order_by(desc(AILog.created_at))
 
-    total = db.execute(
-        select(func.count()).select_from(base.subquery())
-    ).scalar_one() or 0
-    rows = db.execute(
-        base.offset((page - 1) * page_size).limit(page_size)
-    ).scalars().all()
-    return LogListOut(
-        items=[LogOut.model_validate(r) for r in rows],
-        total=int(total),
-        page=page,
-        page_size=page_size,
-    )
+        total = db.execute(
+            select(func.count()).select_from(base.subquery())
+        ).scalar_one() or 0
+        rows = db.execute(
+            base.offset((page - 1) * page_size).limit(page_size)
+        ).scalars().all()
+        return LogListOut(
+            items=[LogOut.model_validate(r) for r in rows],
+            total=int(total),
+            page=page,
+            page_size=page_size,
+        )
+    except Exception as e:
+        logger.exception("[admin/logs] error: %s", e)
+        db.rollback()
+        return LogListOut(items=[], total=0, page=page, page_size=page_size)
 
 
 @router.get("/logs/{log_id}/traces", response_model=TraceListOut)
