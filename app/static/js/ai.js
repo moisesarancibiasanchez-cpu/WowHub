@@ -23,38 +23,31 @@
   }
 
   async function api(path, opts = {}) {
-    if (window.WH && window.WH.api) {
-      const method = (opts.method || "GET").toUpperCase();
-      const hasBody = opts.body !== undefined && opts.body !== null;
-      // POST/PUT/PATCH con body → usar helper .post() que ya hace JSON.stringify
-      if ((method === "POST" || method === "PUT" || method === "PATCH") && hasBody) {
-        if (method === "POST" && typeof window.WH.api.post === "function") {
-          return window.WH.api.post(path, opts.body);
-        }
-        // Fallback: stringify manual
-        return window.WH.api.request(path, { method, body: JSON.stringify(opts.body) });
-      }
-      return typeof window.WH.api.get === "function" && method === "GET"
-        ? window.WH.api.get(path)
-        : window.WH.api.request(path, { method });
-    }
-    // Fallback: fetch directo (sin app.js)
-    const token = localStorage.getItem("wowhub_access_token");
-    const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+    const method = (opts.method || "GET").toUpperCase();
+    // Bypass total del cliente global: fetch directo con headers correctos.
+    // (El cliente global en app.js usa spread de opts que en algunos navegadores
+    //  pierde el body cuando se pasa como objeto → Pydantic recibía "[object Object]")
+    const token = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access)
+      ? window.WH.TokenStore.access()
+      : localStorage.getItem("wowhub_access_token");
+    const tenant = (window.WH && window.WH.TokenStore && window.WH.TokenStore.currentTenant)
+      ? window.WH.TokenStore.currentTenant()
+      : (() => { try { return JSON.parse(localStorage.getItem("wowhub_current_tenant")); } catch { return null; } })();
+    const headers = Object.assign(
+      { "Accept": "application/json" },
+      opts.headers || {},
+    );
     if (token) headers["Authorization"] = "Bearer " + token;
-    const tenantRaw = localStorage.getItem("wowhub_current_tenant");
-    try {
-      const t = JSON.parse(tenantRaw);
-      if (t && t.tenant_id) headers["X-Tenant-Id"] = t.tenant_id;
-    } catch (_) {}
-    const r = await fetch(path, {
-      method: opts.method || "GET",
-      headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    if (tenant && tenant.tenant_id) headers["X-Tenant-Id"] = tenant.tenant_id;
+    let body;
+    if (opts.body !== undefined && opts.body !== null) {
+      headers["Content-Type"] = "application/json";
+      body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
+    }
+    const r = await fetch(path, { method, headers, body });
     if (!r.ok) {
       const text = await r.text();
-      throw new Error("HTTP " + r.status + ": " + text.slice(0, 300));
+      throw new Error("HTTP " + r.status + ": " + text.slice(0, 500));
     }
     return r.status === 204 ? null : r.json();
   }
