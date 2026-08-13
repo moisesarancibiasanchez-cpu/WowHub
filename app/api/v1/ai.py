@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -145,6 +145,78 @@ async def post_chat(
                 status_code=429,
                 detail=f"Límite diario alcanzado ({e.used}/{e.limit} mensajes). Vuelve mañana.",
             )
+        except HTTPException:
+            raise  # las HTTPException ya tienen su formato, no envolver
+        except Exception as e:
+            # Cualquier error inesperado: devolvemos 200 con fallback de Marketing Studio
+            # para que el chat NUNCA rompa la UX del usuario. Loggeamos el traceback
+            # para diagnóstico del admin.
+            logger.exception("[ai.chat] error no manejado: %s", e)
+            try:
+                from app.services.ai_agents import get_agent
+                sub = get_agent((payload.message.force_agent or "marketing").value)
+                # Intentar crear/recuperar la conversación para persistir el fallback
+                from app.services.ai_orchestrator import (
+                    get_or_create_conversation, save_message,
+                )
+                from app.models.ai import (
+                    AgentKind as _AK, MessageRole as _MR, ConversationStatus as _CS,
+                )
+                conv = get_or_create_conversation(
+                    db,
+                    user_id=str(user.id),
+                    tenant_id=tenant_id,
+                    conversation_id=payload.message.conversation_id,
+                    title=payload.message.content[:80],
+                )
+                # Marcar error en el log
+                from app.services.ai_orchestrator import save_log
+                from app.models.ai import LogStatus as _LS
+                save_log(
+                    db,
+                    conversation=conv,
+                    user_id=str(user.id),
+                    agent=_AK(payload.message.force_agent or "marketing"),
+                    status=_LS.ERROR,
+                    user_message=payload.message.content,
+                    assistant_message=sub.fallback,
+                    error=str(e)[:500],
+                    error_code="unhandled_exception",
+                    latency_ms=0,
+                )
+                # Devolver fallback con flag error=true
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "conversation_id": str(conv.id),
+                        "message_id": str(uuid4()),
+                        "agent": (payload.message.force_agent or "marketing").value,
+                        "content": sub.fallback,
+                        "fallback": True,
+                        "error": True,
+                        "error_message": "Tuvimos un problema técnico. Estamos en ello.",
+                        "tool_calls": [],
+                        "latency_ms": 0,
+                        "tokens_in": None,
+                        "tokens_out": None,
+                    },
+                )
+            except Exception:
+                # Si hasta el fallback falla, devolvemos 200 con texto plano
+                logger.exception("[ai.chat] fallback de emergencia también falló")
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "conversation_id": "",
+                        "message_id": str(uuid4()),
+                        "agent": "marketing",
+                        "content": "Disculpa, tuve un problema técnico. Inténtalo de nuevo en unos segundos.",
+                        "fallback": True,
+                        "error": True,
+                        "tool_calls": [],
+                        "latency_ms": 0,
+                    },
+                )
 
     # ── SSE streaming ────────────────────────────────
     async def event_source():
