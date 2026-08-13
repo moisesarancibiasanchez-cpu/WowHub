@@ -1,0 +1,87 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Asistente IA · WowHub{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ai.css">
+{% endblock %}
+{% block content %}
+<div class="ai-shell">
+  <!-- Sidebar de conversaciones -->
+  <aside class="ai-sidebar" id="ai-sidebar">
+    <div class="ai-sidebar-head">
+      <h2 class="ai-title">Asistente IA</h2>
+      <button class="btn btn-primary btn-sm" id="ai-new-chat" title="Nueva conversación">+ Nuevo</button>
+    </div>
+    <div class="ai-agents" id="ai-agents">
+      <div class="ai-agent-chip" data-agent="marketing"><span>🎨</span> Marketing</div>
+      <div class="ai-agent-chip" data-agent="growth"><span>📈</span> Growth</div>
+      <div class="ai-agent-chip" data-agent="automation"><span>⚙️</span> Automation</div>
+      <div class="ai-agent-chip" data-agent="marketplace"><span>🛒</span> Marketplace</div>
+    </div>
+    <div class="ai-convs" id="ai-convs">
+      <p class="ai-empty">Cargando conversaciones…</p>
+    </div>
+    <div class="ai-usage" id="ai-usage"></div>
+  </aside>
+
+  <!-- Panel de chat -->
+  <main class="ai-main">
+    <header class="ai-header">
+      <div>
+        <h1 id="ai-current-agent">Marketing Studio</h1>
+        <p class="ai-sub" id="ai-current-sub">Tu copiloto de marketing y promociones.</p>
+      </div>
+      <div class="ai-status">
+        <span class="ai-pill" id="ai-circuit-pill">●&nbsp;LLM OK</span>
+        <span class="ai-pill" id="ai-fallback-pill" style="display:none;">●&nbsp;Modo fallback</span>
+      </div>
+    </header>
+
+    <section class="ai-thread" id="ai-thread">
+      <div class="ai-welcome" id="ai-welcome">
+        <h2>Hola, soy tu asistente IA 🤖</h2>
+        <p>Puedo ayudarte a crear promociones, analizar tus ventas, enviar emails
+          a clientes o mejorar tu catálogo. Elige un agente a la izquierda y
+          pregúntame lo que quieras.</p>
+        <div class="ai-suggestions" id="ai-suggestions">
+          <button class="ai-suggest" data-prompt="Crea una promoción del 15% para mis productos destacados, válida por 7 días.">Crear una promoción 15%</button>
+          <button class="ai-suggest" data-prompt="¿Cómo van mis ventas los últimos 30 días? Dame 2 ideas para crecer.">Analizar mis ventas</button>
+          <button class="ai-suggest" data-prompt="Dame una descripción atractiva para mi producto más vendido.">Mejorar descripción</button>
+          <button class="ai-suggest" data-prompt="¿Qué clientes no compran hace 60+ días? Sugiéreme un email para reactivarlos.">Reactivar clientes</button>
+        </div>
+      </div>
+    </section>
+
+    <form class="ai-composer" id="ai-composer" autocomplete="off">
+      <textarea
+        id="ai-input"
+        placeholder="Pregúntame cualquier cosa sobre tu negocio…"
+        rows="1"
+        maxlength="4000"></textarea>
+      <button class="btn btn-primary" id="ai-send" type="submit">Enviar</button>
+    </form>
+    <p class="ai-meta" id="ai-meta">Enter para enviar · Shift+Enter para nueva línea</p>
+  </main>
+</div>
+
+<template id="tpl-msg-user">
+  <div class="ai-msg ai-msg-user">
+    <div class="ai-msg-bubble"></div>
+  </div>
+</template>
+<template id="tpl-msg-assistant">
+  <div class="ai-msg ai-msg-assistant">
+    <div class="ai-msg-meta"></div>
+    <div class="ai-msg-bubble"></div>
+  </div>
+</template>
+<template id="tpl-conv-item">
+  <button class="ai-conv-item" type="button">
+    <span class="ai-conv-title"></span>
+    <span class="ai-conv-meta"></span>
+  </button>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/ai.js"></script>
+{% endblock %}

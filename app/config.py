@@ -96,6 +96,28 @@ class Settings(BaseSettings):
     # Búsqueda
     search_max_results: int = 50
 
+    # ── AI Core (WowHub) ─────────────────────────────
+    # Proveedor LLM. openai_compatible = /v1 (MiniMax) | anthropic = /anthropic
+    llm_provider: str = "openai_compatible"
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.minimax.io/v1"
+    llm_model: str = "MiniMax-M3"
+    llm_timeout_seconds: int = 30
+    llm_max_retries: int = 2
+    # Circuit breaker
+    llm_cb_fail_threshold: int = 5
+    llm_cb_reset_seconds: int = 60
+    # Chat por usuario
+    ai_context_messages: int = 20
+    ai_daily_message_limit: int = 100
+    # Fallback cuando el LLM está caído
+    ai_fallback_enabled: bool = True
+
+    @property
+    def llm_enabled(self) -> bool:
+        """El LLM está operativo si hay API key, base URL y modelo configurados."""
+        return bool(self.llm_api_key and self.llm_base_url and self.llm_model)
+
     @field_validator("cors_origins")
     @classmethod
     def _strip_origins(cls, v: str) -> str:

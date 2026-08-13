@@ -22,3 +22,7 @@ from app.models.legal import LegalConsent  # noqa: F401
 from app.models.onboarding import OnboardingState  # noqa: F401
 from app.models.upload import Upload  # noqa: F401
 from app.models.site_config import SiteConfig  # noqa: F401
+from app.models.ai import (  # noqa: F401
+    AIConversation, AIMessage, AILog, AITrace, AIMetricDaily,
+    AgentKind, MessageRole, ConversationStatus, LogStatus,
+)

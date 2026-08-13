@@ -18,6 +18,7 @@ from app.api.v1 import (
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
     site_config,
+    ai, admin_ai,
 )
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
@@ -135,6 +136,8 @@ app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(branch_products.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")
+app.include_router(ai.router, prefix="/api/v1")
+app.include_router(admin_ai.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -227,6 +230,18 @@ def dashboard_stats(request: Request):
 @app.get("/dashboard/webhooks", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_webhooks(request: Request):
     return templates.TemplateResponse(request, "dashboard/webhooks.html", {"settings": settings})
+
+
+@app.get("/dashboard/ai", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_ai(request: Request):
+    """Chat con el asistente IA de WowHub."""
+    return templates.TemplateResponse(request, "dashboard/ai.html", {"settings": settings})
+
+
+@app.get("/admin/ai", response_class=HTMLResponse, include_in_schema=False)
+def admin_ai_page(request: Request):
+    """Dashboard admin del AI Core: logs, métricas, trazas, circuit."""
+    return templates.TemplateResponse(request, "dashboard/admin_ai.html", {"settings": settings})
 
 
 # ── Páginas públicas por tenant ──────────────────────────
