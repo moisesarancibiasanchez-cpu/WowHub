@@ -152,6 +152,15 @@ async def post_chat(
             # para que el chat NUNCA rompa la UX del usuario. Loggeamos el traceback
             # para diagnóstico del admin.
             logger.exception("[ai.chat] error no manejado: %s", e)
+            # CRÍTICO: rollback para limpiar cualquier transacción pendiente del orchestrator
+            # que haya dejado la sesión en mal estado. Sin esto, get_or_create_conversation
+            # puede fallar por conflicto de transacción, y el segundo fallback devuelve
+            # conversation_id="" → el frontend lo guarda → Pydantic rechaza en el
+            # segundo mensaje con 422 (uuid_parsing: invalid length 0).
+            try:
+                db.rollback()
+            except Exception:
+                pass
             try:
                 from app.services.ai_agents import get_agent
                 sub = get_agent((payload.message.force_agent or "marketing").value)
@@ -166,7 +175,10 @@ async def post_chat(
                     db,
                     user_id=str(user.id),
                     tenant_id=tenant_id,
-                    conversation_id=payload.message.conversation_id,
+                    # No usar el conversation_id del payload: pudo haber sido ""
+                    # o apuntar a una conversación que no existe. Siempre crear
+                    # una nueva para el fallback.
+                    conversation_id=None,
                     title=payload.message.content[:80],
                 )
                 # Marcar error en el log
@@ -184,6 +196,11 @@ async def post_chat(
                     error_code="unhandled_exception",
                     latency_ms=0,
                 )
+                # CRÍTICO: commit para que la conversación y el log persistan.
+                # Sin esto, el frontend recibe un conversation_id que no existe
+                # en la DB y los siguientes mensajes fallan.
+                db.commit()
+                db.refresh(conv)
                 # Devolver fallback con flag error=true
                 return JSONResponse(
                     status_code=200,
@@ -201,13 +218,20 @@ async def post_chat(
                         "tokens_out": None,
                     },
                 )
-            except Exception:
-                # Si hasta el fallback falla, devolvemos 200 con texto plano
-                logger.exception("[ai.chat] fallback de emergencia también falló")
+            except Exception as fallback_err:
+                # Si hasta el fallback falla, devolvemos 200 con un UUID generado
+                # localmente (no persistido) para que el frontend al menos pueda
+                # seguir enviando mensajes. NO devolvemos "" porque eso causa 422
+                # en el siguiente mensaje (uuid_parsing: invalid length 0).
+                logger.exception("[ai.chat] fallback de emergencia también falló: %s", fallback_err)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 return JSONResponse(
                     status_code=200,
                     content={
-                        "conversation_id": "",
+                        "conversation_id": str(uuid4()),
                         "message_id": str(uuid4()),
                         "agent": "marketing",
                         "content": "Disculpa, tuve un problema técnico. Inténtalo de nuevo en unos segundos.",
