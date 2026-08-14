@@ -65,13 +65,20 @@ def init_db() -> None:
     # ── Migración puntual: cashier_pin VARCHAR(8) → VARCHAR(64) ──
     # El campo cambió de tamaño porque el hash SHA-256 (64 hex chars)
     # no entraba en 8. create_all no altera columnas existentes.
+    import logging as _lg
+    log = _lg.getLogger("wowhub.db")
     try:
         from sqlalchemy import text
         with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE loyalty_campaigns "
-                "ALTER COLUMN cashier_pin TYPE VARCHAR(64)"
-            ))
-    except Exception:
-        # Idempotente: si la tabla no existe o el tipo ya es correcto, sigue.
-        pass
+            exists = conn.execute(text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'loyalty_campaigns'"
+            )).scalar()
+            if exists:
+                conn.execute(text(
+                    "ALTER TABLE loyalty_campaigns "
+                    "ALTER COLUMN cashier_pin TYPE VARCHAR(64)"
+                ))
+                log.info("Migración aplicada: cashier_pin → VARCHAR(64)")
+    except Exception as e:
+        log.warning("Migración cashier_pin no aplicada: %s", e)
