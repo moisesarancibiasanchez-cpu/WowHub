@@ -62,3 +62,16 @@ def init_db() -> None:
         loyalty_pass,  # noqa
     )
     Base.metadata.create_all(bind=engine)
+    # ── Migración puntual: cashier_pin VARCHAR(8) → VARCHAR(64) ──
+    # El campo cambió de tamaño porque el hash SHA-256 (64 hex chars)
+    # no entraba en 8. create_all no altera columnas existentes.
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE loyalty_campaigns "
+                "ALTER COLUMN cashier_pin TYPE VARCHAR(64)"
+            ))
+    except Exception:
+        # Idempotente: si la tabla no existe o el tipo ya es correcto, sigue.
+        pass
