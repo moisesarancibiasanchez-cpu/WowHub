@@ -25,6 +25,7 @@ from app.schemas.loyalty import (
 )
 from app.services.loyalty_pass_service import (
     LoyaltyPassService, QR_TOKEN_TTL_SECONDS, get_active_campaign_by_slug,
+    get_tenant_by_slug,
 )
 
 logger = logging.getLogger("wowhub.api.loyalty")
@@ -212,9 +213,12 @@ def get_public_campaign(
     campaign = get_active_campaign_by_slug(db, slug)
     if not campaign:
         raise HTTPException(404, "Comercio no encontrado o sin campaña activa")
+    # Accedemos al tenant por slug (no hay relationship en el modelo)
+    tenant = get_tenant_by_slug(db, slug)
+    tenant_name = tenant.display_name if tenant else None
     return {
         "tenant_slug": slug,
-        "tenant_name": campaign.tenant.name if campaign.tenant else None,
+        "tenant_name": tenant_name,
         "campaign": {
             "id": str(campaign.id),
             "name": campaign.name,

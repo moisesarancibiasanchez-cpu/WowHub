@@ -343,7 +343,7 @@ class LoyaltyPassService:
             return ScanOut(ok=False, error="Pase no encontrado", error_code="pass_not_found")
         if customer_pass.status not in (PassStatus.ACTIVE.value, PassStatus.REDEEMED.value):
             return ScanOut(ok=False, error=f"Pase en estado {customer_pass.status}", error_code="pass_inactive")
-        if customer_pass.tenant_id != self.tenant_id:
+        if str(customer_pass.tenant_id) != str(self.tenant_id):
             return ScanOut(ok=False, error="Pase de otro comercio", error_code="tenant_mismatch")
         if str(customer_pass.campaign_id) != str(token.campaign_id):
             return ScanOut(ok=False, error="El QR del mostrador y el pase son de campañas distintas",
