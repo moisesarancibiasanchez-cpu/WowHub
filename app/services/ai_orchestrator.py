@@ -14,7 +14,9 @@ Este módulo NO contiene lógica de transporte HTTP — esa vive en `app/api/v1/
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Optional
@@ -399,6 +401,11 @@ class AIOrchestrator:
             # 7) Tool calls (round 1)
             tool_calls = (resp.raw or {}).get("choices", [{}])[0].get("message", {}).get("tool_calls") or []
             if tool_calls:
+                # Acumulamos los resultados REALES de cada tool para
+                # pasárselos al LLM en la segunda llamada. Antes
+                # (summary_text) sólo repetíamos el nombre → el LLM no
+                # tenía con qué rellenar los bullets.
+                tool_results_for_llm: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
                 for tc in tool_calls:
                     fn = tc.get("function") or {}
                     name = fn.get("name") or ""
@@ -416,6 +423,7 @@ class AIOrchestrator:
                     self._trace(conv, None, "tool_call",
                                 {"name": name, "args": args,
                                  "result_summary": _summary(result)})
+                    tool_results_for_llm.append((name, args, result))
 
                 # Segunda llamada al LLM con los resultados
                 t1 = time.perf_counter()
@@ -428,17 +436,18 @@ class AIOrchestrator:
                         name=fn.get("name"),
                     ))
                     # (en OpenAI real, los tool messages referencian tool_call_id)
-                # Simplificación: append como user una nota
+                # Ahora sí: pasamos los DATOS reales (name + args + result)
                 summary_text = "\n".join(
-                    f"- {tc['function']['name']}: {tc['function']['name']} → OK"
-                    for tc in tool_calls
+                    _format_tool_result(name, args, result)
+                    for name, args, result in tool_results_for_llm
                 )
                 tool_msgs.append(LLMMessage(
                     role="user",
                     content=(
                         "Estos son los resultados de las herramientas que llamaste. "
                         "Redacta la respuesta final para el usuario en español, "
-                        "de forma clara y accionable.\n\n"
+                        "de forma clara y accionable. Si una tool falló, indícalo "
+                        "con transparencia y sugiere el siguiente paso manual.\n\n"
                         f"Resultados:\n{summary_text}"
                     ),
                 ))
@@ -477,6 +486,11 @@ class AIOrchestrator:
 
         latency_total = int((time.perf_counter() - started) * 1000)
         circuit_after = get_circuit().snapshot()
+
+        # 7.5) Limpiar el contenido: nunca devolver bloques <think>
+        # al usuario (DeepSeek, Qwen, etc. los emiten en content).
+        if assistant_content:
+            assistant_content = strip_think(assistant_content)
 
         # 8) Persistir respuesta del assistant
         asst_msg = save_message(
@@ -588,7 +602,6 @@ class AIOrchestrator:
 
 
 def _safe_json(s: str) -> dict[str, Any]:
-    import json
     try:
         return json.loads(s) if s else {}
     except (ValueError, TypeError):
@@ -601,3 +614,54 @@ def _summary(d: dict[str, Any]) -> dict[str, Any]:
         return {"_type": type(d).__name__}
     keys = list(d.keys())[:8]
     return {k: d[k] for k in keys}
+
+
+# ── Limpieza de la respuesta ────────────────────────────
+# Algunos modelos (DeepSeek, Qwen "thinking", etc.) emiten bloques
+# `<think>...</think>` con su razonamiento interno. Eso NUNCA debe
+# llegar al usuario. Lo quitamos en una sola pasada.
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+# Algunos proveedores también sueltan "razonamiento" suelto entre
+# <think> sin cerrar, o variantes como <reasoning>...</reasoning>.
+_LEAKY_TAGS = ("reasoning", "reflection", "analysis")
+
+
+def strip_think(text: str) -> str:
+    """Quita los bloques de razonamiento interno del LLM.
+
+    - Elimina cualquier `<think>...</think>` (case-insensitive, multilinea).
+    - Si por algún motivo el bloque quedó sin cerrar, recorta todo lo
+      que viene antes del primer bloque "bien formado" o lo descarta
+      entero si parece 100% razonamiento.
+    - Devuelve el texto limpio y stripped.
+    """
+    if not text:
+        return text
+    cleaned = _THINK_RE.sub("", text)
+    # Fallback defensivo: si el modelo abrió <reasoning>...</reasoning>
+    # o variantes, también las removemos.
+    for tag in _LEAKY_TAGS:
+        cleaned = re.sub(
+            rf"<{tag}>.*?</{tag}>\s*",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    return cleaned.strip()
+
+
+def _format_tool_result(name: str, args: dict[str, Any], result: dict[str, Any]) -> str:
+    """Formatea el resultado de una tool para enviarlo de vuelta al LLM.
+
+    La idea: que el LLM reciba los DATOS reales que devolvió la tool,
+    no solo el nombre. Si el dict es enorme, lo truncamos para no
+    reventar el contexto.
+    """
+    try:
+        payload = json.dumps(result, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        payload = str(result)
+    if len(payload) > 1500:
+        payload = payload[:1500] + "…(truncado)"
+    args_str = json.dumps(args, ensure_ascii=False, default=str) if args else "{}"
+    return f"- {name}({args_str}) → {payload}"
