@@ -89,6 +89,20 @@ class CampaignOut(CampaignBase):
     total_stamps_issued: int
     total_rewards_redeemed: int
     created_at: datetime
+    # ── IMPORTANTE ──────────────────────────────────────────
+    # Sobrescribimos `cashier_pin` heredado de CampaignBase.
+    # En la DB se guarda como SHA-256 hex (64 chars), pero
+    # CampaignBase lo define con min_length=4 / max_length=8
+    # (validación de INPUT del PIN crudo del usuario).
+    # Si lo dejamos así, model_validate() rechaza el hash con
+    # 500 "string_too_long" al devolver cualquier campaña con PIN.
+    # En la respuesta NUNCA exponemos el hash: el front solo ve
+    # `cashier_pin_set: bool`. Por eso lo forzamos a Optional[str]
+    # sin restricciones y lo anulamos en la salida.
+    cashier_pin: Optional[str] = Field(
+        default=None, exclude=True, repr=False,
+        description="(interno) hash SHA-256; nunca se expone en la respuesta",
+    )
     # Si el owner definió un PIN, no lo devolvemos en claro
     cashier_pin_set: bool = False
 
