@@ -510,3 +510,36 @@ def run_loyalty_migration():
     except Exception as e:
         out["error"] = str(e)
     return out
+
+
+# ── TEMP DEBUG: capturar excepción real de create con PIN ───
+@app.post("/debug/create-campaign-with-pin", tags=["debug"], include_in_schema=False)
+def debug_create_with_pin(payload: dict):
+    """Llama al servicio y devuelve la excepción exacta."""
+    from app.database import SessionLocal
+    from app.schemas.loyalty import CampaignCreate
+    from app.services.loyalty_pass_service import LoyaltyPassService
+    out = {"ok": False}
+    db = SessionLocal()
+    try:
+        # Necesitamos un tenant_id válido. Usamos el primero.
+        from app.models.tenant import Tenant
+        from sqlalchemy import select
+        t = db.execute(select(Tenant).limit(1)).scalar_one_or_none()
+        if not t:
+            out["error"] = "no tenants"
+            return out
+        svc = LoyaltyPassService(db, tenant_id=str(t.id))
+        p = CampaignCreate(**payload)
+        c = svc.create_campaign(p)
+        out["ok"] = True
+        out["campaign_id"] = str(c.id)
+        out["cashier_pin_len"] = len(c.cashier_pin) if c.cashier_pin else None
+    except Exception as e:
+        out["error"] = str(e)
+        out["type"] = type(e).__name__
+        import traceback
+        out["tb"] = traceback.format_exc()
+    finally:
+        db.close()
+    return out
