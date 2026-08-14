@@ -37,6 +37,10 @@ dev = [
     "faker>=24.0.0",
     "resend>=0.7.0",                 # backend de email opcional
 ]
+e2e = [
+    "playwright>=1.42.0",
+    "pytest-playwright>=0.4.4",
+]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -52,6 +56,15 @@ app = ["i18n/*.json", "templates/**/*", "static/**/*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "e2e: tests E2E con Playwright (requieren --base-url y un servidor vivo)",
+]
+# Configuración de pytest-playwright
+# Para correr E2E:
+#   pip install -e ".[e2e]"
+#   playwright install chromium
+#   pytest tests/e2e -m e2e --base-url=https://wowhub-app.up.railway.app
+# Si no se pasa --base-url, default a localhost:8000 (útil con `uvicorn app.main:app`).
 
 [tool.ruff]
 line-length = 100

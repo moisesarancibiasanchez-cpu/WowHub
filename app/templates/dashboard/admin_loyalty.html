@@ -210,9 +210,10 @@ async function saveCampaign(e) {
       await WH.api.post(url, body);
     }
     $("modal").classList.add("hidden");
+    WH.Toast.show(id ? "Campaña actualizada" : "Campaña creada", "success");
     await loadCampaigns();
   } catch (e) {
-    alert("Error: " + e.message);
+    WH.Toast.show("Error: " + e.message, "error");
   }
 }
 
@@ -221,9 +222,10 @@ async function archiveCampaign(id) {
   const session = await WH.Auth.ensureSession();
   try {
     await WH.api.del(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${id}`);
+    WH.Toast.show("Campaña archivada", "success");
     await loadCampaigns();
   } catch (e) {
-    alert("Error al archivar: " + e.message);
+    WH.Toast.show("Error al archivar: " + e.message, "error");
   }
 }
 
@@ -257,7 +259,7 @@ async function refreshQr() {
     const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(data.qr_payload)}`;
     $("qr-img").src = url;
   } catch (e) {
-    alert("No se pudo generar el QR: " + e.message);
+    WH.Toast.show("No se pudo generar el QR: " + e.message, "error");
   }
 }
 
@@ -287,16 +289,13 @@ async function showMetrics(c) {
   const session = await WH.Auth.ensureSession();
   try {
     const m = await WH.api.get(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${c.id}/metrics`);
-    alert(
-      `Métricas — ${c.name}\n\n` +
-      `Pases activos: ${m.active_passes}\n` +
-      `Sellos hoy: ${m.total_stamps_today}\n` +
-      `Premios hoy: ${m.total_rewards_today}\n` +
-      `Conversión: ${(m.conversion_rate * 100).toFixed(1)}%\n` +
-      `Prom. sellos por premio: ${m.avg_stamps_to_reward.toFixed(1)}`
+    // Reemplazamos el alert por un toast largo con info resumida
+    WH.Toast.show(
+      `Métricas ${c.name}: ${m.active_passes} pases · ${m.total_stamps_today} sellos hoy · ${(m.conversion_rate * 100).toFixed(1)}% conv.`,
+      "info"
     );
   } catch (e) {
-    alert("Error al cargar métricas: " + e.message);
+    WH.Toast.show("Error al cargar métricas: " + e.message, "error");
   }
 }
 

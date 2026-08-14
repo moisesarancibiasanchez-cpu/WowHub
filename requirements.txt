@@ -19,3 +19,10 @@ tenacity>=8.2.3
 psycopg2-binary>=2.9.0
 pillow>=10.2.0
 python-dateutil>=2.8.2
+
+# ── E2E tests (opcional, no instalado en deploy de producción) ──
+# Se instala con `pip install playwright pytest-playwright`
+# y se ejecuta con `pytest tests/e2e -m e2e --base-url=https://...`
+# Requiere `playwright install chromium` para descargar el binario.
+# playwright>=1.42.0
+# pytest-playwright>=0.4.4
