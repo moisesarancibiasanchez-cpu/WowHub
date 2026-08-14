@@ -73,8 +73,9 @@ class LoyaltyCampaign(BaseModel, TenantMixin):
     starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Anti-fraude: PIN de garzón (4-8 dígitos). Se valida al escanear.
-    cashier_pin: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    # Anti-fraude: PIN de garzón (4-8 dígitos en input, 64 hex chars hashed).
+    # Se valida al escanear.
+    cashier_pin: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     pin_hint: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
 
     # Métricas rápidas (desnormalizadas; la fuente de verdad es pass_stamps)
