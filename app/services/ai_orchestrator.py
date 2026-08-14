@@ -216,6 +216,7 @@ def save_trace(
 def update_metric_daily(
     db: Session,
     *,
+    tenant_id: str,
     agent: AgentKind,
     status: LogStatus,
     tokens_in: int = 0,
@@ -223,18 +224,29 @@ def update_metric_daily(
     latency_ms: int = 0,
     user_id: Optional[str] = None,
 ) -> None:
-    """Upsert de la métrica diaria para (day, tenant, agent)."""
+    """Upsert de la métrica diaria para (day, tenant, agent).
+
+    IMPORTANTE: `tenant_id` es ahora OBLIGATORIO (keyword-only) para evitar
+    el bug histórico de meter el UUID cero que violaba la FK contra `tenants`.
+    La fila se busca por (day, tenant_id, agent) para que cada tenant tenga
+    su propio contador.
+    """
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     stmt = select(AIMetricDaily).where(
         AIMetricDaily.day == today,
         AIMetricDaily.agent == agent,
+        AIMetricDaily.tenant_id == tenant_id,
     )
     row = db.execute(stmt).scalar_one_or_none()
     if row is None:
         row = AIMetricDaily(
-            tenant_id="00000000-0000-0000-0000-000000000000",  # placeholder, ver nota
+            tenant_id=tenant_id,
             day=today,
             agent=agent,
+            requests=0, success=0, fallback=0, errors=0,
+            timeouts=0, rate_limited=0,
+            tokens_in=0, tokens_out=0,
+            avg_latency_ms=0, p95_latency_ms=0, unique_users=0,
         )
         db.add(row)
         db.flush()
@@ -508,9 +520,14 @@ class AIOrchestrator:
             t.log_id = log.id
 
         # 10) Métrica diaria
+        # Si llegara a fallar (ej. tenant inexistente), lo logueamos pero
+        # NO abortamos la respuesta del chat. Importante: un fallo aquí
+        # dejaría la sesión en estado "errored"; hacemos rollback sólo
+        # del cambio de métrica y la dejamos lista para el commit final.
         try:
             update_metric_daily(
                 self.db,
+                tenant_id=self.tenant_id,
                 agent=agent,
                 status=status,
                 tokens_in=tokens_in or 0,
@@ -520,6 +537,16 @@ class AIOrchestrator:
             )
         except Exception as e:
             logger.warning("No se pudo actualizar métrica: %s", e)
+            try:
+                self.db.rollback()
+                # Re-aplicar los cambios que sí funcionaron (msg + log + traces)
+                # en una nueva transacción:
+                self.db.add(conv)
+                if asst_msg is not None:
+                    self.db.add(asst_msg)
+                self.db.add(log)
+            except Exception as e2:
+                logger.error("Rollback tras fallo de métrica también falló: %s", e2)
 
         self.db.commit()
         self.db.refresh(conv)
