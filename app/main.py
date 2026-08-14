@@ -468,3 +468,45 @@ def health():
         "db": _db_kind,
         "service": "wowhub-api",
     }
+
+
+# ── TEMP DEBUG: fuerza la migración cashier_pin ───────────
+@app.get("/debug/run-loyalty-migration", tags=["debug"], include_in_schema=False)
+def run_loyalty_migration():
+    """Ejecuta la migración cashier_pin manualmente y devuelve el estado."""
+    from sqlalchemy import text
+    from app.database import engine
+    out = {"ok": False, "steps": []}
+    try:
+        with engine.begin() as conn:
+            exists = conn.execute(text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'loyalty_campaigns'"
+            )).scalar()
+            out["steps"].append(f"table_exists={bool(exists)}")
+            if exists:
+                # Check current column type
+                col_type = conn.execute(text(
+                    "SELECT data_type, character_maximum_length "
+                    "FROM information_schema.columns "
+                    "WHERE table_name = 'loyalty_campaigns' "
+                    "AND column_name = 'cashier_pin'"
+                )).first()
+                out["steps"].append(f"before={col_type}")
+                # Run the ALTER
+                conn.execute(text(
+                    "ALTER TABLE loyalty_campaigns "
+                    "ALTER COLUMN cashier_pin TYPE VARCHAR(64)"
+                ))
+                # Verify
+                col_type_after = conn.execute(text(
+                    "SELECT data_type, character_maximum_length "
+                    "FROM information_schema.columns "
+                    "WHERE table_name = 'loyalty_campaigns' "
+                    "AND column_name = 'cashier_pin'"
+                )).first()
+                out["steps"].append(f"after={col_type_after}")
+        out["ok"] = True
+    except Exception as e:
+        out["error"] = str(e)
+    return out
