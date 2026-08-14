@@ -83,6 +83,8 @@ def reset_db():
         # v0.2.0 — modelos nuevos
         payment, webhook, audit, branch_product, token,
         cart, invoice, booking, legal, onboarding, upload,
+        # Loyalty Pass
+        loyalty_pass,  # noqa
     )
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

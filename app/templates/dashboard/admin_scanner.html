@@ -1,0 +1,301 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Escáner de Fidelización{% endblock %}
+{% block dash_content %}
+
+<div class="row-between">
+  <div>
+    <h1>Escáner</h1>
+    <p class="sub">Apunta la cámara al QR del cliente. El QR del mostrador se renueva automáticamente.</p>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/dashboard/loyalty">← Volver a Fidelización</a>
+</div>
+
+<div class="grid grid-2 mt-3" style="grid-template-columns: 1fr 1fr; gap: 18px;">
+  <!-- Lado izquierdo: QR del mostrador + cámara -->
+  <div class="card">
+    <h3 style="margin-top: 0;">1. QR del mostrador</h3>
+    <p class="text-muted" style="font-size: 13px;">
+      Este QR está siempre visible en el mostrador. Se renueva cada 60s.
+    </p>
+    <div id="counter-qr-wrap" style="text-align: center; background: #f8fafc; padding: 16px; border-radius: 12px;">
+      <img id="counter-qr-img" alt="QR del mostrador" style="display: inline-block;">
+    </div>
+    <p class="text-center text-muted" style="font-size: 12px; margin-top: 8px;">
+      Renovación: <span id="counter-countdown">60</span>s
+    </p>
+
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #1f2937;">
+
+    <h3>2. Escanea el QR del cliente</h3>
+    <p class="text-muted" style="font-size: 13px;">
+      Apunta la cámara del celular al QR del cliente (su Apple/Google Wallet o el QR que le diste).
+    </p>
+    <div id="reader" style="width: 100%; max-width: 360px; margin: 0 auto;"></div>
+    <div class="text-center" style="margin-top: 10px;">
+      <button class="btn btn-sm" id="start-cam-btn">Iniciar cámara</button>
+      <button class="btn btn-sm btn-ghost" id="stop-cam-btn" disabled>Detener</button>
+    </div>
+  </div>
+
+  <!-- Lado derecho: resultado del scan -->
+  <div class="card">
+    <h3 style="margin-top: 0;">3. Resultado</h3>
+    <div id="scan-result" class="text-muted text-center" style="padding: 24px 0;">
+      Esperando escaneo…
+    </div>
+    <div id="pass-preview" style="display: none;">
+      <div class="pass-mini" id="pass-mini" style="border-radius: 12px; padding: 16px; color: #fff;">
+        <div style="font-size: 12px; opacity: 0.85;" id="pm-reward-label"></div>
+        <div style="font-size: 14px; font-weight: 700; margin: 2px 0 10px;" id="pm-reward-name"></div>
+        <div class="stamps-mini" id="pm-stamps" style="display: flex; gap: 4px; flex-wrap: wrap;"></div>
+        <div style="font-size: 11px; margin-top: 6px; opacity: 0.9;" id="pm-progress"></div>
+      </div>
+      <div class="row" style="margin-top: 16px; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-primary" id="next-scan-btn">Siguiente escaneo</button>
+      </div>
+    </div>
+
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #1f2937;">
+
+    <div id="pin-zone" style="display: none;">
+      <h4 style="margin-top: 0;">PIN del garzón</h4>
+      <p class="text-muted" style="font-size: 12px;">Esta campaña lo requiere.</p>
+      <input class="form-input" id="cashier-pin" type="password" inputmode="numeric" pattern="\d{4,8}" placeholder="****">
+    </div>
+  </div>
+</div>
+
+<!-- html5-qrcode desde CDN (es lo que recomienda su doc) -->
+<script src="https://unpkg.com/[email protected]/html5-qrcode.min.js"></script>
+<script>
+WH.Auth.requireLogin();
+const $ = (id) => document.getElementById(id);
+let counterTimer = null, counterSecs = 60, counterActive = false;
+let html5Qr = null, scanning = false, lastScanAt = 0, lastSerial = null;
+let currentCampaignId = null;
+let cashierPinRequired = false;
+
+async function getActiveCampaign() {
+  const session = await WH.Auth.ensureSession();
+  const r = await fetch(
+    `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns`,
+    { headers: { Authorization: `Bearer ${session.access_token}` } }
+  );
+  if (!r.ok) return null;
+  const items = await r.json();
+  return items.find(c => c.is_active) || null;
+}
+
+async function refreshCounterQr() {
+  if (!currentCampaignId) return;
+  const session = await WH.Auth.ensureSession();
+  const deviceFp = (navigator.userAgent || "scanner").slice(0, 60);
+  const r = await fetch(
+    `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${currentCampaignId}/qr-token?device_fp=${encodeURIComponent(deviceFp)}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }
+  );
+  if (!r.ok) return;
+  const data = await r.json();
+  $("counter-qr-img").src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(data.qr_payload)}`;
+}
+
+function startCounterQrLoop() {
+  refreshCounterQr();
+  if (counterTimer) clearInterval(counterTimer);
+  counterSecs = 60;
+  $("counter-countdown").textContent = counterSecs;
+  counterTimer = setInterval(() => {
+    counterSecs--;
+    if (counterSecs <= 0) {
+      refreshCounterQr();
+      counterSecs = 60;
+    }
+    $("counter-countdown").textContent = counterSecs;
+  }, 1000);
+}
+
+function startScanner() {
+  if (!window.Html5Qrcode) {
+    alert("No se pudo cargar el lector. Revisa tu conexión.");
+    return;
+  }
+  if (scanning) return;
+  html5Qr = new Html5Qrcode("reader");
+  const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+  html5Qr.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess,
+    () => {}  // ignore decode errors
+  ).then(() => {
+    scanning = true;
+    $("start-cam-btn").disabled = true;
+    $("stop-cam-btn").disabled = false;
+  }).catch((e) => {
+    alert("No se pudo iniciar la cámara: " + (e.message || e));
+  });
+}
+
+function stopScanner() {
+  if (html5Qr && scanning) {
+    html5Qr.stop().then(() => {
+      scanning = false;
+      $("start-cam-btn").disabled = false;
+      $("stop-cam-btn").disabled = true;
+    }).catch(() => {});
+  }
+}
+
+async function onScanSuccess(decodedText) {
+  // Decodificar el QR del cliente: es un JWT, o un serial en claro.
+  // Estrategia simple: el QR del cliente contiene directamente el serial (no JWT)
+  // para que el escáner no necesite validar firma — solo enviarlo.
+  // Pero como firmamos el qr_payload, intentamos decodificar para extraer el serial.
+  const now = Date.now();
+  if (now - lastScanAt < 2500) return;  // debounce
+  lastScanAt = now;
+
+  let serial = decodedText.trim();
+  // Si es un JWT (3 segmentos separados por .), extraemos jti
+  if (serial.split(".").length === 3) {
+    try {
+      const payload = JSON.parse(atob(serial.split(".")[1]));
+      serial = payload.jti || serial;
+    } catch (e) {}
+  }
+
+  if (serial === lastSerial) return;  // mismo QR leído otra vez
+  lastSerial = serial;
+
+  await performScan(serial);
+}
+
+async function performScan(passSerial) {
+  const session = await WH.Auth.ensureSession();
+  // 1) Necesitamos el qr_payload del mostrador — el que está en pantalla
+  //    Pero ya pasó el tiempo, así que pedimos uno nuevo al backend.
+  //    Para eso usamos /qr-token. Pero ese endpoint devuelve qr_payload
+  //    que aún no ha sido consumido. Lo consumiremos en /scan.
+  //    → Refactor mínimo: pedimos un token NUEVO y lo usamos inmediatamente.
+  const deviceFp = (navigator.userAgent || "scanner").slice(0, 60);
+  const tRes = await fetch(
+    `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${currentCampaignId}/qr-token?device_fp=${encodeURIComponent(deviceFp)}`,
+    { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } }
+  );
+  if (!tRes.ok) {
+    renderError("No se pudo generar el QR del mostrador");
+    return;
+  }
+  const tok = await tRes.json();
+  const body = {
+    qr_payload: tok.qr_payload,
+    pass_serial: passSerial,
+    device_fp: deviceFp,
+  };
+  if (cashierPinRequired) {
+    const pin = $("cashier-pin").value.trim();
+    if (!pin) { renderError("Ingresa el PIN del garzón"); return; }
+    body.cashier_pin = pin;
+  }
+  const r = await fetch("/api/v1/loyalty/scan", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      "X-Tenant-Id": session.tenant.tenant_id,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok || !data.ok) {
+    renderError(data.error || data.detail || "Error en el escaneo", data.error_code);
+    return;
+  }
+  renderSuccess(data);
+  // Refrescar el QR del mostrador tras consumir
+  refreshCounterQr();
+  counterSecs = 60;
+  $("counter-countdown").textContent = counterSecs;
+}
+
+function renderError(msg, code) {
+  $("pass-preview").style.display = "none";
+  $("scan-result").style.display = "block";
+  $("scan-result").innerHTML = `
+    <div style="padding: 16px; background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 10px; color: #ef4444;">
+      <strong>Error</strong><br>
+      ${escapeHtml(msg)} ${code ? `<br><small style="opacity:0.7">código: ${escapeHtml(code)}</small>` : ''}
+    </div>
+  `;
+}
+
+function renderSuccess(data) {
+  const p = data.pass;
+  $("scan-result").style.display = "none";
+  $("pass-preview").style.display = "block";
+  const mini = $("pass-mini");
+  mini.style.background = p.primary_color;
+  mini.style.color = p.text_color;
+  $("pm-reward-label").textContent = "Recompensa";
+  $("pm-reward-name").textContent = p.reward_label;
+  const stampsEl = $("pm-stamps");
+  stampsEl.innerHTML = "";
+  for (let i = 0; i < p.stamps_required; i++) {
+    const d = document.createElement("div");
+    d.style.cssText = "width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;";
+    if (i < p.stamps_current) {
+      d.style.background = "rgba(255,255,255,0.95)";
+      d.style.color = "#111";
+      d.textContent = "★";
+    }
+    stampsEl.appendChild(d);
+  }
+  $("pm-progress").textContent = `${p.stamps_current} / ${p.stamps_required} sellos`;
+
+  // Banner de recompensa
+  if (data.reward_unlocked) {
+    $("scan-result").style.display = "block";
+    $("scan-result").innerHTML = `
+      <div style="padding: 16px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border-radius: 10px; margin-bottom: 12px;">
+        <strong>¡Premio desbloqueado!</strong><br>
+        ${escapeHtml(data.reward_label || p.reward_label)}
+      </div>
+    `;
+  }
+}
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+$("start-cam-btn").addEventListener("click", startScanner);
+$("stop-cam-btn").addEventListener("click", stopScanner);
+$("next-scan-btn").addEventListener("click", () => {
+  lastSerial = null;
+  $("scan-result").style.display = "block";
+  $("scan-result").innerHTML = "Esperando escaneo…";
+  $("pass-preview").style.display = "none";
+  $("cashier-pin").value = "";
+});
+
+(async function init() {
+  const c = await getActiveCampaign();
+  if (!c) {
+    $("scan-result").style.display = "block";
+    $("scan-result").innerHTML = `
+      <div style="padding: 16px; background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; border-radius: 10px; color: #f59e0b;">
+        No hay campañas activas. <a href="/dashboard/loyalty">Crear una</a>.
+      </div>`;
+    return;
+  }
+  currentCampaignId = c.id;
+  cashierPinRequired = !!c.cashier_pin_set;
+  $("pin-zone").style.display = cashierPinRequired ? "block" : "none";
+  startCounterQrLoop();
+})();
+</script>
+{% endblock %}

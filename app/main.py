@@ -19,6 +19,7 @@ from app.api.v1 import (
     branch_products, search,
     site_config,
     ai, admin_ai,
+    loyalty,
 )
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
@@ -138,6 +139,10 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
+# Loyalty Pass (Fase 1 y 2)
+app.include_router(loyalty.owner_router, prefix="/api/v1")
+app.include_router(loyalty.pos_router, prefix="/api/v1")
+app.include_router(loyalty.public_router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -244,6 +249,25 @@ def admin_ai_page(request: Request):
     return templates.TemplateResponse(request, "dashboard/admin_ai.html", {"settings": settings})
 
 
+# ── Loyalty Pass (UI) ─────────────────────────────────────
+@app.get("/dashboard/loyalty", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_loyalty(request: Request):
+    """Panel del dueño: crear campañas, ver métricas, generar QR del mostrador."""
+    return templates.TemplateResponse(
+        request, "dashboard/admin_loyalty.html",
+        {"settings": settings, "body_class": "route-loyalty"},
+    )
+
+
+@app.get("/dashboard/loyalty/scanner", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_loyalty_scanner(request: Request):
+    """Escáner del POS: cámara + QR del mostrador + resultado del scan."""
+    return templates.TemplateResponse(
+        request, "dashboard/admin_scanner.html",
+        {"settings": settings, "body_class": "route-loyalty-scanner"},
+    )
+
+
 # ── Páginas públicas por tenant ──────────────────────────
 @app.get("/u/{slug}", response_class=HTMLResponse, include_in_schema=False)
 def public_landing_page(slug: str, request: Request):
@@ -261,6 +285,38 @@ def public_landing_page(slug: str, request: Request):
 @app.get("/u/{slug}/catalogo", response_class=HTMLResponse, include_in_schema=False)
 def public_catalog_page(slug: str, request: Request):
     return templates.TemplateResponse(request, "public/catalog.html", {"settings": settings, "slug": slug})
+
+
+# ── Landing público de fidelización ────────────────────────
+@app.get("/loyalty/{slug}", response_class=HTMLResponse, include_in_schema=False)
+def public_loyalty_page(slug: str, request: Request):
+    """Landing público: el cliente se registra y obtiene su pase."""
+    from app.services.loyalty_pass_service import get_active_campaign_by_slug
+    with SessionLocal() as db:
+        campaign = get_active_campaign_by_slug(db, slug)
+    if not campaign:
+        return templates.TemplateResponse(
+            request, "public/404.html",
+            {"settings": settings, "slug": slug, "detail": "Sin campaña activa"},
+            status_code=404,
+        )
+    tenant_name = campaign.tenant.name if campaign.tenant else slug
+    return templates.TemplateResponse(
+        request, "public/loyalty.html",
+        {
+            "settings": settings,
+            "slug": slug,
+            "tenant_name": tenant_name,
+            "campaign": {
+                "id": str(campaign.id),
+                "name": campaign.name,
+                "reward_label": campaign.reward_label,
+                "stamps_required": campaign.stamps_required,
+                "primary_color": campaign.primary_color,
+                "text_color": campaign.text_color,
+            },
+        },
+    )
 
 
 # ── Páginas legales (términos, privacidad, cookies) ─────

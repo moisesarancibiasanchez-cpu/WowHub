@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Tarjeta de Fidelidad — {{ tenant_name or slug }}{% endblock %}
+{% block head_extra %}
+<style>
+  .pass-card {
+    max-width: 420px;
+    margin: 24px auto;
+    border-radius: 18px;
+    padding: 24px 22px;
+    color: #fff;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+    position: relative;
+    overflow: hidden;
+  }
+  .pass-card .reward {
+    font-size: 14px; opacity: 0.9; margin-bottom: 4px;
+  }
+  .pass-card .reward-name {
+    font-size: 22px; font-weight: 800; margin-bottom: 18px;
+  }
+  .pass-card .stamps {
+    display: grid;
+    grid-template-columns: repeat({{ campaign.stamps_required }}, 1fr);
+    gap: 8px;
+    margin: 18px 0;
+  }
+  .stamp {
+    aspect-ratio: 1;
+    border: 2px solid rgba(255,255,255,0.55);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; opacity: 0.55;
+    background: rgba(255,255,255,0.06);
+  }
+  .stamp.filled {
+    background: rgba(255,255,255,0.92);
+    color: #111;
+    opacity: 1;
+    border-color: rgba(255,255,255,0.95);
+  }
+  .pass-card .progress {
+    text-align: center;
+    font-size: 13px; opacity: 0.85; margin-top: 4px;
+  }
+  .qr-zone {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 18px;
+    text-align: center;
+    color: #111;
+  }
+  .qr-zone img { max-width: 220px; height: auto; }
+  .qr-zone .label { font-size: 12px; color: #555; margin-top: 6px; }
+  .register-form { max-width: 420px; margin: 0 auto; }
+  .toast {
+    position: fixed; left: 50%; top: 24px; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 9999; display: none;
+  }
+  .toast.show { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="toast" id="toast"></div>
+
+<div class="container" style="padding: 24px 16px; max-width: 720px; margin: 0 auto;">
+  <div id="stage-cta" class="text-center">
+    <h1 style="margin-bottom: 8px;">{{ tenant_name or slug }}</h1>
+    <p class="text-muted" style="margin-bottom: 24px;">Únete al programa de fidelización y gana <strong>{{ campaign.reward_label }}</strong> cada <strong>{{ campaign.stamps_required }}</strong> visitas.</p>
+    <button class="btn btn-primary" id="join-btn" style="font-size: 16px; padding: 14px 28px;">Quiero mi tarjeta</button>
+  </div>
+
+  <div id="stage-form" class="register-form" style="display: none;">
+    <h2 style="margin-bottom: 4px;">Crear mi tarjeta</h2>
+    <p class="text-muted" style="margin-bottom: 16px;">Solo necesitamos tu nombre y un dato de contacto.</p>
+    <form id="register-form">
+      <div class="form-group">
+        <label class="form-label">Nombre completo *</label>
+        <input class="form-input" id="full_name" required minlength="2" maxlength="160">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" id="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teléfono</label>
+        <input class="form-input" type="tel" id="phone">
+      </div>
+      <div class="form-group">
+        <label class="form-label">
+          <input type="checkbox" id="accepts_marketing" checked>
+          Quiero recibir promos y novedades
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">
+          <input type="checkbox" id="accepts_terms" required>
+          Acepto los <a href="/legal/terms" target="_blank">términos</a> y la <a href="/legal/privacy" target="_blank">política de privacidad</a>
+        </label>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width: 100%; font-size: 16px; padding: 14px;">Crear mi tarjeta</button>
+    </form>
+  </div>
+
+  <div id="stage-card" style="display: none;">
+    <div class="pass-card" id="pass-card">
+      <div class="reward">Programa de fidelidad</div>
+      <div class="reward-name" id="pass-reward"></div>
+      <div class="stamps" id="pass-stamps"></div>
+      <div class="progress" id="pass-progress"></div>
+      <div class="qr-zone">
+        <img id="pass-qr-img" alt="QR del pase">
+        <div class="label">Muestra este QR en la tienda</div>
+      </div>
+    </div>
+    <p class="text-center text-muted" style="margin-top: 16px; font-size: 13px;">
+      Guarda esta página o captura el QR. Lo necesitarás cada vez que visites {{ tenant_name or slug }}.
+    </p>
+  </div>
+</div>
+
+<script>
+(function() {
+  const SLUG = {{ slug|tojson }};
+  const CAMPAIGN = {{ campaign|tojson }};
+
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg, isError) => {
+    const t = $("toast");
+    t.textContent = msg;
+    t.style.background = isError ? "#dc2626" : "#0f172a";
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 3500);
+  };
+
+  $("join-btn").addEventListener("click", () => {
+    $("stage-cta").style.display = "none";
+    $("stage-form").style.display = "block";
+  });
+
+  $("register-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = {
+      full_name: $("full_name").value.trim(),
+      email: $("email").value.trim() || null,
+      phone: $("phone").value.trim() || null,
+      accepts_marketing: $("accepts_marketing").checked,
+      accepts_terms: $("accepts_terms").checked,
+    };
+    if (!body.email && !body.phone) {
+      toast("Ingresa al menos email o teléfono", true);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/v1/loyalty/c/${SLUG}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `Error ${r.status}`);
+      }
+      const data = await r.json();
+      renderCard(data);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  });
+
+  function renderCard(pass) {
+    $("stage-form").style.display = "none";
+    $("stage-card").style.display = "block";
+
+    const card = $("pass-card");
+    card.style.background = pass.primary_color;
+    card.style.color = pass.text_color;
+
+    $("pass-reward").textContent = pass.reward_label;
+
+    // Estampillas: las primeras N filled, el resto vacío
+    const stampsEl = $("pass-stamps");
+    stampsEl.innerHTML = "";
+    const filled = pass.stamps_current;
+    const total = pass.stamps_required;
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement("div");
+      d.className = "stamp" + (i < filled ? " filled" : "");
+      d.textContent = i < filled ? "★" : "";
+      stampsEl.appendChild(d);
+    }
+    $("pass-progress").textContent = `${filled} / ${total} sellos`;
+
+    // QR: lo generamos client-side a partir del payload
+    // (usamos una API pública: qrserver.com — se puede self-host más adelante)
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=2&data=${encodeURIComponent(pass.qr_payload)}`;
+    $("pass-qr-img").src = qrUrl;
+  }
+})();
+</script>
+{% endblock %}

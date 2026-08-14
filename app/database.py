@@ -59,5 +59,6 @@ def init_db() -> None:
         user, tenant, branch, category, product, customer,
         promotion, qr, landing, order,
         site_config,  # noqa
+        loyalty_pass,  # noqa
     )
     Base.metadata.create_all(bind=engine)

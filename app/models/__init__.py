@@ -26,3 +26,7 @@ from app.models.ai import (  # noqa: F401
     AIConversation, AIMessage, AILog, AITrace, AIMetricDaily,
     AgentKind, MessageRole, ConversationStatus, LogStatus,
 )
+from app.models.loyalty_pass import (  # noqa: F401
+    LoyaltyCampaign, CustomerPass, PassStamp, QrToken,
+    PassSource, PassStatus, StampReason, QrTokenKind,
+)

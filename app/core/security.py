@@ -17,6 +17,10 @@ DEFAULT_LIMITS = {
     "/api/v1/auth/forgot-password": (3, 300),  # 3 req / 5 min
     "/api/v1/auth/reset-password": (10, 60),
     "/api/v1/public/t/.*/orders": (20, 60), # 20 orders / min
+    # Loyalty — anti-abuso en endpoints sensibles
+    "/api/v1/loyalty/scan": (60, 60),                  # 60 scans / min / IP
+    "/api/v1/loyalty/c/.*/register": (5, 60),          # 5 altas / min / IP
+    "/api/v1/tenants/.*/loyalty/campaigns/.*/qr-token": (20, 60),  # 20 tokens / min
 }
 
 
