@@ -6,6 +6,12 @@
 {% block content %}
 <h1 style="margin-top: 0;">AI Core · Administración</h1>
 
+<!-- Banner global de error (se muestra si JS falla) -->
+<div id="ai-fatal-error" style="display:none;background:#7f1d1d;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;">
+  <strong>Error cargando la página:</strong> <span id="ai-fatal-error-msg"></span>
+  <button class="btn btn-sm" id="ai-fatal-reload" style="margin-left:12px;">Reintentar</button>
+</div>
+
 <section class="ai-admin-grid" id="ai-overview-cards">
   <div class="ai-stat-card">
     <h3>Circuit Breaker</h3>
@@ -98,18 +104,33 @@
 
 {% block scripts %}
 <script>
+// Error global → banner rojo en la página
+function showFatalError(msg) {
+  try {
+    var b = document.getElementById("ai-fatal-error");
+    var m = document.getElementById("ai-fatal-error-msg");
+    if (b && m) { m.textContent = msg; b.style.display = "block"; }
+  } catch (_) {}
+  console.error("[admin-ai] fatal:", msg);
+}
+window.addEventListener("error", (ev) => {
+  showFatalError(ev.message || "Error desconocido en el JS");
+});
+window.addEventListener("unhandledrejection", (ev) => {
+  var r = ev.reason || {};
+  showFatalError((r.message || r.toString() || "Promise rechazada"));
+});
+
 const $ = (id) => document.getElementById(id);
 function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
-// Lee el token de la key real ("wowhub.tokens") o fallback a la key vieja
+// Lee el token: primero WH.TokenStore (app.js), luego localStorage con varias keys
 function getAuth() {
-  // Primero, el TokenStore global si está disponible
   if (window.WH && window.WH.TokenStore) {
     const tk = window.WH.TokenStore.access();
     const tn = window.WH.TokenStore.currentTenant();
     return { token: tk, tenant_id: tn && tn.tenant_id };
   }
-  // Fallback: leer la key real "wowhub.tokens" (no "wowhub_access_token")
   let tk = null, tn = null;
   try {
     const raw = localStorage.getItem("wowhub.tokens");
@@ -119,7 +140,6 @@ function getAuth() {
       if (parsed && parsed.current_tenant) tn = parsed.current_tenant.tenant_id;
     }
   } catch (_) {}
-  // Último fallback: keys legacy
   if (!tk) tk = localStorage.getItem("wowhub_access_token");
   if (!tn) {
     try { const t = JSON.parse(localStorage.getItem("wowhub.currentTenant") || "null"); tn = t && t.tenant_id; } catch (_) {}
@@ -155,6 +175,11 @@ async function post(path) {
   return r.json();
 }
 
+function paintCardErr(id, msg) {
+  var el = $(id);
+  if (el) { el.textContent = "Error"; el.title = msg; el.style.color = "#ef4444"; }
+}
+
 async function loadOverview() {
   try {
     const o = await api("/api/v1/admin/ai/overview");
@@ -164,22 +189,30 @@ async function loadOverview() {
     $("ai-total-conv").textContent = o.total_conversations ?? 0;
     $("ai-total-msg").textContent  = o.total_messages ?? 0;
     $("ai-active-users").textContent = o.active_users_7d ?? 0;
-    $("ai-req-24h").textContent = (o.last_24h && o.last_24h.requests) || 0;
-    $("ai-req-24h-meta").textContent = `success ${o.last_24h.success} · fallback ${o.last_24h.fallback} · err ${o.last_24h.errors}`;
+    if (o.last_24h) {
+      $("ai-req-24h").textContent = o.last_24h.requests || 0;
+      $("ai-req-24h-meta").textContent =
+        `success ${o.last_24h.success} · fallback ${o.last_24h.fallback} · err ${o.last_24h.errors}`;
+    } else {
+      $("ai-req-24h").textContent = 0;
+      $("ai-req-24h-meta").textContent = "sin datos 24h";
+    }
   } catch (e) {
     console.error("overview:", e);
-    // Mostrar el error en los cards en vez de "—"
-    $("ai-cb-state").textContent = "Error";
+    paintCardErr("ai-cb-state", e.message);
     $("ai-llm-enabled").textContent = "—";
-    $("ai-llm-enabled").title = e.message;
+    $("ai-llm-model").textContent = "—";
+    $("ai-req-24h").textContent = "—";
+    $("ai-req-24h-meta").textContent = e.message.slice(0, 80);
   }
 }
 
 async function loadLogs() {
-  const tbody = $("ai-logs-table").querySelector("tbody");
+  const tbody = $("ai-logs-table") ? $("ai-logs-table").querySelector("tbody") : null;
+  if (!tbody) return;
   try {
     const data = await api("/api/v1/admin/ai/logs?page=1&page_size=50");
-    if (!data.items.length) {
+    if (!data.items || !data.items.length) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--ai-text-dim);">Sin logs aún.</td></tr>';
       return;
     }
@@ -196,15 +229,17 @@ async function loadLogs() {
       </tr>`;
     }).join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7">Error: ${esc(e.message)}</td></tr>`;
+    console.error("logs:", e);
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
 async function loadMetrics() {
-  const tbody = $("ai-metrics-table").querySelector("tbody");
+  const tbody = $("ai-metrics-table") ? $("ai-metrics-table").querySelector("tbody") : null;
+  if (!tbody) return;
   try {
     const rows = await api("/api/v1/admin/ai/metrics?days=7");
-    if (!rows.length) {
+    if (!rows || !rows.length) {
       tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--ai-text-dim);">Sin métricas aún.</td></tr>';
       return;
     }
@@ -224,7 +259,8 @@ async function loadMetrics() {
       </tr>`;
     }).join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="10">Error: ${esc(e.message)}</td></tr>`;
+    console.error("metrics:", e);
+    tbody.innerHTML = `<tr><td colspan="10" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -239,30 +275,50 @@ async function openTraces(logId) {
 }
 
 document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("ai-traces-btn")) {
+  if (e.target && e.target.classList && e.target.classList.contains("ai-traces-btn")) {
     openTraces(e.target.dataset.id);
   }
-  if (e.target.id === "ai-traces-close" || e.target.id === "ai-traces-modal") {
+  if (e.target && (e.target.id === "ai-traces-close" || e.target.id === "ai-traces-modal")) {
     $("ai-traces-modal").style.display = "none";
+  }
+  if (e.target && e.target.id === "ai-fatal-reload") {
+    location.reload();
   }
 });
 
-$("ai-cb-open").addEventListener("click", async () => {
-  if (!confirm("¿Forzar el circuit breaker a OPEN? Todas las requests usarán fallback.")) return;
-  try { await post("/api/v1/admin/ai/circuit/open"); loadOverview(); } catch (e) { alert(e.message); }
-});
-$("ai-cb-close").addEventListener("click", async () => {
-  if (!confirm("¿Cerrar el circuit breaker? Volverá al modo normal.")) return;
-  try { await post("/api/v1/admin/ai/circuit/close"); loadOverview(); } catch (e) { alert(e.message); }
-});
-$("ai-refresh").addEventListener("click", () => { loadOverview(); loadLogs(); loadMetrics(); });
+function wireButtons() {
+  const a = $("ai-cb-open");
+  const b = $("ai-cb-close");
+  const c = $("ai-refresh");
+  if (a) a.addEventListener("click", async () => {
+    if (!confirm("¿Forzar el circuit breaker a OPEN? Todas las requests usarán fallback.")) return;
+    try { await post("/api/v1/admin/ai/circuit/open"); loadOverview(); } catch (e) { alert(e.message); }
+  });
+  if (b) b.addEventListener("click", async () => {
+    if (!confirm("¿Cerrar el circuit breaker? Volverá al modo normal.")) return;
+    try { await post("/api/v1/admin/ai/circuit/close"); loadOverview(); } catch (e) { alert(e.message); }
+  });
+  if (c) c.addEventListener("click", () => { loadOverview(); loadLogs(); loadMetrics(); });
+}
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadOverview();
-  loadLogs();
-  loadMetrics();
-  // Auto-refresh cada 30s
-  setInterval(() => { loadOverview(); loadLogs(); }, 30000);
-});
+function init() {
+  try {
+    wireButtons();
+    loadOverview();
+    loadLogs();
+    loadMetrics();
+    setInterval(() => { loadOverview(); loadLogs(); }, 30000);
+  } catch (e) {
+    showFatalError("init: " + (e.message || e.toString()));
+  }
+}
+
+// Ejecutar init: ahora mismo (DOM ya está parseado al final del body)
+// o cuando el DOM esté listo si el script se moviera a <head>.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
 </script>
 {% endblock %}
