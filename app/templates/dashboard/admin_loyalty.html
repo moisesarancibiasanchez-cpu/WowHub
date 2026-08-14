@@ -109,13 +109,14 @@ async function loadCampaigns() {
   const tenant = session.tenant;
   if (!tenant) return;
   try {
-    const r = await fetch(`/api/v1/tenants/${tenant.tenant_id}/loyalty/campaigns?include_inactive=true`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (!r.ok) throw new Error("Error cargando campañas");
-    const items = await r.json();
+    // Usar WH.api.* (inyecta Bearer + refresh + retry) en vez de fetch crudo
+    // (antes: `Authorization: Bearer ${session.access_token}` → undefined
+    // porque ensureSession() devuelve {user, tenant}, no trae access_token)
+    const items = await WH.api.get(
+      `/api/v1/tenants/${tenant.tenant_id}/loyalty/campaigns?include_inactive=true`,
+    );
     const grid = $("campaigns-grid");
-    if (!items.length) {
+    if (!items || !items.length) {
       grid.innerHTML = `<div class="card text-center text-muted">Aún no tienes campañas. Crea la primera.</div>`;
       return;
     }
@@ -201,20 +202,12 @@ async function saveCampaign(e) {
   const url = id
     ? `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${id}`
     : `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns`;
-  const method = id ? "PATCH" : "POST";
 
   try {
-    const r = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      throw new Error(j.detail || `Error ${r.status}`);
+    if (id) {
+      await WH.api.patch(url, body);
+    } else {
+      await WH.api.post(url, body);
     }
     $("modal").classList.add("hidden");
     await loadCampaigns();
@@ -226,12 +219,12 @@ async function saveCampaign(e) {
 async function archiveCampaign(id) {
   if (!confirm("¿Archivar esta campaña? Los pases activos seguirán funcionando.")) return;
   const session = await WH.Auth.ensureSession();
-  const r = await fetch(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (r.ok) loadCampaigns();
-  else alert("Error al archivar");
+  try {
+    await WH.api.del(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${id}`);
+    await loadCampaigns();
+  } catch (e) {
+    alert("Error al archivar: " + e.message);
+  }
 }
 
 // ── QR Modal (rotativo cada 60s) ──
@@ -257,20 +250,15 @@ async function refreshQr() {
   const session = await WH.Auth.ensureSession();
   const campaignId = $("qr-modal").dataset.campaignId;
   const deviceFp = (navigator.userAgent || "web").slice(0, 60);
-  const r = await fetch(
-    `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${campaignId}/qr-token?device_fp=${encodeURIComponent(deviceFp)}`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    }
-  );
-  if (!r.ok) {
-    alert("No se pudo generar el QR");
-    return;
+  try {
+    const data = await WH.api.post(
+      `/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${campaignId}/qr-token?device_fp=${encodeURIComponent(deviceFp)}`,
+    );
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(data.qr_payload)}`;
+    $("qr-img").src = url;
+  } catch (e) {
+    alert("No se pudo generar el QR: " + e.message);
   }
-  const data = await r.json();
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=2&data=${encodeURIComponent(data.qr_payload)}`;
-  $("qr-img").src = url;
 }
 
 $("qr-print-btn").addEventListener("click", () => {
@@ -297,19 +285,19 @@ $("qr-modal-close").addEventListener("click", () => {
 
 async function showMetrics(c) {
   const session = await WH.Auth.ensureSession();
-  const r = await fetch(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${c.id}/metrics`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (!r.ok) { alert("Error"); return; }
-  const m = await r.json();
-  alert(
-    `Métricas — ${c.name}\n\n` +
-    `Pases activos: ${m.active_passes}\n` +
-    `Sellos hoy: ${m.total_stamps_today}\n` +
-    `Premios hoy: ${m.total_rewards_today}\n` +
-    `Conversión: ${(m.conversion_rate * 100).toFixed(1)}%\n` +
-    `Prom. sellos por premio: ${m.avg_stamps_to_reward.toFixed(1)}`
-  );
+  try {
+    const m = await WH.api.get(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${c.id}/metrics`);
+    alert(
+      `Métricas — ${c.name}\n\n` +
+      `Pases activos: ${m.active_passes}\n` +
+      `Sellos hoy: ${m.total_stamps_today}\n` +
+      `Premios hoy: ${m.total_rewards_today}\n` +
+      `Conversión: ${(m.conversion_rate * 100).toFixed(1)}%\n` +
+      `Prom. sellos por premio: ${m.avg_stamps_to_reward.toFixed(1)}`
+    );
+  } catch (e) {
+    alert("Error al cargar métricas: " + e.message);
+  }
 }
 
 function escapeHtml(s) {

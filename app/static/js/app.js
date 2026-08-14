@@ -102,17 +102,19 @@ const Auth = {
   tenant() { return TokenStore.currentTenant(); },
   requireLogin() { if (!this.isLoggedIn()) { window.location.href = "/login?next=" + encodeURIComponent(location.pathname); } },
 
-  // Devuelve {user, tenant} desde localStorage y, si falta `current_tenant`,
-  // rehidrata desde el server con /api/v1/auth/me/session (usa el access_token vigente).
+  // Devuelve {user, tenant, access_token} desde localStorage y, si falta
+  // `current_tenant`, rehidrata desde el server con /api/v1/auth/me/session
+  // (usa el access_token vigente).
   // Cachea el promise para no pegarle al endpoint varias veces en la misma página.
   _sessionPromise: null,
   ensureSession() {
     if (this._sessionPromise) return this._sessionPromise;
     this._sessionPromise = (async () => {
+      const access = TokenStore.access();
       let user = Auth.user();
       let tenant = Auth.tenant();
-      if (user && tenant && tenant.tenant_id) return { user, tenant };
-      if (!TokenStore.access()) return { user, tenant };
+      if (user && tenant && tenant.tenant_id) return { user, tenant, access_token: access };
+      if (!access) return { user, tenant, access_token: access };
       try {
         const session = await api.get("/api/v1/auth/me/session");
         if (session) {
@@ -120,12 +122,12 @@ const Auth = {
           if (session.user) tokens.user = session.user;
           if (session.current_tenant) tokens.current_tenant = session.current_tenant;
           TokenStore.set(tokens);
-          return { user: tokens.user, tenant: tokens.current_tenant };
+          return { user: tokens.user, tenant: tokens.current_tenant, access_token: access };
         }
       } catch (e) {
         console.warn("[WowHub] No se pudo rehidratar la sesión:", e);
       }
-      return { user, tenant };
+      return { user, tenant, access_token: access };
     })();
     return this._sessionPromise;
   },
