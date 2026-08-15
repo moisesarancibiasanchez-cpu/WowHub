@@ -301,6 +301,113 @@ async def tool_send_campaign(
     )
 
 
+# ── Tools de Bookings / Reservas (Fase 2) ─────────────────────
+async def tool_list_bookings(
+    ctx: AIToolContext,
+    *,
+    status: str | None = None,  # pending | confirmed | completed | canceled | no_show
+    branch_id: str | None = None,
+    date_from: str | None = None,  # ISO 8601
+    date_to: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Lista las reservas del tenant. Filtros opcionales por status,
+    sucursal y rango de fechas (ISO 8601).
+
+    Útil para preguntas tipo 'qué reservas tengo hoy', 'cuántas cancelaciones',
+    'reservas pendientes', etc.
+    """
+    params: dict[str, Any] = {"limit": limit}
+    if status:
+        params["status"] = status
+    if branch_id:
+        params["branch_id"] = branch_id
+    if date_from:
+        params["date_from"] = date_from
+    if date_to:
+        params["date_to"] = date_to
+    return await _api_get(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/bookings",
+        params,
+    )
+
+
+async def tool_check_availability(
+    ctx: AIToolContext,
+    *,
+    branch_id: str | None = None,
+    date_from: str,  # ISO 8601
+    date_to: str,    # ISO 8601
+    duration_minutes: int = 60,
+    slot_step_minutes: int = 30,
+) -> dict[str, Any]:
+    """Consulta los slots disponibles para reservar.
+
+    Devuelve una lista de slots con `available: true/false` y los IDs de
+    reservas que causarían conflicto. Sirve para proponer horarios al
+    cliente antes de agendar.
+    """
+    return await _api_post(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/bookings/availability",
+        {
+            "branch_id": branch_id,
+            "date_from": date_from,
+            "date_to": date_to,
+            "duration_minutes": duration_minutes,
+            "slot_step_minutes": slot_step_minutes,
+        },
+    )
+
+
+async def tool_create_booking(
+    ctx: AIToolContext,
+    *,
+    customer_name: str,
+    customer_phone: str,
+    starts_at: str,  # ISO 8601
+    ends_at: str,    # ISO 8601
+    customer_email: str | None = None,
+    branch_id: str | None = None,
+    product_id: str | None = None,
+    staff_name: str | None = None,
+    notes: str | None = None,
+    send_confirmation: bool = True,
+) -> dict[str, Any]:
+    """Crea una reserva en nombre del cliente.
+
+    IMPORTANTE: antes de llamar a esta tool, usa `check_availability` para
+    asegurarte de que el slot elegido está libre. Si hay conflicto, el
+    endpoint devuelve 409.
+
+    Si la sucursal tiene horarios (`Branch.hours`), la reserva debe caer
+    dentro del horario de apertura.
+    """
+    body: dict[str, Any] = {
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+    }
+    if customer_email:
+        body["customer_email"] = customer_email
+    if branch_id:
+        body["branch_id"] = branch_id
+    if product_id:
+        body["product_id"] = product_id
+    if staff_name:
+        body["staff_name"] = staff_name
+    if notes:
+        body["notes"] = notes
+    # No añadimos send_confirmation al body; va como query param.
+    return await _api_post(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/bookings?send_confirmation={str(send_confirmation).lower()}",
+        body,
+    )
+
+
 # ── Catálogo de tools (JSON Schema) ────────────────────
 # Esto es lo que se manda al LLM en `tools=`.
 TOOL_SCHEMAS: list[dict[str, Any]] = [
@@ -483,6 +590,79 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_bookings",
+            "description": "Lista las reservas del tenant. Permite filtrar por status, sucursal y rango de fechas. Útil para 'qué reservas tengo hoy', 'cuántas cancelaciones', 'reservas pendientes'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "confirmed", "completed", "canceled", "no_show"],
+                        "description": "Filtrar por estado de la reserva.",
+                    },
+                    "branch_id": {"type": "string", "description": "UUID de la sucursal."},
+                    "date_from": {"type": "string", "format": "date-time",
+                                  "description": "ISO 8601. Reservas que empiezan después de esta fecha."},
+                    "date_to": {"type": "string", "format": "date-time",
+                                "description": "ISO 8601. Reservas que empiezan antes de esta fecha."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 50},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_availability",
+            "description": "Consulta los slots disponibles para reservar en un rango de fechas. Devuelve slots con `available: true/false` y los IDs de reservas que causan conflicto. Útil para proponer horarios al cliente.",
+            "parameters": {
+                "type": "object",
+                "required": ["date_from", "date_to"],
+                "properties": {
+                    "branch_id": {"type": "string", "description": "UUID de la sucursal (opcional)."},
+                    "date_from": {"type": "string", "format": "date-time",
+                                  "description": "ISO 8601. Inicio del rango a consultar."},
+                    "date_to": {"type": "string", "format": "date-time",
+                                "description": "ISO 8601. Fin del rango a consultar."},
+                    "duration_minutes": {"type": "integer", "minimum": 15, "maximum": 480, "default": 60,
+                                          "description": "Duración de cada slot en minutos."},
+                    "slot_step_minutes": {"type": "integer", "minimum": 5, "maximum": 120, "default": 30,
+                                           "description": "Intervalo entre slots a evaluar."},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_booking",
+            "description": "Crea una reserva en nombre del cliente. Antes de llamar a esta tool, usa check_availability para confirmar que el slot está libre. Si hay conflicto, el endpoint devuelve 409 y debes proponer otro horario.",
+            "parameters": {
+                "type": "object",
+                "required": ["customer_name", "customer_phone", "starts_at", "ends_at"],
+                "properties": {
+                    "customer_name": {"type": "string", "minLength": 2, "maxLength": 160},
+                    "customer_phone": {"type": "string", "minLength": 8, "maxLength": 40},
+                    "customer_email": {"type": "string", "description": "Opcional, para enviar confirmación."},
+                    "branch_id": {"type": "string", "description": "UUID de la sucursal."},
+                    "product_id": {"type": "string", "description": "UUID del servicio a reservar."},
+                    "staff_name": {"type": "string", "maxLength": 120,
+                                   "description": "Nombre del profesional que atenderá."},
+                    "starts_at": {"type": "string", "format": "date-time",
+                                  "description": "ISO 8601. Inicio de la reserva."},
+                    "ends_at": {"type": "string", "format": "date-time",
+                                "description": "ISO 8601. Fin de la reserva."},
+                    "notes": {"type": "string", "maxLength": 2000,
+                              "description": "Notas internas (alergias, preferencias, etc)."},
+                    "send_confirmation": {"type": "boolean", "default": True,
+                                          "description": "Enviar email de confirmación al cliente."},
+                },
+            },
+        },
+    },
 ]
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -496,6 +676,10 @@ TOOL_DISPATCH: dict[str, Any] = {
     "analyze_inventory": tool_analyze_inventory,
     "get_customer_segments": tool_get_customer_segments,
     "send_campaign": tool_send_campaign,
+    # Bookings Fase 2
+    "list_bookings": tool_list_bookings,
+    "check_availability": tool_check_availability,
+    "create_booking": tool_create_booking,
 }
 
 
@@ -505,14 +689,17 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
         "marketing": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
+            "list_bookings", "check_availability", "create_booking",
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
+            "list_bookings", "check_availability", "create_booking",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
+            "list_bookings", "check_availability", "create_booking",
         ],
         "marketplace": [
             "list_products", "list_promotions", "get_stats_overview",

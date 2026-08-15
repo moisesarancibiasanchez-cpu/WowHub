@@ -57,6 +57,42 @@ Este archivo sigue parcialmente el estándar [Keep a Changelog](https://keepacha
 
 ---
 
+## [No publicado] — 2026-08-16 (Bookings Fase 2)
+### Added — Módulo de Reservas / Bookings completo
+#### Servicio de negocio (`app/services/booking_service.py`)
+- `BookingService` con CRUD, validación de ventana temporal, validación de horarios de sucursal (`Branch.hours` + excepciones), detección de conflictos por solapamiento, stats, availability y notificaciones integradas.
+- Helpers `_ensure_aware`, `_parse_hhmm`, `_fmt_when`, `_branch_window_for_range`, `_check_conflict`.
+#### Schemas (`app/schemas/booking.py`)
+- `BookingIn`, `PublicBookingIn`, `BookingUpdate`, `BookingOut`, `PublicBookingOut`.
+- `AvailabilityQuery`, `AvailabilitySlot`, `AvailabilityResponse`.
+- `BookingStats` con desglose por estado.
+#### API Admin (con auth de membresía)
+- 11 endpoints: list, create, stats, availability, get, update, confirm, complete, no-show, cancel, delete.
+- Filtros por `status`, `branch_id`, `date_from`, `date_to`, `customer_id`.
+#### API Pública (sin auth, por slug)
+- 3 endpoints: `public-check`, `public-create`, `public-cancel`.
+- Enmascaramiento de email en respuestas (`first_char + stars + last_char + @domain`).
+- Token opaco de cancelación (primeros 12 chars del UUID).
+#### UI
+- **Panel del dueño** `/dashboard/bookings` — KPIs, filtros, tabla con acciones inline, modal de nueva reserva, auto-refresh cada 30 s.
+- **Landing del cliente** `/u/{slug}/reservar` — wizard 3 pasos (fecha/branch/duración → slots → datos → confirmación).
+- Link "Reservas" agregado al sidebar del dashboard.
+#### AI Tools nuevas (3)
+- `tool_list_bookings` — lista reservas con filtros.
+- `tool_check_availability` — devuelve slots disponibles.
+- `tool_create_booking` — crea reserva en nombre del cliente.
+- Expuestas a los sub-agentes `marketing`, `growth`, `automation` (no a `marketplace`).
+#### Integración con NotificationService
+- `notify_booking_confirmed` se llama al crear (con `send_confirmation=True`) y al confirmar manualmente.
+- Errores de notificación se loggean sin romper la operación.
+#### Tests
+- **37 tests pasando** en `tests/test_bookings.py` (cubren CRUD, validación, conflictos, horarios, estados, stats, availability, endpoint público, multi-tenant isolation, AI tools, UI).
+- 8 clases: `TestBookingCRUD`, `TestBookingValidation`, `TestBookingStateActions`, `TestBookingStatsAndAvailability`, `TestPublicBooking`, `TestMultiTenantIsolation`, `TestAITools`, `TestUIPages`.
+#### Documentación
+- Nuevo `docs/INFORME_BOOKINGS.md` (~520 líneas) con arquitectura, endpoints, validaciones, AI tools, UI, tests, decisiones de diseño y roadmap.
+
+---
+
 ## Cómo contribuir al changelog
 
 Cuando añadas un cambio, agrégalo bajo `[No publicado]` con la fecha actual

@@ -1,0 +1,378 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Agenda / Reservas{% endblock %}
+{% block dash_content %}
+
+<div class="row-between">
+  <div>
+    <h1>Agenda / Reservas</h1>
+    <p class="sub">Visualiza y gestiona las reservas de tus clientes. Cambia el status, reagenda o cancela con un click.</p>
+  </div>
+  <div>
+    <button class="btn btn-ghost" id="refresh-btn">↻ Refrescar</button>
+    <button class="btn btn-primary" id="new-booking-btn">+ Nueva reserva</button>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="grid grid-4 mt-3" id="stats-grid">
+  <div class="card"><div class="kpi-label">Hoy</div><div class="kpi" id="kpi-today">—</div></div>
+  <div class="card"><div class="kpi-label">Próximas</div><div class="kpi" id="kpi-upcoming">—</div></div>
+  <div class="card"><div class="kpi-label">Pendientes</div><div class="kpi" id="kpi-pending">—</div></div>
+  <div class="card"><div class="kpi-label">Ingresos completados</div><div class="kpi" id="kpi-revenue">—</div></div>
+</div>
+
+<!-- Filtros -->
+<div class="card mt-3">
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-input" id="filter-status">
+        <option value="">Todos</option>
+        <option value="pending">Pendientes</option>
+        <option value="confirmed">Confirmadas</option>
+        <option value="completed">Completadas</option>
+        <option value="canceled">Canceladas</option>
+        <option value="no_show">No-show</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Desde</label>
+      <input class="form-input" type="date" id="filter-from">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hasta</label>
+      <input class="form-input" type="date" id="filter-to">
+    </div>
+    <div class="form-group" style="align-self: end;">
+      <button class="btn" id="filter-btn">Filtrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lista -->
+<div class="card mt-3">
+  <h3>Reservas</h3>
+  <div id="bookings-list" class="mt-2 text-muted">Cargando…</div>
+</div>
+
+<!-- Modal: nueva reserva -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nueva reserva</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="booking-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre *</label>
+            <input class="form-input" id="b_name" required minlength="2" maxlength="160">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono *</label>
+            <input class="form-input" id="b_phone" required minlength="8" maxlength="40">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" id="b_email" type="email">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Inicio *</label>
+            <input class="form-input" id="b_starts" type="datetime-local" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fin *</label>
+            <input class="form-input" id="b_ends" type="datetime-local" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Sucursal</label>
+            <select class="form-input" id="b_branch"><option value="">(predeterminada)</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Profesional</label>
+            <input class="form-input" id="b_staff" maxlength="120">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea class="form-input" id="b_notes" rows="2" maxlength="2000"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="b_send_confirmation" checked> Enviar email de confirmación
+          </label>
+        </div>
+        <div id="form-error" class="text-danger hidden"></div>
+        <div class="row-between" style="margin-top: 16px;">
+          <button class="btn btn-ghost" type="button" id="cancel-btn">Cancelar</button>
+          <button class="btn btn-primary" type="submit" id="save-btn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ── Estado ─────────────────────────────────────────────
+  let _bookings = [];
+  let _branches = [];
+  let _tenant = null;
+
+  // ── Helpers ────────────────────────────────────────────
+  function authHeaders(){
+    const t = window.Auth?.getAccessToken?.() || localStorage.getItem('wowhub_access') || '';
+    return { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' };
+  }
+  function fmtDate(s){
+    if(!s) return '—';
+    const d = new Date(s);
+    return d.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
+  }
+  function fmtMoney(cents, ccy){
+    const n = (cents/100).toLocaleString('es-CL', { minimumFractionDigits: 0 });
+    return ccy === 'CLP' ? `$${n}` : `${n} ${ccy}`;
+  }
+  function statusBadge(s){
+    const map = {
+      pending:   ['⏳', 'Pendiente',  '#f59e0b'],
+      confirmed: ['✓',  'Confirmada', '#10b981'],
+      completed: ['✔',  'Completada', '#3b82f6'],
+      canceled:  ['✕',  'Cancelada',  '#ef4444'],
+      no_show:   ['⚠',  'No-show',    '#9ca3af'],
+    };
+    const [ico, label, color] = map[s] || ['?', s, '#9ca3af'];
+    return `<span class="badge" style="background:${color}22;color:${color};border:1px solid ${color}55;">${ico} ${label}</span>`;
+  }
+
+  // ── Cargar contexto ────────────────────────────────────
+  async function loadContext(){
+    try {
+      const r = await fetch('/api/v1/tenants/current', { headers: authHeaders() });
+      if (!r.ok) return;
+      const data = await r.json();
+      _tenant = data;
+    } catch(e){ console.error(e); }
+    // Branches
+    try {
+      const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+      if (tid) {
+        const r = await fetch(`/api/v1/tenants/${tid}/branches`, { headers: authHeaders() });
+        if (r.ok) _branches = await r.json();
+      }
+    } catch(e){ console.error(e); }
+  }
+
+  // ── Stats ──────────────────────────────────────────────
+  async function loadStats(){
+    try {
+      const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+      const r = await fetch(`/api/v1/tenants/${tid}/bookings/stats`, { headers: authHeaders() });
+      if (!r.ok) return;
+      const s = await r.json();
+      document.getElementById('kpi-today').textContent = s.today_count;
+      document.getElementById('kpi-upcoming').textContent = s.upcoming_count;
+      document.getElementById('kpi-pending').textContent = s.pending;
+      document.getElementById('kpi-revenue').textContent = fmtMoney(s.revenue_cents, s.currency);
+    } catch(e){ console.error(e); }
+  }
+
+  // ── Lista ──────────────────────────────────────────────
+  async function loadBookings(){
+    const list = document.getElementById('bookings-list');
+    list.innerHTML = '<div class="text-muted">Cargando…</div>';
+    const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+    const status = document.getElementById('filter-status').value;
+    const from = document.getElementById('filter-from').value;
+    const to = document.getElementById('filter-to').value;
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (from) params.set('date_from', from + 'T00:00:00');
+    if (to) params.set('date_to', to + 'T23:59:59');
+
+    try {
+      const r = await fetch(`/api/v1/tenants/${tid}/bookings?${params}`, { headers: authHeaders() });
+      if (!r.ok) {
+        list.innerHTML = `<div class="text-danger">Error al cargar (${r.status})</div>`;
+        return;
+      }
+      _bookings = await r.json();
+      renderList();
+    } catch(e){
+      console.error(e);
+      list.innerHTML = '<div class="text-danger">Error de red</div>';
+    }
+  }
+
+  function renderList(){
+    const list = document.getElementById('bookings-list');
+    if (!_bookings.length) {
+      list.innerHTML = '<div class="text-muted text-center" style="padding: 40px;">No hay reservas para los filtros seleccionados.</div>';
+      return;
+    }
+    const html = `<table class="table">
+      <thead>
+        <tr>
+          <th>Inicio</th>
+          <th>Cliente</th>
+          <th>Sucursal</th>
+          <th>Profesional</th>
+          <th>Status</th>
+          <th>Precio</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_bookings.map(b => `
+          <tr>
+            <td>${fmtDate(b.starts_at)}<br><small class="text-muted">→ ${fmtDate(b.ends_at)}</small></td>
+            <td><strong>${b.customer_name}</strong><br><small class="text-muted">${b.customer_phone}${b.customer_email ? ' · ' + b.customer_email : ''}</small></td>
+            <td>${branchName(b.branch_id)}</td>
+            <td>${b.staff_name || '—'}</td>
+            <td>${statusBadge(b.status)}</td>
+            <td>${b.price_cents > 0 ? fmtMoney(b.price_cents, b.currency) : '—'}</td>
+            <td>${actionsHtml(b)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+    list.innerHTML = html;
+    // Bind actions
+    list.querySelectorAll('[data-action]').forEach(el => {
+      el.addEventListener('click', () => onAction(el.dataset.action, el.dataset.id));
+    });
+  }
+
+  function branchName(id){
+    if (!id) return '—';
+    const b = _branches.find(x => x.id === id);
+    return b ? b.name : id.slice(0,8);
+  }
+
+  function actionsHtml(b){
+    const acts = [];
+    if (b.status === 'pending')   acts.push(`<button class="btn btn-sm btn-primary" data-action="confirm"  data-id="${b.id}">Confirmar</button>`);
+    if (b.status === 'confirmed') acts.push(`<button class="btn btn-sm"            data-action="complete" data-id="${b.id}">Completar</button>`);
+    if (!['canceled','no_show','completed'].includes(b.status))
+                                acts.push(`<button class="btn btn-sm btn-ghost"   data-action="cancel"   data-id="${b.id}">Cancelar</button>`);
+    if (b.status === 'confirmed' || b.status === 'pending')
+                                acts.push(`<button class="btn btn-sm btn-ghost"   data-action="noshow"   data-id="${b.id}">No-show</button>`);
+    return acts.join(' ');
+  }
+
+  async function onAction(action, id){
+    const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+    let url = `/api/v1/tenants/${tid}/bookings/${id}`;
+    if (action === 'confirm')  url += '/confirm';
+    if (action === 'complete') url += '/complete';
+    if (action === 'cancel')   url += '/cancel';
+    if (action === 'noshow')   url += '/no-show';
+    const method = 'POST';
+    try {
+      const r = await fetch(url, { method, headers: authHeaders() });
+      if (!r.ok && r.status !== 204) {
+        const err = await r.json().catch(() => ({}));
+        alert('Error: ' + (err.detail || r.status));
+        return;
+      }
+      loadBookings();
+      loadStats();
+    } catch(e){
+      alert('Error de red');
+    }
+  }
+
+  // ── Modal nueva reserva ────────────────────────────────
+  function openModal(){
+    const sel = document.getElementById('b_branch');
+    sel.innerHTML = '<option value="">(predeterminada)</option>' +
+      _branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+    document.getElementById('modal-title').textContent = 'Nueva reserva';
+    document.getElementById('booking-form').reset();
+    document.getElementById('form-error').classList.add('hidden');
+    document.getElementById('modal').classList.remove('hidden');
+  }
+  function closeModal(){
+    document.getElementById('modal').classList.add('hidden');
+  }
+
+  async function submitForm(e){
+    e.preventDefault();
+    const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+    const err = document.getElementById('form-error');
+    err.classList.add('hidden');
+    const body = {
+      customer_name: document.getElementById('b_name').value.trim(),
+      customer_phone: document.getElementById('b_phone').value.trim(),
+      customer_email: document.getElementById('b_email').value.trim() || null,
+      starts_at: new Date(document.getElementById('b_starts').value).toISOString(),
+      ends_at:   new Date(document.getElementById('b_ends').value).toISOString(),
+      branch_id: document.getElementById('b_branch').value || null,
+      staff_name: document.getElementById('b_staff').value.trim() || null,
+      notes: document.getElementById('b_notes').value.trim() || null,
+    };
+    const send = document.getElementById('b_send_confirmation').checked;
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.disabled = true; saveBtn.textContent = 'Guardando…';
+    try {
+      const r = await fetch(`/api/v1/tenants/${tid}/bookings?send_confirmation=${send}`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        err.textContent = e.detail || `Error ${r.status}`;
+        err.classList.remove('hidden');
+        return;
+      }
+      closeModal();
+      loadBookings();
+      loadStats();
+    } catch(e){
+      err.textContent = 'Error de red';
+      err.classList.remove('hidden');
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = 'Guardar';
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────────
+  document.getElementById('refresh-btn').addEventListener('click', () => { loadBookings(); loadStats(); });
+  document.getElementById('new-booking-btn').addEventListener('click', openModal);
+  document.getElementById('modal-close').addEventListener('click', closeModal);
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  document.getElementById('booking-form').addEventListener('submit', submitForm);
+  document.getElementById('filter-btn').addEventListener('click', loadBookings);
+
+  (async () => {
+    await loadContext();
+    await loadStats();
+    await loadBookings();
+  })();
+})();
+</script>
+
+<style>
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 720px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { font-size: 28px; font-weight: 700; }
+  .kpi-label { font-size: 12px; color: var(--muted, #888); text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+  .table { width: 100%; border-collapse: collapse; }
+  .table th, .table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
+  .table th { color: var(--muted, #888); font-weight: 500; }
+  .text-danger { color: #ef4444; }
+  .text-muted { color: var(--muted, #888); }
+  .text-center { text-align: center; }
+  .btn { display: inline-block; padding: 6px 12px; border-radius: 6px; border: 1px solid transparent; background: var(--bg-2, #1a1a2e); color: inherit; cursor: pointer; font-size: 13px; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-primary { background: var(--brand, #1A73E8); color: #fff; }
+  .btn-ghost { background: transparent; border-color: rgba(255,255,255,0.12); }
+  .hidden { display: none; }
+</style>
+
+{% endblock %}

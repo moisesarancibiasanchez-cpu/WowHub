@@ -9,6 +9,8 @@ y para los clientes.
 ## 📑 Índice de documentos
 
 ### Para clientes
+- 📄 **[Informe del Módulo de Reservas (Bookings)](INFORME_BOOKINGS.md)** —
+  Sistema de agendamiento online con detección de conflictos, validación de horarios, UI de agenda, landing público y exposición al asistente IA.
 - 📄 **[Informe de Integración del Asistente Virtual](INFORME_INTEGRACION_IA.md)** —
   Resumen ejecutivo de la integración IA ↔ módulos de negocio, beneficios y roadmap.
 - 📄 **[Informe del Sistema de Fidelización (Loyalty Pass)](INFORME_FIDELIZACION.md)** —
@@ -27,7 +29,8 @@ docs/
 ├── README.md                       ← este archivo (índice)
 ├── CHANGELOG.md                    ← historial de cambios
 ├── INFORME_INTEGRACION_IA.md       ← informe de la fase de integración IA
-└── INFORME_FIDELIZACION.md         ← informe del sistema de fidelización
+├── INFORME_FIDELIZACION.md         ← informe del sistema de fidelización
+└── INFORME_BOOKINGS.md             ← informe del módulo de reservas (Fase 2)
 ```
 
 ---

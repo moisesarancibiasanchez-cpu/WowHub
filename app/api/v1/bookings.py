@@ -1,89 +1,115 @@
-"""Bookings API — reservas (para industries services/beauty/health/education)."""
+"""Bookings API — reservas (para industries services/beauty/health/education).
+
+Fase 2:
+- Endpoints admin (owner) con auth de membresía.
+- Validación de conflictos y horarios de sucursal vía BookingService.
+- Envío de confirmaciones por email vía NotificationService.
+- Endpoint público para que clientes reserven.
+- Endpoint de métricas de agenda.
+"""
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
 from app.database import get_db
 from app.deps import get_current_membership
 from app.models.booking import Booking, BookingStatus
-from app.models.tenant import TenantMembership
-from app.services.notification_service import NotificationService
+from app.models.tenant import Tenant, TenantMembership
+from app.schemas.booking import (
+    AvailabilityQuery, AvailabilityResponse, BookingIn, BookingOut,
+    BookingStats, BookingUpdate, PublicBookingIn,
+)
+from app.services.booking_service import BookingService
 
 router = APIRouter(prefix="/tenants/{tenant_id}/bookings", tags=["bookings"])
+# Router público (cliente final) — sin auth, resuelto por tenant slug
+public_router = APIRouter(prefix="/bookings", tags=["bookings-public"])
 
 
-class BookingCreate(BaseModel):
-    customer_name: str = Field(min_length=2, max_length=160)
-    customer_phone: str = Field(min_length=8, max_length=40)
-    customer_email: Optional[str] = None
-    branch_id: Optional[UUID] = None
-    product_id: Optional[UUID] = None
-    customer_id: Optional[UUID] = None
-    starts_at: datetime
-    ends_at: datetime
-    price_cents: int = 0
-    notes: Optional[str] = None
-    staff_name: Optional[str] = None
-
-
-class BookingUpdate(BaseModel):
-    status: Optional[BookingStatus] = None
-    notes: Optional[str] = None
-
-
-@router.get("")
+# ── Listar (admin) ───────────────────────────────────────
+@router.get("", response_model=list[BookingOut])
 def list_bookings(
     tenant_id: UUID,
     status: Optional[BookingStatus] = Query(None),
-    from_date: Optional[datetime] = Query(None),
+    branch_id: Optional[UUID] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    customer_id: Optional[UUID] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
     membership: TenantMembership = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ):
-    q = select(Booking).where(Booking.tenant_id == str(tenant_id))
-    if status:
-        q = q.where(Booking.status == status)
-    if from_date:
-        q = q.where(Booking.starts_at >= from_date)
-    q = q.order_by(Booking.starts_at.asc())
-    bookings = list(db.execute(q).scalars())
-    return [_to_dict(b) for b in bookings]
+    """Lista reservas del tenant con filtros opcionales."""
+    svc = BookingService(db, str(tenant_id))
+    bookings = svc.list(
+        status=status,
+        branch_id=branch_id,
+        date_from=date_from,
+        date_to=date_to,
+        customer_id=customer_id,
+        limit=limit,
+    )
+    return bookings
 
 
-@router.post("", status_code=201)
+# ── Crear (admin) ─────────────────────────────────────────
+@router.post("", response_model=BookingOut, status_code=201)
 def create_booking(
     tenant_id: UUID,
-    payload: BookingCreate,
+    payload: BookingIn,
+    send_confirmation: bool = Query(True, description="Enviar email de confirmación"),
     membership: TenantMembership = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ):
-    b = Booking(
-        tenant_id=str(tenant_id),
-        customer_name=payload.customer_name,
-        customer_phone=payload.customer_phone,
-        customer_email=payload.customer_email,
-        branch_id=str(payload.branch_id) if payload.branch_id else None,
-        product_id=str(payload.product_id) if payload.product_id else None,
-        customer_id=str(payload.customer_id) if payload.customer_id else None,
-        starts_at=payload.starts_at,
-        ends_at=payload.ends_at,
-        price_cents=payload.price_cents,
-        notes=payload.notes,
-        staff_name=payload.staff_name,
-        status=BookingStatus.PENDING,
-    )
-    db.add(b)
-    db.commit()
-    db.refresh(b)
-    return _to_dict(b)
+    """Crea una reserva en nombre del cliente (uso admin / call-center)."""
+    svc = BookingService(db, str(tenant_id))
+    return svc.create(payload, send_confirmation=send_confirmation)
 
 
-@router.patch("/{booking_id}")
+# ── Stats de la agenda ────────────────────────────────────
+@router.get("/stats", response_model=BookingStats)
+def get_booking_stats(
+    tenant_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Métricas rápidas para el dashboard de agenda."""
+    svc = BookingService(db, str(tenant_id))
+    return svc.stats()
+
+
+# ── Availability ────────────────────────────────────────
+@router.post("/availability", response_model=AvailabilityResponse)
+def check_availability(
+    tenant_id: UUID,
+    payload: AvailabilityQuery,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Devuelve los slots disponibles en el rango pedido."""
+    svc = BookingService(db, str(tenant_id))
+    return svc.get_availability(payload)
+
+
+# ── Detalle de una reserva ──────────────────────────────
+@router.get("/{booking_id}", response_model=BookingOut)
+def get_booking(
+    tenant_id: UUID,
+    booking_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    svc = BookingService(db, str(tenant_id))
+    return svc.get_or_404(booking_id)
+
+
+# ── Actualizar (admin) ──────────────────────────────────
+@router.patch("/{booking_id}", response_model=BookingOut)
 def update_booking(
     tenant_id: UUID,
     booking_id: UUID,
@@ -91,33 +117,181 @@ def update_booking(
     membership: TenantMembership = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ):
-    b = db.get(Booking, booking_id)
-    if not b or b.tenant_id != tenant_id:
-        raise NotFoundError("Reserva")
-    if payload.status:
-        b.status = payload.status
-    if payload.notes:
-        b.notes = payload.notes
-    db.commit()
-    db.refresh(b)
-    return _to_dict(b)
+    """Actualiza estado, notas, staff, o reagenda."""
+    svc = BookingService(db, str(tenant_id))
+    return svc.update(
+        booking_id,
+        status=payload.status,
+        notes=payload.notes,
+        staff_name=payload.staff_name,
+        starts_at=payload.starts_at,
+        ends_at=payload.ends_at,
+    )
 
 
-def _to_dict(b: Booking) -> dict:
+# ── Acciones de estado (atajos) ─────────────────────────
+@router.post("/{booking_id}/confirm", response_model=BookingOut)
+def confirm_booking(
+    tenant_id: UUID,
+    booking_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    svc = BookingService(db, str(tenant_id))
+    return svc.confirm(booking_id)
+
+
+@router.post("/{booking_id}/complete", response_model=BookingOut)
+def complete_booking(
+    tenant_id: UUID,
+    booking_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    svc = BookingService(db, str(tenant_id))
+    return svc.complete(booking_id)
+
+
+@router.post("/{booking_id}/no-show", response_model=BookingOut)
+def mark_no_show(
+    tenant_id: UUID,
+    booking_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    svc = BookingService(db, str(tenant_id))
+    return svc.mark_no_show(booking_id)
+
+
+class CancelIn(BaseModel):
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+@router.post("/{booking_id}/cancel", response_model=BookingOut)
+def cancel_booking(
+    tenant_id: UUID,
+    booking_id: UUID,
+    payload: CancelIn = CancelIn(),
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    svc = BookingService(db, str(tenant_id))
+    return svc.cancel(booking_id, reason=payload.reason)
+
+
+@router.delete("/{booking_id}", status_code=204)
+def delete_booking(
+    tenant_id: UUID,
+    booking_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Elimina definitivamente una reserva (sólo admin)."""
+    svc = BookingService(db, str(tenant_id))
+    svc.delete(booking_id)
+    return None
+
+
+# ════════════════════════════════════════════════════════════
+# PUBLIC endpoints (cliente final) — sin auth, resuelto por slug
+# ════════════════════════════════════════════════════════════
+
+def _resolve_tenant_by_slug(slug: str, db: Session) -> Tenant:
+    t = db.query(Tenant).filter(Tenant.slug == slug).first()
+    if not t or not t.is_active:
+        raise NotFoundError("Tenant")
+    return t
+
+
+@public_router.post("/t/{slug}/public-check")
+def public_check_availability(
+    slug: str,
+    payload: AvailabilityQuery,
+    db: Session = Depends(get_db),
+):
+    """Consulta slots disponibles para que el cliente elija cuándo reservar."""
+    t = _resolve_tenant_by_slug(slug, db)
+    svc = BookingService(db, str(t.id))
+    return svc.get_availability(payload)
+
+
+class PublicBookingOutResp(BaseModel):
+    """Lo que devolvemos al cliente tras reservar (sin datos sensibles)."""
+    id: str
+    status: str
+    starts_at: datetime
+    ends_at: datetime
+    customer_name: str
+    customer_email_masked: Optional[str] = None
+    branch_name: Optional[str] = None
+    cancel_token: Optional[str] = None
+    message: str = "Reserva creada. Recibirás un email de confirmación."
+
+
+def _mask_email(email: Optional[str]) -> Optional[str]:
+    if not email or "@" not in email:
+        return email
+    name, domain = email.split("@", 1)
+    if len(name) <= 2:
+        masked = "*" * len(name)
+    else:
+        masked = name[0] + "*" * (len(name) - 2) + name[-1]
+    return f"{masked}@{domain}"
+
+
+@public_router.post(
+    "/t/{slug}/public-create",
+    response_model=PublicBookingOutResp,
+    status_code=201,
+)
+def public_create_booking(
+    slug: str,
+    payload: PublicBookingIn,
+    db: Session = Depends(get_db),
+):
+    """Crea una reserva pública. El cliente debe aceptar términos.
+    Devuelve datos enmascarados (sin staff, sin precio)."""
+    t = _resolve_tenant_by_slug(slug, db)
+    svc = BookingService(db, str(t.id))
+    b = svc.create(payload, send_confirmation=True)
+    branch_name = None
+    if b.branch_id:
+        from app.models.branch import Branch
+        br = db.get(Branch, b.branch_id)
+        if br:
+            branch_name = br.name
+    return PublicBookingOutResp(
+        id=str(b.id),
+        status=b.status.value,
+        starts_at=b.starts_at,
+        ends_at=b.ends_at,
+        customer_name=b.customer_name,
+        customer_email_masked=_mask_email(b.customer_email),
+        branch_name=branch_name,
+        cancel_token=str(b.id)[:12],  # opaco al cliente
+        message="Reserva creada. Recibirás un email de confirmación.",
+    )
+
+
+@public_router.post("/t/{slug}/public-cancel")
+def public_cancel_booking(
+    slug: str,
+    booking_id: UUID,
+    cancel_token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Cancela una reserva por ID + token opaco (sin auth).
+    El token es los primeros 12 chars del UUID; mitigación mínima.
+    Para producción real añadiríamos un JWT firmado por reserva."""
+    t = _resolve_tenant_by_slug(slug, db)
+    expected = str(booking_id)[:12]
+    if cancel_token != expected:
+        from app.core.errors import ForbiddenError
+        raise ForbiddenError("Token inválido")
+    svc = BookingService(db, str(t.id))
+    b = svc.cancel(booking_id, reason="Cancelada por el cliente desde la web")
     return {
         "id": str(b.id),
-        "tenant_id": b.tenant_id,
-        "customer_name": b.customer_name,
-        "customer_phone": b.customer_phone,
-        "customer_email": b.customer_email,
-        "branch_id": b.branch_id,
-        "product_id": b.product_id,
-        "customer_id": b.customer_id,
-        "starts_at": b.starts_at.isoformat() if b.starts_at else None,
-        "ends_at": b.ends_at.isoformat() if b.ends_at else None,
         "status": b.status.value,
-        "price_cents": b.price_cents,
-        "notes": b.notes,
-        "staff_name": b.staff_name,
-        "created_at": b.created_at.isoformat() if b.created_at else None,
+        "message": "Reserva cancelada.",
     }

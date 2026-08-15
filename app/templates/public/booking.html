@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reservar — {{ tenant_name }}</title>
+  <style>
+    :root {
+      --brand: #1A73E8;
+      --bg: #0b1220;
+      --bg-2: #131a2e;
+      --fg: #e6e8ee;
+      --muted: #8a93a6;
+      --danger: #ef4444;
+      --ok: #10b981;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 80px; }
+    header { text-align: center; padding: 24px 0; }
+    header h1 { margin: 0 0 8px; font-size: 24px; }
+    header p { color: var(--muted); margin: 0; font-size: 14px; }
+    .card {
+      background: var(--bg-2);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+    }
+    .step-num {
+      display: inline-block; width: 28px; height: 28px;
+      background: var(--brand); color: #fff;
+      border-radius: 50%; text-align: center; line-height: 28px;
+      font-weight: 600; font-size: 14px; margin-right: 10px;
+    }
+    h2 { font-size: 18px; margin: 0 0 16px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--brand);
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+    .field { margin-bottom: 12px; }
+    .slots {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px; max-height: 360px; overflow-y: auto; padding: 4px;
+    }
+    .slot {
+      padding: 10px;
+      background: var(--bg);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+    .slot:hover:not(.busy) { border-color: var(--brand); transform: translateY(-1px); }
+    .slot.selected { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .slot.busy { opacity: 0.4; cursor: not-allowed; text-decoration: line-through; }
+    .slot .time { font-weight: 600; }
+    .slot .date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .slot.selected .date { color: rgba(255,255,255,0.85); }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-primary { background: var(--brand); color: #fff; width: 100%; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--fg); border: 1px solid rgba(255,255,255,0.12); }
+    .alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
+    .alert-error { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .alert-ok { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+    .summary { background: var(--bg); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+    .summary dt { font-size: 12px; color: var(--muted); text-transform: uppercase; margin-top: 8px; }
+    .summary dd { margin: 4px 0 0; font-weight: 500; }
+    .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+    .hidden { display: none; }
+    .terms { font-size: 13px; color: var(--muted); margin: 16px 0; }
+    .terms a { color: var(--brand); }
+    .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>{{ tenant_name }}</h1>
+      <p>Reserva tu hora en simples pasos</p>
+    </header>
+
+    <div id="alert" class="alert alert-error hidden"></div>
+
+    <!-- Step 1: Servicio y horario -->
+    <div class="card">
+      <h2><span class="step-num">1</span>Elige día y hora</h2>
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="f_date" min="">
+      </div>
+      <div class="field">
+        <label>Sucursal</label>
+        <select id="f_branch">
+          <option value="">Cualquier sucursal</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Duración (minutos)</label>
+        <select id="f_duration">
+          <option value="30">30 min</option>
+          <option value="60" selected>60 min</option>
+          <option value="90">90 min</option>
+          <option value="120">120 min</option>
+        </select>
+      </div>
+      <div id="slots-container">
+        <p class="text-muted" style="color: var(--muted);">Selecciona una fecha para ver los horarios disponibles.</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Tus datos -->
+    <div class="card hidden" id="step-2">
+      <h2><span class="step-num">2</span>Tus datos</h2>
+      <div class="summary">
+        <dl>
+          <dt>Fecha y hora</dt>
+          <dd id="sum_when">—</dd>
+        </dl>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Nombre *</label>
+          <input id="c_name" required minlength="2" maxlength="160">
+        </div>
+        <div class="field">
+          <label>Teléfono *</label>
+          <input id="c_phone" required minlength="8" maxlength="40" placeholder="+56 9 ...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Email (opcional, para confirmación)</label>
+        <input id="c_email" type="email">
+      </div>
+      <div class="field">
+        <label>Notas (opcional)</label>
+        <textarea id="c_notes" rows="2" maxlength="2000" placeholder="Alergias, preferencias, etc."></textarea>
+      </div>
+      <div class="terms">
+        <label style="display: flex; gap: 8px; align-items: start; color: var(--fg);">
+          <input id="c_terms" type="checkbox" style="width: auto; margin-top: 4px;">
+          <span>Acepto los <a href="/legal/terms" target="_blank">términos y condiciones</a> y la <a href="/legal/privacy" target="_blank">política de privacidad</a>.</span>
+        </label>
+      </div>
+      <button class="btn btn-primary" id="submit-btn">Confirmar reserva</button>
+    </div>
+
+    <!-- Step 3: Confirmación -->
+    <div class="card hidden" id="step-3">
+      <h2>✓ ¡Reserva confirmada!</h2>
+      <div class="alert alert-ok">Te enviamos un email con los detalles. Si no lo ves, revisa tu carpeta de spam.</div>
+      <div class="summary">
+        <dl>
+          <dt>ID de reserva</dt>
+          <dd id="ok_id">—</dd>
+          <dt>Cliente</dt>
+          <dd id="ok_name">—</dd>
+          <dt>Fecha y hora</dt>
+          <dd id="ok_when">—</dd>
+          <dt>Sucursal</dt>
+          <dd id="ok_branch">—</dd>
+        </dl>
+      </div>
+      <p style="color: var(--muted); font-size: 13px;">
+        ¿Necesitas cancelar? <a href="#" id="cancel-link" style="color: var(--brand);">Cancelar reserva</a>
+      </p>
+    </div>
+
+    <div class="footer">WowHub · Reservas</div>
+  </div>
+
+<script>
+(function(){
+  const SLUG = {{ slug|tojson }};
+  const API = '/api/v1/bookings/t/' + SLUG;
+  let _branches = [];
+  let _selected = null; // { starts_at, ends_at }
+  let _lastBooking = null;
+
+  const alertEl = document.getElementById('alert');
+  function showAlert(msg, kind){
+    alertEl.textContent = msg;
+    alertEl.className = 'alert alert-' + (kind || 'error');
+    alertEl.classList.remove('hidden');
+    setTimeout(() => alertEl.classList.add('hidden'), 5000);
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  const today = new Date();
+  document.getElementById('f_date').min = today.toISOString().split('T')[0];
+  document.getElementById('f_date').value = today.toISOString().split('T')[0];
+
+  // Cargar branches
+  fetch(API + '/public-check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      date_from: new Date().toISOString(),
+      date_to: new Date(Date.now() + 86400000).toISOString(),
+      duration_minutes: 60,
+    }),
+  }).catch(() => {}); // sólo para warmup
+
+  // ── Cargar slots ──────────────────────────────────────
+  async function loadSlots(){
+    const date = document.getElementById('f_date').value;
+    const branch = document.getElementById('f_branch').value;
+    const duration = parseInt(document.getElementById('f_duration').value);
+    if (!date) return;
+    const container = document.getElementById('slots-container');
+    container.innerHTML = '<p style="color: var(--muted);">Cargando horarios…</p>';
+    const dateFrom = new Date(date + 'T00:00:00');
+    const dateTo = new Date(date + 'T23:59:59');
+    try {
+      const r = await fetch(API + '/public-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: branch || null,
+          date_from: dateFrom.toISOString(),
+          date_to: dateTo.toISOString(),
+          duration_minutes: duration,
+          slot_step_minutes: 30,
+        }),
+      });
+      if (!r.ok) {
+        container.innerHTML = '<p style="color: var(--muted);">No se pudo cargar la disponibilidad.</p>';
+        return;
+      }
+      const data = await r.json();
+      renderSlots(data.slots || []);
+    } catch(e){
+      container.innerHTML = '<p style="color: var(--muted);">Error de red.</p>';
+    }
+  }
+
+  function renderSlots(slots){
+    const container = document.getElementById('slots-container');
+    if (!slots.length) {
+      container.innerHTML = '<p style="color: var(--muted);">No hay horarios para esta fecha.</p>';
+      return;
+    }
+    const html = ['<div class="slots">'];
+    let count = 0;
+    for (const s of slots) {
+      const d = new Date(s.starts_at);
+      const time = d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      const dateLbl = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' });
+      if (s.available) {
+        html.push(`<div class="slot" data-starts="${s.starts_at}" data-ends="${s.ends_at}">
+          <div class="time">${time}</div>
+          <div class="date">${dateLbl}</div>
+        </div>`);
+        count++;
+      } else {
+        html.push(`<div class="slot busy">
+          <div class="time">${time}</div>
+          <div class="date">Ocupado</div>
+        </div>`);
+      }
+    }
+    html.push('</div>');
+    if (count === 0) {
+      html.unshift('<p style="color: var(--muted); margin: 8px 0;">Todos los slots de este día están ocupados. Prueba otra fecha.</p>');
+    }
+    container.innerHTML = html.join('');
+    container.querySelectorAll('.slot:not(.busy)').forEach(el => {
+      el.addEventListener('click', () => selectSlot(el));
+    });
+  }
+
+  function selectSlot(el){
+    container = document.getElementById('slots-container');
+    container.querySelectorAll('.slot').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    _selected = {
+      starts_at: el.dataset.starts,
+      ends_at: el.dataset.ends,
+    };
+    const d = new Date(_selected.starts_at);
+    document.getElementById('sum_when').textContent = d.toLocaleString('es-CL', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    document.getElementById('step-2').classList.remove('hidden');
+    document.getElementById('step-2').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ── Submit ────────────────────────────────────────────
+  document.getElementById('submit-btn').addEventListener('click', async function(){
+    if (!_selected) { showAlert('Selecciona primero un horario.'); return; }
+    const name = document.getElementById('c_name').value.trim();
+    const phone = document.getElementById('c_phone').value.trim();
+    const email = document.getElementById('c_email').value.trim();
+    const notes = document.getElementById('c_notes').value.trim();
+    const terms = document.getElementById('c_terms').checked;
+    if (name.length < 2) { showAlert('Ingresa tu nombre.'); return; }
+    if (phone.length < 8) { showAlert('Ingresa un teléfono válido.'); return; }
+    if (!terms) { showAlert('Debes aceptar los términos.'); return; }
+    const btn = this;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Reservando…';
+    try {
+      const body = {
+        customer_name: name,
+        customer_phone: phone,
+        customer_email: email || null,
+        starts_at: _selected.starts_at,
+        ends_at: _selected.ends_at,
+        branch_id: document.getElementById('f_branch').value || null,
+        notes: notes || null,
+        accepts_terms: true,
+      };
+      const r = await fetch(API + '/public-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        showAlert(e.detail || 'No se pudo crear la reserva. Prueba otro horario.');
+        btn.disabled = false; btn.textContent = 'Confirmar reserva';
+        return;
+      }
+      _lastBooking = await r.json();
+      showStep3();
+    } catch(e){
+      showAlert('Error de red. Inténtalo de nuevo.');
+      btn.disabled = false; btn.textContent = 'Confirmar reserva';
+    }
+  });
+
+  function showStep3(){
+    document.getElementById('step-2').classList.add('hidden');
+    document.getElementById('step-3').classList.remove('hidden');
+    document.getElementById('ok_id').textContent = _lastBooking.id.slice(0, 8).toUpperCase();
+    document.getElementById('ok_name').textContent = _lastBooking.customer_name;
+    const d = new Date(_lastBooking.starts_at);
+    document.getElementById('ok_when').textContent = d.toLocaleString('es-CL', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    document.getElementById('ok_branch').textContent = _lastBooking.branch_name || '—';
+    document.getElementById('cancel-link').dataset.id = _lastBooking.id;
+    document.getElementById('cancel-link').dataset.token = _lastBooking.cancel_token;
+    document.getElementById('step-3').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  document.getElementById('cancel-link').addEventListener('click', async function(e){
+    e.preventDefault();
+    if (!confirm('¿Seguro que quieres cancelar tu reserva?')) return;
+    try {
+      const r = await fetch(API + '/public-cancel?booking_id=' + this.dataset.id + '&cancel_token=' + this.dataset.token, {
+        method: 'POST',
+      });
+      if (r.ok) {
+        alert('Reserva cancelada.');
+        location.reload();
+      } else {
+        alert('No se pudo cancelar. Contáctanos directamente.');
+      }
+    } catch(e){
+      alert('Error de red.');
+    }
+  });
+
+  // ── Listeners ─────────────────────────────────────────
+  document.getElementById('f_date').addEventListener('change', loadSlots);
+  document.getElementById('f_branch').addEventListener('change', loadSlots);
+  document.getElementById('f_duration').addEventListener('change', loadSlots);
+
+  loadSlots();
+})();
+</script>
+</body>
+</html>

@@ -144,6 +144,8 @@ app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(loyalty.owner_router, prefix="/api/v1")
 app.include_router(loyalty.pos_router, prefix="/api/v1")
 app.include_router(loyalty.public_router, prefix="/api/v1")
+# Bookings Fase 2 (público)
+app.include_router(bookings.public_router, prefix="/api/v1")
 # Analytics + Campaigns (alimentan al Asistente IA)
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(campaigns.router, prefix="/api/v1")
@@ -269,6 +271,35 @@ def dashboard_loyalty_scanner(request: Request):
     return templates.TemplateResponse(
         request, "dashboard/admin_scanner.html",
         {"settings": settings, "body_class": "route-loyalty-scanner"},
+    )
+
+
+# ── Bookings Fase 2 (UI) ─────────────────────────────────
+@app.get("/dashboard/bookings", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_bookings(request: Request):
+    """Panel del dueño: agenda de reservas con KPIs, filtros y acciones."""
+    return templates.TemplateResponse(
+        request, "dashboard/admin_bookings.html",
+        {"settings": settings, "body_class": "route-bookings"},
+    )
+
+
+@app.get("/u/{slug}/reservar", response_class=HTMLResponse, include_in_schema=False)
+def public_booking_page(slug: str, request: Request):
+    """Landing público: el cliente elige horario y reserva sin login."""
+    from app.models.tenant import Tenant
+    with SessionLocal() as db:
+        t = db.execute(select(Tenant).where(Tenant.slug == slug)).scalar_one_or_none()
+        if not t or not t.is_active:
+            return templates.TemplateResponse(
+                request, "public/404.html",
+                {"settings": settings, "slug": slug},
+                status_code=404,
+            )
+        tenant_name = t.display_name or t.legal_name or slug
+    return templates.TemplateResponse(
+        request, "public/booking.html",
+        {"settings": settings, "slug": slug, "tenant_name": tenant_name},
     )
 
 
