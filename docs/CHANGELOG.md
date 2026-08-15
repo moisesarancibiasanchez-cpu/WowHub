@@ -42,6 +42,7 @@ Este archivo sigue parcialmente el estándar [Keep a Changelog](https://keepacha
 
 #### Documentación
 - Informe detallado en [`docs/INFORME_INTEGRACION_IA.md`](INFORME_INTEGRACION_IA.md).
+- Informe del sistema de fidelización en [`docs/INFORME_FIDELIZACION.md`](INFORME_FIDELIZACION.md).
 
 ---
 

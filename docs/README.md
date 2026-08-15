@@ -11,6 +11,8 @@ y para los clientes.
 ### Para clientes
 - 📄 **[Informe de Integración del Asistente Virtual](INFORME_INTEGRACION_IA.md)** —
   Resumen ejecutivo de la integración IA ↔ módulos de negocio, beneficios y roadmap.
+- 📄 **[Informe del Sistema de Fidelización (Loyalty Pass)](INFORME_FIDELIZACION.md)** —
+  Tarjetas digitales con sellos, QR rotativo anti-fraude, modos de aplicación y roadmap.
 
 ### Para el equipo
 - 📋 **[Changelog](../docs/CHANGELOG.md)** — Historial de cambios del proyecto.
@@ -24,7 +26,8 @@ y para los clientes.
 docs/
 ├── README.md                       ← este archivo (índice)
 ├── CHANGELOG.md                    ← historial de cambios
-└── INFORME_INTEGRACION_IA.md       ← informe de la fase de integración IA
+├── INFORME_INTEGRACION_IA.md       ← informe de la fase de integración IA
+└── INFORME_FIDELIZACION.md         ← informe del sistema de fidelización
 ```
 
 ---

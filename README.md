@@ -342,6 +342,8 @@ La documentación para clientes, equipo y reportes de avance vive en la carpeta
 
 - 📄 **[Informe de Integración del Asistente Virtual](docs/INFORME_INTEGRACION_IA.md)** —
   qué se entregó en la fase IA ↔ módulos de negocio, beneficios y roadmap.
+- 📄 **[Informe del Sistema de Fidelización (Loyalty Pass)](docs/INFORME_FIDELIZACION.md)** —
+  tarjetas digitales con sellos, QR rotativo anti-fraude, modos de aplicación.
 - 📋 **[Changelog](docs/CHANGELOG.md)** — historial detallado de cambios.
 - 🗂️ **[Índice de docs](docs/README.md)** — punto de entrada a la documentación.
 
