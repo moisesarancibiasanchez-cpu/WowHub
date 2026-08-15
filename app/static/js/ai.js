@@ -610,6 +610,232 @@
   // Estado inicial de la UI (por si el browser recuerda la clase)
   applyMaximizedUI();
 
+  // ── Historial de conversaciones ─────────────────────
+  // Lista de conversaciones previas (cargadas del backend) y helpers
+  // para abrir el drawer, cargar mensajes, eliminar, etc.
+  const historyPanel  = $("ai-history");
+  const historyList   = $("ai-history-list");
+  const historyEmpty  = $("ai-history-empty");
+  const historyBtn    = $("ai-history-btn");
+  const historyBack   = $("ai-history-back");
+  const historyNewBtn = $("ai-history-new");
+
+  // Mapeo de agentes → emoji + nombre corto
+  const AGENT_GLYPH = {
+    marketing:    "🎨",
+    growth:       "📈",
+    automation:   "✉️",
+    marketplace:  "🛒",
+    router:       "🧭",
+  };
+  const AGENT_NAME = {
+    marketing:    "Marketing",
+    growth:       "Crecimiento",
+    automation:   "Tareas",
+    marketplace:  "Catálogo",
+    router:       "Router",
+  };
+
+  function showHistoryPanel() {
+    if (!historyPanel) return;
+    historyPanel.hidden = false;
+    loadConversationList();
+  }
+  function hideHistoryPanel() {
+    if (!historyPanel) return;
+    historyPanel.hidden = true;
+  }
+  function isHistoryOpen() {
+    return historyPanel && !historyPanel.hidden;
+  }
+
+  function formatRelativeDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffH = Math.floor(diffMs / 3600000);
+    const diffD = Math.floor(diffMs / 86400000);
+    if (diffMin < 1)  return "ahora";
+    if (diffMin < 60) return `hace ${diffMin} min`;
+    if (diffH  < 24)  return `hace ${diffH} h`;
+    if (diffD === 1)  return "ayer";
+    if (diffD < 7)    return `hace ${diffD} días`;
+    return d.toLocaleDateString("es", { day: "numeric", month: "short" });
+  }
+
+  function renderHistoryItem(conv) {
+    const tpl = $("tpl-history-item");
+    if (!tpl) return null;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.dataset.id    = conv.id;
+    node.dataset.agent = conv.agent || "marketing";
+    const titleEl = node.querySelector(".ai-history-item-title");
+    const metaEl  = node.querySelector(".ai-history-item-meta");
+    const iconEl  = node.querySelector(".ai-history-item-icon");
+    if (titleEl) titleEl.textContent = conv.title || "Nueva conversación";
+    if (iconEl)  iconEl.textContent  = AGENT_GLYPH[conv.agent] || "💬";
+    if (metaEl) {
+      const agentName = AGENT_NAME[conv.agent] || "Asistente";
+      const count = conv.message_count || 0;
+      const rel = formatRelativeDate(conv.last_message_at || conv.created_at);
+      metaEl.innerHTML = `<span>${agentName}</span><span>·</span><span>${count} ${count === 1 ? "msg" : "msgs"}</span>` + (rel ? `<span>·</span><span>${rel}</span>` : "");
+    }
+    // Marcar activa si es la actual
+    if (state.conversationId && String(state.conversationId) === String(conv.id)) {
+      node.classList.add("is-active");
+    }
+    return node;
+  }
+
+  async function loadConversationList() {
+    if (!historyList) return;
+    historyList.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.className = "ai-history-empty";
+    loading.innerHTML = '<p>Cargando conversaciones…</p>';
+    historyList.appendChild(loading);
+    try {
+      const data = await aiApi("/api/v1/ai/conversations?page=1&page_size=50");
+      historyList.innerHTML = "";
+      const items = (data && data.items) || [];
+      if (items.length === 0) {
+        if (historyEmpty) {
+          historyList.appendChild(historyEmpty);
+        } else {
+          const empty = document.createElement("div");
+          empty.className = "ai-history-empty";
+          empty.innerHTML = '<div class="ai-history-empty-ico" aria-hidden="true">💬</div><p>Aún no tienes conversaciones guardadas.</p><small>Empieza una nueva conversación y aparecerá aquí.</small>';
+          historyList.appendChild(empty);
+        }
+        return;
+      }
+      items.forEach((c) => {
+        const node = renderHistoryItem(c);
+        if (node) historyList.appendChild(node);
+      });
+    } catch (e) {
+      historyList.innerHTML = "";
+      const err = document.createElement("div");
+      err.className = "ai-history-empty";
+      err.innerHTML = '<p>⚠️ No pude cargar las conversaciones.</p><small>' + escapeHtml(prettyError(e)) + '</small>';
+      historyList.appendChild(err);
+    }
+  }
+
+  // Click handler: abrir o eliminar una conversación del historial
+  if (historyList) {
+    historyList.addEventListener("click", async (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      // 1) Botón de eliminar (no abre la conversación)
+      const delBtn = target.closest(".ai-history-item-del");
+      if (delBtn) {
+        e.stopPropagation();
+        const item = delBtn.closest(".ai-history-item");
+        if (!item) return;
+        const id = item.dataset.id;
+        if (!id) return;
+        if (!confirm("¿Eliminar esta conversación? Ya no podrás verla en el historial.")) return;
+        try {
+          await aiApi(`/api/v1/ai/conversations/${id}`, { method: "DELETE" });
+          item.remove();
+          // Si era la conversación activa, limpiamos el chat
+          if (state.conversationId && String(state.conversationId) === String(id)) {
+            resetConversationUI();
+          }
+          // Si quedó vacío, mostramos el empty
+          if (!historyList.querySelector(".ai-history-item")) {
+            if (historyEmpty) historyList.appendChild(historyEmpty);
+          }
+        } catch (err) {
+          alert("No pude eliminar la conversación: " + prettyError(err));
+        }
+        return;
+      }
+
+      // 2) Click en el item: abrir la conversación
+      const item = target.closest(".ai-history-item");
+      if (item) {
+        const id = item.dataset.id;
+        if (!id) return;
+        await openPastConversation(id);
+        hideHistoryPanel();
+      }
+    });
+  }
+
+  // Carga los mensajes de una conversación pasada y los pinta en el chat
+  async function openPastConversation(conversationId) {
+    if (!thread) return;
+    // Limpia el chat actual y desactiva el estado "nueva conversación"
+    thread.innerHTML = "";
+    hideWelcomeAndSuggestions();
+    // Mensaje temporal mientras carga
+    const loading = renderAssistantMsg("Cargando conversación…", { typing: true });
+    state.conversationId = conversationId;
+    state.pendingImage = null;
+    state.pickedPromo = null;
+    setAttachUI();
+    try {
+      const data = await aiApi(`/api/v1/ai/conversations/${conversationId}/messages?limit=200`);
+      loading.remove();
+      const items = (data && data.items) || [];
+      if (items.length === 0) {
+        renderAssistantMsg("Esta conversación no tiene mensajes.");
+        return;
+      }
+      // Renderizamos los mensajes en orden
+      let lastAgent = "marketing";
+      items.forEach((m) => {
+        if (m.role === "user") {
+          renderUserMsg(m.content || "");
+        } else if (m.role === "assistant") {
+          renderAssistantMsg(m.content || "");
+          if (m.agent) lastAgent = m.agent;
+        }
+        // role "tool" y "system" los ignoramos en la vista del usuario
+      });
+      // Sincronizar el chip de agente activo
+      const chip = document.querySelector(`.ai-agent-chip[data-agent="${lastAgent}"]`);
+      if (chip) {
+        document.querySelectorAll(".ai-agent-chip").forEach((c) => c.classList.remove("ai-active"));
+        chip.classList.add("ai-active");
+        state.agent = lastAgent;
+        const labels = AGENT_LABELS[state.agent] || AGENT_LABELS.marketing;
+        const nameEl = $("ai-current-agent");
+        const subEl  = $("ai-current-sub");
+        if (nameEl) nameEl.textContent = labels.name;
+        if (subEl)  subEl.textContent  = labels.sub;
+      }
+      scrollToBottom();
+    } catch (err) {
+      loading.remove();
+      renderAssistantMsg("⚠️ " + prettyError(err), { fallback: true });
+    }
+  }
+
+  // Botones del drawer de historial
+  if (historyBtn) {
+    historyBtn.addEventListener("click", () => {
+      if (isHistoryOpen()) hideHistoryPanel();
+      else showHistoryPanel();
+    });
+  }
+  if (historyBack) {
+    historyBack.addEventListener("click", hideHistoryPanel);
+  }
+  if (historyNewBtn) {
+    historyNewBtn.addEventListener("click", () => {
+      hideHistoryPanel();
+      resetConversationUI();
+      if (input) input.focus();
+    });
+  }
+
   // ── Init ─────────────────────────────────────
   document.addEventListener("DOMContentLoaded", () => {
     bindAgentChips();

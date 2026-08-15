@@ -24,6 +24,9 @@
       </div>
     </div>
     <div class="ai-head-actions">
+      <button class="ai-icon-btn" id="ai-history-btn" title="Ver conversaciones anteriores" aria-label="Ver conversaciones anteriores">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      </button>
       <button class="ai-icon-btn" id="ai-maximize" title="Expandir a toda la ventana" aria-label="Expandir a toda la ventana">
         <svg class="ai-icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/>
@@ -35,6 +38,26 @@
       <button class="ai-icon-btn" id="ai-new-chat" title="Nueva conversación" aria-label="Nueva conversación">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       </button>
+    </div>
+  </div>
+
+  <!-- ── Drawer de historial (overlay sobre el chat) ────────── -->
+  <div class="ai-history" id="ai-history" hidden>
+    <div class="ai-history-head">
+      <button class="ai-icon-btn" id="ai-history-back" title="Volver al chat" aria-label="Volver al chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h3 class="ai-history-title">Consultas anteriores</h3>
+      <button class="ai-icon-btn" id="ai-history-new" title="Nueva conversación" aria-label="Nueva conversación">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="ai-history-list" id="ai-history-list" aria-live="polite">
+      <div class="ai-history-empty" id="ai-history-empty">
+        <div class="ai-history-empty-ico" aria-hidden="true">💬</div>
+        <p>Aún no tienes conversaciones guardadas.</p>
+        <small>Empieza una nueva conversación y aparecerá aquí.</small>
+      </div>
     </div>
   </div>
 
@@ -116,9 +139,10 @@
   </form>
 </aside>
 
-<!-- FAB para reabrir el panel en móvil -->
+<!-- FAB para reabrir el panel en móvil / punto de acceso siempre visible -->
 <button class="ai-fab ai-hidden" id="ai-fab" type="button" aria-label="Abrir Asistente IA">
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span class="ai-fab-label">Asistente Virtual</span>
 </button>
 
 <!--
@@ -159,4 +183,17 @@
       <input type="file" accept="image/*" hidden class="ai-upload-cta-input">
     </label>
   </div>
+</template>
+
+<template id="tpl-history-item">
+  <button class="ai-history-item" type="button">
+    <div class="ai-history-item-icon" aria-hidden="true">💬</div>
+    <div class="ai-history-item-body">
+      <div class="ai-history-item-title"></div>
+      <div class="ai-history-item-meta"></div>
+    </div>
+    <button class="ai-history-item-del" type="button" title="Eliminar" aria-label="Eliminar conversación">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </button>
+  </button>
 </template>

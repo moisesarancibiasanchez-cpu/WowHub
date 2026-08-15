@@ -414,42 +414,197 @@ body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { displa
 }
 .ai-hint { margin-left: auto; }
 
-/* ── Responsivo: en móvil el sidebar pasa a overlay ────── */
+/* ── Responsivo: en pantallas chicas el AI se abre a pantalla completa ──
+   El sidebar derecho NO se ve; en su lugar, hay un FAB etiquetado
+   ("Asistente Virtual") en la esquina inferior derecha. Al hacer clic,
+   el panel se abre ocupando TODO el viewport (top + left = 0). */
 @media (max-width: 1100px) {
   body:has(.ai-sidebar) main,
   body:has(.ai-sidebar) .dash-layout {
     padding-right: 0;
   }
   .ai-sidebar {
+    /* Por defecto, oculto fuera de pantalla a la derecha */
     transform: translateX(100%);
     transition: transform .25s ease;
     box-shadow: -8px 0 24px rgba(0,0,0,0.35);
+    width: 100vw;        /* pantalla completa por defecto en chicas */
+    left: 0;
   }
-  .ai-sidebar.ai-open { transform: translateX(0); }
-}
-
-/* En pantallas muy pequeñas, ancho completo */
-@media (max-width: 540px) {
-  .ai-sidebar { width: 100%; }
+  .ai-sidebar.ai-open {
+    transform: translateX(0);
+  }
 }
 
 /* Botón flotante para reabrir el AI en móvil (en caso de cerrarlo) */
 .ai-fab {
   position: fixed;
   right: 16px; bottom: 16px;
-  width: 52px; height: 52px;
-  border-radius: 50%;
+  min-width: 52px; height: 52px;
+  border-radius: 26px;
   background: var(--ai-accent);
   color: #fff;
   border: 0;
   display: none;
-  place-items: center;
-  font-size: 24px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   z-index: 50;
-  box-shadow: 0 8px 24px rgba(124,92,255,0.4);
+  box-shadow: 0 8px 24px rgba(124,92,255,0.45);
+  transition: all .2s ease;
 }
+.ai-fab:hover {
+  background: var(--ai-accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(124,92,255,0.55);
+}
+.ai-fab svg { flex-shrink: 0; }
+.ai-fab.ai-hidden { display: none; }
+
+/* En pantallas chicas el FAB se muestra SIEMPRE (etiquetado) */
 @media (max-width: 1100px) {
-  .ai-fab { display: grid; }
+  .ai-fab { display: inline-flex; }
   .ai-fab.ai-hidden { display: none; }
+}
+
+/* En pantallas muy estrechas, FAB más compacto (solo icono) */
+@media (max-width: 380px) {
+  .ai-fab {
+    padding: 0;
+    width: 52px;
+  }
+  .ai-fab-label { display: none; }
+}
+
+/* ── Drawer de historial (overlay sobre el chat) ────── */
+.ai-history {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-panel);
+  z-index: 3;
+  animation: aiHistorySlide .2s ease;
+}
+.ai-history[hidden] { display: none; }
+@keyframes aiHistorySlide {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ai-history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-history-title {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+.ai-history-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+}
+.ai-history-list::-webkit-scrollbar { width: 6px; }
+.ai-history-list::-webkit-scrollbar-thumb { background: var(--ai-border); border-radius: 4px; }
+
+.ai-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 32px 12px;
+  color: var(--ai-text-dim);
+}
+.ai-history-empty-ico { font-size: 36px; opacity: 0.6; }
+.ai-history-empty p { margin: 0; font-size: 13px; }
+.ai-history-empty small { font-size: 11px; opacity: 0.7; }
+
+.ai-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ai-text);
+  font-family: inherit;
+  transition: all .15s;
+  width: 100%;
+}
+.ai-history-item:hover {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.06);
+}
+.ai-history-item.is-active {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.12);
+}
+.ai-history-item-icon {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--ai-panel);
+  border: 1px solid var(--ai-border);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.ai-history-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-history-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-history-item-meta {
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ai-history-item-del {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.ai-history-item-del:hover {
+  color: var(--ai-err);
+  border-color: var(--ai-err);
+  background: rgba(239,68,68,0.08);
 }
