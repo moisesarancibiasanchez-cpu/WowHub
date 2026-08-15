@@ -20,12 +20,22 @@
       <span class="ai-avatar" aria-hidden="true">🤖</span>
       <div class="ai-head-text">
         <h2 class="ai-title">Asistente IA</h2>
-        <p class="ai-sub" id="ai-current-sub">Tu copiloto de marketing y promociones.</p>
+        <p class="ai-sub" id="ai-current-sub">Te ayuda a crear promociones y avisos.</p>
       </div>
     </div>
-    <button class="ai-icon-btn" id="ai-new-chat" title="Nueva conversación" aria-label="Nueva conversación">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
+    <div class="ai-head-actions">
+      <button class="ai-icon-btn" id="ai-maximize" title="Expandir a toda la ventana" aria-label="Expandir a toda la ventana">
+        <svg class="ai-icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/>
+        </svg>
+        <svg class="ai-icon-collapse" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 3v6H3"/><path d="M15 3v6h6"/><path d="M9 21v-6H3"/><path d="M15 21v-6h6"/>
+        </svg>
+      </button>
+      <button class="ai-icon-btn" id="ai-new-chat" title="Nueva conversación" aria-label="Nueva conversación">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
   </div>
 
   <div class="ai-agents" id="ai-agents" role="tablist">
@@ -93,6 +103,15 @@
       <span id="ai-attach-name" class="ai-attach-name" hidden></span>
       <span class="ai-usage" id="ai-usage">—</span>
       <span class="ai-hint">Enter envía · Shift+Enter nueva línea</span>
+      <button type="button" class="ai-fullscreen-btn" id="ai-fullscreen-btn" title="Expandir a toda la ventana" aria-label="Expandir a toda la ventana">
+        <svg class="ai-icon-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/>
+        </svg>
+        <svg class="ai-icon-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 3v6H3"/><path d="M15 3v6h6"/><path d="M9 21v-6H3"/><path d="M15 21v-6h6"/>
+        </svg>
+        <span class="ai-fullscreen-label">Pantalla completa</span>
+      </button>
     </div>
   </form>
 </aside>

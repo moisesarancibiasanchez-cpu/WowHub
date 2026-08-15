@@ -92,6 +92,72 @@ body:has(.ai-sidebar) .dash-layout {
 }
 .ai-icon-btn:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
 
+/* Acciones del header (agrupar botones) */
+.ai-head-actions {
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+
+/* Por defecto mostramos el icono "expandir" y ocultamos "colapsar" */
+.ai-icon-collapse { display: none; }
+.ai-sidebar.ai-maximized .ai-icon-expand { display: none; }
+.ai-sidebar.ai-maximized .ai-icon-collapse { display: block; }
+
+/* ── ESTADO MAXIMIZADO: ocupa toda el área central ────────
+   El sidebar izquierdo (240px) y el topbar (56px) siguen
+   visibles. El contenido central (.dash-main) se oculta.
+   El AI sidebar pasa a ocupar todo el espacio restante. */
+.ai-sidebar.ai-maximized {
+  left: 240px;
+  width: calc(100vw - 240px);
+  z-index: 35;          /* sobre el main pero bajo el topbar */
+  box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+}
+body:has(.ai-sidebar.ai-maximized) .dash-main {
+  display: none;
+}
+body:has(.ai-sidebar.ai-maximized) {
+  /* Anulamos el padding-right del main para que no haya hueco
+     intermedio. Como el main está oculto, no se ve, pero por
+     seguridad evitamos scrolls fantasma. */
+  overflow: hidden;
+}
+
+/* En móvil/tablet el left sidebar se vuelve scroll horizontal,
+   así que el AI maximizado ocupa todo el viewport */
+@media (max-width: 900px) {
+  .ai-sidebar.ai-maximized {
+    left: 0;
+    width: 100vw;
+  }
+}
+
+/* ── Botón "Pantalla completa" en el composer (abajo) ── */
+.ai-fullscreen-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.ai-fullscreen-btn:hover {
+  border-color: var(--ai-accent);
+  color: var(--ai-accent);
+}
+/* Por defecto: muestra icono "expandir" y la etiqueta */
+.ai-fullscreen-btn .ai-icon-collapse { display: none; }
+.ai-fullscreen-btn .ai-icon-expand { display: inline-block; }
+/* Cuando el sidebar está maximizado: muestra icono "colapsar" */
+.ai-sidebar.ai-maximized ~ * .ai-fullscreen-btn .ai-icon-expand,
+body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-expand { display: none; }
+body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { display: inline-block; }
+
 /* ── Chips de agentes ──────────────────────────────────── */
 .ai-agents {
   flex: 0 0 auto;

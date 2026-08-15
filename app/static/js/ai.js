@@ -566,6 +566,50 @@
   }
   if (fab) fab.addEventListener("click", openSidebarMobile);
 
+  // ── Maximizar / Restaurar (pantalla completa del chat) ──
+  // Cuando se maximiza, el AI sidebar ocupa todo el espacio entre el
+  // sidebar izquierdo y el borde derecho. El sidebar izquierdo y el
+  // topbar SIGUEN VISIBLES. El contenido central (.dash-main) se oculta.
+  function isMaximized() {
+    return sidebar && sidebar.classList.contains("ai-maximized");
+  }
+  function applyMaximizedUI() {
+    const max = isMaximized();
+    const maxBtn = $("ai-maximize");
+    const fullBtn = $("ai-fullscreen-btn");
+    const fullLabel = fullBtn ? fullBtn.querySelector(".ai-fullscreen-label") : null;
+    // Cambiar aria/title para accesibilidad
+    if (maxBtn) {
+      maxBtn.setAttribute("aria-label", max ? "Restaurar a sidebar" : "Expandir a toda la ventana");
+      maxBtn.setAttribute("title", max ? "Restaurar a sidebar" : "Expandir a toda la ventana");
+    }
+    if (fullBtn) {
+      fullBtn.setAttribute("aria-label", max ? "Restaurar a sidebar" : "Expandir a toda la ventana");
+      fullBtn.setAttribute("title", max ? "Restaurar a sidebar" : "Expandir a toda la ventana");
+      if (fullLabel) fullLabel.textContent = max ? "Restaurar" : "Pantalla completa";
+    }
+  }
+  function toggleMaximize() {
+    if (!sidebar) return;
+    sidebar.classList.toggle("ai-maximized");
+    applyMaximizedUI();
+    // Si el chat estaba al fondo, se queda al fondo al expandir.
+    scrollToBottom();
+    if (input) input.focus();
+  }
+  const maxBtnHeader = $("ai-maximize");
+  const fullBtnBottom = $("ai-fullscreen-btn");
+  if (maxBtnHeader) maxBtnHeader.addEventListener("click", toggleMaximize);
+  if (fullBtnBottom) fullBtnBottom.addEventListener("click", toggleMaximize);
+  // Atajo: Esc restaura si está maximizado
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isMaximized()) {
+      toggleMaximize();
+    }
+  });
+  // Estado inicial de la UI (por si el browser recuerda la clase)
+  applyMaximizedUI();
+
   // ── Init ─────────────────────────────────────
   document.addEventListener("DOMContentLoaded", () => {
     bindAgentChips();
