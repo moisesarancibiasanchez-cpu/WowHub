@@ -608,3 +608,207 @@ body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { displa
   border-color: var(--ai-err);
   background: rgba(239,68,68,0.08);
 }
+
+/* ── Cuerpo del sidebar: split [Task History] + [Chat] ──
+   Por defecto, en modo normal (sidebar angosto 360px) NO se
+   muestra el panel izquierdo; el chat ocupa todo. En modo
+   maximizado aparece la columna izquierda con el historial
+   de conversaciones (estilo MiniMax Task History). */
+.ai-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;            /* necesario para que el thread haga scroll */
+  position: relative;
+}
+
+/* Task History: oculto por defecto. Aparece como columna izquierda
+   fija SOLO cuando el sidebar está maximizado. */
+.ai-task-history {
+  display: none;
+  width: 0;
+  flex: 0 0 auto;
+  background: var(--ai-panel);
+  border-right: 1px solid var(--ai-border);
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Chat: ocupa el 100% por defecto. En maximizado deja espacio
+   para la columna izquierda del Task History. */
+.ai-chat {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--ai-panel);
+}
+
+/* Cuando el sidebar está maximizado, mostramos la columna
+   izquierda con el historial (estilo MiniMax). */
+.ai-sidebar.ai-maximized .ai-task-history {
+  display: flex;
+  width: clamp(260px, 26vw, 320px);
+}
+
+/* ── Task History: head / list / items / foot ─────────── */
+.ai-task-history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-task-history-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ai-text-dim);
+}
+.ai-task-history-title svg { color: var(--ai-accent); }
+.ai-task-history-new {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  color: var(--ai-text);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.ai-task-history-new:hover {
+  border-color: var(--ai-accent);
+  color: var(--ai-accent);
+}
+
+.ai-task-history-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+  min-height: 0;
+}
+.ai-task-history-list::-webkit-scrollbar { width: 6px; }
+.ai-task-history-list::-webkit-scrollbar-thumb { background: var(--ai-border); border-radius: 4px; }
+
+.ai-task-history-foot {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-task-history-hint {
+  font-size: 10px;
+  color: var(--ai-text-dim);
+  letter-spacing: 0.02em;
+}
+
+.ai-task-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 32px 12px;
+  color: var(--ai-text-dim);
+}
+.ai-task-history-empty-ico { font-size: 32px; opacity: 0.6; }
+.ai-task-history-empty p { margin: 0; font-size: 12px; }
+.ai-task-history-empty small { font-size: 11px; opacity: 0.7; }
+
+.ai-task-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ai-text);
+  font-family: inherit;
+  transition: all .15s;
+  width: 100%;
+}
+.ai-task-history-item:hover {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.06);
+}
+.ai-task-history-item.is-active {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.12);
+}
+.ai-task-history-item-ico {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--ai-panel);
+  border: 1px solid var(--ai-border);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.ai-task-history-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-task-history-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-task-history-item-meta {
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ai-task-history-item-del {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+  opacity: 0;
+}
+.ai-task-history-item:hover .ai-task-history-item-del { opacity: 1; }
+.ai-task-history-item-del:hover {
+  color: var(--ai-err);
+  border-color: var(--ai-err);
+  background: rgba(239,68,68,0.08);
+}
+
+/* En pantallas chicas el Task History ocupa menos espacio
+   para dejar más al chat. */
+@media (max-width: 1100px) {
+  .ai-sidebar.ai-maximized .ai-task-history {
+    width: clamp(220px, 38vw, 280px);
+  }
+}

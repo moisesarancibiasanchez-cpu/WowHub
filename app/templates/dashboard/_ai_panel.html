@@ -4,10 +4,12 @@
   en cualquier página del dashboard.
 
   Estructura:
-  - Encabezado con título + botón "nueva conversación"
-  - Chips de agentes (Marketing, Crecimiento, Tareas, Catálogo)
-  - Sugerencias rápidas (visibles al inicio)
-  - Hilo de conversación (scroll)
+  - Encabezado con título + botones (historial, maximizar, nueva conversación)
+  - Cuerpo split:
+      [Task History persistente] | [Chat]
+    En modo normal solo se ve el chat.
+    En modo maximizado aparece la columna izquierda con el historial
+    de conversaciones (estilo MiniMax Task History).
   - Composer FIJO al fondo con input + adjuntar imagen + enviar
 
   La barra de escritura (composer) NUNCA se oculta aunque el contenido
@@ -41,103 +43,137 @@
     </div>
   </div>
 
-  <!-- ── Drawer de historial (overlay sobre el chat) ────────── -->
-  <div class="ai-history" id="ai-history" hidden>
-    <div class="ai-history-head">
-      <button class="ai-icon-btn" id="ai-history-back" title="Volver al chat" aria-label="Volver al chat">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      </button>
-      <h3 class="ai-history-title">Consultas anteriores</h3>
-      <button class="ai-icon-btn" id="ai-history-new" title="Nueva conversación" aria-label="Nueva conversación">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-    </div>
-    <div class="ai-history-list" id="ai-history-list" aria-live="polite">
-      <div class="ai-history-empty" id="ai-history-empty">
-        <div class="ai-history-empty-ico" aria-hidden="true">💬</div>
-        <p>Aún no tienes conversaciones guardadas.</p>
-        <small>Empieza una nueva conversación y aparecerá aquí.</small>
+  <!-- ── Cuerpo del sidebar: [Task History] + [Chat] ─────────
+       En modo normal, sólo se ve el chat. En modo maximizado
+       (ai-maximized) se muestra la columna izquierda con el
+       historial de conversaciones (estilo MiniMax Task History). -->
+  <div class="ai-body">
+
+    <!-- Task History: panel PERSISTENTE a la izquierda cuando el AI está maximizado -->
+    <aside class="ai-task-history" id="ai-task-history" aria-label="Historial de conversaciones">
+      <div class="ai-task-history-head">
+        <h3 class="ai-task-history-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>Consultas anteriores</span>
+        </h3>
+        <button class="ai-task-history-new" id="ai-task-history-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
       </div>
+      <div class="ai-task-history-list" id="ai-task-history-list" aria-live="polite">
+        <!-- Items se inyectan vía JS -->
+        <div class="ai-task-history-empty" id="ai-task-history-empty">
+          <div class="ai-task-history-empty-ico" aria-hidden="true">💬</div>
+          <p>Aún no tienes conversaciones guardadas.</p>
+          <small>Inicia una nueva conversación y aparecerá aquí.</small>
+        </div>
+      </div>
+      <div class="ai-task-history-foot">
+        <span class="ai-task-history-hint">Máx. 50 conversaciones recientes</span>
+      </div>
+    </aside>
+
+    <!-- Chat: área de conversación (siempre visible) -->
+    <div class="ai-chat">
+      <div class="ai-agents" id="ai-agents" role="tablist">
+        <button class="ai-agent-chip" data-agent="marketing" title="Marketing">
+          <span aria-hidden="true">🎨</span><span>Marketing</span>
+        </button>
+        <button class="ai-agent-chip" data-agent="growth" title="Crecimiento">
+          <span aria-hidden="true">📈</span><span>Crecimiento</span>
+        </button>
+        <button class="ai-agent-chip" data-agent="automation" title="Tareas">
+          <span aria-hidden="true">✉️</span><span>Tareas</span>
+        </button>
+        <button class="ai-agent-chip" data-agent="marketplace" title="Catálogo">
+          <span aria-hidden="true">🛒</span><span>Catálogo</span>
+        </button>
+      </div>
+
+      <!-- Sugerencias rápidas (se ocultan tras el primer mensaje) -->
+      <div class="ai-suggestions" id="ai-suggestions">
+        <button class="ai-suggest" data-prompt="Quiero crear una promoción. ¿Qué me recomiendas?">
+          <span class="ai-suggest-ico" aria-hidden="true">🎉</span>
+          <span>Crear una promoción</span>
+        </button>
+        <button class="ai-suggest" data-prompt="¿Cómo van mis ventas este mes? Dame 2 ideas simples para vender más.">
+          <span class="ai-suggest-ico" aria-hidden="true">📈</span>
+          <span>Revisar mis ventas</span>
+        </button>
+        <button class="ai-suggest" data-prompt="¿Qué producto tiene baja rotación? Quiero hacerlo rotar.">
+          <span class="ai-suggest-ico" aria-hidden="true">🔄</span>
+          <span>Productos sin venta</span>
+        </button>
+        <button class="ai-suggest" data-prompt="Quiero escribir un aviso para Instagram. ¿Me ayudas?">
+          <span class="ai-suggest-ico" aria-hidden="true">📱</span>
+          <span>Aviso para redes</span>
+        </button>
+      </div>
+
+      <!-- Hilo de conversación -->
+      <div class="ai-thread" id="ai-thread" aria-live="polite">
+        <div class="ai-welcome" id="ai-welcome">
+          <div class="ai-welcome-icon" aria-hidden="true">👋</div>
+          <h2 id="ai-current-agent">Asistente de Marketing</h2>
+          <p>Cuéntame qué necesitas. Te respondo corto y claro.</p>
+        </div>
+      </div>
+
+      <!-- Composer (FIJO abajo, SIEMPRE visible) -->
+      <form class="ai-composer" id="ai-composer" autocomplete="off">
+        <div class="ai-composer-row">
+          <button type="button" class="ai-attach-btn" id="ai-attach-btn" title="Adjuntar imagen (opcional)" aria-label="Adjuntar imagen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <input type="file" id="ai-attach-input" accept="image/*" hidden>
+          <textarea
+            id="ai-input"
+            placeholder="Pregúntame algo…"
+            rows="1"
+            maxlength="2000"
+            aria-label="Mensaje para el asistente"></textarea>
+          <button class="ai-send-btn" id="ai-send" type="submit" title="Enviar" aria-label="Enviar mensaje">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+          </button>
+        </div>
+        <div class="ai-composer-meta">
+          <span id="ai-attach-name" class="ai-attach-name" hidden></span>
+          <span class="ai-usage" id="ai-usage">—</span>
+          <span class="ai-hint">Enter envía · Shift+Enter nueva línea</span>
+          <button type="button" class="ai-fullscreen-btn" id="ai-fullscreen-btn" title="Expandir a toda la ventana" aria-label="Expandir a toda la ventana">
+            <svg class="ai-icon-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/>
+            </svg>
+            <svg class="ai-icon-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 3v6H3"/><path d="M15 3v6h6"/><path d="M9 21v-6H3"/><path d="M15 21v-6h6"/>
+            </svg>
+            <span class="ai-fullscreen-label">Pantalla completa</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
-
-  <div class="ai-agents" id="ai-agents" role="tablist">
-    <button class="ai-agent-chip" data-agent="marketing" title="Marketing">
-      <span aria-hidden="true">🎨</span><span>Marketing</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="growth" title="Crecimiento">
-      <span aria-hidden="true">📈</span><span>Crecimiento</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="automation" title="Tareas">
-      <span aria-hidden="true">✉️</span><span>Tareas</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="marketplace" title="Catálogo">
-      <span aria-hidden="true">🛒</span><span>Catálogo</span>
-    </button>
-  </div>
-
-  <!-- Sugerencias rápidas (se ocultan tras el primer mensaje) -->
-  <div class="ai-suggestions" id="ai-suggestions">
-    <button class="ai-suggest" data-prompt="Quiero crear una promoción. ¿Qué me recomiendas?">
-      <span class="ai-suggest-ico" aria-hidden="true">🎉</span>
-      <span>Crear una promoción</span>
-    </button>
-    <button class="ai-suggest" data-prompt="¿Cómo van mis ventas este mes? Dame 2 ideas simples para vender más.">
-      <span class="ai-suggest-ico" aria-hidden="true">📈</span>
-      <span>Revisar mis ventas</span>
-    </button>
-    <button class="ai-suggest" data-prompt="¿Qué producto tiene baja rotación? Quiero hacerlo rotar.">
-      <span class="ai-suggest-ico" aria-hidden="true">🔄</span>
-      <span>Productos sin venta</span>
-    </button>
-    <button class="ai-suggest" data-prompt="Quiero escribir un aviso para Instagram. ¿Me ayudas?">
-      <span class="ai-suggest-ico" aria-hidden="true">📱</span>
-      <span>Aviso para redes</span>
-    </button>
-  </div>
-
-  <!-- Hilo de conversación -->
-  <div class="ai-thread" id="ai-thread" aria-live="polite">
-    <div class="ai-welcome" id="ai-welcome">
-      <div class="ai-welcome-icon" aria-hidden="true">👋</div>
-      <h2 id="ai-current-agent">Asistente de Marketing</h2>
-      <p>Cuéntame qué necesitas. Te respondo corto y claro.</p>
-    </div>
-  </div>
-
-  <!-- Composer (FIJO abajo, SIEMPRE visible) -->
-  <form class="ai-composer" id="ai-composer" autocomplete="off">
-    <div class="ai-composer-row">
-      <button type="button" class="ai-attach-btn" id="ai-attach-btn" title="Adjuntar imagen (opcional)" aria-label="Adjuntar imagen">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input type="file" id="ai-attach-input" accept="image/*" hidden>
-      <textarea
-        id="ai-input"
-        placeholder="Pregúntame algo…"
-        rows="1"
-        maxlength="2000"
-        aria-label="Mensaje para el asistente"></textarea>
-      <button class="ai-send-btn" id="ai-send" type="submit" title="Enviar" aria-label="Enviar mensaje">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-      </button>
-    </div>
-    <div class="ai-composer-meta">
-      <span id="ai-attach-name" class="ai-attach-name" hidden></span>
-      <span class="ai-usage" id="ai-usage">—</span>
-      <span class="ai-hint">Enter envía · Shift+Enter nueva línea</span>
-      <button type="button" class="ai-fullscreen-btn" id="ai-fullscreen-btn" title="Expandir a toda la ventana" aria-label="Expandir a toda la ventana">
-        <svg class="ai-icon-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M3 9V3h6"/><path d="M21 9V3h-6"/><path d="M3 15v6h6"/><path d="M21 15v6h-6"/>
-        </svg>
-        <svg class="ai-icon-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M9 3v6H3"/><path d="M15 3v6h6"/><path d="M9 21v-6H3"/><path d="M15 21v-6h6"/>
-        </svg>
-        <span class="ai-fullscreen-label">Pantalla completa</span>
-      </button>
-    </div>
-  </form>
 </aside>
+
+<!-- ── Drawer de historial (overlay, solo visible en modo normal) ── -->
+<div class="ai-history" id="ai-history" hidden>
+  <div class="ai-history-head">
+    <button class="ai-icon-btn" id="ai-history-back" title="Volver al chat" aria-label="Volver al chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <h3 class="ai-history-title">Consultas anteriores</h3>
+    <button class="ai-icon-btn" id="ai-history-new" title="Nueva conversación" aria-label="Nueva conversación">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+  <div class="ai-history-list" id="ai-history-list" aria-live="polite">
+    <div class="ai-history-empty" id="ai-history-empty">
+      <div class="ai-history-empty-ico" aria-hidden="true">💬</div>
+      <p>Aún no tienes conversaciones guardadas.</p>
+      <small>Empieza una nueva conversación y aparecerá aquí.</small>
+    </div>
+  </div>
+</div>
 
 <!-- FAB para reabrir el panel en móvil / punto de acceso siempre visible -->
 <button class="ai-fab ai-hidden" id="ai-fab" type="button" aria-label="Abrir Asistente IA">
@@ -193,6 +229,20 @@
       <div class="ai-history-item-meta"></div>
     </div>
     <button class="ai-history-item-del" type="button" title="Eliminar" aria-label="Eliminar conversación">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    </button>
+  </button>
+</template>
+
+<!-- Template para el panel persistente de Task History (maximizado) -->
+<template id="tpl-task-history-item">
+  <button class="ai-task-history-item" type="button">
+    <div class="ai-task-history-item-ico" aria-hidden="true">💬</div>
+    <div class="ai-task-history-item-body">
+      <div class="ai-task-history-item-title"></div>
+      <div class="ai-task-history-item-meta"></div>
+    </div>
+    <button class="ai-task-history-item-del" type="button" title="Eliminar" aria-label="Eliminar conversación">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
     </button>
   </button>

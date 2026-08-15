@@ -419,6 +419,16 @@
       state.pickedPromo = null;
       setAttachUI();
       loadStatus();
+
+      // Refrescar el Task History (panel persistente en maximizado)
+      // y el drawer de historial para incluir esta nueva conversación
+      if (taskHistoryLoaded || isMaximized()) {
+        loadTaskHistoryList();
+      }
+      // Si el drawer está abierto en este momento, también
+      if (historyList && historyPanel && !historyPanel.hidden) {
+        loadConversationList();
+      }
     } catch (e) {
       placeholder.remove();
       renderAssistantMsg("⚠️ " + prettyError(e), { fallback: true });
@@ -588,6 +598,19 @@
       fullBtn.setAttribute("title", max ? "Restaurar a sidebar" : "Expandir a toda la ventana");
       if (fullLabel) fullLabel.textContent = max ? "Restaurar" : "Pantalla completa";
     }
+    // Al maximizar: cargar/mostrar el Task History (panel persistente)
+    if (max && taskHistoryList) {
+      // Si nunca se cargó (o el contenedor está vacío), cargamos ahora.
+      const hasItems = taskHistoryList.querySelector(".ai-task-history-item");
+      if (!taskHistoryLoaded && !hasItems) {
+        loadTaskHistoryList();
+      } else if (hasItems) {
+        // Ya hay items: sincronizamos el item activo y refrescamos
+        // (en background) por si hay nuevas conversaciones
+        syncTaskHistoryActive();
+        loadTaskHistoryList();
+      }
+    }
   }
   function toggleMaximize() {
     if (!sidebar) return;
@@ -619,6 +642,14 @@
   const historyBtn    = $("ai-history-btn");
   const historyBack   = $("ai-history-back");
   const historyNewBtn = $("ai-history-new");
+
+  // Task History: panel PERSISTENTE a la izquierda cuando el sidebar
+  // está maximizado (estilo MiniMax). Comparte endpoint con el drawer.
+  const taskHistoryPanel = $("ai-task-history");
+  const taskHistoryList  = $("ai-task-history-list");
+  const taskHistoryEmpty = $("ai-task-history-empty");
+  const taskHistoryNewBtn = $("ai-task-history-new");
+  let taskHistoryLoaded = false;
 
   // Mapeo de agentes → emoji + nombre corto
   const AGENT_GLYPH = {
@@ -723,6 +754,138 @@
       err.innerHTML = '<p>⚠️ No pude cargar las conversaciones.</p><small>' + escapeHtml(prettyError(e)) + '</small>';
       historyList.appendChild(err);
     }
+  }
+
+  // ── Task History (panel persistente en maximizado) ────
+  // Reutiliza el mismo endpoint que el drawer pero renderiza
+  // con su propio template (tpl-task-history-item) y contenedor.
+  function renderTaskHistoryItem(conv) {
+    const tpl = $("tpl-task-history-item");
+    if (!tpl) return null;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.dataset.id    = conv.id;
+    node.dataset.agent = conv.agent || "marketing";
+    const titleEl = node.querySelector(".ai-task-history-item-title");
+    const metaEl  = node.querySelector(".ai-task-history-item-meta");
+    const iconEl  = node.querySelector(".ai-task-history-item-ico");
+    if (titleEl) titleEl.textContent = conv.title || "Nueva conversación";
+    if (iconEl)  iconEl.textContent  = AGENT_GLYPH[conv.agent] || "💬";
+    if (metaEl) {
+      const agentName = AGENT_NAME[conv.agent] || "Asistente";
+      const count = conv.message_count || 0;
+      const rel = formatRelativeDate(conv.last_message_at || conv.created_at);
+      metaEl.innerHTML = `<span>${agentName}</span><span>·</span><span>${count} ${count === 1 ? "msg" : "msgs"}</span>` + (rel ? `<span>·</span><span>${rel}</span>` : "");
+    }
+    // Marcar activa si es la actual
+    if (state.conversationId && String(state.conversationId) === String(conv.id)) {
+      node.classList.add("is-active");
+    }
+    return node;
+  }
+
+  async function loadTaskHistoryList() {
+    if (!taskHistoryList) return;
+    // No limpiamos si ya está cargada (sólo refrescar manual)
+    taskHistoryList.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.className = "ai-task-history-empty";
+    loading.innerHTML = '<p>Cargando…</p>';
+    taskHistoryList.appendChild(loading);
+    try {
+      const data = await aiApi("/api/v1/ai/conversations?page=1&page_size=50");
+      taskHistoryList.innerHTML = "";
+      const items = (data && data.items) || [];
+      if (items.length === 0) {
+        if (taskHistoryEmpty) {
+          taskHistoryList.appendChild(taskHistoryEmpty);
+        } else {
+          const empty = document.createElement("div");
+          empty.className = "ai-task-history-empty";
+          empty.innerHTML = '<div class="ai-task-history-empty-ico" aria-hidden="true">💬</div><p>Aún no tienes conversaciones guardadas.</p><small>Inicia una nueva conversación y aparecerá aquí.</small>';
+          taskHistoryList.appendChild(empty);
+        }
+        taskHistoryLoaded = true;
+        return;
+      }
+      items.forEach((c) => {
+        const node = renderTaskHistoryItem(c);
+        if (node) taskHistoryList.appendChild(node);
+      });
+      taskHistoryLoaded = true;
+    } catch (e) {
+      taskHistoryList.innerHTML = "";
+      const err = document.createElement("div");
+      err.className = "ai-task-history-empty";
+      err.innerHTML = '<p>⚠️ No pude cargar las conversaciones.</p><small>' + escapeHtml(prettyError(e)) + '</small>';
+      taskHistoryList.appendChild(err);
+      taskHistoryLoaded = false;
+    }
+  }
+
+  // Sincroniza el item activo en el Task History con la conversación
+  // actualmente abierta en el chat. Se llama tras cargar/abrir una.
+  function syncTaskHistoryActive() {
+    if (!taskHistoryList) return;
+    taskHistoryList.querySelectorAll(".ai-task-history-item").forEach((it) => {
+      if (state.conversationId && String(state.conversationId) === String(it.dataset.id)) {
+        it.classList.add("is-active");
+      } else {
+        it.classList.remove("is-active");
+      }
+    });
+  }
+
+  // Click handler del panel persistente de Task History
+  if (taskHistoryList) {
+    taskHistoryList.addEventListener("click", async (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      // 1) Botón de eliminar
+      const delBtn = target.closest(".ai-task-history-item-del");
+      if (delBtn) {
+        e.stopPropagation();
+        e.preventDefault();
+        const item = delBtn.closest(".ai-task-history-item");
+        if (!item) return;
+        const id = item.dataset.id;
+        if (!id) return;
+        if (!confirm("¿Eliminar esta conversación? Ya no podrás verla en el historial.")) return;
+        try {
+          await aiApi(`/api/v1/ai/conversations/${id}`, { method: "DELETE" });
+          item.remove();
+          // Si era la conversación activa, limpiamos el chat
+          if (state.conversationId && String(state.conversationId) === String(id)) {
+            resetConversationUI();
+          }
+          // Si quedó vacío, mostramos el empty
+          if (!taskHistoryList.querySelector(".ai-task-history-item")) {
+            if (taskHistoryEmpty) taskHistoryList.appendChild(taskHistoryEmpty);
+          }
+        } catch (err) {
+          alert("No pude eliminar la conversación: " + prettyError(err));
+        }
+        return;
+      }
+
+      // 2) Click en el item: abrir la conversación
+      const item = target.closest(".ai-task-history-item");
+      if (item) {
+        e.preventDefault();
+        const id = item.dataset.id;
+        if (!id) return;
+        await openPastConversation(id);
+        syncTaskHistoryActive();
+      }
+    });
+  }
+
+  // Botón "+" del Task History: nueva conversación
+  if (taskHistoryNewBtn) {
+    taskHistoryNewBtn.addEventListener("click", () => {
+      resetConversationUI();
+      if (input) input.focus();
+    });
   }
 
   // Click handler: abrir o eliminar una conversación del historial
