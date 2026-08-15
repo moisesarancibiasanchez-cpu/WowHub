@@ -335,6 +335,16 @@ Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoint
 - [ ] Más integraciones (WhatsApp Business, MercadoPago producción)
 - [ ] i18n UI (ya soporta `country`, `locale`, `currency` por tenant en data)
 
+## 📚 Documentación
+
+La documentación para clientes, equipo y reportes de avance vive en la carpeta
+[`docs/`](docs/). Encontrarás:
+
+- 📄 **[Informe de Integración del Asistente Virtual](docs/INFORME_INTEGRACION_IA.md)** —
+  qué se entregó en la fase IA ↔ módulos de negocio, beneficios y roadmap.
+- 📋 **[Changelog](docs/CHANGELOG.md)** — historial detallado de cambios.
+- 🗂️ **[Índice de docs](docs/README.md)** — punto de entrada a la documentación.
+
 ## 📜 Licencia
 
 Propietaria — WowHub Team · 2026
