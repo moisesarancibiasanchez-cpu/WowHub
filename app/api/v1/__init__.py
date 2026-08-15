@@ -5,4 +5,5 @@ from app.api.v1 import (  # noqa: F401
     orders, payments, webhooks, stats, uploads, password,
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
+    analytics, campaigns,
 )

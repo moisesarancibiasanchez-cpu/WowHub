@@ -197,6 +197,110 @@ async def tool_get_tenant_info(ctx: AIToolContext) -> dict[str, Any]:
     return await _api_get(ctx, f"/api/v1/tenants/{ctx.tenant_id}")
 
 
+# ── Nuevas tools (integración con módulos) ─────────────────────
+async def tool_analyze_inventory(
+    ctx: AIToolContext,
+    *,
+    category: str = "all",  # all | low_stock | out_of_stock | overstock | dead_stock | top_selling
+    days_dead: int = 60,
+    days_top: int = 30,
+    overstock_threshold: int = 100,
+    limit: int = 30,
+) -> dict[str, Any]:
+    """Analiza el inventario del tenant y devuelve un resumen accionable.
+
+    Categorías disponibles:
+    - all            → todo el catálogo con control de stock
+    - low_stock      → productos con stock bajo (alerta)
+    - out_of_stock   → productos sin stock
+    - overstock      → productos con stock excesivo (> overstock_threshold)
+    - dead_stock     → productos sin ventas en `days_dead` días
+    - top_selling    → productos más vendidos en `days_top` días
+    """
+    return await _api_get(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/analytics/inventory",
+        {
+            "category": category,
+            "days_dead": days_dead,
+            "days_top": days_top,
+            "overstock_threshold": overstock_threshold,
+            "limit": limit,
+        },
+    )
+
+
+async def tool_get_customer_segments(
+    ctx: AIToolContext,
+    *,
+    segment: str = "all",  # all | inactive | top | new | vip | no_orders
+    days_inactive: int = 60,
+    days_new: int = 30,
+    vip_min_orders: int = 5,
+    vip_min_spent_cents: int = 50000,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Devuelve clientes del tenant segmentados.
+
+    Segmentos:
+    - all         → todos los clientes activos
+    - inactive    → sin compras en los últimos `days_inactive` días
+    - top         → top 20% por gasto total
+    - new         → creados en los últimos `days_new` días
+    - vip         → >= `vip_min_orders` órdenes Y gasto >= `vip_min_spent_cents`
+    - no_orders   → clientes que nunca compraron
+    """
+    return await _api_get(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/analytics/customer-segments",
+        {
+            "segment": segment,
+            "days_inactive": days_inactive,
+            "days_new": days_new,
+            "vip_min_orders": vip_min_orders,
+            "vip_min_spent_cents": vip_min_spent_cents,
+            "limit": limit,
+        },
+    )
+
+
+async def tool_send_campaign(
+    ctx: AIToolContext,
+    *,
+    name: str,
+    subject: str,
+    body: str,
+    segment: str = "all",  # all | inactive | top | new | vip | no_orders
+    channel: str = "email",  # email | log
+    only_marketing_opt_in: bool = True,
+    days_inactive: int = 60,
+    days_new: int = 30,
+    vip_min_orders: int = 5,
+    vip_min_spent_cents: int = 50000,
+) -> dict[str, Any]:
+    """Envía una campaña masiva (email) a un segmento de clientes.
+
+    IMPORTANTE: esta tool envía emails REALES (o los registra si channel='log').
+    Úsala SOLO después de que el usuario haya confirmado el preview.
+    """
+    return await _api_post(
+        ctx,
+        f"/api/v1/tenants/{ctx.tenant_id}/campaigns",
+        {
+            "name": name,
+            "subject": subject,
+            "body": body,
+            "segment": segment,
+            "channel": channel,
+            "only_marketing_opt_in": only_marketing_opt_in,
+            "days_inactive": days_inactive,
+            "days_new": days_new,
+            "vip_min_orders": vip_min_orders,
+            "vip_min_spent_cents": vip_min_spent_cents,
+        },
+    )
+
+
 # ── Catálogo de tools (JSON Schema) ────────────────────
 # Esto es lo que se manda al LLM en `tools=`.
 TOOL_SCHEMAS: list[dict[str, Any]] = [
@@ -300,6 +404,85 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_inventory",
+            "description": "Analiza el inventario del tenant y devuelve un resumen accionable: productos sin stock, con stock bajo, sobre-stock, sin rotación (vendieron hace mucho), o los más vendidos. Útil para preguntas tipo 'qué me falta', 'qué no se vende', 'qué vendío más este mes'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["all", "low_stock", "out_of_stock", "overstock", "dead_stock", "top_selling"],
+                        "default": "all",
+                        "description": "Categoría de inventario a analizar.",
+                    },
+                    "days_dead": {"type": "integer", "minimum": 1, "maximum": 365, "default": 60,
+                                  "description": "Días sin ventas para considerar 'dead_stock'."},
+                    "days_top": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30,
+                                 "description": "Ventana para 'top_selling'."},
+                    "overstock_threshold": {"type": "integer", "minimum": 1, "default": 100,
+                                            "description": "Stock por encima del cual se considera 'overstock'."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 30},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_customer_segments",
+            "description": "Devuelve clientes del tenant segmentados: inactivos, top, nuevos, VIP, o que nunca compraron. Útil para 'a quién le puedo avisar', 'mis mejores clientes', 'quién no compra hace tiempo'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "segment": {
+                        "type": "string",
+                        "enum": ["all", "inactive", "top", "new", "vip", "no_orders"],
+                        "default": "all",
+                    },
+                    "days_inactive": {"type": "integer", "minimum": 1, "maximum": 365, "default": 60},
+                    "days_new": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30},
+                    "vip_min_orders": {"type": "integer", "minimum": 1, "default": 5},
+                    "vip_min_spent_cents": {"type": "integer", "minimum": 0, "default": 50000},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_campaign",
+            "description": "Envía una campaña masiva (email) a un segmento de clientes. IMPORTANTE: primero muestra el preview al usuario y ESPERA su confirmación antes de llamar a esta tool.",
+            "parameters": {
+                "type": "object",
+                "required": ["name", "subject", "body", "segment"],
+                "properties": {
+                    "name": {"type": "string", "minLength": 2, "maxLength": 120,
+                             "description": "Nombre interno de la campaña (auditoría)."},
+                    "subject": {"type": "string", "minLength": 2, "maxLength": 200,
+                                 "description": "Asunto del email."},
+                    "body": {"type": "string", "minLength": 2, "maxLength": 5000,
+                             "description": "Cuerpo del email (puede incluir HTML básico)."},
+                    "segment": {
+                        "type": "string",
+                        "enum": ["all", "inactive", "top", "new", "vip", "no_orders"],
+                        "description": "A quién enviar.",
+                    },
+                    "channel": {"type": "string", "enum": ["email", "log"], "default": "email",
+                                "description": "email=enviar real, log=solo registrar (dry-run)."},
+                    "only_marketing_opt_in": {"type": "boolean", "default": True,
+                                              "description": "Si true, solo envía a clientes con accepts_marketing=True."},
+                    "days_inactive": {"type": "integer", "minimum": 1, "maximum": 365, "default": 60},
+                    "days_new": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30},
+                    "vip_min_orders": {"type": "integer", "minimum": 1, "default": 5},
+                    "vip_min_spent_cents": {"type": "integer", "minimum": 0, "default": 50000},
+                },
+            },
+        },
+    },
 ]
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -310,16 +493,31 @@ TOOL_DISPATCH: dict[str, Any] = {
     "list_customers": tool_list_customers,
     "send_email_to_customer": tool_send_email_to_customer,
     "get_tenant_info": tool_get_tenant_info,
+    "analyze_inventory": tool_analyze_inventory,
+    "get_customer_segments": tool_get_customer_segments,
+    "send_campaign": tool_send_campaign,
 }
 
 
 def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
     """Filtra tools según el sub-agente. Si el agente no existe, devuelve todas."""
     rules: dict[str, list[str]] = {
-        "marketing":   ["list_products", "list_promotions", "get_stats_overview", "get_tenant_info"],
-        "growth":      ["get_stats_overview", "list_promotions", "list_customers", "get_tenant_info"],
-        "automation":  ["list_customers", "send_email_to_customer", "list_promotions", "get_tenant_info"],
-        "marketplace": ["list_products", "list_promotions", "get_stats_overview", "get_tenant_info"],
+        "marketing": [
+            "list_products", "list_promotions", "get_stats_overview",
+            "get_tenant_info", "analyze_inventory", "get_customer_segments",
+        ],
+        "growth": [
+            "get_stats_overview", "list_promotions", "list_customers",
+            "get_tenant_info", "analyze_inventory", "get_customer_segments",
+        ],
+        "automation": [
+            "list_customers", "send_email_to_customer", "list_promotions",
+            "get_tenant_info", "get_customer_segments", "send_campaign",
+        ],
+        "marketplace": [
+            "list_products", "list_promotions", "get_stats_overview",
+            "get_tenant_info", "analyze_inventory",
+        ],
     }
     names = rules.get(agent)
     if not names:

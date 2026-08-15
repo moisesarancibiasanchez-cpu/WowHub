@@ -14,7 +14,9 @@ from app.services.ai_agents import (
 class TestHeuristicRouter:
     def test_marketing_keywords(self):
         assert heuristic_route("quiero crear una promo del 20%") == "marketing"
-        assert heuristic_route("dame un copy para mi producto") == "marketing"
+        # "producto" ahora también es keyword de marketplace, así que usamos
+        # otra palabra clave de marketing para evitar ambigüedad.
+        assert heuristic_route("dame un copy para mi anuncio") == "marketing"
 
     def test_growth_keywords(self):
         assert heuristic_route("¿cómo van mis ventas?") == "growth"

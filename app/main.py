@@ -20,6 +20,7 @@ from app.api.v1 import (
     site_config,
     ai, admin_ai,
     loyalty,
+    analytics, campaigns,
 )
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
@@ -143,6 +144,9 @@ app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(loyalty.owner_router, prefix="/api/v1")
 app.include_router(loyalty.pos_router, prefix="/api/v1")
 app.include_router(loyalty.public_router, prefix="/api/v1")
+# Analytics + Campaigns (alimentan al Asistente IA)
+app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(campaigns.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
