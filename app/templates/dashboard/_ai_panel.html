@@ -1,35 +1,34 @@
-{% extends "dashboard/base.html" %}
-{% block title %}Asistente IA · WowHub{% endblock %}
-{% block head_extra %}
-<link rel="stylesheet" href="/static/css/ai.css">
-{% endblock %}
-{% block content %}
 <!--
-  Estructura del nuevo Asistente IA como SIDEBAR DERECHO fijo:
-  - Sidebar izquierdo (menú de navegación) — siempre visible
-  - Contenido central (página actual del dashboard) — siempre visible
-  - Sidebar derecho (Asistente IA) — siempre visible
-  - Composer (barra de escritura) — siempre fijo abajo del sidebar derecho
+  Partial: Panel del Asistente IA como Sidebar Derecho
+  Se incluye en dashboard/base.html para estar SIEMPRE VISIBLE
+  en cualquier página del dashboard.
 
-  Esto reemplaza la página /dashboard/ai de página completa por un
-  panel persistente disponible en CUALQUIER página del dashboard.
+  Estructura:
+  - Encabezado con título + botón "nueva conversación"
+  - Chips de agentes (Marketing, Crecimiento, Tareas, Catálogo)
+  - Sugerencias rápidas (visibles al inicio)
+  - Hilo de conversación (scroll)
+  - Composer FIJO al fondo con input + adjuntar imagen + enviar
+
+  La barra de escritura (composer) NUNCA se oculta aunque el contenido
+  central del dashboard crezca, porque usa position: sticky + flex.
 -->
 
-<aside class="ai-sidebar" id="ai-sidebar">
+<aside class="ai-sidebar" id="ai-sidebar" aria-label="Asistente IA">
   <div class="ai-sidebar-head">
     <div class="ai-head-title">
-      <span class="ai-avatar">🤖</span>
-      <div>
+      <span class="ai-avatar" aria-hidden="true">🤖</span>
+      <div class="ai-head-text">
         <h2 class="ai-title">Asistente IA</h2>
         <p class="ai-sub" id="ai-current-sub">Tu copiloto de marketing y promociones.</p>
       </div>
     </div>
     <button class="ai-icon-btn" id="ai-new-chat" title="Nueva conversación" aria-label="Nueva conversación">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
 
-  <div class="ai-agents" id="ai-agents">
+  <div class="ai-agents" id="ai-agents" role="tablist">
     <button class="ai-agent-chip" data-agent="marketing" title="Marketing">
       <span aria-hidden="true">🎨</span><span>Marketing</span>
     </button>
@@ -47,37 +46,37 @@
   <!-- Sugerencias rápidas (se ocultan tras el primer mensaje) -->
   <div class="ai-suggestions" id="ai-suggestions">
     <button class="ai-suggest" data-prompt="Quiero crear una promoción. ¿Qué me recomiendas?">
-      <span class="ai-suggest-ico">🎉</span>
+      <span class="ai-suggest-ico" aria-hidden="true">🎉</span>
       <span>Crear una promoción</span>
     </button>
     <button class="ai-suggest" data-prompt="¿Cómo van mis ventas este mes? Dame 2 ideas simples para vender más.">
-      <span class="ai-suggest-ico">📈</span>
+      <span class="ai-suggest-ico" aria-hidden="true">📈</span>
       <span>Revisar mis ventas</span>
     </button>
     <button class="ai-suggest" data-prompt="¿Qué producto tiene baja rotación? Quiero hacerlo rotar.">
-      <span class="ai-suggest-ico">🔄</span>
-      <span>Productos que no se venden</span>
+      <span class="ai-suggest-ico" aria-hidden="true">🔄</span>
+      <span>Productos sin venta</span>
     </button>
     <button class="ai-suggest" data-prompt="Quiero escribir un aviso para Instagram. ¿Me ayudas?">
-      <span class="ai-suggest-ico">📱</span>
+      <span class="ai-suggest-ico" aria-hidden="true">📱</span>
       <span>Aviso para redes</span>
     </button>
   </div>
 
-  <!-- Conversación (scroll) -->
+  <!-- Hilo de conversación -->
   <div class="ai-thread" id="ai-thread" aria-live="polite">
     <div class="ai-welcome" id="ai-welcome">
-      <div class="ai-welcome-icon">👋</div>
+      <div class="ai-welcome-icon" aria-hidden="true">👋</div>
       <h2 id="ai-current-agent">Asistente de Marketing</h2>
       <p>Cuéntame qué necesitas. Te respondo corto y claro.</p>
     </div>
   </div>
 
-  <!-- Composer (fijo abajo) -->
+  <!-- Composer (FIJO abajo, SIEMPRE visible) -->
   <form class="ai-composer" id="ai-composer" autocomplete="off">
     <div class="ai-composer-row">
-      <button type="button" class="ai-attach-btn" id="ai-attach-btn" title="Adjuntar imagen (opcional)">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      <button type="button" class="ai-attach-btn" id="ai-attach-btn" title="Adjuntar imagen (opcional)" aria-label="Adjuntar imagen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </button>
       <input type="file" id="ai-attach-input" accept="image/*" hidden>
       <textarea
@@ -86,8 +85,8 @@
         rows="1"
         maxlength="2000"
         aria-label="Mensaje para el asistente"></textarea>
-      <button class="ai-send-btn" id="ai-send" type="submit" title="Enviar" aria-label="Enviar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      <button class="ai-send-btn" id="ai-send" type="submit" title="Enviar" aria-label="Enviar mensaje">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
       </button>
     </div>
     <div class="ai-composer-meta">
@@ -98,7 +97,15 @@
   </form>
 </aside>
 
-<!-- Templates para mensajes -->
+<!-- FAB para reabrir el panel en móvil -->
+<button class="ai-fab ai-hidden" id="ai-fab" type="button" aria-label="Abrir Asistente IA">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+
+<!--
+  Templates reutilizables para mensajes.
+  Se clonan en el JS con cloneNode.
+-->
 <template id="tpl-msg-user">
   <div class="ai-msg ai-msg-user">
     <div class="ai-msg-bubble"></div>
@@ -114,14 +121,14 @@
     <div class="ai-promo-card-title"></div>
     <div class="ai-promo-card-meta"></div>
     <div class="ai-promo-card-why"></div>
-    <button class="btn btn-primary btn-sm ai-promo-pick">Elegir esta opción</button>
+    <button class="btn btn-primary btn-sm ai-promo-pick" type="button">Elegir esta opción</button>
   </div>
 </template>
 <template id="tpl-msg-design-prompt">
   <div class="ai-design-prompt">
     <div class="ai-design-prompt-title">🎨 Prompt de diseño (copia y pega)</div>
     <pre class="ai-design-prompt-body"></pre>
-    <button class="btn btn-sm ai-copy-prompt">Copiar prompt</button>
+    <button class="btn btn-sm ai-copy-prompt" type="button">Copiar prompt</button>
   </div>
 </template>
 <template id="tpl-msg-image-upload">
@@ -134,8 +141,3 @@
     </label>
   </div>
 </template>
-{% endblock %}
-
-{% block scripts %}
-<script src="/static/js/ai.js?v=d6bccff"></script>
-{% endblock %}

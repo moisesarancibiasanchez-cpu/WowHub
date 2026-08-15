@@ -381,14 +381,17 @@ class AIOrchestrator:
         error_code: Optional[str] = None
 
         # 6) Llamada al LLM (con fallback)
+        # max_tokens bajo (450) para forzar respuestas cortas y directas.
+        # El system prompt ya instruye brevedad, pero esto es la red de
+        # seguridad por si el LLM intenta extenderse.
         try:
             t0 = time.perf_counter()
             resp = await self.client.generate(
                 messages,
                 tools=tools,
                 tool_choice="auto",
-                temperature=0.7,
-                max_tokens=1024,
+                temperature=0.6,
+                max_tokens=450,
             )
             tokens_in = resp.tokens_in
             tokens_out = resp.tokens_out
@@ -453,8 +456,8 @@ class AIOrchestrator:
                 ))
                 resp2 = await self.client.generate(
                     tool_msgs,
-                    temperature=0.7,
-                    max_tokens=1024,
+                    temperature=0.6,
+                    max_tokens=450,
                 )
                 assistant_content = resp2.content or assistant_content
                 tokens_in = (tokens_in or 0) + (resp2.tokens_in or 0)

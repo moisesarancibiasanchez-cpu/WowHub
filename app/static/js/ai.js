@@ -1,32 +1,50 @@
-/* AI Core — chat UI (vanilla JS, sin framework) */
+/* AI Core — Sidebar derecho fijo, siempre visible
+   ------------------------------------------------------------------
+   - Sin lista de conversaciones (es persistente, vive en backend)
+   - Maneja los nuevos bloques: tarjeta de promo, prompt de diseño,
+     CTA de subida de imagen
+   - Móvil: FAB para reabrir el sidebar cuando está cerrado
+   - La barra de escritura NUNCA se oculta (composer con position: sticky)
+*/
 (function () {
   "use strict";
 
   // ── Estado ─────────────────────────────────────
   const state = {
     conversationId: null,
-    agent: "marketing",   // agente por defecto
+    agent: "marketing",
     sending: false,
     limit: 100,
     used: 0,
+    pendingImage: null,    // { file, url, name } cuando el usuario adjunta imagen
+    pickedPromo: null,     // { title, meta, why } cuando el usuario eligió una promo
   };
 
+  // ── Helpers DOM ────────────────────────────────
   const $ = (id) => document.getElementById(id);
   const thread = $("ai-thread");
   const input  = $("ai-input");
   const composer = $("ai-composer");
+  const sidebar = $("ai-sidebar");
+  const fab     = $("ai-fab");
+  const welcome = $("ai-welcome");
+  const suggestions = $("ai-suggestions");
+  const usage = $("ai-usage");
 
-  // ── Auth helpers (reutiliza WH.api y WH.Auth si existen) ──
-  function authHeader() {
-    // El API client global ya adjunta Authorization
-    return null;
+  function scrollToBottom() {
+    if (!thread) return;
+    thread.scrollTop = thread.scrollHeight;
   }
 
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // ── API ────────────────────────────────────────
   async function aiApi(path, opts = {}) {
     const method = (opts.method || "GET").toUpperCase();
-    // Bypass total del cliente global: fetch directo con headers correctos.
-    // (El cliente global en app.js usa spread de opts que en algunos navegadores
-    //  pierde el body cuando se pasa como objeto → Pydantic recibía "[object Object]")
     const token = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access)
       ? window.WH.TokenStore.access()
       : localStorage.getItem("wowhub_access_token");
@@ -52,15 +70,39 @@
     return r.status === 204 ? null : r.json();
   }
 
-  // ── Render: mensajes ──────────────────────────
-  function escapeHtml(s) {
-    return (s || "").replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
+  function currentTenantId() {
+    if (window.WH && window.WH.TokenStore && window.WH.TokenStore.currentTenant) {
+      const t = window.WH.TokenStore.currentTenant();
+      return t && t.tenant_id;
+    }
+    try { return JSON.parse(localStorage.getItem("wowhub_current_tenant")).tenant_id; }
+    catch { return null; }
   }
 
+  function prettyError(e) {
+    const raw = (e && e.message) || String(e);
+    const m = raw.match(/HTTP\s+(\d+):\s*(\[.*\])/s);
+    if (m) {
+      try {
+        const arr = JSON.parse(m[2]);
+        if (Array.isArray(arr) && arr[0] && arr[0].msg) {
+          if (m[1] === "422") return "La solicitud no es válida. Revisa los datos enviados.";
+          return `Error ${m[1]}: ${arr.map((x) => x.msg).filter(Boolean).join("; ")}`;
+        }
+      } catch (_) {}
+    }
+    if (/401/.test(raw))  return "Tu sesión expiró. Inicia sesión de nuevo.";
+    if (/403/.test(raw))  return "No tienes permisos para esta acción.";
+    if (/404/.test(raw))  return "Recurso no encontrado.";
+    if (/429/.test(raw))  return "Has alcanzado el límite diario de mensajes.";
+    if (/5\d\d/.test(raw)) return "El servicio está teniendo problemas. Intenta en unos segundos.";
+    return raw.replace(/^HTTP\s+\d+:\s*/, "").slice(0, 200);
+  }
+
+  // ── Render: mensajes ──────────────────────────
   function renderUserMsg(text) {
     const tpl = $("tpl-msg-user");
+    if (!tpl) return null;
     const node = tpl.content.firstElementChild.cloneNode(true);
     node.querySelector(".ai-msg-bubble").textContent = text;
     thread.appendChild(node);
@@ -68,20 +110,11 @@
     return node;
   }
 
-  function renderAssistantMsg(meta, text, opts = {}) {
+  function renderAssistantMsg(text, opts = {}) {
     const tpl = $("tpl-msg-assistant");
+    if (!tpl) return null;
     const node = tpl.content.firstElementChild.cloneNode(true);
-    const metaEl = node.querySelector(".ai-msg-meta");
     const bubble = node.querySelector(".ai-msg-bubble");
-    const labels = {
-      marketing: "🎨 Marketing Studio",
-      growth: "📈 Growth Coach",
-      automation: "⚙️ Automation Manager",
-      marketplace: "🛒 Smart Marketplace",
-    };
-    metaEl.innerHTML = `<span>${labels[meta] || meta}</span>` +
-      (opts.fallback ? ' · <span style="color:var(--ai-warn)">fallback</span>' : "") +
-      (opts.latency_ms ? ` · <span>${opts.latency_ms}ms</span>` : "");
     bubble.innerHTML = formatMarkdown(text || "");
     if (opts.fallback) bubble.classList.add("ai-msg-fallback");
     if (opts.typing) node.classList.add("ai-msg-typing");
@@ -91,131 +124,212 @@
   }
 
   function formatMarkdown(s) {
-    // Mini-markdown: **bold**, *italic*, saltos de línea, listas con -
     s = escapeHtml(s);
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    s = s.replace(/^(- .+)$/gm, "<div>• $1.slice(2)</div>".replace("$1.slice(2)", ""));
     s = s.replace(/^- (.+)$/gm, "<div>• $1</div>");
     s = s.replace(/\n/g, "<br>");
     return s;
   }
 
-  function scrollToBottom() {
-    thread.scrollTop = thread.scrollHeight;
+  // ── Render: tarjeta de opción de promoción ────
+  function renderPromoCard(option) {
+    const tpl = $("tpl-msg-promo-card");
+    if (!tpl) return null;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.querySelector(".ai-promo-card-title").textContent = option.title || option.name || "Opción";
+    node.querySelector(".ai-promo-card-meta").textContent  = option.meta || option.summary || "";
+    node.querySelector(".ai-promo-card-why").textContent   = option.why  || option.reason || "";
+    const btn = node.querySelector(".ai-promo-pick");
+    if (btn) {
+      btn.dataset.title = option.title || option.name || "";
+      btn.dataset.meta  = option.meta  || option.summary || "";
+      btn.dataset.why   = option.why   || option.reason || "";
+    }
+    thread.appendChild(node);
+    scrollToBottom();
+    return node;
   }
 
-  // ── Limpia mensajes de error de Pydantic/FastAPI ──
-  function prettyError(e) {
-    const raw = (e && e.message) || String(e);
-    // FastAPI 422: detalle es un array de objetos
-    const m = raw.match(/HTTP\s+(\d+):\s*(\[.*\])/s);
-    if (m) {
+  // ── Render: prompt de diseño (copia y pega) ──
+  function renderDesignPrompt(promptText) {
+    const tpl = $("tpl-msg-design-prompt");
+    if (!tpl) return null;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.querySelector(".ai-design-prompt-body").textContent = promptText || "";
+    thread.appendChild(node);
+    scrollToBottom();
+    return node;
+  }
+
+  // ── Render: CTA para subir imagen (paso 3) ────
+  function renderUploadCta() {
+    const tpl = $("tpl-msg-image-upload");
+    if (!tpl) return null;
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    thread.appendChild(node);
+    scrollToBottom();
+    return node;
+  }
+
+  // ── Detección: el orquestador devuelve un string con bloques ─
+  // Formato simple de los nuevos prompts:
+  //   :::promo|{"title":"…","meta":"…","why":"…"}:::
+  //   :::promo|{...}:::
+  //   :::design|texto del prompt:::
+  //   :::upload:::
+  // Esto permite al LLM emitir bloques estructurados sin complicar
+  // el JSON de respuesta.
+  function parseBlocks(content) {
+    if (!content) return { text: "", promos: [], design: null, upload: false };
+    let text = content;
+    const promos = [];
+    let design = null;
+    let upload = false;
+
+    const promoRe = /:::promo\|([\s\S]*?):::/g;
+    text = text.replace(promoRe, (_, json) => {
       try {
-        const arr = JSON.parse(m[2]);
-        if (Array.isArray(arr) && arr[0] && arr[0].msg) {
-          const code = m[1];
-          const msgs = arr.map((x) => x.msg).filter(Boolean);
-          if (code === "422") {
-            return "La solicitud no es válida. Revisa los datos enviados e inténtalo de nuevo.";
-          }
-          return `Error ${code}: ${msgs.join("; ")}`;
-        }
-      } catch (_) {}
-    }
-    // Errores específicos
-    if (/401/.test(raw))  return "Tu sesión expiró. Inicia sesión de nuevo.";
-    if (/403/.test(raw))  return "No tienes permisos para esta acción.";
-    if (/404/.test(raw))  return "Recurso no encontrado.";
-    if (/429/.test(raw))  return "Has alcanzado el límite diario de mensajes.";
-    if (/5\d\d/.test(raw)) return "El servicio está teniendo problemas. Intenta en unos segundos.";
-    return raw.replace(/^HTTP\s+\d+:\s*/, "").slice(0, 200);
+        const obj = JSON.parse(json);
+        promos.push(obj);
+      } catch (e) { /* ignore */ }
+      return "";
+    });
+
+    const designRe = /:::design\|([\s\S]*?):::/g;
+    text = text.replace(designRe, (_, body) => {
+      design = (body || "").trim();
+      return "";
+    });
+
+    const uploadRe = /:::upload:::/g;
+    text = text.replace(uploadRe, () => {
+      upload = true;
+      return "";
+    });
+
+    return { text: text.trim(), promos, design, upload };
   }
 
-  // ── Conversaciones ────────────────────────────
-  async function loadConversations() {
-    const list = $("ai-convs");
-    try {
-      const data = await aiApi("/api/v1/ai/conversations?page=1&page_size=30");
-      if (!data.items || !data.items.length) {
-        list.innerHTML = '<p class="ai-empty">Sin conversaciones aún. ¡Empieza una!</p>';
-        return;
-      }
-      list.innerHTML = "";
-      const tpl = $("tpl-conv-item");
-      for (const c of data.items) {
-        const node = tpl.content.firstElementChild.cloneNode(true);
-        node.dataset.id = c.id;
-        node.querySelector(".ai-conv-title").textContent = c.title || "Conversación";
-        const dt = c.last_message_at ? new Date(c.last_message_at) : new Date(c.created_at);
-        node.querySelector(".ai-conv-meta").textContent =
-          `${c.agent || "—"} · ${c.message_count} msgs · ${dt.toLocaleDateString()}`;
-        if (state.conversationId === c.id) node.classList.add("ai-active");
-        node.addEventListener("click", () => loadConversation(c.id));
-        list.appendChild(node);
-      }
-    } catch (e) {
-      list.innerHTML = `<p class="ai-empty">Error: ${escapeHtml(e.message)}</p>`;
-    }
+  // ── Estado de UI ──────────────────────────────
+  function hideWelcomeAndSuggestions() {
+    if (welcome) welcome.style.display = "none";
+    if (suggestions) suggestions.style.display = "none";
   }
 
-  async function loadConversation(id) {
-    try {
-      const data = await aiApi("/api/v1/ai/conversations/" + id + "/messages?limit=200");
-      thread.innerHTML = "";
-      for (const m of data.items) {
-        if (m.role === "user") renderUserMsg(m.content);
-        else if (m.role === "assistant") {
-          renderAssistantMsg(m.agent || "assistant", m.content, { fallback: m.fallback });
-        }
+  function resetConversationUI() {
+    if (!thread) return;
+    thread.innerHTML = "";
+    if (welcome) {
+      welcome.style.display = "";
+    }
+    if (suggestions) suggestions.style.display = "";
+    state.conversationId = null;
+    state.pendingImage = null;
+    state.pickedPromo = null;
+    setAttachUI();
+  }
+
+  // ── Adjuntar imagen (en el composer) ──────────
+  function setAttachUI() {
+    const nameEl = $("ai-attach-name");
+    const btn = $("ai-attach-btn");
+    if (state.pendingImage) {
+      if (nameEl) {
+        nameEl.textContent = "📎 " + (state.pendingImage.name || "imagen");
+        nameEl.hidden = false;
       }
-      state.conversationId = id;
-      // Marcar activo en sidebar
-      document.querySelectorAll(".ai-conv-item").forEach((n) => {
-        n.classList.toggle("ai-active", n.dataset.id === id);
-      });
-    } catch (e) {
-      console.error(e);
-      alert("No pude cargar la conversación: " + e.message);
+      if (btn) btn.classList.add("is-active");
+    } else {
+      if (nameEl) { nameEl.textContent = ""; nameEl.hidden = true; }
+      if (btn) btn.classList.remove("is-active");
     }
   }
 
-  // ── Agentes ──────────────────────────────────
+  function pickImageFile(file) {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith("image/")) {
+      alert("Solo se permiten imágenes (JPG, PNG, WebP).");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert("La imagen es muy pesada. Máximo 8 MB.");
+      return;
+    }
+    state.pendingImage = { file, name: file.name };
+    setAttachUI();
+  }
+
+  // ── Carga de imagen al backend ────────────────
+  async function uploadImageToServer(file) {
+    const tenantId = currentTenantId();
+    if (!tenantId) throw new Error("No hay tenant activo");
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("purpose", "promotion");
+    const token = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access)
+      ? window.WH.TokenStore.access()
+      : localStorage.getItem("wowhub_access_token");
+    const r = await fetch(`/api/v1/tenants/${tenantId}/uploads`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "X-Tenant-Id": tenantId,
+      },
+      body: fd,
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error("HTTP " + r.status + ": " + t.slice(0, 300));
+    }
+    return r.json();
+  }
+
+  // ── Crear promoción en el backend ─────────────
+  async function createPromotionServer(payload) {
+    const tenantId = currentTenantId();
+    if (!tenantId) throw new Error("No hay tenant activo");
+    return aiApi(`/api/v1/tenants/${tenantId}/promotions`, {
+      method: "POST",
+      body: payload,
+    });
+  }
+
+  // ── Agentes ───────────────────────────────────
+  const AGENT_LABELS = {
+    marketing:  { name: "Asistente de Marketing", sub: "Te ayuda a crear promociones y avisos." },
+    growth:     { name: "Asistente de Crecimiento", sub: "Te ayuda a entender tus ventas y crecer." },
+    automation: { name: "Asistente de Tareas", sub: "Te ayuda a enviar mensajes automáticos." },
+    marketplace:{ name: "Asistente de Catálogo", sub: "Te ayuda a ordenar productos y precios." },
+  };
+
   function bindAgentChips() {
     document.querySelectorAll(".ai-agent-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         document.querySelectorAll(".ai-agent-chip").forEach((c) => c.classList.remove("ai-active"));
         chip.classList.add("ai-active");
         state.agent = chip.dataset.agent;
-        const labels = {
-          marketing: ["Marketing Studio", "Tu copiloto de marketing y promociones."],
-          growth:    ["Growth Coach",     "Estrategia y análisis para crecer."],
-          automation:["Automation Manager","Automatiza tareas repetitivas."],
-          marketplace:["Smart Marketplace","Optimiza tu catálogo y conversiones."],
-        };
-        $("ai-current-agent").textContent = labels[state.agent][0];
-        $("ai-current-sub").textContent   = labels[state.agent][1];
+        const labels = AGENT_LABELS[state.agent] || AGENT_LABELS.marketing;
+        const nameEl = $("ai-current-agent");
+        const subEl  = $("ai-current-sub");
+        if (nameEl) nameEl.textContent = labels.name;
+        if (subEl)  subEl.textContent  = labels.sub;
       });
     });
-    // Activar el chip por defecto
+    // Activar chip por defecto
     const def = document.querySelector(`.ai-agent-chip[data-agent="${state.agent}"]`);
     if (def) def.classList.add("ai-active");
   }
 
-  // ── Status ───────────────────────────────────
+  // ── Status / uso diario ───────────────────────
   async function loadStatus() {
     try {
       const s = await aiApi("/api/v1/ai/status");
-      const pill = $("ai-circuit-pill");
-      pill.textContent = "● " + (s.llm_enabled ? "LLM OK" : "LLM no configurado");
-      pill.classList.toggle("ai-warn", s.circuit_state === "open");
-      pill.classList.toggle("ai-err",  s.circuit_state === "open" || !s.llm_enabled);
       state.limit = s.rate_limit.limit;
       state.used  = s.rate_limit.used_today;
-      $("ai-usage").textContent = `Hoy: ${state.used} / ${state.limit} mensajes`;
+      if (usage) usage.textContent = `Hoy: ${state.used} / ${state.limit} mensajes`;
     } catch (e) {
-      $("ai-circuit-pill").textContent = "● Error";
-      $("ai-circuit-pill").classList.add("ai-err");
+      if (usage) usage.textContent = "Hoy: —";
     }
   }
 
@@ -223,86 +337,240 @@
   function bindSuggestions() {
     document.querySelectorAll(".ai-suggest").forEach((b) => {
       b.addEventListener("click", () => {
-        input.value = b.dataset.prompt;
-        input.focus();
-        autosize();
+        if (input) {
+          input.value = b.dataset.prompt || b.textContent.trim();
+          input.focus();
+          autosize();
+        }
       });
     });
   }
 
   // ── Composer ─────────────────────────────────
   function autosize() {
+    if (!input) return;
     input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 200) + "px";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
   }
 
-  input.addEventListener("input", autosize);
-  input.addEventListener("keydown", (e) => {
+  if (input) input.addEventListener("input", autosize);
+  if (input) input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      composer.requestSubmit();
+      if (composer) composer.requestSubmit();
     }
   });
 
-  composer.addEventListener("submit", async (e) => {
+  if (composer) composer.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (state.sending) return;
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = ""; autosize();
+    const text = (input.value || "").trim();
+    if (!text && !state.pendingImage) return;
+
     state.sending = true;
-    $("ai-send").disabled = true;
+    const sendBtn = $("ai-send");
+    if (sendBtn) sendBtn.disabled = true;
 
-    // Ocultar welcome si está visible
-    const w = $("ai-welcome"); if (w) w.style.display = "none";
+    hideWelcomeAndSuggestions();
 
-    renderUserMsg(text);
-    const placeholder = renderAssistantMsg(state.agent, "…", { typing: true });
+    // Si el usuario eligió una opción de promoción y subió imagen,
+    // construimos el texto con contexto para el backend.
+    let composedText = text;
+    if (state.pickedPromo) {
+      const tag = `[OPCIÓN ELEGIDA: ${state.pickedPromo.title}` +
+        (state.pickedPromo.meta ? ` (${state.pickedPromo.meta})` : "") + "]";
+      composedText = (composedText ? composedText + "\n\n" : "") + tag;
+    }
+    if (state.pendingImage) {
+      composedText = (composedText ? composedText + "\n\n" : "") +
+        "[El usuario adjuntó una imagen: " + state.pendingImage.name + "]";
+    }
+
+    // Mostrar en el chat
+    let userLabel = text;
+    if (state.pickedPromo && !userLabel) userLabel = "Elegí: " + state.pickedPromo.title;
+    if (state.pendingImage && !userLabel) userLabel = "📎 " + state.pendingImage.name;
+    if (!userLabel) userLabel = "…";
+    renderUserMsg(userLabel);
+
+    const placeholder = renderAssistantMsg("…", { typing: true });
 
     try {
-      // Usamos el modo no-streaming por simplicidad y robustez.
-      // (El SSE se puede añadir después sin romper el contrato.)
       const body = {
-        message: { content: text, conversation_id: state.conversationId, force_agent: state.agent },
+        message: { content: composedText, conversation_id: state.conversationId, force_agent: state.agent },
         stream: false,
       };
       const resp = await aiApi("/api/v1/ai/chat", { method: "POST", body });
-      // Reemplazar placeholder
       placeholder.remove();
-      renderAssistantMsg(resp.agent, resp.content, {
-        fallback: resp.fallback,
-        latency_ms: resp.latency_ms,
-      });
       state.conversationId = resp.conversation_id;
-      // Refrescar sidebar
-      loadConversations();
+
+      const { text: cleanText, promos, design, upload } = parseBlocks(resp.content);
+      renderAssistantMsg(cleanText || resp.content, {
+        fallback: resp.fallback,
+      });
+      promos.forEach((p) => renderPromoCard(p));
+      if (design) renderDesignPrompt(design);
+      if (upload) renderUploadCta();
+
+      // Limpiar inputs
+      input.value = "";
+      autosize();
+      state.pendingImage = null;
+      state.pickedPromo = null;
+      setAttachUI();
       loadStatus();
     } catch (e) {
       placeholder.remove();
-      renderAssistantMsg(state.agent, "⚠️ " + prettyError(e), { fallback: true });
+      renderAssistantMsg("⚠️ " + prettyError(e), { fallback: true });
     } finally {
       state.sending = false;
-      $("ai-send").disabled = false;
-      input.focus();
+      if (sendBtn) sendBtn.disabled = false;
+      if (input) input.focus();
     }
   });
 
+  // ── Adjuntar imagen desde el composer ─────────
+  const attachBtn = $("ai-attach-btn");
+  const attachInput = $("ai-attach-input");
+  if (attachBtn && attachInput) {
+    attachBtn.addEventListener("click", () => attachInput.click());
+    attachInput.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) pickImageFile(f);
+      // Permite re-seleccionar el mismo archivo
+      e.target.value = "";
+    });
+  }
+
+  // ── Click handler delegado para mensajes especiales ──
+  if (thread) {
+    thread.addEventListener("click", async (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      // 1) Botón "Elegir esta opción" en tarjeta de promo
+      const pickBtn = target.closest(".ai-promo-pick");
+      if (pickBtn) {
+        state.pickedPromo = {
+          title: pickBtn.dataset.title || "",
+          meta:  pickBtn.dataset.meta  || "",
+          why:   pickBtn.dataset.why   || "",
+        };
+        if (input) {
+          input.value = "Quiero esta promoción. Ahora dame el prompt de diseño.";
+          input.focus();
+          autosize();
+        }
+        // Feedback visual: marcar elegida
+        thread.querySelectorAll(".ai-promo-card").forEach((c) => c.classList.remove("ai-picked"));
+        pickBtn.closest(".ai-promo-card").classList.add("ai-picked");
+        return;
+      }
+
+      // 2) Botón "Copiar prompt"
+      const copyBtn = target.closest(".ai-copy-prompt");
+      if (copyBtn) {
+        const pre = copyBtn.parentElement.querySelector(".ai-design-prompt-body");
+        if (pre) {
+          try {
+            await navigator.clipboard.writeText(pre.textContent || "");
+            copyBtn.classList.add("is-copied");
+            copyBtn.textContent = "✓ Copiado";
+            setTimeout(() => {
+              copyBtn.classList.remove("is-copied");
+              copyBtn.textContent = "Copiar prompt";
+            }, 2000);
+          } catch (err) {
+            // Fallback
+            const ta = document.createElement("textarea");
+            ta.value = pre.textContent || "";
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand("copy"); } catch (_) {}
+            document.body.removeChild(ta);
+            copyBtn.classList.add("is-copied");
+            copyBtn.textContent = "✓ Copiado";
+            setTimeout(() => {
+              copyBtn.classList.remove("is-copied");
+              copyBtn.textContent = "Copiar prompt";
+            }, 2000);
+          }
+        }
+        return;
+      }
+
+      // 3) Input de subida de imagen (dentro del CTA)
+      const fileInput = target.closest(".ai-upload-cta-input");
+      if (fileInput) {
+        // Dejamos que el <label> abra el file picker, y manejamos el change globalmente
+      }
+    });
+
+    // Handler global para los inputs de subida de los CTAs
+    thread.addEventListener("change", async (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("ai-upload-cta-input")) return;
+      const file = target.files && target.files[0];
+      if (!file) return;
+      const cta = target.closest(".ai-upload-cta");
+      const titleEl = cta ? cta.querySelector(".ai-upload-cta-title") : null;
+      if (titleEl) titleEl.textContent = "Subiendo imagen…";
+      try {
+        const up = await uploadImageToServer(file);
+        if (titleEl) {
+          titleEl.textContent = "✅ Imagen subida";
+        }
+        // Opcional: enviamos al backend para que la IA confirme la creación de la promo
+        if (state.pickedPromo) {
+          renderAssistantMsg(
+            "Recibí tu imagen. Cuando confirmes, creo la promoción con el nombre **" +
+            state.pickedPromo.title + "** y esta imagen."
+          );
+        }
+        // Guardamos la URL en el state por si luego queremos crear la promo automáticamente
+        state.pendingImage = {
+          file,
+          name: file.name,
+          url: up && (up.public_url || up.url) || null,
+          uploadId: up && (up.id || up.upload_id) || null,
+        };
+      } catch (err) {
+        if (titleEl) titleEl.textContent = "❌ No pude subirla";
+        renderAssistantMsg("⚠️ Error subiendo la imagen: " + prettyError(err), { fallback: true });
+      } finally {
+        target.value = "";
+      }
+    });
+  }
+
   // ── Nueva conversación ──────────────────────
-  $("ai-new-chat").addEventListener("click", () => {
-    state.conversationId = null;
-    thread.innerHTML = "";
-    const w = document.createElement("div");
-    w.id = "ai-welcome";
-    w.className = "ai-welcome";
-    w.innerHTML = '<h2>Nueva conversación</h2><p>Pregúntame lo que quieras.</p>';
-    thread.appendChild(w);
-    input.focus();
-  });
+  const newChatBtn = $("ai-new-chat");
+  if (newChatBtn) {
+    newChatBtn.addEventListener("click", () => {
+      resetConversationUI();
+      if (input) input.focus();
+    });
+  }
+
+  // ── Móvil: FAB + cerrar con click fuera ─────
+  function openSidebarMobile() {
+    if (!sidebar) return;
+    sidebar.classList.add("ai-open");
+    if (fab) fab.classList.add("ai-hidden");
+  }
+  function closeSidebarMobile() {
+    if (!sidebar) return;
+    sidebar.classList.remove("ai-open");
+    if (fab) fab.classList.remove("ai-hidden");
+  }
+  if (fab) fab.addEventListener("click", openSidebarMobile);
 
   // ── Init ─────────────────────────────────────
-  document.addEventListener("DOMContentLoaded", async () => {
+  document.addEventListener("DOMContentLoaded", () => {
     bindAgentChips();
     bindSuggestions();
-    await Promise.all([loadConversations(), loadStatus()]);
+    loadStatus();
+    autosize();
   });
 })();

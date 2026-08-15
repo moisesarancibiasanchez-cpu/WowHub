@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{% block dash_title %}Dashboard{% endblock %} — WowHub{% endblock %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ai.css">
+{% endblock %}
+
 {% block topbar %}
 <header class="topbar">
   <a class="brand" href="/dashboard">
@@ -16,6 +20,7 @@
 
 {% block content %}
 <div class="dash-layout">
+  <!-- ── Sidebar izquierdo: SIEMPRE visible ─────────────────── -->
   <aside class="dash-side">
     <h4>Negocio</h4>
     <a href="/dashboard" class="nav-link" data-route="dashboard">
@@ -26,9 +31,6 @@
     </a>
     <a href="/dashboard/promotions" class="nav-link" data-route="promotions">
       <span class="ico">🎉</span> Promociones
-    </a>
-    <a href="/dashboard/ai" class="nav-link" data-route="ai" style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);color:#fff;border-radius:8px;margin-top:6px;">
-      <span class="ico">🤖</span> Asistente IA
     </a>
     <a href="/dashboard/qrs" class="nav-link" data-route="qrs">
       <span class="ico">📱</span> QRs
@@ -51,14 +53,19 @@
     </a>
   </aside>
 
+  <!-- ── Contenido central ──────────────────────────────────── -->
   <main class="dash-main">
     {% block dash_content %}{% endblock %}
   </main>
+
+  <!-- ── Sidebar derecho: Asistente IA — SIEMPRE visible ────── -->
+  {% include "dashboard/_ai_panel.html" %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
+<script src="/static/js/ai.js?v=sidebar-v2"></script>
 <script>
 WH.Auth.requireLogin();
 (async function paintChip() {
