@@ -47,8 +47,16 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">URL del logo (opcional)</label>
-          <input class="form-input" type="url" id="c_logo_url" placeholder="https://...">
+          <label class="form-label">Logo de la tarjeta (opcional)</label>
+          <!-- ImagePicker compacto: sube JPG/PNG (max 3MB) y guarda la URL en #c_logo_url -->
+          <div data-image-picker
+               data-target="c_logo_url"
+               data-purpose="loyalty_campaign_logo"
+               data-accept="image/jpeg,image/png"
+               data-max-size-mb="3"
+               data-compact></div>
+          <input type="hidden" id="c_logo_url">
+          <span class="form-help">Aparece en la cabecera del pase del cliente. PNG con fondo transparente recomendado.</span>
         </div>
         <div class="form-group">
           <label class="form-label">PIN del garzón (opcional, 4-8 dígitos)</label>
@@ -103,6 +111,9 @@ WH.Auth.requireLogin();
 const $ = (id) => document.getElementById(id);
 let qrRefreshTimer = null;
 let qrCountdownTimer = null;
+
+// Montar el ImagePicker del logo (la card-modal está en el DOM aunque oculta)
+if (window.WH && WH.ImagePicker) WH.ImagePicker.initAll();
 
 async function loadCampaigns() {
   const session = await WH.Auth.ensureSession();
@@ -163,6 +174,8 @@ function openNewModal() {
   $("c_primary_color").value = "#1A73E8";
   $("c_text_color").value = "#FFFFFF";
   $("c_logo_url").value = "";
+  // Limpiar el preview del picker
+  if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("c_logo_url", "");
   $("c_cashier_pin").value = "";
   $("c_is_active").checked = true;
   $("modal-title").textContent = "Nueva campaña";
@@ -177,6 +190,8 @@ function openEditModal(c) {
   $("c_primary_color").value = c.primary_color;
   $("c_text_color").value = c.text_color;
   $("c_logo_url").value = c.logo_url || "";
+  // Refrescar el preview del ImagePicker con la URL existente
+  if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("c_logo_url", c.logo_url);
   $("c_cashier_pin").value = "";  // no devolvemos el PIN por seguridad
   $("c_is_active").checked = c.is_active;
   $("modal-title").textContent = "Editar campaña";

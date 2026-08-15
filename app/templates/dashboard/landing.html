@@ -21,8 +21,15 @@
       <textarea class="form-textarea" id="hero_subtitle"></textarea>
     </div>
     <div class="form-group">
-      <label class="form-label">Imagen URL</label>
-      <input class="form-input" id="hero_image_url">
+      <label class="form-label">Imagen del hero</label>
+      <!-- ImagePicker: sube JPG/PNG (max 3MB) y guarda la URL en #hero_image_url -->
+      <div data-image-picker
+           data-target="hero_image_url"
+           data-purpose="landing_hero"
+           data-accept="image/jpeg,image/png"
+           data-max-size-mb="3"></div>
+      <input type="hidden" id="hero_image_url">
+      <span class="form-help">Se ve en grande arriba de tu landing pública. Recomendado: 1920×900 px.</span>
     </div>
     <div class="form-group">
       <label class="form-label">Texto botón principal</label>
@@ -43,8 +50,16 @@
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Logo URL</label>
-      <input class="form-input" id="logo_url">
+      <label class="form-label">Logo de tu marca</label>
+      <!-- ImagePicker compacto: sube JPG/PNG (max 3MB) y guarda la URL en #logo_url -->
+      <div data-image-picker
+           data-target="logo_url"
+           data-purpose="landing_logo"
+           data-accept="image/jpeg,image/png"
+           data-max-size-mb="3"
+           data-compact></div>
+      <input type="hidden" id="logo_url">
+      <span class="form-help">Preferentemente con fondo transparente (PNG). Aparece en la cabecera y catálogo.</span>
     </div>
   </div>
 
@@ -143,6 +158,9 @@ document.getElementById("save-btn").addEventListener("click", async () => {
   }
   document.getElementById("preview-link").href = `/u/${tenant.tenant_slug}`;
   await load();
+  // Montar los ImagePicker DESPUÉS de load() para que lean los valores
+  // iniciales (hero_image_url, logo_url) ya escritos en los <input hidden>.
+  if (window.WH && WH.ImagePicker) WH.ImagePicker.initAll();
 })();
 </script>
 {% endblock %}

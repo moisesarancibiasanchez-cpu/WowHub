@@ -107,8 +107,15 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">URL imagen</label>
-          <input class="form-input" type="url" id="p_image_url" placeholder="https://...">
+          <label class="form-label">Imagen del producto</label>
+          <!-- ImagePicker: sube JPG/PNG (max 3MB) y guarda la URL en #p_image_url -->
+          <div data-image-picker
+               data-target="p_image_url"
+               data-purpose="product_image"
+               data-accept="image/jpeg,image/png"
+               data-max-size-mb="3"></div>
+          <input type="hidden" id="p_image_url">
+          <span class="form-help">Recomendado: 800×800 px o más. Aparece en tu catálogo público.</span>
         </div>
         <label class="row" style="gap: 6px;">
           <input type="checkbox" id="p_is_featureed"> Destacado
@@ -199,6 +206,8 @@ function openModal(p) {
   document.getElementById("p_stock").value = p?.stock || 0;
   document.getElementById("p_status").value = p?.status || "active";
   document.getElementById("p_image_url").value = p?.image_url || "";
+  // Refrescar el preview del ImagePicker con la URL existente
+  if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("p_image_url", p?.image_url);
   document.getElementById("p_is_featureed").checked = !!p?.is_featured;
   document.getElementById("modal").classList.remove("hidden");
 }
@@ -260,6 +269,8 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
     return;
   }
+  // Montar todos los ImagePicker (productos, etc.) — idempotente
+  if (window.WH && WH.ImagePicker) WH.ImagePicker.initAll();
   await loadCategories();
   await load();
 })();

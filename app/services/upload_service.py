@@ -18,8 +18,14 @@ from app.models.upload import Upload
 
 logger = logging.getLogger("wowhub.upload")
 
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+# Solo JPG y PNG: cubrimos el 99% de los casos reales (logos, fotos de
+# producto, hero) sin exponer vectores de ataque por archivos malformados
+# (webp/gif han sido fuente de bugs en libraries de parseo y son innecesarios
+# para una plataforma de PYMEs).
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
+# 3 MB: alcanza para fotos de celular modernas (12 MP) y logos.
+# Lo validamos también en el cliente (UX inmediata) y en el server (autoridad).
+MAX_IMAGE_SIZE = 3 * 1024 * 1024  # 3 MB
 
 
 class UploadService:
@@ -40,9 +46,16 @@ class UploadService:
         Genera múltiples tamaños: thumb (200), medium (800), full (original)
         """
         if content_type not in ALLOWED_IMAGE_TYPES:
-            raise ValidationError(f"Tipo no permitido: {content_type}")
+            raise ValidationError(
+                f"Tipo de imagen no permitido ({content_type}). "
+                f"Solo se aceptan JPG y PNG."
+            )
         if len(content) > MAX_IMAGE_SIZE:
-            raise ValidationError(f"Archivo demasiado grande: {len(content)} bytes (max {MAX_IMAGE_SIZE})")
+            mb = MAX_IMAGE_SIZE / 1024 / 1024
+            raise ValidationError(
+                f"Imagen demasiado grande ({len(content) / 1024 / 1024:.1f} MB). "
+                f"El máximo permitido es {mb:.0f} MB."
+            )
 
         # Validar que sea imagen real
         try:
@@ -121,6 +134,4 @@ class UploadService:
         return {
             "image/jpeg": ".jpg",
             "image/png": ".png",
-            "image/webp": ".webp",
-            "image/gif": ".gif",
         }.get(content_type, ".bin")

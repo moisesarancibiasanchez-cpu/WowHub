@@ -443,3 +443,110 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ════════════════════════════════════════════════════════════
+   ImagePicker — selector de imágenes con drag & drop
+   usado en products.html, landing.html, admin_loyalty.html
+   ════════════════════════════════════════════════════════════ */
+[data-image-picker] {
+  display: block;
+  margin: 8px 0 12px;
+}
+.ip-drop {
+  position: relative;
+  display: block;
+  padding: 16px;
+  border: 2px dashed var(--border-strong, #2a3242);
+  border-radius: 10px;
+  background: var(--bg-elev, #11151c);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  outline: none;
+  min-height: 120px;
+}
+.ip-drop:hover,
+.ip-drop:focus-visible,
+.ip-drop.ip-drag {
+  border-color: var(--accent, #7c5cff);
+  background: var(--bg-elev-2, #161b24);
+}
+.ip-drop.ip-uploading {
+  cursor: progress;
+  border-color: var(--accent-2, #00d4a8);
+}
+.ip-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-bottom: 10px;
+}
+.ip-preview[data-empty="true"] {
+  color: var(--fg-dim, #6b7280);
+}
+.ip-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px 16px;
+}
+.ip-empty-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--fg, #f5f5f5);
+}
+.ip-empty-sub {
+  font-size: 12px;
+  color: var(--fg-muted, #9ca3af);
+}
+.ip-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ip-filename {
+  font-size: 12px;
+  color: var(--fg-muted, #9ca3af);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  flex: 1;
+}
+.ip-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-elev-2, #161b24);
+  margin: 8px 0;
+  overflow: hidden;
+}
+.ip-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent, #7c5cff), var(--accent-2, #00d4a8));
+  transition: width 0.2s ease;
+}
+.ip-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* Cuando el picker está dentro de un form-group con label encima,
+   no queremos un margin-top extra. */
+.form-group [data-image-picker] {
+  margin-top: 0;
+}
+
+/* Versión compacta (logos, favicons) — más pequeño */
+[data-image-picker][data-compact] .ip-drop { padding: 10px; min-height: 80px; }
+[data-image-picker][data-compact] .ip-preview { min-height: 64px; margin-bottom: 6px; }
+[data-image-picker][data-compact] .ip-empty svg { width: 28px; height: 28px; }
+[data-image-picker][data-compact] .ip-empty-title { font-size: 13px; }
+
