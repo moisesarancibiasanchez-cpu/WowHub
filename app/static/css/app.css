@@ -537,6 +537,29 @@
   padding: 6px 10px;
   border-radius: 6px;
 }
+.ip-preview-img-wrap {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+}
+.ip-preview-broken {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  text-align: left;
+  line-height: 1.45;
+}
+.ip-preview-broken code {
+  display: block;
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: var(--bg-elev-2, #161b24);
+  color: var(--fg-dim, #9ca3af);
+  border-radius: 4px;
+}
 
 /* Cuando el picker está dentro de un form-group con label encima,
    no queremos un margin-top extra. */

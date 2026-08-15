@@ -229,7 +229,23 @@ const ImagePicker = {
     function setPreview(url) {
       if (url) {
         preview.dataset.empty = "false";
-        preview.innerHTML = `<img src="${escapeAttr(url)}" alt="" style="max-width:100%;max-height:240px;display:block;border-radius:6px;">`;
+        // onerror: si la URL no carga (host no alcanzable, 404, CORS),
+        // mostramos un mensaje claro en vez de un área vacía silenciosa.
+        preview.innerHTML = `
+          <div class="ip-preview-img-wrap">
+            <img src="${escapeAttr(url)}" alt="" referrerpolicy="no-referrer"
+                 style="max-width:100%;max-height:240px;display:block;border-radius:6px;"
+                 onerror="this.parentNode.innerHTML = '<div class=&quot;ip-preview-broken&quot;>⚠ No se pudo cargar la imagen.<br><small>La URL puede haber cambiado o el archivo ya no existe.</small><br><code style=&quot;font-size:10px;word-break:break-all;&quot;></code></div>';">
+          </div>`;
+        // Si falla la carga, mostramos la URL para diagnóstico
+        const img = preview.querySelector("img");
+        img.addEventListener("error", () => {
+          const codeEl = preview.querySelector(".ip-preview-broken code");
+          if (codeEl) codeEl.textContent = url;
+          if (window.WH && window.WH.Toast) {
+            window.WH.Toast.show("La URL de la imagen no carga. ¿El servidor cambió de dominio?", "warning");
+          }
+        }, { once: true });
         removeBtn.hidden = false;
         empty.style.display = "none";
       } else {

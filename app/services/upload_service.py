@@ -29,11 +29,29 @@ MAX_IMAGE_SIZE = 3 * 1024 * 1024  # 3 MB
 
 
 class UploadService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, base_url: Optional[str] = None):
         self.db = db
         self.backend = os.getenv("STORAGE_BACKEND", "local")
         self.storage_path = Path(os.getenv("STORAGE_PATH", "./storage"))
-        self.base_url = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+        # Resolución del base URL público (de donde el browser descargará
+        # las imágenes). Prioridad:
+        #   1) base_url pasado explícitamente (típicamente request.base_url
+        #      desde el endpoint — siempre correcto, sea local o producción)
+        #   2) settings.public_base_url (configurado en env)
+        #   3) settings.base_url
+        #   4) http://localhost:8000 (último recurso, dev)
+        if base_url:
+            self.base_url = base_url.rstrip("/")
+        else:
+            try:
+                from app.config import settings
+                self.base_url = (
+                    base_url
+                    or getattr(settings, "public_base_url", None)
+                    or settings.base_url
+                ).rstrip("/")
+            except Exception:
+                self.base_url = "http://localhost:8000"
 
     def save_image(
         self, tenant_id: UUID, *, content: bytes, filename: str,
