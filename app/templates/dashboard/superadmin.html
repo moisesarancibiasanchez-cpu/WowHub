@@ -337,6 +337,7 @@ async function loadTenants() {
         <td>
           <button class="sa-btn sa-edit-tenant" data-id="${t.id}">Editar</button>
           <button class="sa-btn sa-toggle-tenant" data-id="${t.id}" data-active="${t.is_active}">${t.is_active?'Suspender':'Activar'}</button>
+          <button class="sa-btn sa-btn-imp sa-enter-as-admin" data-id="${t.id}" data-slug="${esc(t.slug)}" data-name="${esc(t.display_name)}" title="Detectar automáticamente al owner y abrir modal de impersonación">🛡️ Entrar como admin</button>
         </td>
       </tr>`;
     }).join("");
@@ -487,6 +488,25 @@ async function toggleUserActive(id, currentlyActive) {
   }
 }
 
+// ── "Entrar como admin" (detecta owner y abre modal) ──
+async function enterAsAdmin(tenantId, slug, displayName) {
+  try {
+    const owner = await saApi(`/api/v1/superadmin/tenants/${tenantId}/owner`);
+    if (owner.is_superuser) {
+      alert(`El owner de "${displayName || slug}" es superuser. No se puede impersonar (medida de seguridad).`);
+      return;
+    }
+    if (!owner.is_active) {
+      alert(`El owner de "${displayName || slug}" está inactivo. Actívalo primero antes de impersonar.`);
+      return;
+    }
+    // Reusamos el modal de Login As con la info del owner
+    openImpersonateModal(owner.user_id, owner.email, owner.full_name, slug);
+  } catch (e) {
+    alert("Error al buscar el admin: " + e.message);
+  }
+}
+
 // ── Auditoría ─────────────────────────────────────
 async function loadAudit() {
   const tbody = $("sa-audit-table")?.querySelector("tbody");
@@ -554,6 +574,11 @@ document.addEventListener("click", (e) => {
     toggleTenant(t.dataset.id, t.dataset.active === "true");
     return;
   }
+  // Entrar como admin (auto-detecta owner del tenant)
+  if (t.classList && t.classList.contains("sa-enter-as-admin")) {
+    enterAsAdmin(t.dataset.id, t.dataset.slug, t.dataset.name);
+    return;
+  }
   // users
   if (t.classList && t.classList.contains("sa-toggle-su")) {
     openSuModal(t.dataset.id, t.dataset.su !== "true");
@@ -595,19 +620,28 @@ async function confirmImpersonate() {
     try {
       if (window.WH && window.WH.TokenStore && result.access_token) {
         const cur = window.WH.TokenStore.get() || {};
+        // FIX CRÍTICO: limpiar user y current_tenant stale del admin.
+        // Si no, la nueva página los lee de localStorage ANTES de rehidratar
+        // desde el backend, y termina mostrando el tenant del admin mientras
+        // el JWT ya tiene el tid del target → "Cargando..." infinito.
+        delete cur.user;
+        delete cur.current_tenant;
         window.WH.TokenStore.set({
           ...cur,
           access_token: result.access_token,
         });
       } else if (result.access_token) {
         localStorage.setItem("wowhub_access_token", result.access_token);
-        const cur = JSON.parse(localStorage.getItem("wowhub.tokens") || "{}");
-        cur.access_token = result.access_token;
-        localStorage.setItem("wowhub.tokens", JSON.stringify(cur));
+        // Limpiar el blob completo para forzar rehidratación.
+        localStorage.removeItem("wowhub.tokens");
+        localStorage.removeItem("wowhub.currentTenant");
       }
     } catch (e) {
       console.warn("[impersonate] could not persist token to localStorage:", e);
     }
+    // Limpiar también el promise cacheado de ensureSession() para que
+    // rehidrate desde el backend con el contexto del target.
+    try { window.WH.Auth._sessionPromise = null; } catch (_) {}
     // Redirigir al dashboard (la cookie httpOnly también se actualizó server-side).
     window.location.href = result.redirect || "/dashboard";
   } catch (e) {

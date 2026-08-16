@@ -431,6 +431,59 @@ def get_tenant(
     return _tenant_to_out(t, members_count)
 
 
+@router.get("/tenants/{tenant_id}/owner")
+def get_tenant_owner(
+    tenant_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Devuelve el owner (o miembro primario) del tenant.
+
+    Usado por el botón 'Entrar como admin' de la tab Tiendas para detectar
+    automáticamente al usuario al que hay que impersonar para entrar a la
+    tienda como admin.
+
+    Reglas:
+    - Si hay un owner, devuelve ese.
+    - Si no hay owner pero hay miembros activos, devuelve el primero
+      (caso raro: tenant sin owner explícito).
+    - 404 si el tenant no existe o no tiene miembros activos.
+    """
+    t = db.get(Tenant, tenant_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+    memberships = list(
+        db.execute(
+            select(TenantMembership).where(
+                TenantMembership.tenant_id == str(tenant_id),
+                TenantMembership.is_active == True,  # noqa
+            )
+        ).scalars()
+    )
+    if not memberships:
+        raise HTTPException(
+            status_code=404,
+            detail="Tenant sin miembros activos",
+        )
+    # Preferir el owner; si no hay, el primero activo.
+    primary = next((m for m in memberships if m.is_owner), memberships[0])
+    owner = db.get(User, primary.user_id)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Usuario owner no encontrado")
+    return {
+        "user_id": str(owner.id),
+        "email": owner.email,
+        "full_name": owner.full_name,
+        "is_active": bool(owner.is_active),
+        "is_superuser": bool(getattr(owner, "is_superuser", False)),
+        "role": (primary.role.value if hasattr(primary.role, "value") else str(primary.role)),
+        "is_owner": bool(primary.is_owner),
+        "tenant_id": str(t.id),
+        "tenant_slug": t.slug,
+        "tenant_display_name": t.display_name,
+    }
+
+
 @router.patch("/tenants/{tenant_id}", response_model=TenantOut)
 def update_tenant(
     tenant_id: UUID,

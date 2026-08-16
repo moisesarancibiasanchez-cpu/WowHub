@@ -258,7 +258,21 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
       if (r.ok) {
         const data = await r.json().catch(function () { return {}; });
         if (data && data.access_token) {
-          try { localStorage.setItem("wowhub_access_token", data.access_token); } catch (_) {}
+          try {
+            if (window.WH && window.WH.TokenStore) {
+              // FIX: limpiar user y current_tenant stale del target impersonado
+              // para que la nueva página rehidrate con la sesión del admin.
+              const cur = window.WH.TokenStore.get() || {};
+              delete cur.user;
+              delete cur.current_tenant;
+              window.WH.TokenStore.set({ ...cur, access_token: data.access_token });
+            } else {
+              localStorage.setItem("wowhub_access_token", data.access_token);
+              localStorage.removeItem("wowhub.tokens");
+              localStorage.removeItem("wowhub.currentTenant");
+            }
+            try { window.WH.Auth._sessionPromise = null; } catch (_) {}
+          } catch (_) {}
         }
         hideBanner();
         window.location.href = "/admin/superadmin";
