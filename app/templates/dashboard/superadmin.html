@@ -51,6 +51,16 @@
   .sa-modal select, .sa-modal input { width: 100%; padding: 8px 10px; background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; border-radius: 6px; }
   .sa-modal-actions { display:flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
   .sa-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sa-btn-imp { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+  .sa-btn-imp:hover { background: #6d28d9; }
+  .sa-modal.warning { border: 2px solid #f59e0b; }
+  .sa-modal.warning h3 { color: #fbbf24; }
+  .sa-modal .warn-list { background: #1c1917; border: 1px solid #44403c; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #e7e5e4; margin: 10px 0; }
+  .sa-modal .warn-list li { margin: 4px 0; }
+  .sa-modal .imp-target { background: #1e1b4b; border: 1px solid #4c1d95; border-radius: 6px; padding: 12px; margin: 10px 0; }
+  .sa-modal .imp-target .imp-name { font-size: 15px; font-weight: 600; color: #fff; }
+  .sa-modal .imp-target .imp-email { font-size: 12px; color: #a5b4fc; }
+  .sa-modal .imp-target .imp-meta { font-size: 11px; color: #c4b5fd; margin-top: 4px; }
 </style>
 {% endblock %}
 
@@ -155,9 +165,10 @@
               <th>Activo</th>
               <th>Superuser</th>
               <th>Acciones</th>
+              <th>Login As</th>
             </tr>
           </thead>
-          <tbody><tr><td colspan="7" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+          <tbody><tr><td colspan="8" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -210,6 +221,25 @@
     <div class="sa-modal-actions">
       <button class="sa-btn" data-close="sa-su-modal">Cancelar</button>
       <button class="sa-btn sa-btn-primary" id="sa-su-confirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmar impersonación (Login As) -->
+<div class="sa-modal-bg" id="sa-imp-modal">
+  <div class="sa-modal warning">
+    <h3>🛡️ Acceder como este usuario</h3>
+    <div class="imp-target" id="sa-imp-target"></div>
+    <p style="font-size: 13px; margin: 8px 0;">Vas a entrar al dashboard con la identidad de este usuario. Todas tus acciones quedarán registradas en auditoría con tu identidad original de superadmin.</p>
+    <ul class="warn-list">
+      <li>⏱️ <strong>Duración:</strong> 60 minutos (auto-expira)</li>
+      <li>🔴 Un banner rojo aparecerá en TODAS las páginas mientras dure la sesión</li>
+      <li>👁️ Verás el negocio como si fueras este usuario (no tendrás permisos de superuser)</li>
+      <li>🚪 Para salir antes: botón "Salir de impersonación" en el banner</li>
+    </ul>
+    <div class="sa-modal-actions">
+      <button class="sa-btn" data-close="sa-imp-modal">Cancelar</button>
+      <button class="sa-btn sa-btn-imp" id="sa-imp-confirm">🛡️ Sí, entrar como este usuario</button>
     </div>
   </div>
 </div>
@@ -395,13 +425,17 @@ async function loadUsers() {
     params.set("limit", "200");
     const data = await saApi("/api/v1/superadmin/users?" + params.toString());
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="sa-empty">Sin usuarios.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="sa-empty">Sin usuarios.</td></tr>';
       return;
     }
     tbody.innerHTML = data.map(u => {
       const tenantsHtml = u.tenants.length
         ? u.tenants.map(t => `<span class="sa-pill sa-pill-trial sa-truncate" title="${esc(t)}">${esc(t)}</span>`).join(" ")
         : '<span style="color:var(--ai-text-dim);">—</span>';
+      // Botón "Acceder como" sólo para usuarios que no son superuser.
+      const loginAsBtn = !u.is_superuser
+        ? `<button class="sa-btn sa-btn-imp sa-impersonate" data-id="${u.id}" data-email="${esc(u.email)}" data-name="${esc(u.full_name)}" data-tenants="${esc(u.tenants.join(' | '))}">🛡️ Acceder</button>`
+        : '<span style="color:var(--ai-text-dim);font-size:11px;">no permitido</span>';
       return `<tr data-id="${u.id}">
         <td>${esc(u.email)}</td>
         <td>${esc(u.full_name)}</td>
@@ -413,10 +447,11 @@ async function loadUsers() {
           <button class="sa-btn sa-toggle-su" data-id="${u.id}" data-su="${u.is_superuser}">${u.is_superuser?'Revocar SU':'Promover a SU'}</button>
           <button class="sa-btn sa-toggle-user-active" data-id="${u.id}" data-active="${u.is_active}">${u.is_active?'Desactivar':'Activar'}</button>
         </td>
+        <td>${loginAsBtn}</td>
       </tr>`;
     }).join("");
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -528,7 +563,59 @@ document.addEventListener("click", (e) => {
     toggleUserActive(t.dataset.id, t.dataset.active === "true");
     return;
   }
+  // impersonar
+  if (t.classList && t.classList.contains("sa-impersonate")) {
+    openImpersonateModal(t.dataset.id, t.dataset.email, t.dataset.name, t.dataset.tenants);
+    return;
+  }
 });
+
+// ── Impersonación (Login As) ──────────────────────
+let pendingImpersonate = null;
+function openImpersonateModal(userId, email, name, tenants) {
+  pendingImpersonate = { user_id: userId, email, name, tenants };
+  $("sa-imp-target").innerHTML = `
+    <div class="imp-name">${esc(name || "(sin nombre)")}</div>
+    <div class="imp-email">${esc(email)}</div>
+    <div class="imp-meta">Tenants: ${esc(tenants || "—")}</div>
+  `;
+  $("sa-imp-modal").classList.add("open");
+}
+async function confirmImpersonate() {
+  if (!pendingImpersonate) return;
+  const btn = $("sa-imp-confirm");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Entrando…";
+  try {
+    const result = await saSend("POST", `/api/v1/superadmin/impersonate/${pendingImpersonate.user_id}`, {});
+    $("sa-imp-modal").classList.remove("open");
+    // Persistir el nuevo token en localStorage para que el resto del dashboard
+    // (que lee de localStorage) lo use, y redirigir.
+    try {
+      if (window.WH && window.WH.TokenStore && result.access_token) {
+        const cur = window.WH.TokenStore.get() || {};
+        window.WH.TokenStore.set({
+          ...cur,
+          access_token: result.access_token,
+        });
+      } else if (result.access_token) {
+        localStorage.setItem("wowhub_access_token", result.access_token);
+        const cur = JSON.parse(localStorage.getItem("wowhub.tokens") || "{}");
+        cur.access_token = result.access_token;
+        localStorage.setItem("wowhub.tokens", JSON.stringify(cur));
+      }
+    } catch (e) {
+      console.warn("[impersonate] could not persist token to localStorage:", e);
+    }
+    // Redirigir al dashboard (la cookie httpOnly también se actualizó server-side).
+    window.location.href = result.redirect || "/dashboard";
+  } catch (e) {
+    alert("Error al impersonar: " + e.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   $("sa-refresh-all").addEventListener("click", () => { loadKpis(); loadTenants(); });
@@ -537,6 +624,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("sa-audit-apply").addEventListener("click", loadAudit);
   $("sa-tenant-save").addEventListener("click", saveEditTenant);
   $("sa-su-confirm").addEventListener("click", confirmSu);
+  $("sa-imp-confirm").addEventListener("click", confirmImpersonate);
   $("sa-tenant-q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadTenants(); });
   $("sa-user-q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadUsers(); });
 

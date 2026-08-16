@@ -3,9 +3,59 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
+<style>
+  /* Banner de impersonación — rojo, persistente, imposible de ignorar */
+  #imp-banner {
+    display: none;
+    position: sticky; top: 0; z-index: 9999;
+    background: linear-gradient(90deg, #b91c1c 0%, #7f1d1d 50%, #b91c1c 100%);
+    color: #fff;
+    padding: 10px 18px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid #fca5a5;
+    animation: imp-pulse 2s ease-in-out infinite;
+  }
+  #imp-banner.shown { display: flex !important; }
+  @keyframes imp-pulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 0 0 0 rgba(252,165,165,.0); }
+    50% { box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 0 0 4px rgba(252,165,165,.4); }
+  }
+  #imp-banner .imp-icon { font-size: 18px; }
+  #imp-banner .imp-text { flex: 1 1 auto; }
+  #imp-banner .imp-text strong { color: #fff; }
+  #imp-banner .imp-text .imp-target { color: #fef3c7; font-weight: 600; }
+  #imp-banner .imp-text .imp-admin { color: #fde68a; font-size: 11px; }
+  #imp-banner .imp-timer {
+    background: rgba(0,0,0,.3); padding: 4px 10px; border-radius: 12px;
+    font-family: monospace; font-size: 12px; color: #fef3c7;
+  }
+  #imp-banner .imp-timer.expired { background: #1c1917; color: #fca5a5; animation: imp-blink 0.5s infinite; }
+  @keyframes imp-blink { 50% { opacity: 0.4; } }
+  #imp-banner button.imp-stop {
+    background: #fff; color: #b91c1c; border: none; padding: 6px 14px;
+    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;
+  }
+  #imp-banner button.imp-stop:hover { background: #fef3c7; }
+  #imp-banner button.imp-stop:disabled { background: #ccc; color: #666; cursor: not-allowed; }
+</style>
 {% endblock %}
 
 {% block topbar %}
+<div id="imp-banner" role="alert" aria-live="assertive">
+  <span class="imp-icon">🛡️</span>
+  <div class="imp-text">
+    <strong>IMPERSONACIÓN ACTIVA</strong> —
+    Estás viendo el dashboard como
+    <span class="imp-target" id="imp-banner-target">…</span>
+    <div class="imp-admin" id="imp-banner-admin">Sesión original: …</div>
+  </div>
+  <span class="imp-timer" id="imp-banner-timer">--:--</span>
+  <button class="imp-stop" id="imp-banner-stop">🚪 Salir de impersonación</button>
+</div>
 <header class="topbar">
   <a class="brand" href="/dashboard">
     <span class="brand-mark">W</span>
@@ -110,6 +160,142 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
       a.classList.add("active");
     }
   });
+})();
+
+// ── Banner de impersonación (countdown + salir) ───────────
+(function impersonationBanner() {
+  const banner   = document.getElementById("imp-banner");
+  const targetEl = document.getElementById("imp-banner-target");
+  const adminEl  = document.getElementById("imp-banner-admin");
+  const timerEl  = document.getElementById("imp-banner-timer");
+  const stopBtn  = document.getElementById("imp-banner-stop");
+  if (!banner || !targetEl || !adminEl || !timerEl || !stopBtn) return;
+
+  function getToken() {
+    try {
+      if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === "function") {
+        return window.WH.TokenStore.access();
+      }
+    } catch (_) {}
+    return localStorage.getItem("wowhub_access_token");
+  }
+
+  function decodeJwtPayload(token) {
+    try {
+      const parts = String(token || "").split(".");
+      if (parts.length < 2) return null;
+      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(b64));
+    } catch (_) { return null; }
+  }
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function formatRemaining(ms) {
+    if (ms <= 0) return "00:00";
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h > 0 ? pad(h) + ":" + pad(m) + ":" + pad(s) : pad(m) + ":" + pad(s);
+  }
+
+  let countdownInterval = null;
+  let currentImp = null;
+
+  function showBanner(imp) {
+    currentImp = imp;
+    targetEl.textContent = imp.full_name
+      ? imp.full_name + " (" + (imp.email || "—") + ")"
+      : (imp.email || "Usuario impersonado");
+    adminEl.textContent = imp.admin_email
+      ? "Sesión original: " + imp.admin_email
+      : "Sesión original: superusuario";
+    banner.classList.add("shown");
+
+    function tick() {
+      if (!currentImp || !currentImp.expires_at) {
+        timerEl.textContent = "--:--";
+        return;
+      }
+      const exp = new Date(currentImp.expires_at).getTime();
+      const ms  = exp - Date.now();
+      if (ms <= 0) {
+        timerEl.textContent = "00:00";
+        timerEl.classList.add("expired");
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        stopBtn.disabled = true;
+        stopBtn.textContent = "⏱ Expirado — saliendo…";
+        setTimeout(function () { doStop(true); }, 1500);
+        return;
+      }
+      timerEl.textContent = formatRemaining(ms);
+      timerEl.classList.remove("expired");
+    }
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+  }
+
+  function hideBanner() {
+    banner.classList.remove("shown");
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  }
+
+  async function doStop(autoExpired) {
+    if (stopBtn.disabled) return;
+    stopBtn.disabled = true;
+    const original = stopBtn.textContent;
+    stopBtn.textContent = "Saliendo…";
+    try {
+      const r = await fetch("/api/v1/superadmin/stop-impersonating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (r.ok) {
+        const data = await r.json().catch(function () { return {}; });
+        if (data && data.access_token) {
+          try { localStorage.setItem("wowhub_access_token", data.access_token); } catch (_) {}
+        }
+        hideBanner();
+        window.location.href = "/admin/superadmin";
+      } else {
+        stopBtn.disabled = false;
+        stopBtn.textContent = original;
+        if (!autoExpired) alert("No se pudo salir de la impersonación. Intenta de nuevo.");
+      }
+    } catch (e) {
+      stopBtn.disabled = false;
+      stopBtn.textContent = original;
+      if (!autoExpired) alert("Error de red al salir de la impersonación.");
+    }
+  }
+
+  stopBtn.addEventListener("click", function () { doStop(false); });
+
+  function init() {
+    const tk = getToken();
+    if (!tk) return;
+    const payload = decodeJwtPayload(tk);
+    if (!payload) return;
+    const imp = payload.imp;
+    if (!imp || !imp.uid) return;
+    if (imp.expires_at) {
+      const exp = new Date(imp.expires_at).getTime();
+      if (isNaN(exp) || exp <= Date.now()) {
+        try { localStorage.removeItem("wowhub_access_token"); } catch (_) {}
+        return;
+      }
+    }
+    if (!imp.admin_email && payload.sub) {
+      imp.admin_email = payload.sub;
+    }
+    showBanner(imp);
+  }
+  init();
 })();
 
 // ── Mostrar/ocultar links según rol ───────────────────────
