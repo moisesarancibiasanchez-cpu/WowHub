@@ -4,7 +4,7 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 16 de agosto de 2026.
-> **Versión:** v1.0 (alineado con Bookings Fase 2).
+> **Versión:** v1.3 (impersonación de superuser habilitada).
 
 ---
 
@@ -131,6 +131,8 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿Cuánto cuesta WowHub?" | "Depende del plan. Revisa la sección de **Planes** en la landing o pregúntale al equipo de ventas." |
 | "Quiero eliminar mi cuenta" | "Por seguridad, la eliminación de cuenta se hace escribiendo a **soporte@wowhub.app**." |
 | "¿Cómo conecto WhatsApp?" | "En **Configuración → Integraciones** (cuando esté disponible). Hoy puedes compartir el link público por WhatsApp manualmente." |
+| "El superadmin entró a mi tienda, ¿puede ver mis conversaciones del asistente?" | "Sí. Cuando un superuser usa 'Entrar como admin', obtiene la sesión completa del dueño, incluyendo todas sus conversaciones del asistente virtual. Esto es una función administrativa, no es un acceso oculto. Toda entrada y salida queda registrada en la auditoría." |
+| "¿Cómo salgo si el superadmin entró a mi tienda?" | "El superadmin siempre usa el botón '🚪 Salir' del banner de impersonación; vos como dueño no notás nada en tu sesión normal." |
 
 ---
 
@@ -148,6 +150,7 @@ Si la IA no está segura, debe decir **"no tengo esa información"** antes que i
 - ❌ No hay "Cambiar de plan" desde el chat (se hace en la landing).
 - ❌ No hay "Multi-idioma" todavía.
 - ❌ No hay "Borrar tenant" desde el chat.
+- ❌ **No** existe un botón "Login As" o "Entrar como admin" visible para usuarios normales; la función de impersonación es exclusiva del superuser y solo se muestra dentro de `/admin/superadmin`.
 
 ---
 
@@ -178,6 +181,7 @@ Este handoff queda implementado en `app/services/ai_orchestrator.py` con la regl
 - v1.0 (16-ago-2026): documento inicial alineado con Bookings Fase 2, 12 módulos en panel, 4 tools de lectura + 4 de escritura + 1 de ayuda.
 - v1.1 (16-ago-2026): corregida ruta real de Admin IA (`/admin/ai`, antes erróneamente `/dashboard/admin/ai`). Agregada nota sobre guard de rol server-side.
 - **v1.2 (16-ago-2026)**: agregado módulo **SUPERADMIN** (panel de plataforma). 13 módulos en panel. Nuevo guard `require_superuser`. Nuevo claim `is_superuser` en JWT. Nueva ruta `/admin/superadmin` y endpoints `/api/v1/superadmin/*`. Script CLI `python -m scripts.promote_superuser --email ... --grant`.
+- **v1.3 (16-ago-2026)**: habilitada **impersonación de superuser** ("Login As" / "Entrar como admin"). Nuevos endpoints `POST /api/v1/superadmin/users/{id}/impersonate`, `POST /api/v1/superadmin/users/{id}/impersonate-tenant/{slug}`, `POST /api/v1/superadmin/impersonate/stop` y `GET /api/v1/superadmin/tenants/{id}/owner`. Claim JWT `imp={uid, tid, exp}`. Banner persistente de impersonación en `base.html`. Bug fix: limpiado `user`/`current_tenant` stale del localStorage en `confirmImpersonate` y `doStop` para resolver el "Cargando..." infinito. **Actualizado §11 y §7**: ya NO es cierto que el superuser no pueda impersonar; ahora sí puede y la IA debe reconocerlo.
 - Próxima: cuando se agregue el módulo de Fidelización a tools IA.
 
 ---
@@ -201,21 +205,27 @@ A diferencia de los roles de membresía (OWNER/ADMIN/STAFF/VIEWER), un superuser
 | GET | `/api/v1/superadmin/stats` | KPIs globales: tenants (total/activos/trial/suspended), usuarios, superusers, growth 7d/30d. |
 | GET | `/api/v1/superadmin/tenants?q=&status=&plan=&limit=&offset=` | Listar todos los tenants con filtros. |
 | GET | `/api/v1/superadmin/tenants/{tenant_id}` | Detalle de un tenant (incluye `members_count`). |
+| GET | `/api/v1/superadmin/tenants/{tenant_id}/owner` | Devuelve el owner (o miembro primario activo) del tenant. Usado por el botón "Entrar como admin" en la tab Tiendas. |
 | PATCH | `/api/v1/superadmin/tenants/{tenant_id}` | Actualizar `plan`, `status`, `is_active`, `display_name`. |
 | GET | `/api/v1/superadmin/users?q=&is_active=&is_superuser=&limit=&offset=` | Listar todos los usuarios. |
 | GET | `/api/v1/superadmin/users/{user_id}` | Detalle de un usuario (incluye `tenants[]`). |
 | PATCH | `/api/v1/superadmin/users/{user_id}` | Actualizar `is_active`, `full_name`, `default_role`. |
 | POST | `/api/v1/superadmin/users/{user_id}/superuser` | Promover o revocar `is_superuser`. Regla: no se puede revocar al único superuser activo. |
+| POST | `/api/v1/superadmin/users/{user_id}/impersonate` | Inicia sesión como el usuario objetivo (sin tenant). Devuelve access_token con claim `imp={uid, tid, exp}`. |
+| POST | `/api/v1/superadmin/users/{user_id}/impersonate-tenant/{slug}` | Inicia sesión como el usuario objetivo dentro de un tenant específico. |
+| POST | `/api/v1/superadmin/impersonate/stop` | Termina la impersonación y devuelve un nuevo access_token con la sesión del superuser original. |
 | GET | `/api/v1/superadmin/audit?action_prefix=&actor_user_id=&page=&page_size=` | Logs de auditoría cross-tenant. |
 
 ### 11.3 UI: `/admin/superadmin`
 
 Una sola página con 3 pestañas:
-- **Tiendas**: tabla con búsqueda + filtros por `status` y `plan`. Acciones: Editar (modal con plan/status/activo/display name) y Suspender/Activar.
-- **Usuarios**: tabla con búsqueda + filtro activo/superuser. Acciones: Promover/Revocar SUPER (con modal de confirmación) y Activar/Desactivar.
+- **Tiendas**: tabla con búsqueda + filtros por `status` y `plan`. Acciones: **🛡️ Entrar como admin** (detecta automáticamente al owner vía `/tenants/{id}/owner` y abre el modal de impersonación directo), Editar (modal con plan/status/activo/display name) y Suspender/Activar.
+- **Usuarios**: tabla con búsqueda + filtro activo/superuser. Acciones: **🛡️ Login As** (modal de impersonación con campo de tenant opcional), Promover/Revocar SUPER (con modal de confirmación) y Activar/Desactivar.
 - **Auditoría**: tabla con filtro por prefijo de action. Read-only.
 
 KPIs globales arriba: tenants totales, activos, trial, suspended, usuarios, superusers, nuevos 7d.
+
+Durante una sesión de impersonación, la página muestra un **banner persistente** en la parte superior con: nombre del superuser, nombre del usuario impersonado, tenant activo, y botón "🚪 Salir" que llama a `/api/v1/superadmin/impersonate/stop`.
 
 ### 11.4 Bootstrap
 
@@ -252,4 +262,55 @@ Listadas en `user_input_files/pasted-text-2026-08-16T02-29-33.txt` y priorizadas
 - ❌ **No** hay un "Registro como superuser" — el flag solo se otorga manualmente (script CLI o desde la UI por otro superuser).
 - ❌ El superuser **no** es un plan ni un add-on de pago.
 - ❌ El superuser **no** puede ver contraseñas en claro de otros usuarios.
-- ❌ El superuser **no** puede impersonar sesiones de otros usuarios (todavía).
+- ❌ Un usuario regular **no** puede iniciar una sesión de impersonación — solo un superuser activo y desde `/admin/superadmin`.
+- ❌ La impersonación **no** persiste al refrescar el token; está atada al `access_token` actual con el claim `imp` y un `exp` corto. Al refrescar, el claim se descarta.
+- ❌ Un superuser **no** puede impersonar a otro superuser (devuelve 403).
+
+### 11.7 Mecánica técnica de la impersonación (Login As)
+
+- **JWT con claim `imp`:** el access_token emitido por los endpoints de impersonación incluye un objeto `imp = { uid: <target_user_id>, tid: <target_tenant_id or null>, exp: <epoch_unix_max> }` además de los claims estándar (`sub` sigue siendo el superuser original).
+- **Resolución server-side (`app/deps.py → _resolve_impersonation`):** después de validar el JWT, si existe `imp` y su `exp` no expiró, el `get_current_user` retorna el **usuario target** en lugar del sub del JWT. `get_current_membership` busca por `imp.tid` y `user.id` (target), no por el sub.
+- **Manejo de cookies + localStorage:** la sesión de impersonación emite cookies httpOnly (`wh_session`) Y expone el token en el body para que el frontend lo guarde en `WH.TokenStore` bajo `wowhub.tokens`. El frontend limpia los campos stale `user` y `current_tenant` antes de redirigir a `/dashboard` para forzar rehidratación desde `/api/v1/auth/me/session`.
+- **Banner persistente (`base.html`):** un fragmento JS detecta el claim `imp` en el JWT, pinta un banner con datos del superuser/target/tenant y expone el botón "🚪 Salir".
+- **Salir (`doStop`):** `POST /api/v1/superadmin/impersonate/stop` retorna un nuevo access_token **sin** el claim `imp` y limpia cookies/TokenStore. El frontend borra `user`/`current_tenant` stale para que la siguiente página se rehidrate con la sesión del superuser.
+- **Auditoría:** cada `impersonate` y `impersonate/stop` registra un evento en `AuditLog` con `actor_user_id` (superuser), `target_user_id` (impersonado) y `action` ∈ {`superadmin.impersonate.start`, `superadmin.impersonate.stop`}.
+- **Restricciones de seguridad:**
+  - El target **no** puede ser un superuser (devuelve 403).
+  - El target debe estar `is_active=True` (devuelve 403 si no).
+  - El superuser **debe** conservar al menos un refresh token válido para poder salir de la impersonación.
+  - El claim `imp.exp` es ≤ 60 minutos; la sesión se autolimpia pasada esa ventana incluso si el superuser no hace "Salir".
+
+---
+
+## 12. Impersonación desde la perspectiva del dueño y del superuser
+
+### 12.1 Qué es
+
+La **impersonación** (también llamada "Login As" o "Entrar como admin") es una función exclusiva del superuser que le permite iniciar sesión **como si fuera el dueño o admin de cualquier tienda**, sin pedirle la contraseña. El objetivo es soporte, debugging y auditoría en nombre del cliente.
+
+### 12.2 Flujo del superuser (en `/admin/superadmin`)
+
+1. **Tab Tiendas** → click en **🛡️ Entrar como admin** en la fila de la tienda. El sistema llama automáticamente a `GET /api/v1/superadmin/tenants/{id}/owner` para detectar al owner. Se abre el modal de impersonación con los datos del owner ya cargados.
+2. **Tab Usuarios** → click en **🛡️ Login As** sobre cualquier usuario no-superuser y no-inactivo. Se abre el modal de impersonación con un campo opcional para elegir tenant.
+3. El modal muestra: nombre, email, rol y tenant (si aplica). El superuser confirma y es redirigido a `/dashboard` ya con la sesión del target.
+4. Un **banner rojo persistente** en la parte superior indica: `🛡️ IMPERSONACIÓN ACTIVA — Entrando como {nombre_target} en {tenant}`.
+5. El superuser navega libremente: ve el dashboard, productos, reservas, clientes, **y todas las conversaciones del asistente virtual** del usuario impersonado.
+6. Cuando termina, click en **🚪 Salir** del banner → vuelve a su sesión de superuser.
+
+### 12.3 Qué ve y qué puede hacer el superuser durante la impersonación
+
+- **Ve:** toda la data del tenant (productos, pedidos, clientes, reservas, campañas, configuración, **conversaciones del asistente IA del usuario target**).
+- **Puede hacer:** todo lo que el usuario target puede hacer según su rol de membresía en ese tenant (OWNER puede todo; ADMIN no puede borrar el tenant; STAFF/VIEWER están restringidos por su rol).
+- **No ve:** otros tenants del target (la sesión está limitada al `imp.tid` actual).
+- **No puede:** cambiar la contraseña del target, promoverlo a superuser, ni impersonar a otro superuser.
+
+### 12.4 Restricciones y auditoría
+
+- Toda sesión de impersonación queda registrada en `AuditLog` con `action ∈ {superadmin.impersonate.start, superadmin.impersonate.stop}`, incluyendo `actor_user_id` (superuser), `target_user_id` (impersonado), `tenant_id` y timestamp.
+- El banner es **obligatorio** en todas las páginas renderizadas con `base.html`; no se puede ocultar con CSS porque el frontend renderiza el banner desde JS contra el claim `imp` del JWT.
+- El dueño del tenant, al iniciar sesión normalmente, **no ve el banner** porque su JWT no contiene el claim `imp`. Su sesión no se ve afectada.
+- Si el dueño del tenant quiere saber si fue impersonado, puede pedir a soporte el reporte de auditoría filtrado por su `tenant_id`.
+
+### 12.5 Bug conocido y resolución (histórico)
+
+- **v1.3-fix:** durante un breve período en v1.3, después de una impersonación exitosa el dashboard quedaba en "Cargando..." infinito. La causa fue que `Auth.ensureSession()` retornaba una sesión cacheada desde localStorage con `user` y `current_tenant` stale del superuser, sin rehidratar desde el backend. **Solución:** `confirmImpersonate()` y `doStop()` ahora limpian los campos stale (`user`, `current_tenant`) y resetean `_sessionPromise` antes de redirigir, forzando una rehidratación limpia desde `/api/v1/auth/me/session`.
