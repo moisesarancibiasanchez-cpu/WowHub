@@ -157,3 +157,46 @@ def require_role(*allowed: UserRole):
             raise ForbiddenError(f"Requiere rol: {', '.join(allowed_vals)}")
         return membership
     return _checker
+
+
+def _peek_jwt_superuser(request: Request) -> bool:
+    """Lee el claim `is_superuser` del JWT (sin tocar la BD).
+
+    Si el claim no está (tokens emitidos antes de este cambio) o el token
+    es inválido, devuelve False. La verificación final de DB se hace en
+    `require_superuser`."""
+    payload = _peek_jwt_payload(request)
+    val = payload.get("is_superuser")
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int,)):
+        return bool(val)
+    if isinstance(val, str):
+        return val.lower() in ("1", "true", "yes", "y", "t")
+    return False
+
+
+def require_superuser(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> User:
+    """Guard: requiere que el usuario sea SUPERUSER de plataforma.
+
+    Estrategia de doble verificación:
+    1) Claim `is_superuser` del JWT (rápido, sin BD).
+    2) Si falla el claim, fallback a `user.is_superuser` en BD (fuente de verdad).
+
+    El flag es a nivel de USUARIO (no de membresía): un superuser ve TODOS
+    los tenants y puede ejecutar acciones cross-tenant.
+    """
+    if _peek_jwt_superuser(request):
+        return user
+    if bool(getattr(user, "is_superuser", False)):
+        return user
+    raise ForbiddenError("Requiere rol SUPERADMIN de plataforma")
+
+
+def is_superuser(user: Optional[User]) -> bool:
+    """Helper: chequea is_superuser sin lanzar excepciones. Para guards opcionales."""
+    return bool(user and getattr(user, "is_superuser", False))

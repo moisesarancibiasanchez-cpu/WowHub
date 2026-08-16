@@ -1,0 +1,547 @@
+{% extends "dashboard/base.html" %}
+{% block title %}SUPERADMIN · WowHub{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ai.css">
+<style>
+  .sa-wrap { max-width: 1400px; margin: 0 auto; }
+  .sa-banner { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: #fff; padding: 18px 22px; border-radius: 10px; margin-bottom: 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 12px; }
+  .sa-banner h1 { margin: 0; font-size: 20px; }
+  .sa-banner small { opacity: .85; }
+  .sa-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .sa-kpi { background: var(--ai-panel); border: 1px solid var(--ai-border, #1f2937); border-radius: 10px; padding: 16px; }
+  .sa-kpi h4 { margin: 0 0 8px 0; font-size: 12px; color: var(--ai-text-dim); text-transform: uppercase; letter-spacing: .5px; }
+  .sa-kpi .num { font-size: 28px; font-weight: 700; }
+  .sa-kpi .meta { font-size: 11px; color: var(--ai-text-dim); margin-top: 4px; }
+  .sa-section { background: var(--ai-panel); border: 1px solid var(--ai-border, #1f2937); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+  .sa-section h2 { margin: 0 0 12px 0; font-size: 16px; display:flex; align-items:center; gap: 8px; }
+  .sa-section h2 .badge { background: #7c3aed; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
+  .sa-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ai-border, #1f2937); margin-bottom: 14px; flex-wrap: wrap; }
+  .sa-tab { padding: 8px 14px; cursor: pointer; border: none; background: transparent; color: var(--ai-text-dim); border-bottom: 2px solid transparent; font-size: 13px; }
+  .sa-tab.active { color: var(--ai-text, #e2e8f0); border-bottom-color: #7c3aed; }
+  .sa-tab:hover { color: var(--ai-text, #e2e8f0); }
+  .sa-filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .sa-filters input, .sa-filters select { padding: 6px 10px; background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; border-radius: 6px; font-size: 13px; }
+  .sa-filters input { min-width: 200px; }
+  .sa-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sa-table th { text-align: left; padding: 8px 10px; background: #0b1220; color: var(--ai-text-dim); font-weight: 500; border-bottom: 1px solid #1f2937; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  .sa-table td { padding: 8px 10px; border-bottom: 1px solid #1f2937; }
+  .sa-table tr:hover td { background: rgba(124, 58, 237, 0.05); }
+  .sa-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .sa-pill-active { background: #065f46; color: #6ee7b7; }
+  .sa-pill-trial { background: #1e3a8a; color: #93c5fd; }
+  .sa-pill-suspended { background: #7f1d1d; color: #fca5a5; }
+  .sa-pill-canceled { background: #374151; color: #9ca3af; }
+  .sa-pill-past_due { background: #92400e; color: #fcd34d; }
+  .sa-pill-on { background: #065f46; color: #6ee7b7; }
+  .sa-pill-off { background: #7f1d1d; color: #fca5a5; }
+  .sa-pill-su { background: #7c3aed; color: #fff; }
+  .sa-btn { padding: 5px 10px; border: 1px solid #1f2937; background: #0b1220; color: #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .sa-btn:hover { background: #1f2937; }
+  .sa-btn-danger { color: #fca5a5; border-color: #7f1d1d; }
+  .sa-btn-primary { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+  .sa-btn-primary:hover { background: #6d28d9; }
+  .sa-empty { text-align: center; padding: 28px; color: var(--ai-text-dim); font-size: 13px; }
+  .sa-fatal { background: #7f1d1d; color: #fff; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display:none; }
+  .sa-pagination { display:flex; gap: 6px; align-items:center; margin-top: 12px; font-size: 12px; color: var(--ai-text-dim); }
+  .sa-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 24px; }
+  .sa-modal-bg.open { display: flex; }
+  .sa-modal { background: var(--ai-panel); border-radius: 10px; max-width: 480px; width: 100%; padding: 22px; }
+  .sa-modal h3 { margin-top: 0; }
+  .sa-modal label { display:block; margin: 8px 0 4px; font-size: 12px; color: var(--ai-text-dim); }
+  .sa-modal select, .sa-modal input { width: 100%; padding: 8px 10px; background: #0b1220; color: #e2e8f0; border: 1px solid #1f2937; border-radius: 6px; }
+  .sa-modal-actions { display:flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .sa-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sa-wrap">
+  <div class="sa-fatal" id="sa-fatal"></div>
+
+  <div class="sa-banner">
+    <div>
+      <h1>🛡️ Panel SUPERADMIN — Plataforma</h1>
+      <small>Sesión iniciada como <strong>{{ user_name }}</strong> ({{ user_email }})</small>
+    </div>
+    <div>
+      <button class="sa-btn" id="sa-refresh-all">↻ Refrescar todo</button>
+    </div>
+  </div>
+
+  <!-- KPIs globales -->
+  <div class="sa-kpi-grid" id="sa-kpis">
+    <div class="sa-kpi"><h4>Tenants totales</h4><div class="num" data-kpi="total_tenants">—</div></div>
+    <div class="sa-kpi"><h4>Activos</h4><div class="num" data-kpi="active_tenants">—</div></div>
+    <div class="sa-kpi"><h4>En trial</h4><div class="num" data-kpi="trial_tenants">—</div></div>
+    <div class="sa-kpi"><h4>Suspendidos</h4><div class="num" data-kpi="suspended_tenants">—</div></div>
+    <div class="sa-kpi"><h4>Usuarios totales</h4><div class="num" data-kpi="total_users">—</div></div>
+    <div class="sa-kpi"><h4>Superusers</h4><div class="num" data-kpi="superusers">—</div></div>
+    <div class="sa-kpi"><h4>Tenants nuevos 7d</h4><div class="num" data-kpi="new_tenants_7d">—</div></div>
+    <div class="sa-kpi"><h4>Usuarios nuevos 7d</h4><div class="num" data-kpi="new_users_7d">—</div></div>
+  </div>
+
+  <div class="sa-section">
+    <div class="sa-tabs">
+      <button class="sa-tab active" data-pane="tenants">Tiendas</button>
+      <button class="sa-tab" data-pane="users">Usuarios</button>
+      <button class="sa-tab" data-pane="audit">Auditoría</button>
+    </div>
+
+    <!-- Tiendas -->
+    <div class="sa-pane" data-pane="tenants">
+      <div class="sa-filters">
+        <input id="sa-tenant-q" placeholder="Buscar por slug o nombre…">
+        <select id="sa-tenant-status">
+          <option value="">Todos los estados</option>
+          <option value="trial">trial</option>
+          <option value="active">active</option>
+          <option value="past_due">past_due</option>
+          <option value="suspended">suspended</option>
+          <option value="canceled">canceled</option>
+        </select>
+        <select id="sa-tenant-plan">
+          <option value="">Todos los planes</option>
+          <option value="free">free</option>
+          <option value="grow">grow</option>
+          <option value="pro">pro</option>
+          <option value="business">business</option>
+        </select>
+        <button class="sa-btn sa-btn-primary" id="sa-tenant-apply">Aplicar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="sa-table" id="sa-tenants-table">
+          <thead>
+            <tr>
+              <th>Slug</th>
+              <th>Nombre</th>
+              <th>Industria</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Activo</th>
+              <th>Miembros</th>
+              <th>Health</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="9" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Usuarios -->
+    <div class="sa-pane" data-pane="users" style="display:none;">
+      <div class="sa-filters">
+        <input id="sa-user-q" placeholder="Buscar por email o nombre…">
+        <select id="sa-user-active">
+          <option value="">Todos</option>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
+        <select id="sa-user-su">
+          <option value="">Cualquier rol</option>
+          <option value="true">Solo superusers</option>
+          <option value="false">No superusers</option>
+        </select>
+        <button class="sa-btn sa-btn-primary" id="sa-user-apply">Aplicar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="sa-table" id="sa-users-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Nombre</th>
+              <th>Rol</th>
+              <th>Tenants</th>
+              <th>Activo</th>
+              <th>Superuser</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="7" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Auditoría -->
+    <div class="sa-pane" data-pane="audit" style="display:none;">
+      <div class="sa-filters">
+        <input id="sa-audit-prefix" placeholder="Prefijo de action (ej: superadmin, auth, tenant)">
+        <button class="sa-btn sa-btn-primary" id="sa-audit-apply">Aplicar</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="sa-table" id="sa-audit-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Recurso</th>
+              <th>Método</th>
+              <th>Path</th>
+              <th>Status</th>
+              <th>IP</th>
+              <th>Descripción</th>
+            </tr>
+          </thead>
+          <tbody><tr><td colspan="9" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: editar tenant -->
+<div class="sa-modal-bg" id="sa-tenant-modal">
+  <div class="sa-modal">
+    <h3>Editar tenant</h3>
+    <div id="sa-tenant-modal-body"></div>
+    <div class="sa-modal-actions">
+      <button class="sa-btn" data-close="sa-tenant-modal">Cancelar</button>
+      <button class="sa-btn sa-btn-primary" id="sa-tenant-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: confirmar toggle superuser -->
+<div class="sa-modal-bg" id="sa-su-modal">
+  <div class="sa-modal">
+    <h3 id="sa-su-title">Cambiar superuser</h3>
+    <p id="sa-su-body">¿Confirmas la acción?</p>
+    <div class="sa-modal-actions">
+      <button class="sa-btn" data-close="sa-su-modal">Cancelar</button>
+      <button class="sa-btn sa-btn-primary" id="sa-su-confirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showFatal(msg) {
+  const b = document.getElementById("sa-fatal");
+  if (b) { b.textContent = msg; b.style.display = "block"; }
+  console.error("[superadmin] fatal:", msg);
+}
+window.addEventListener("error", (e) => showFatal(e.message || "Error"));
+window.addEventListener("unhandledrejection", (e) => showFatal((e.reason && (e.reason.message || e.reason.toString())) || "Promise"));
+
+const $ = (id) => document.getElementById(id);
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function getAuth() {
+  if (window.WH && window.WH.TokenStore) {
+    return { token: window.WH.TokenStore.access(), tenant_id: window.WH.TokenStore.currentTenant()?.tenant_id };
+  }
+  let tk = null;
+  try { const r = JSON.parse(localStorage.getItem("wowhub.tokens")||"null"); tk = r && r.access_token; } catch(_){}
+  if (!tk) tk = localStorage.getItem("wowhub_access_token");
+  return { token: tk, tenant_id: null };
+}
+
+async function api(path) {
+  const { token } = getAuth();
+  const headers = { "Accept": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(path, { headers });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
+  return r.json();
+}
+async function send(method, path, body) {
+  const { token } = getAuth();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
+  return r.json();
+}
+
+// ── KPIs ──────────────────────────────────────────
+async function loadKpis() {
+  try {
+    const s = await api("/api/v1/superadmin/stats");
+    document.querySelectorAll("[data-kpi]").forEach(el => {
+      const k = el.getAttribute("data-kpi");
+      el.textContent = (s[k] ?? 0);
+    });
+  } catch (e) {
+    console.error("kpis:", e);
+    showFatal("KPIs: " + e.message);
+  }
+}
+
+// ── Tiendas ──────────────────────────────────────
+async function loadTenants() {
+  const tbody = $("sa-tenants-table")?.querySelector("tbody");
+  if (!tbody) return;
+  try {
+    const q = encodeURIComponent($("sa-tenant-q").value || "");
+    const status = $("sa-tenant-status").value;
+    const plan = $("sa-tenant-plan").value;
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    if (plan) params.set("plan", plan);
+    params.set("limit", "200");
+    const data = await api("/api/v1/superadmin/tenants?" + params.toString());
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="sa-empty">Sin tiendas registradas.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(t => {
+      const stClass = "sa-pill-" + t.status;
+      return `<tr data-id="${t.id}">
+        <td><code>${esc(t.slug)}</code></td>
+        <td>${esc(t.display_name)}</td>
+        <td>${esc(t.industry)}</td>
+        <td>${esc(t.plan)}</td>
+        <td><span class="sa-pill ${stClass}">${esc(t.status)}</span></td>
+        <td><span class="sa-pill ${t.is_active?'sa-pill-on':'sa-pill-off'}">${t.is_active?'sí':'no'}</span></td>
+        <td>${t.members_count}</td>
+        <td>${t.health_score}</td>
+        <td>
+          <button class="sa-btn sa-edit-tenant" data-id="${t.id}">Editar</button>
+          <button class="sa-btn sa-toggle-tenant" data-id="${t.id}" data-active="${t.is_active}">${t.is_active?'Suspender':'Activar'}</button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+let currentEditTenant = null;
+async function openEditTenant(id) {
+  try {
+    const t = await api(`/api/v1/superadmin/tenants/${id}`);
+    currentEditTenant = t;
+    const body = $("sa-tenant-modal-body");
+    body.innerHTML = `
+      <p><strong>${esc(t.display_name)}</strong> (<code>${esc(t.slug)}</code>)</p>
+      <label>Plan</label>
+      <select id="sa-edit-plan">
+        <option value="free" ${t.plan==='free'?'selected':''}>free</option>
+        <option value="grow" ${t.plan==='grow'?'selected':''}>grow</option>
+        <option value="pro" ${t.plan==='pro'?'selected':''}>pro</option>
+        <option value="business" ${t.plan==='business'?'selected':''}>business</option>
+      </select>
+      <label>Status</label>
+      <select id="sa-edit-status">
+        <option value="trial" ${t.status==='trial'?'selected':''}>trial</option>
+        <option value="active" ${t.status==='active'?'selected':''}>active</option>
+        <option value="past_due" ${t.status==='past_due'?'selected':''}>past_due</option>
+        <option value="suspended" ${t.status==='suspended'?'selected':''}>suspended</option>
+        <option value="canceled" ${t.status==='canceled'?'selected':''}>canceled</option>
+      </select>
+      <label>Activo</label>
+      <select id="sa-edit-active">
+        <option value="true" ${t.is_active?'selected':''}>Sí</option>
+        <option value="false" ${!t.is_active?'selected':''}>No</option>
+      </select>
+      <label>Display name</label>
+      <input id="sa-edit-name" value="${esc(t.display_name)}">
+    `;
+    $("sa-tenant-modal").classList.add("open");
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+async function saveEditTenant() {
+  if (!currentEditTenant) return;
+  try {
+    const body = {
+      plan: $("sa-edit-plan").value,
+      status: $("sa-edit-status").value,
+      is_active: $("sa-edit-active").value === "true",
+      display_name: $("sa-edit-name").value,
+    };
+    await send("PATCH", `/api/v1/superadmin/tenants/${currentEditTenant.id}`, body);
+    $("sa-tenant-modal").classList.remove("open");
+    currentEditTenant = null;
+    loadTenants();
+    loadKpis();
+  } catch (e) {
+    alert("Error guardando: " + e.message);
+  }
+}
+async function toggleTenant(id, currentlyActive) {
+  if (!confirm(`¿${currentlyActive?'Suspender':'Reactivar'} este tenant?`)) return;
+  try {
+    await send("PATCH", `/api/v1/superadmin/tenants/${id}`, { is_active: !currentlyActive });
+    loadTenants();
+    loadKpis();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+
+// ── Usuarios ──────────────────────────────────────
+async function loadUsers() {
+  const tbody = $("sa-users-table")?.querySelector("tbody");
+  if (!tbody) return;
+  try {
+    const q = encodeURIComponent($("sa-user-q").value || "");
+    const active = $("sa-user-active").value;
+    const su = $("sa-user-su").value;
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (active) params.set("is_active", active);
+    if (su) params.set("is_superuser", su);
+    params.set("limit", "200");
+    const data = await api("/api/v1/superadmin/users?" + params.toString());
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="sa-empty">Sin usuarios.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(u => {
+      const tenantsHtml = u.tenants.length
+        ? u.tenants.map(t => `<span class="sa-pill sa-pill-trial sa-truncate" title="${esc(t)}">${esc(t)}</span>`).join(" ")
+        : '<span style="color:var(--ai-text-dim);">—</span>';
+      return `<tr data-id="${u.id}">
+        <td>${esc(u.email)}</td>
+        <td>${esc(u.full_name)}</td>
+        <td>${esc(u.default_role)}</td>
+        <td>${tenantsHtml}</td>
+        <td><span class="sa-pill ${u.is_active?'sa-pill-on':'sa-pill-off'}">${u.is_active?'sí':'no'}</span></td>
+        <td>${u.is_superuser ? '<span class="sa-pill sa-pill-su">SUPER</span>' : '<span style="color:var(--ai-text-dim);">—</span>'}</td>
+        <td>
+          <button class="sa-btn sa-toggle-su" data-id="${u.id}" data-su="${u.is_superuser}">${u.is_superuser?'Revocar SU':'Promover a SU'}</button>
+          <button class="sa-btn sa-toggle-user-active" data-id="${u.id}" data-active="${u.is_active}">${u.is_active?'Desactivar':'Activar'}</button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+let pendingSuAction = null;
+function openSuModal(userId, target) {
+  pendingSuAction = { user_id: userId, target };
+  $("sa-su-title").textContent = target ? "Promover a SUPERADMIN" : "Revocar SUPERADMIN";
+  $("sa-su-body").textContent = target
+    ? "Este usuario podrá ver y modificar TODOS los tenants y usuarios de la plataforma. ¿Confirmas?"
+    : "Este usuario perderá acceso al panel de plataforma. ¿Confirmas?";
+  $("sa-su-modal").classList.add("open");
+}
+async function confirmSu() {
+  if (!pendingSuAction) return;
+  try {
+    await send("POST", `/api/v1/superadmin/users/${pendingSuAction.user_id}/superuser`, { is_superuser: pendingSuAction.target });
+    $("sa-su-modal").classList.remove("open");
+    pendingSuAction = null;
+    loadUsers();
+    loadKpis();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+async function toggleUserActive(id, currentlyActive) {
+  if (!confirm(`¿${currentlyActive?'Desactivar':'Reactivar'} este usuario?`)) return;
+  try {
+    await send("PATCH", `/api/v1/superadmin/users/${id}`, { is_active: !currentlyActive });
+    loadUsers();
+    loadKpis();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+
+// ── Auditoría ─────────────────────────────────────
+async function loadAudit() {
+  const tbody = $("sa-audit-table")?.querySelector("tbody");
+  if (!tbody) return;
+  try {
+    const prefix = encodeURIComponent($("sa-audit-prefix").value || "");
+    const params = new URLSearchParams();
+    if (prefix) params.set("action_prefix", prefix);
+    params.set("page", "1");
+    params.set("page_size", "100");
+    const data = await api("/api/v1/superadmin/audit?" + params.toString());
+    if (!data.items || !data.items.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="sa-empty">Sin entradas de auditoría.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.items.map(a => {
+      const dt = a.created_at ? new Date(a.created_at).toLocaleString() : "—";
+      return `<tr>
+        <td>${esc(dt)}</td>
+        <td>${esc(a.actor_email || a.actor_user_id || "—")}</td>
+        <td><code>${esc(a.action)}</code></td>
+        <td>${esc(a.resource_type || "—")} <small>${esc((a.resource_id||"").slice(0,8))}</small></td>
+        <td>${esc(a.method || "—")}</td>
+        <td class="sa-truncate" title="${esc(a.path||"")}">${esc(a.path || "—")}</td>
+        <td>${esc(a.status_code || "—")}</td>
+        <td>${esc(a.ip || "—")}</td>
+        <td class="sa-truncate" title="${esc(a.description||"")}">${esc(a.description || "—")}</td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ── Tabs ──────────────────────────────────────────
+function showPane(name) {
+  document.querySelectorAll(".sa-tab").forEach(b => b.classList.toggle("active", b.dataset.pane === name));
+  document.querySelectorAll(".sa-pane").forEach(p => p.style.display = (p.dataset.pane === name ? "" : "none"));
+  if (name === "tenants") loadTenants();
+  if (name === "users") loadUsers();
+  if (name === "audit") loadAudit();
+}
+
+// ── Wire ──────────────────────────────────────────
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (!t) return;
+
+  // tabs
+  if (t.classList && t.classList.contains("sa-tab")) {
+    showPane(t.dataset.pane);
+    return;
+  }
+  // modal close
+  if (t.dataset && t.dataset.close) {
+    document.getElementById(t.dataset.close).classList.remove("open");
+    return;
+  }
+  // tenants
+  if (t.classList && t.classList.contains("sa-edit-tenant")) {
+    openEditTenant(t.dataset.id);
+    return;
+  }
+  if (t.classList && t.classList.contains("sa-toggle-tenant")) {
+    toggleTenant(t.dataset.id, t.dataset.active === "true");
+    return;
+  }
+  // users
+  if (t.classList && t.classList.contains("sa-toggle-su")) {
+    openSuModal(t.dataset.id, t.dataset.su !== "true");
+    return;
+  }
+  if (t.classList && t.classList.contains("sa-toggle-user-active")) {
+    toggleUserActive(t.dataset.id, t.dataset.active === "true");
+    return;
+  }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  $("sa-refresh-all").addEventListener("click", () => { loadKpis(); loadTenants(); });
+  $("sa-tenant-apply").addEventListener("click", loadTenants);
+  $("sa-user-apply").addEventListener("click", loadUsers);
+  $("sa-audit-apply").addEventListener("click", loadAudit);
+  $("sa-tenant-save").addEventListener("click", saveEditTenant);
+  $("sa-su-confirm").addEventListener("click", confirmSu);
+  $("sa-tenant-q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadTenants(); });
+  $("sa-user-q").addEventListener("keydown", (e) => { if (e.key === "Enter") loadUsers(); });
+
+  loadKpis();
+  loadTenants();
+});
+</script>
+{% endblock %}

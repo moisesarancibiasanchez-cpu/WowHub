@@ -160,18 +160,26 @@ class AuthService:
         else:
             tenant_id = None
         role = current.role.value if current else user.default_role.value
-        access = create_access_token(user.id, tenant_id=tenant_id, role=role)
+        # SUPERADMIN: incluimos is_superuser como claim del access token
+        # para que `require_superuser` no necesite consultar la BD.
+        access = create_access_token(
+            user.id,
+            tenant_id=tenant_id,
+            role=role,
+            extra_claims={"is_superuser": bool(getattr(user, "is_superuser", False))},
+        )
         refresh = create_refresh_token(user.id)
         # Reusar info del tenant en el refresh para mantener contexto tras refresh
         if current:
             from app.security import jwt
             from datetime import timedelta
-            # regenerar refresh con tid
+            # regenerar refresh con tid + is_superuser
             now = datetime.now(timezone.utc)
             payload = {
                 "sub": str(user.id),
                 "tid": str(current.tenant_id),
                 "role": current.role.value,
+                "is_superuser": bool(getattr(user, "is_superuser", False)),
                 "iat": int(now.timestamp()),
                 "exp": int((now + timedelta(days=settings.jwt_refresh_ttl_days)).timestamp()),
                 "type": "refresh",

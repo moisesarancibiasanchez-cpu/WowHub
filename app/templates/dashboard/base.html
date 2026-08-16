@@ -59,6 +59,11 @@
        style="display:none;">
       <span class="ico">🛡️</span> Admin IA
     </a>
+    <a href="/admin/superadmin" class="nav-link" data-route="superadmin"
+       data-requires-role="superuser"
+       style="display:none;">
+      <span class="ico">👑</span> SUPERADMIN
+    </a>
     <a href="/docs" target="_blank">
       <span class="ico">📘</span> API Docs
     </a>
@@ -114,9 +119,31 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
     const user = session.user || WH.Auth.user();
     const role = (user && (user.default_role || user.role)) || "";
     const roleStr = String(role).toLowerCase();
+    // SUPERADMIN: flag a nivel de usuario (no de membresía).
+    // Lo leemos del JWT decodificado o de la sesión si lo expone WH.
+    let isSuperuser = false;
+    try {
+      const tk = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
+        || localStorage.getItem("wowhub_access_token");
+      if (tk) {
+        const parts = tk.split(".");
+        if (parts.length >= 2) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+          isSuperuser = !!payload.is_superuser;
+        }
+      }
+    } catch (_) {}
+    if (!isSuperuser && user) {
+      isSuperuser = !!(user.is_superuser || user.superuser);
+    }
     document.querySelectorAll("[data-requires-role]").forEach(el => {
       const allowed = (el.dataset.requiresRole || "")
         .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      // Soporte para "superuser" como rol independiente
+      if (allowed.includes("superuser") && isSuperuser) {
+        el.style.display = "";
+        return;
+      }
       if (allowed.length === 0 || allowed.includes(roleStr)) {
         el.style.display = "";
       } else {

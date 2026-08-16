@@ -110,6 +110,14 @@ MODULES: list[dict[str, Any]] = [
         "requires_activation": False,
         "ai_tools": [],
     },
+    {
+        "key": "superadmin",
+        "label": "SUPERADMIN",
+        "path": "/admin/superadmin",
+        "description": "Panel de plataforma: KPIs globales, gestión de tiendas, usuarios, auditoría. Solo para usuarios con `is_superuser=True` (a nivel de USUARIO, no de membresía). Guard server-side.",
+        "requires_activation": False,
+        "ai_tools": [],
+    },
 ]
 
 
@@ -165,9 +173,11 @@ FAQ: dict[str, str] = {
         "Ve directo a /dashboard/bookings desde el menú lateral."
     ),
     "qué módulos hay": (
-        "WowHub tiene 12 módulos en el panel: Resumen, Productos, Promociones, "
+        "WowHub tiene 13 módulos en el panel: Resumen, Productos, Promociones, "
         "Clientes, Pedidos, Reservas, Campañas, Sucursales, Fidelización, QR, "
-        "Configuración y Admin IA. Todos están disponibles sin activación."
+        "Configuración, Admin IA y SUPERADMIN. Los 12 primeros están disponibles sin activación. "
+        "SUPERADMIN es exclusivo para usuarios con `is_superuser=True` y no se muestra en el sidebar "
+        "de los demás usuarios."
     ),
     "dónde cambio mi contraseña": (
         "Ve a Configuración → Mi cuenta, o usa el botón Cambiar contraseña "
@@ -226,6 +236,8 @@ NO_EXISTE: list[str] = [
     "No hay Multi-idioma todavía.",
     "No hay Borrar tenant desde el chat.",
     "No hay creación de tenant desde el chat.",
+    "SUPERADMIN no es un módulo 'premium' ni requiere plan especial: es un rol a nivel de usuario (is_superuser=True), separado de los roles de membresía (OWNER/ADMIN/STAFF/VIEWER).",
+    "Solo los usuarios con is_superuser=True ven el link 'SUPERADMIN' en el sidebar y pueden acceder a /admin/superadmin.",
 ]
 
 

@@ -32,11 +32,19 @@ Todos los módulos se acceden desde el menú lateral del dashboard (`/dashboard`
 | **QR** | `/dashboard/qr` | Códigos QR para tienda física. | No | (no expuesta aún) |
 | **Configuración** | `/dashboard/settings` | Datos del tenant, branding, integraciones, Mi cuenta. | No | `get_tenant_info` |
 | **Admin IA** | `/admin/ai` | Métricas, logs, trazas, circuit breaker. (Solo OWNER/ADMIN) | No | (n/a, es la IA misma) |
+| **SUPERADMIN** | `/admin/superadmin` | Panel de plataforma: KPIs globales, gestión de tiendas, usuarios, auditoría. (Solo `is_superuser=True`) | No | (n/a, panel de plataforma) |
 
 > **Admin IA — guard de rol:** la página `/admin/ai` y los endpoints `/api/v1/admin/ai/*` están protegidos con guard server-side. Si el usuario no tiene rol `OWNER` o `ADMIN`:
 > - Si no hay sesión → redirige a `/dashboard/login?reason=admin_auth`.
 > - Si hay sesión pero el rol no alcanza → redirige a `/dashboard?reason=admin_forbidden`.
 > - En el sidebar, el link "Admin IA" se muestra **solo** a OWNER/ADMIN (`data-requires-role="owner,admin"` + JS de guard).
+
+> **SUPERADMIN — guard de plataforma:** la página `/admin/superadmin` y los endpoints `/api/v1/superadmin/*` están protegidos con guard server-side que requiere `is_superuser=True` a nivel de **USUARIO** (no de membresía).
+> - Si no hay sesión → redirige a `/dashboard/login?reason=superadmin_auth`.
+> - Si hay sesión pero el flag es False → redirige a `/dashboard?reason=superadmin_forbidden`.
+> - En el sidebar, el link "SUPERADMIN" se muestra **solo** si `payload.is_superuser === true` (decodificando el JWT en el cliente) o `user.is_superuser === true`.
+> - El claim `is_superuser` se incluye en el access token y el refresh token desde `auth_service.py`.
+> - **Diferencia clave:** los roles de membresía (OWNER/ADMIN/STAFF/VIEWER) son **por tenant**; `is_superuser` es **por usuario** y aplica a TODA la plataforma.
 
 ---
 
@@ -169,4 +177,79 @@ Este handoff queda implementado en `app/services/ai_orchestrator.py` con la regl
 
 - v1.0 (16-ago-2026): documento inicial alineado con Bookings Fase 2, 12 módulos en panel, 4 tools de lectura + 4 de escritura + 1 de ayuda.
 - v1.1 (16-ago-2026): corregida ruta real de Admin IA (`/admin/ai`, antes erróneamente `/dashboard/admin/ai`). Agregada nota sobre guard de rol server-side.
+- **v1.2 (16-ago-2026)**: agregado módulo **SUPERADMIN** (panel de plataforma). 13 módulos en panel. Nuevo guard `require_superuser`. Nuevo claim `is_superuser` en JWT. Nueva ruta `/admin/superadmin` y endpoints `/api/v1/superadmin/*`. Script CLI `python -m scripts.promote_superuser --email ... --grant`.
 - Próxima: cuando se agregue el módulo de Fidelización a tools IA.
+
+---
+
+## 11. SUPERADMIN (panel de plataforma)
+
+### 11.1 Concepto
+
+`is_superuser` es un **flag a nivel de USUARIO** (no de membresía). Un superuser:
+- Ve y modifica **todos los tenants** de la plataforma.
+- Ve y modifica **todos los usuarios** (incluido promover/revocar otros superusers).
+- Accede a la **auditoría global**.
+- Tiene acceso a la página `/admin/superadmin` y a los endpoints `/api/v1/superadmin/*`.
+
+A diferencia de los roles de membresía (OWNER/ADMIN/STAFF/VIEWER), un superuser **no necesita membresía** en un tenant para actuar sobre él. Su autoridad es transversal.
+
+### 11.2 Endpoints MVP (Fase 1)
+
+| Método | Endpoint | Función |
+|---|---|---|
+| GET | `/api/v1/superadmin/stats` | KPIs globales: tenants (total/activos/trial/suspended), usuarios, superusers, growth 7d/30d. |
+| GET | `/api/v1/superadmin/tenants?q=&status=&plan=&limit=&offset=` | Listar todos los tenants con filtros. |
+| GET | `/api/v1/superadmin/tenants/{tenant_id}` | Detalle de un tenant (incluye `members_count`). |
+| PATCH | `/api/v1/superadmin/tenants/{tenant_id}` | Actualizar `plan`, `status`, `is_active`, `display_name`. |
+| GET | `/api/v1/superadmin/users?q=&is_active=&is_superuser=&limit=&offset=` | Listar todos los usuarios. |
+| GET | `/api/v1/superadmin/users/{user_id}` | Detalle de un usuario (incluye `tenants[]`). |
+| PATCH | `/api/v1/superadmin/users/{user_id}` | Actualizar `is_active`, `full_name`, `default_role`. |
+| POST | `/api/v1/superadmin/users/{user_id}/superuser` | Promover o revocar `is_superuser`. Regla: no se puede revocar al único superuser activo. |
+| GET | `/api/v1/superadmin/audit?action_prefix=&actor_user_id=&page=&page_size=` | Logs de auditoría cross-tenant. |
+
+### 11.3 UI: `/admin/superadmin`
+
+Una sola página con 3 pestañas:
+- **Tiendas**: tabla con búsqueda + filtros por `status` y `plan`. Acciones: Editar (modal con plan/status/activo/display name) y Suspender/Activar.
+- **Usuarios**: tabla con búsqueda + filtro activo/superuser. Acciones: Promover/Revocar SUPER (con modal de confirmación) y Activar/Desactivar.
+- **Auditoría**: tabla con filtro por prefijo de action. Read-only.
+
+KPIs globales arriba: tenants totales, activos, trial, suspended, usuarios, superusers, nuevos 7d.
+
+### 11.4 Bootstrap
+
+Para promover al **primer superuser** (operación one-time, sin endpoint público por seguridad):
+
+```bash
+python -m scripts.promote_superuser --email admin@wowhub.app --grant
+python -m scripts.promote_superuser --list
+python -m scripts.promote_superuser --email admin@wowhub.app --revoke
+```
+
+Una vez que hay al menos un superuser, el resto se promueve desde la UI (pestaña Usuarios).
+
+### 11.5 Funcionalidades futuras (Fase 2 — NO implementadas aún)
+
+Listadas en `user_input_files/pasted-text-2026-08-16T02-29-33.txt` y priorizadas:
+
+| Función | Estado | Notas |
+|---|---|---|
+| Planes y facturación (CRUD planes, asignar, cupones) | Pendiente | Requiere extender `TenantPlan` enum y agregar tabla `subscriptions` + `coupons`. |
+| Configuración global (moneda, timezone, idioma default) | Pendiente | Requiere tabla `platform_settings`. |
+| Branding global (logo, colores, T&C) | Pendiente | Requiere tabla `platform_brand`. |
+| Notificaciones globales (plantillas email/SMS/push) | Pendiente | Requiere `notification_templates` + integración SendGrid. |
+| Soporte y tickets | Pendiente | Requiere módulo de tickets. |
+| API keys (rotar, revocar) | Pendiente | Requiere tabla `api_keys`. |
+| Modo mantenimiento | Pendiente | Requiere flag global + middleware. |
+| Gestión de dominios personalizados | Pendiente | Requiere módulo de dominios. |
+| Incidencias | Pendiente | Requiere tabla `incidents`. |
+| Exportar reportes (CSV/PDF) | Pendiente | Pendiente en general, no solo SUPERADMIN. |
+
+### 11.6 Anti-alucinación específica de SUPERADMIN
+
+- ❌ **No** existe un panel "Configuración → Mi cuenta → Rol" donde un usuario se auto-promueva a superuser.
+- ❌ **No** hay un "Registro como superuser" — el flag solo se otorga manualmente (script CLI o desde la UI por otro superuser).
+- ❌ El superuser **no** es un plan ni un add-on de pago.
+- ❌ El superuser **no** puede ver contraseñas en claro de otros usuarios.
+- ❌ El superuser **no** puede impersonar sesiones de otros usuarios (todavía).

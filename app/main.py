@@ -18,7 +18,7 @@ from app.api.v1 import (
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
     site_config,
-    ai, admin_ai,
+    ai, admin_ai, superadmin,
     loyalty,
     analytics, campaigns,
 )
@@ -141,6 +141,7 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
+app.include_router(superadmin.router, prefix="/api/v1")
 # Loyalty Pass (Fase 1 y 2)
 app.include_router(loyalty.owner_router, prefix="/api/v1")
 app.include_router(loyalty.pos_router, prefix="/api/v1")
@@ -289,6 +290,80 @@ def admin_ai_page(request: Request):
         request,
         "dashboard/admin_ai.html",
         {"settings": settings, "user_role": role.value},
+    )
+
+
+# ── Alias de backward compat ──────────────────────────────
+# La doc antigua (v1.0 de CANONICAL_WOWHUB.md) y algunos bookmarks pueden
+# apuntar a /dashboard/admin/ai. Redirigimos 301 a la ruta canónica /admin/ai
+# para evitar el 404 que reportaban los usuarios.
+@app.get("/dashboard/admin/ai", include_in_schema=False)
+def admin_ai_legacy_alias():
+    """Alias legacy: /dashboard/admin/ai → /admin/ai (deprecated)."""
+    return RedirectResponse(url="/admin/ai", status_code=301)
+
+
+# ── SUPERADMIN (UI) ──────────────────────────────────────────────
+@app.get("/admin/superadmin", response_class=HTMLResponse, include_in_schema=False)
+def superadmin_page(request: Request):
+    """Panel de plataforma para SUPERADMIN: KPIs, tiendas, usuarios, auditoría.
+
+    Guard server-side:
+    - Si no hay sesión → redirige a /dashboard/login?reason=superadmin_auth
+    - Si hay sesión pero no es superuser → redirige a /dashboard?reason=superadmin_forbidden
+    """
+    from app.database import SessionLocal
+    from app.security import decode_token
+
+    token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return RedirectResponse(
+            url="/dashboard/login?reason=superadmin_auth", status_code=302
+        )
+
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return RedirectResponse(
+            url="/dashboard/login?reason=superadmin_auth", status_code=302
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return RedirectResponse(
+            url="/dashboard/login?reason=superadmin_auth", status_code=302
+        )
+
+    with SessionLocal() as db:
+        from app.models.user import User
+        user = db.get(User, user_id)
+        if not user:
+            return RedirectResponse(
+                url="/dashboard/login?reason=superadmin_auth", status_code=302
+            )
+        # Doble check: claim del JWT + DB
+        is_su_jwt = bool(payload.get("is_superuser"))
+        is_su_db = bool(getattr(user, "is_superuser", False))
+        if not (is_su_jwt or is_su_db):
+            return RedirectResponse(
+                url="/dashboard?reason=superadmin_forbidden",
+                status_code=302,
+            )
+        user_email = user.email
+        user_name = user.full_name
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/superadmin.html",
+        {
+            "settings": settings,
+            "user_role": "superuser",
+            "user_email": user_email,
+            "user_name": user_name,
+        },
     )
 
 
