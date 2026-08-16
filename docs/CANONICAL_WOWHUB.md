@@ -4,7 +4,7 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 16 de agosto de 2026.
-> **Versión:** v1.4 (documentado modelo de roles y membresías).
+> **Versión:** v1.5 (FAQ ampliada por categoría, protocolo de incertidumbre, matriz de capacidades como roadmap).
 
 ---
 
@@ -132,8 +132,8 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "Quiero eliminar mi cuenta" | "Por seguridad, la eliminación de cuenta se hace escribiendo a **soporte@wowhub.app**." |
 | "¿Cómo conecto WhatsApp?" | "En **Configuración → Integraciones** (cuando esté disponible). Hoy puedes compartir el link público por WhatsApp manualmente." |
 | "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?" | "Son los 4 roles por membresía en un tenant. **OWNER**: administración completa del tenant (todo). **ADMIN**: administración operativa con casi los mismos poderes que OWNER — puede gestionar productos, reservas, clientes, campañas, miembros y configuración, pero no puede eliminar el tenant ni modificar el OWNER. **STAFF**: operación diaria con acceso limitado (ej. crear reservas, registrar ventas, ver clientes, pero no modificar configuración ni productos). **VIEWER**: solo consulta (lee KPIs, listas, agenda) sin poder ejecutar acciones de escritura. Los roles son **por tenant** — un mismo usuario puede ser OWNER en un tenant y VIEWER en otro. El **SUPERUSER** es otra cosa: es un flag **por usuario** (no por tenant) y aplica a TODA la plataforma; ver §11." |
-| "El superadmin entró a mi tienda, ¿puede ver mis conversaciones del asistente?" | "Sí. Cuando un superuser usa 'Entrar como admin', obtiene la sesión completa del dueño, incluyendo todas sus conversaciones del asistente virtual. Esto es una función administrativa, no es un acceso oculto. Toda entrada y salida queda registrada en la auditoría." |
-| "¿Cómo salgo si el superadmin entró a mi tienda?" | "El superadmin siempre usa el botón '🚪 Salir' del banner de impersonación; vos como dueño no notás nada en tu sesión normal." |
+| "¿El superadmin puede entrar a mi tienda y ver mis conversaciones del asistente?" | "Un **SUPERUSER** puede iniciar una sesión temporal de **impersonación** desde `/admin/superadmin`, siempre que el usuario objetivo no sea otro superuser y esté activo. Durante esa sesión puede acceder a las **funciones y datos permitidos para el usuario impersonado** dentro del tenant seleccionado. Esto **puede incluir** las conversaciones del asistente si están disponibles para esa cuenta. La sesión muestra un banner visible de impersonación, dura **como máximo 60 minutos** y todas las acciones quedan registradas (superuser, usuario objetivo, tenant, hora, acción). **Las contraseñas y secretos nunca se muestran.**" |
+| "¿Qué ocurre si un superadmin entra a mi tienda?" | "La sesión normal del dueño **no se reemplaza ni se cierra**. La impersonación se ejecuta en una sesión temporal separada del superuser. El acceso queda registrado en la **auditoría del tenant** y puede ser revisado por usuarios autorizados según la política de WowHub. El superuser debe salir mediante el botón **'🚪 Salir'** del banner o esperar la expiración automática de la sesión." |
 
 ---
 
@@ -151,7 +151,36 @@ Si la IA no está segura, debe decir **"no tengo esa información"** antes que i
 - ❌ No hay "Cambiar de plan" desde el chat (se hace en la landing).
 - ❌ No hay "Multi-idioma" todavía.
 - ❌ No hay "Borrar tenant" desde el chat.
+- ❌ No hay un "Asistente Premium" definido en planes — la IA es la misma para todos.
+- ❌ No hay una URL pública de reservas distinta de `/u/{slug}/reservar` o `/u/{slug}/book`.
 - ❌ **No** existe un botón "Login As" o "Entrar como admin" visible para usuarios normales; la función de impersonación es exclusiva del superuser y solo se muestra dentro de `/admin/superadmin`.
+
+**Acciones prohibidas para la IA** (nunca debe intentar):
+
+- ❌ Iniciar una sesión de impersonación.
+- ❌ Crear, eliminar o promover a SUPERUSER.
+- ❌ Cambiar contraseñas de ningún usuario.
+- ❌ Borrar tenants.
+- ❌ Enviar campañas sin preview y confirmación explícita.
+- ❌ Enviar campañas a clientes que no cumplen las reglas de consentimiento de marketing.
+- ❌ Revelar tokens, secretos, contraseñas ni JWT internos.
+- ❌ Mostrar datos de otros tenants al usuario actual.
+- ❌ Afirmar que una operación se realizó si la tool no devolvió éxito.
+
+**Acciones que SIEMPRE requieren confirmación explícita** (la IA debe mostrar preview con datos exactos y esperar "sí"):
+
+- ⚠️ Crear promociones.
+- ⚠️ Crear reservas.
+- ⚠️ Enviar emails individuales.
+- ⚠️ Enviar campañas masivas.
+- ⚠️ Eliminar o desactivar productos.
+- ⚠️ Modificar precios.
+- ⚠️ Cambiar horarios de sucursal.
+- ⚠️ Cancelar reservas.
+- ⚠️ Exportar datos personales.
+- ⚠️ Cambiar configuración de privacidad.
+
+> La confirmación debe estar vinculada a los **datos exactos** de la acción. Un "sí" antiguo o ambiguo no es válido.
 
 ---
 
@@ -184,6 +213,13 @@ Este handoff queda implementado en `app/services/ai_orchestrator.py` con la regl
 - **v1.2 (16-ago-2026)**: agregado módulo **SUPERADMIN** (panel de plataforma). 13 módulos en panel. Nuevo guard `require_superuser`. Nuevo claim `is_superuser` en JWT. Nueva ruta `/admin/superadmin` y endpoints `/api/v1/superadmin/*`. Script CLI `python -m scripts.promote_superuser --email ... --grant`.
 - **v1.3 (16-ago-2026)**: habilitada **impersonación de superuser** ("Login As" / "Entrar como admin"). Nuevos endpoints `POST /api/v1/superadmin/users/{id}/impersonate`, `POST /api/v1/superadmin/users/{id}/impersonate-tenant/{slug}`, `POST /api/v1/superadmin/impersonate/stop` y `GET /api/v1/superadmin/tenants/{id}/owner`. Claim JWT `imp={uid, tid, exp}`. Banner persistente de impersonación en `base.html`. Bug fix: limpiado `user`/`current_tenant` stale del localStorage en `confirmImpersonate` y `doStop` para resolver el "Cargando..." infinito. **Actualizado §11 y §7**: ya NO es cierto que el superuser no pueda impersonar; ahora sí puede y la IA debe reconocerlo.
 - **v1.4 (16-ago-2026)**: documentado **modelo de roles y membresías**. Nueva §13 con la jerarquía completa OWNER/ADMIN/STAFF/VIEWER/SUPERUSER, sus permisos actuales vs. aspiracionales, la diferencia entre roles-por-tenant y flag-por-usuario, y cómo la IA debe responder preguntas sobre permisos. Nueva entrada en §6 FAQ: "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?".
+- **v1.5 (16-ago-2026)**: **FAQ ampliada por categoría + protocolo de incertidumbre + matriz de capacidades como roadmap**. Cambios:
+  - §6 FAQ: 2 entradas reescritas sobre impersonación con redacción más transparente (no promete "ver conversaciones" en términos absolutos, no dice "no notás nada").
+  - §7: ampliada con 3 sub-listas explícitas (cosas que no existen, acciones prohibidas para la IA, acciones que requieren confirmación). 11 ❌ originales + 6 ❌ nuevos + 10 ⚠️ nuevos.
+  - §14 NUEVA: FAQ ampliada organizada por categoría (Acceso y navegación, Módulos, Configuración, Promociones/Campañas, Reservas, Datos/Exportación) con respuestas dinámicas por rol/tenant.
+  - §15 NUEVA: **Protocolo de incertidumbre** — 5 reglas explícitas sobre cuándo la IA debe decir "no tengo esa información" y frase literal canónica.
+  - §16 NUEVA: **Matriz de capacidades** (estado actual + roadmap) + diseño objetivo de la tool `get_user_capabilities` para Fase 2.
+  - §10 añade roadmap de tests recomendados (variantes, permisos, seguridad, consistencia, regresión negativa).
 - Próxima: cuando se agregue el módulo de Fidelización a tools IA.
 
 ---
@@ -387,3 +423,295 @@ Cuando un usuario pregunte "¿qué diferencia hay entre X e Y?" o "¿puedo hacer
 3. Si la pregunta es ambigua o sobre una acción específica no documentada, **decir "no tengo esa información exacta; consulta con tu OWNER o con soporte"** en lugar de inventar.
 4. **Nunca** prometer permisos que la tabla no garantiza. Si el usuario dice "soy ADMIN y quiero borrar el tenant", la respuesta correcta es "los ADMIN no pueden eliminar el tenant; esa acción la realiza el OWNER o el equipo de WowHub".
 5. Si el usuario pide ascender a SUPERUSER, remitir a §11.4 (bootstrap CLI o pedir a otro SUPERUSER).
+
+---
+
+## 14. FAQ ampliada por categoría (respuestas dinámicas por contexto)
+
+Esta sección complementa §6 con preguntas adicionales organizadas por categoría. La diferencia clave: muchas respuestas aquí son **dinámicas** — la IA debe considerar el rol, el tenant y el estado actual antes de responder. Ver §16 para la tool `get_user_capabilities` que automatiza esto en Fase 2.
+
+### 14.1 Acceso y navegación
+
+**¿Cómo entro a WowHub?**
+- Ve a la pantalla de login de WowHub, ingresa tu correo y contraseña y, después de autenticarte, accederás al dashboard del tenant seleccionado.
+- Si tienes más de un tenant, verifica el tenant activo en el selector del topbar.
+
+**¿Qué hago si no veo un módulo?**
+- Primero verifica que estés autenticado y que el **tenant activo** sea el correcto.
+- La visibilidad de algunas secciones depende de tu **rol**: OWNER y ADMIN tienen más permisos que STAFF o VIEWER (ver §13).
+- Si tienes permisos suficientes y la sección no aparece, puede tratarse de un problema de sesión o disponibilidad temporal.
+
+### 14.2 Módulos y activación
+
+**¿Tengo que activar un módulo?**
+- No. Los módulos disponibles para un tenant activo no requieren activación manual.
+- Si una sección no aparece, verifica el estado del tenant, tu rol y el tenant seleccionado (no es un toggle).
+
+**¿Por qué no puedo usar Reservas?**
+La IA debe comprobar (en este orden):
+1. Usuario autenticado.
+2. Tenant correcto.
+3. Rol suficiente.
+4. Tenant activo (no suspendido).
+5. Existencia de al menos una sucursal.
+6. Horarios de la sucursal configurados.
+7. Disponibilidad del servicio (no en mantenimiento).
+
+Respuesta dinámica:
+- Caso normal: "Reservas no requiere activación. Para utilizarla, verifica que estés en el tenant correcto, que tengas permisos suficientes y que exista al menos una sucursal con horarios configurados. Puedes acceder desde `/dashboard/bookings`."
+- Tenant suspendido: "El tenant está suspendido actualmente, por lo que algunas operaciones están bloqueadas. Consulta a un administrador autorizado de la plataforma."
+- Sin sucursales: "Reservas está disponible, pero primero debes crear una sucursal y configurar sus horarios desde Sucursales."
+
+### 14.3 Configuración
+
+**¿Cómo cambio el logo?**
+- Ve a **Configuración → Branding**.
+- El límite y los formatos permitidos dependen del tipo de archivo y de la configuración vigente del tenant. Actualmente, el logo acepta imágenes JPG o PNG de hasta **{max_upload_mb} MB** (valor provisto por `app_knowledge.py` o por la config del backend — **no hardcodear** en la respuesta).
+
+**¿Cómo cambio el nombre o slug de la tienda?**
+- Ve a **Configuración → Datos del negocio**.
+- El nombre visible y el slug pueden tener reglas diferentes. El slug debe ser **único** y puede cambiar la URL pública del negocio.
+- ⚠️ **Advertencia:** si cambias el slug, las URLs públicas anteriores pueden dejar de funcionar, salvo que WowHub implemente redirecciones (no implementadas hoy).
+
+**¿Cómo cambio mis horarios?**
+- Ve a **Sucursales**, selecciona la sucursal y edita sus horarios.
+- Los horarios de la sucursal se utilizan para calcular la disponibilidad de reservas.
+
+### 14.4 Promociones, campañas y acciones de IA
+
+**¿Cuál es la diferencia entre una promoción y una campaña?**
+- Una **promoción** define un beneficio comercial, como un descuento, combo o precio especial.
+- Una **campaña** es una comunicación dirigida a un segmento de clientes, normalmente por email.
+- Una campaña puede **comunicar** una promoción, pero son objetos diferentes.
+
+**¿La IA puede crear promociones?**
+- Sí. La IA puede preparar una promoción, pero debe mostrar un **preview** con nombre, descuento, fechas, productos afectados y condiciones.
+- **No guardará la promoción hasta que confirmes explícitamente.**
+
+**¿La IA puede enviar campañas?**
+- Sí, si tu rol tiene permiso y se cumplen las reglas de seguridad.
+- Antes del envío debe mostrar el **segmento, cantidad de destinatarios, filtros aplicados, muestra del mensaje y canal**.
+- Solo se deben incluir clientes con **consentimiento de marketing** cuando corresponda.
+
+**¿Puedo cancelar una campaña?**
+- Depende del estado:
+  - **Borrador** → puede modificarse o eliminarse.
+  - **Ya enviada** → no puede deshacerse; en ese caso se debe registrar un incidente y evaluar una comunicación correctiva.
+- La IA **no debe prometer** una función de cancelación de campañas enviadas si todavía no está implementada.
+
+### 14.5 Reservas
+
+**¿Cómo creo una reserva?**
+- "Puedo ayudarte a crearla. Necesito: cliente, sucursal, fecha, hora y duración. **Primero comprobaré la disponibilidad**; después te mostraré un preview y solo crearé la reserva si confirmas explícitamente."
+
+**¿Cómo cancelo una reserva?**
+- Usa el enlace seguro incluido en el correo de confirmación. No existe una URL fija para cancelar reservas; cada reserva genera su propio enlace con token (ver §3).
+
+**¿Puedo modificar una reserva?**
+- La modificación de reservas depende de las funciones disponibles para tu tenant. **Si la edición no está implementada**, puedo ayudarte a revisar la reserva existente y orientarte sobre la cancelación y creación de una nueva.
+- La IA **debe evitar inventar un endpoint o botón de edición** que no exista.
+
+### 14.6 Datos, exportación y eliminación
+
+**¿Puedo exportar mis datos?**
+- WowHub permite exportación en **CSV** desde las funciones habilitadas del panel.
+- La exportación a Excel nativo **no está disponible** actualmente.
+- Tipos de exportación que pueden existir (verificar disponibilidad real antes de prometer):
+  - Exportación de clientes.
+  - Exportación de pedidos.
+  - Exportación de auditoría.
+  - Exportación de conversaciones IA.
+  - Exportación de datos para migración.
+
+**¿Puedo borrar un producto?**
+- Puedes eliminar productos si tu rol tiene permiso.
+- ⚠️ **Advertencia:** antes de eliminarlos, verifica si están asociados a pedidos, promociones, stock o reportes históricos. Cuando sea necesario, es preferible **desactivarlos o archivarlos** en lugar de eliminarlos físicamente.
+
+**¿Puedo borrar mi tenant?**
+- La eliminación del tenant **no se realiza desde el chat de la IA**.
+- Debes solicitarla al equipo autorizado de WowHub (soporte@wowhub.app o SUPERADMIN).
+- La eliminación puede estar sujeta a validación de identidad, retención legal de registros y política de respaldo.
+- Esto es mejor que decir simplemente "no existe borrar tenant", porque la capacidad puede existir por soporte o SUPERADMIN.
+
+### 14.7 Preguntas frecuentes de transparencia sobre impersonación
+
+Estas preguntas son **críticas para la confianza** del usuario. Todas las respuestas deben ser **transparentes y conservadoras** (no prometer más de lo que el sistema garantiza).
+
+| Pregunta | Respuesta canónica |
+|---|---|
+| ¿Quién puede impersonar mi cuenta? | Solo un **SUPERUSER activo**, desde el panel `/admin/superadmin`. Los usuarios normales (OWNER, ADMIN, STAFF, VIEWER) **no pueden iniciar** una impersonación. |
+| ¿El superuser puede ver mis conversaciones? | Puede acceder a las funciones y datos permitidos para tu rol dentro del tenant seleccionado. **Esto puede incluir las conversaciones del asistente si están disponibles para tu cuenta.** El superuser nunca ve contraseñas en claro. |
+| ¿El superuser puede cambiar mis datos? | Durante la impersonación, el superuser puede realizar las acciones que tu rol permite en ese tenant. Cambios importantes (contraseña, email, rol) están protegidos por separado. |
+| ¿El superuser puede ver mi contraseña? | **No.** Las contraseñas nunca se muestran en texto claro, ni forman parte de la sesión de impersonación. |
+| ¿Cómo sé si alguien entró a mi cuenta? | La sesión de impersonación queda registrada en la **auditoría del tenant**. Puedes pedir a soporte un reporte filtrado por tu `tenant_id`. (Notificación automática al owner: roadmap.) |
+| ¿La impersonación cambia mi contraseña? | **No.** La impersonación no cambia tus credenciales ni reemplaza tu sesión normal. |
+| ¿Se cierra mi sesión cuando me impersonan? | **No.** Tu sesión normal del dueño no se reemplaza ni se cierra; la impersonación es una sesión temporal y separada del superuser. |
+| ¿Cuánto dura la impersonación? | **Como máximo 60 minutos** o hasta que el superuser seleccione el botón "🚪 Salir" del banner. |
+| ¿Qué pasa cuando expira? | El JWT pierde validez; el banner desaparece; el superuser debe volver a iniciar impersonación si necesita continuar. |
+| ¿Puedo impedir la impersonación? | No por el momento. La auditoría garantiza trazabilidad. Bloqueo per-tenant de impersonación está en roadmap. |
+
+---
+
+## 15. Protocolo de incertidumbre (regla de oro anti-alucinación)
+
+Esta sección es **la más importante después de §1**. Se aplica a CUALQUIER respuesta de la IA cuando la información no es 100% confirmada por la documentación vigente.
+
+### 15.1 Las 5 reglas
+
+1. **No inventar nombres de botones, rutas, endpoints ni límites.** Si no está en este documento o en `app_knowledge.py`, no se afirma.
+2. **No convertir una función futura (roadmap) en una función disponible.** Si algo está en §11.5, §16 o en el changelog como "pendiente", la IA debe decir "está planificado pero aún no disponible".
+3. **No afirmar que una acción se ejecutó sin confirmación del backend.** Si una tool no devolvió éxito, la respuesta debe ser "no pude completar la acción" + motivo, nunca "listo, ya lo hice".
+4. **No divulgar información sensible.** Tokens, secretos, contraseñas, JWT internos, IDs internos de base de datos, SQL, paths de archivos del servidor: **NUNCA**.
+5. **Indicar claramente el estado de la información** al responder. Usar uno de estos 5 estados:
+   - ✅ **Disponible** — verificado en este documento y/o en el código.
+   - 🔒 **Condicionada por permisos** — disponible si el rol/tenant lo permite.
+   - 🛣️ **Roadmap** — planificado pero no implementado.
+   - ⏳ **Temporalmente indisponible** — servicio en mantenimiento o caído.
+   - ❓ **No documentada** — no figura en la documentación vigente.
+
+### 15.2 Frase literal canónica
+
+Cuando la IA no pueda confirmar algo, debe usar **exactamente** una de estas frases (en este orden de preferencia):
+
+1. **"No tengo esa información confirmada en la documentación vigente de WowHub."**
+2. "Esa función todavía no está disponible. Está planificada en el roadmap."
+3. "No puedo confirmar el límite exacto; consulta con tu OWNER o con soporte@wowhub.app."
+4. "Esa acción requiere permisos que tu rol actual no tiene."
+
+### 15.3 Lo que la IA NUNCA debe responder
+
+- ❌ "Debería poder hacer X..." (especulación).
+- ❌ "Probablemente esté en Y..." (adivinanza).
+- ❌ "Sí, seguro" sin verificación (riesgo de daño).
+- ❌ "Ya lo hice" sin respuesta exitosa del backend.
+- ❌ "Tengo acceso a la base de datos" (la IA no tiene acceso directo a la DB).
+- ❌ Cualquier ruta, endpoint, parámetro o constante que no esté en este documento o en el código fuente verificable.
+
+### 15.4 Cuando la información es ambigua
+
+Si la pregunta del usuario es ambigua o falta contexto, la IA debe:
+- Pedir **una aclaración concreta** (no divagar).
+- Orientar al usuario hacia una **ruta existente** del dashboard cuando sea posible.
+- Sugerir el canal de soporte (soporte@wowhub.app) cuando el tema excede el alcance del producto.
+
+---
+
+## 16. Matriz de capacidades (estado actual + roadmap)
+
+### 16.1 Estado actual de las capacidades
+
+| Capacidad | Estado | Quién puede usarla | Ruta principal | Respuesta canónica de la IA |
+|---|---|---|---|---|
+| Activar módulos | **No requerido** | Todos los usuarios autorizados | — | "No requiere activación." |
+| Reservas | ✅ Disponible | Según rol/tenant | `/dashboard/bookings` | "Reservas no requiere activación..." |
+| Promociones | ✅ Disponible | OWNER/ADMIN | `/dashboard/promotions` | "Puedo crearla por ti..." |
+| Campañas email | ✅ Disponible | OWNER/ADMIN | `/dashboard/campaigns` | "Sí, con preview antes de enviar." |
+| WhatsApp Business | 🛣️ Roadmap | Nadie actualmente | — | "Está planificado, pero aún no disponible." |
+| Exportar CSV | ✅ Disponible | Según permisos | Panel (varios módulos) | "Puedes exportar CSV desde..." |
+| Exportar Excel nativo | ❌ No disponible | Nadie | — | "No está disponible actualmente." |
+| Impersonación | ✅ Disponible | Solo SUPERUSER | `/admin/superadmin` | "Solo superusers pueden usar esta función." |
+| Crear tenant desde chat | ❌ Bloqueado | Nadie vía IA | — | "La IA no crea tenants." |
+| Borrar tenant desde chat | ❌ Bloqueado | Nadie vía IA | — | "No se realiza desde el chat; contacta a soporte." |
+| Auto-promover a SUPERUSER | ❌ Bloqueado | Nadie | — | "No existe esa función." |
+| Notificación al owner por impersonación | 🛣️ Roadmap | — | — | "Cuando esté habilitado, el sistema podrá enviar una notificación." |
+| Ver conversaciones durante impersonación | 🔒 Condicionado | SUPERUSER | Según vista | Respuesta basada en política real (ver §12.3). |
+| Multi-idioma UI | 🛣️ Roadmap | — | — | "Está en roadmap." |
+| Marketplace de integraciones | 🛣️ Roadmap | — | — | "Está planificado." |
+| Tool `get_user_capabilities` | 🛣️ Roadmap (Fase 2) | — | `/api/v1/auth/me/capabilities` | "Todavía no está disponible; ver §16.2." |
+
+### 16.2 Diseño objetivo de la tool `get_user_capabilities` (Fase 2)
+
+Esta herramienta es **clave** para que la IA pueda responder las preguntas dinámicas de §14 sin improvisar. **No está implementada aún** — está documentada como roadmap.
+
+**Endpoint:** `GET /api/v1/auth/me/capabilities`
+
+**Respuesta esperada:**
+
+```json
+{
+  "user_id": "uuid",
+  "tenant_id": "uuid",
+  "role": "OWNER",
+  "tenant_status": "active",
+  "permissions": {
+    "bookings.read": true,
+    "bookings.create": true,
+    "bookings.update": true,
+    "bookings.delete": false,
+    "campaigns.send": true,
+    "products.delete": false,
+    "products.update": true,
+    "members.invite": true,
+    "members.change_role": true,
+    "tenant.delete": false
+  },
+  "requirements": {
+    "branches_configured": true,
+    "booking_hours_configured": true,
+    "marketing_consent_required": true
+  },
+  "modules": {
+    "bookings": { "available": true, "blocking_reason": null },
+    "campaigns": { "available": true, "blocking_reason": null },
+    "whatsapp": { "available": false, "blocking_reason": "not_implemented" }
+  }
+}
+```
+
+**Uso por la IA:** antes de responder cualquier pregunta de §14, llamar a `get_user_capabilities` y adaptar la respuesta al estado real. Si la respuesta no es concluyente, aplicar §15 (Protocolo de incertidumbre).
+
+### 16.3 Tests recomendados para FAQ, anti-alucinación y capabilities
+
+Esta lista se incorpora al roadmap de `tests/ai/`. Los nombres siguen la convención de `test_help_routes.py` existente.
+
+**Tests de variantes de preguntas**
+- `test_bookings_activation_variants`
+- `test_public_booking_url_variants`
+- `test_password_change_variants`
+- `test_language_roadmap_response`
+- `test_whatsapp_roadmap_response`
+
+**Tests de permisos**
+- `test_staff_cannot_be_told_they_can_manage_settings`
+- `test_non_superuser_cannot_impersonate`
+- `test_superuser_can_see_superadmin_route`
+- `test_impersonation_requires_active_target`
+
+**Tests de seguridad**
+- `test_ai_never_reveals_jwt`
+- `test_ai_never_reveals_password`
+- `test_ai_does_not_claim_campaign_sent_without_success`
+- `test_ai_requires_confirmation_before_write`
+- `test_ai_does_not_cross_tenant_boundary`
+
+**Tests de consistencia documental**
+- `test_all_faq_routes_exist`
+- `test_all_documented_modules_have_status`
+- `test_no_faq_references_removed_route`
+- `test_upload_limits_match_runtime_config`
+- `test_no_conflicting_faq_entries`
+
+**Tests de regresión negativa (anti-alucinación)**
+- `test_no_activation_toggle_claim`
+- `test_no_marketplace_claim`
+- `test_no_excel_export_claim`
+- `test_no_self_promote_superuser_claim`
+- `test_no_absolute_impersonation_privacy_claim` (nuevo — verifica que la IA no afirme que el superuser "siempre ve" o "nunca ve" las conversaciones).
+
+### 16.4 Estados de ejecución de tools (para acciones de la IA)
+
+Cuando la IA ejecuta una tool, debe manejar explícitamente los siguientes estados. **Nunca** debe decir "listo, lo hice" sin que la tool haya devuelto `succeeded`.
+
+| Estado | Significado | Qué dice la IA |
+|---|---|---|
+| `draft` | Tool iniciada, datos no completos. | "Necesito estos datos para continuar..." |
+| `preview_ready` | Datos completos, falta confirmación. | "Te muestro el preview. ¿Confirmas?" |
+| `awaiting_confirmation` | Esperando "sí" explícito. | (no dice nada, espera) |
+| `executing` | Tool llamada al backend. | "Procesando..." |
+| `succeeded` | Backend confirmó éxito. | "Listo, la promoción se creó con ID X." |
+| `failed` | Backend devolvió error. | "No pude completar la acción. Motivo: [error]." |
+| `partially_succeeded` | Algunos ítems ok, otros no. | "Se crearon 3 de 5 reservas. Las 2 que fallaron fueron: [detalle]." |
+| `cancelled` | Usuario canceló antes de confirmar. | "Entendido, no se ejecutó la acción." |
+| `expired` | La ventana de confirmación pasó. | "La confirmación expiró. ¿Querés que lo intente de nuevo?" |
+
+Esto es especialmente crítico para **campañas y acciones que afectan datos personales**.
