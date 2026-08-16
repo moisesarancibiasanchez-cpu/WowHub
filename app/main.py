@@ -171,6 +171,17 @@ def login_page(request: Request):
     return templates.TemplateResponse(request, "auth/login.html", {"settings": settings})
 
 
+# ── Alias legacy: /dashboard/login → /login ──────────────────────
+# Los guards de admin_ai y superadmin redirigen a /dashboard/login?reason=...
+# preservando compatibilidad con URLs antiguas. 301 = canonical a /login.
+@app.get("/dashboard/login", include_in_schema=False)
+def login_dashboard_alias(request: Request):
+    """Alias legacy: /dashboard/login → /login (preserva reason y next)."""
+    qs = request.url.query
+    target = "/login" + (f"?{qs}" if qs else "")
+    return RedirectResponse(url=target, status_code=301)
+
+
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 def register_page(request: Request):
     return templates.TemplateResponse(request, "auth/register.html", {"settings": settings})
