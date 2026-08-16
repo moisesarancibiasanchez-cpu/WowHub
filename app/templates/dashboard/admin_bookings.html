@@ -129,6 +129,21 @@
     const t = window.Auth?.getAccessToken?.() || localStorage.getItem('wowhub_access') || '';
     return { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' };
   }
+  // ── FIX 401: detectar sesión expirada y redirigir a /login ──
+  function handle401(r){
+    if (r && r.status === 401) {
+      // Limpia el token muerto y manda al login con redirect
+      try {
+        localStorage.removeItem('wowhub_access');
+        localStorage.removeItem('wowhub_refresh');
+        localStorage.removeItem('wowhub_tid');
+      } catch(_) {}
+      const next = encodeURIComponent(window.location.pathname);
+      window.location.href = '/login?next=' + next + '&reason=expired';
+      return true;
+    }
+    return false;
+  }
   function fmtDate(s){
     if(!s) return '—';
     const d = new Date(s);
@@ -153,16 +168,20 @@
   // ── Cargar contexto ────────────────────────────────────
   async function loadContext(){
     try {
-      const r = await fetch('/api/v1/tenants/current', { headers: authHeaders() });
+      const r = await fetch('/api/v1/tenants/me', { headers: authHeaders() });
+      if (handle401(r)) return;
       if (!r.ok) return;
       const data = await r.json();
       _tenant = data;
+      // Persistir el tid para próximas cargas (refrescos / recargas)
+      try { localStorage.setItem('wowhub_tid', data.id); } catch(_) {}
     } catch(e){ console.error(e); }
     // Branches
     try {
       const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
       if (tid) {
         const r = await fetch(`/api/v1/tenants/${tid}/branches`, { headers: authHeaders() });
+        if (handle401(r)) return;
         if (r.ok) _branches = await r.json();
       }
     } catch(e){ console.error(e); }
@@ -173,6 +192,7 @@
     try {
       const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
       const r = await fetch(`/api/v1/tenants/${tid}/bookings/stats`, { headers: authHeaders() });
+      if (handle401(r)) return;
       if (!r.ok) return;
       const s = await r.json();
       document.getElementById('kpi-today').textContent = s.today_count;
@@ -197,6 +217,7 @@
 
     try {
       const r = await fetch(`/api/v1/tenants/${tid}/bookings?${params}`, { headers: authHeaders() });
+      if (handle401(r)) return;
       if (!r.ok) {
         list.innerHTML = `<div class="text-danger">Error al cargar (${r.status})</div>`;
         return;
@@ -275,6 +296,7 @@
     const method = 'POST';
     try {
       const r = await fetch(url, { method, headers: authHeaders() });
+      if (handle401(r)) return;
       if (!r.ok && r.status !== 204) {
         const err = await r.json().catch(() => ({}));
         alert('Error: ' + (err.detail || r.status));
@@ -323,6 +345,7 @@
       const r = await fetch(`/api/v1/tenants/${tid}/bookings?send_confirmation=${send}`, {
         method: 'POST', headers: authHeaders(), body: JSON.stringify(body),
       });
+      if (handle401(r)) return;
       if (!r.ok) {
         const e = await r.json().catch(() => ({}));
         err.textContent = e.detail || `Error ${r.status}`;

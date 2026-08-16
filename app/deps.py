@@ -2,7 +2,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,11 +22,30 @@ def _extract_token(authorization: Optional[str]) -> str:
     return authorization.split(" ", 1)[1].strip()
 
 
+def _peek_jwt_payload(request: Request) -> dict:
+    """Lee el payload del JWT del header Authorization sin requerir BD.
+    Usado por dependencias que necesitan claims como `tid` antes de
+    resolver el User."""
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return {}
+    try:
+        return decode_token(auth.split(" ", 1)[1].strip()) or {}
+    except Exception:
+        return {}
+
+
 def get_current_user(
-    authorization: Optional[str] = Header(default=None),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
-    token = _extract_token(authorization)
+    """Resuelve el usuario actual a partir del JWT.
+
+    Si el token está expirado o es inválido, lanza `UnauthorizedError`
+    (que se traduce en 401).
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    token = _extract_token(auth)
     try:
         payload = decode_token(token)
     except ValueError as e:
@@ -43,7 +62,7 @@ def get_current_user(
 
 
 def get_current_user_optional(
-    authorization: Optional[str] = Header(default=None),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """Variante opcional: devuelve el User si el token es válido, o None.
@@ -52,10 +71,11 @@ def get_current_user_optional(
     request si no hay auth — sólo queremos enriquecer el log con el
     `user_id` cuando haya un token válido.
     """
-    if not authorization or not authorization.lower().startswith("bearer "):
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
         return None
     try:
-        payload = decode_token(authorization.split(" ", 1)[1].strip())
+        payload = decode_token(auth.split(" ", 1)[1].strip())
     except Exception:
         return None
     if payload.get("type") != "access":
@@ -74,6 +94,7 @@ def get_current_user_optional(
 
 
 def get_current_membership(
+    request: Request,
     tenant_id: Optional[UUID] = None,
     x_tenant_id: Optional[str] = Header(default=None, alias="X-Tenant-Id"),
     user: User = Depends(get_current_user),
@@ -82,29 +103,24 @@ def get_current_membership(
     """Resuelve la membresía activa. Orden de prioridad:
     1) path param `tenant_id` si viene
     2) header `X-Tenant-Id`
-    3) claim `tid` del JWT
+    3) claim `tid` del JWT (FIX: antes sólo se documentaba, ahora funciona)
     """
-    # claim tid del jwt (lo propagamos vía un sub-dependency)
-    from app.security import decode_token
     tid: Optional[str] = None
-    try:
-        from fastapi import Request
-        # No tenemos Request aquí; la decodificación ya se hizo en get_current_user
-        # pero no nos llegó el payload. La re-leemos del header.
-        pass
-    except Exception:
-        pass
 
     if tenant_id:
         tid = str(tenant_id)
     elif x_tenant_id:
         tid = x_tenant_id
     else:
-        # tomar del token directamente
-        from app.security import decode_token
-        from fastapi import Request  # noqa
-        # Truco: volver a leer el header
-        raise UnauthorizedError("Falta tenant_id en path o header X-Tenant-Id")
+        # Fallback 3: leer el claim `tid` directamente del JWT presente
+        # en el request (sin revalidar, ya se validó en get_current_user).
+        payload = _peek_jwt_payload(request)
+        tid = payload.get("tid")
+
+    if not tid:
+        raise UnauthorizedError(
+            "Falta tenant_id (path, header X-Tenant-Id o claim tid en JWT)"
+        )
 
     m = db.execute(
         select(TenantMembership).where(
