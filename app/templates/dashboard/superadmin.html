@@ -238,7 +238,7 @@ function getAuth() {
   return { token: tk, tenant_id: null };
 }
 
-async function api(path) {
+async function saApi(path) {
   const { token } = getAuth();
   const headers = { "Accept": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
@@ -249,7 +249,7 @@ async function api(path) {
   }
   return r.json();
 }
-async function send(method, path, body) {
+async function saSend(method, path, body) {
   const { token } = getAuth();
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
@@ -264,7 +264,7 @@ async function send(method, path, body) {
 // ── KPIs ──────────────────────────────────────────
 async function loadKpis() {
   try {
-    const s = await api("/api/v1/superadmin/stats");
+    const s = await saApi("/api/v1/superadmin/stats");
     document.querySelectorAll("[data-kpi]").forEach(el => {
       const k = el.getAttribute("data-kpi");
       el.textContent = (s[k] ?? 0);
@@ -288,7 +288,7 @@ async function loadTenants() {
     if (status) params.set("status", status);
     if (plan) params.set("plan", plan);
     params.set("limit", "200");
-    const data = await api("/api/v1/superadmin/tenants?" + params.toString());
+    const data = await saApi("/api/v1/superadmin/tenants?" + params.toString());
     if (!data.length) {
       tbody.innerHTML = '<tr><td colspan="9" class="sa-empty">Sin tiendas registradas.</td></tr>';
       return;
@@ -318,7 +318,7 @@ async function loadTenants() {
 let currentEditTenant = null;
 async function openEditTenant(id) {
   try {
-    const t = await api(`/api/v1/superadmin/tenants/${id}`);
+    const t = await saApi(`/api/v1/superadmin/tenants/${id}`);
     currentEditTenant = t;
     const body = $("sa-tenant-modal-body");
     body.innerHTML = `
@@ -360,7 +360,7 @@ async function saveEditTenant() {
       is_active: $("sa-edit-active").value === "true",
       display_name: $("sa-edit-name").value,
     };
-    await send("PATCH", `/api/v1/superadmin/tenants/${currentEditTenant.id}`, body);
+    await saSend("PATCH", `/api/v1/superadmin/tenants/${currentEditTenant.id}`, body);
     $("sa-tenant-modal").classList.remove("open");
     currentEditTenant = null;
     loadTenants();
@@ -372,7 +372,7 @@ async function saveEditTenant() {
 async function toggleTenant(id, currentlyActive) {
   if (!confirm(`¿${currentlyActive?'Suspender':'Reactivar'} este tenant?`)) return;
   try {
-    await send("PATCH", `/api/v1/superadmin/tenants/${id}`, { is_active: !currentlyActive });
+    await saSend("PATCH", `/api/v1/superadmin/tenants/${id}`, { is_active: !currentlyActive });
     loadTenants();
     loadKpis();
   } catch (e) {
@@ -393,7 +393,7 @@ async function loadUsers() {
     if (active) params.set("is_active", active);
     if (su) params.set("is_superuser", su);
     params.set("limit", "200");
-    const data = await api("/api/v1/superadmin/users?" + params.toString());
+    const data = await saApi("/api/v1/superadmin/users?" + params.toString());
     if (!data.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="sa-empty">Sin usuarios.</td></tr>';
       return;
@@ -432,7 +432,7 @@ function openSuModal(userId, target) {
 async function confirmSu() {
   if (!pendingSuAction) return;
   try {
-    await send("POST", `/api/v1/superadmin/users/${pendingSuAction.user_id}/superuser`, { is_superuser: pendingSuAction.target });
+    await saSend("POST", `/api/v1/superadmin/users/${pendingSuAction.user_id}/superuser`, { is_superuser: pendingSuAction.target });
     $("sa-su-modal").classList.remove("open");
     pendingSuAction = null;
     loadUsers();
@@ -444,7 +444,7 @@ async function confirmSu() {
 async function toggleUserActive(id, currentlyActive) {
   if (!confirm(`¿${currentlyActive?'Desactivar':'Reactivar'} este usuario?`)) return;
   try {
-    await send("PATCH", `/api/v1/superadmin/users/${id}`, { is_active: !currentlyActive });
+    await saSend("PATCH", `/api/v1/superadmin/users/${id}`, { is_active: !currentlyActive });
     loadUsers();
     loadKpis();
   } catch (e) {
@@ -462,7 +462,7 @@ async function loadAudit() {
     if (prefix) params.set("action_prefix", prefix);
     params.set("page", "1");
     params.set("page_size", "100");
-    const data = await api("/api/v1/superadmin/audit?" + params.toString());
+    const data = await saApi("/api/v1/superadmin/audit?" + params.toString());
     if (!data.items || !data.items.length) {
       tbody.innerHTML = '<tr><td colspan="9" class="sa-empty">Sin entradas de auditoría.</td></tr>';
       return;
