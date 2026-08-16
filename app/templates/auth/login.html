@@ -41,6 +41,14 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   const btn = document.getElementById("submit-btn");
   btn.disabled = true; btn.textContent = "Ingresando...";
   document.getElementById("alert").innerHTML = "";
+  // ── FIX: defensivo contra app.js no cargado / error previo ──
+  if (!window.WH || !window.WH.api || !window.WH.TokenStore) {
+    const msg = "Error: el script principal (app.js) no se cargó. Recarga la página con Ctrl+Shift+R para limpiar la caché.";
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${msg}</div>`;
+    btn.disabled = false; btn.textContent = "Ingresar";
+    console.error("[login] window.WH no está definido. app.js falló al cargar.");
+    return;
+  }
   try {
     const data = await WH.api.post("/api/v1/auth/login", {
       email: document.getElementById("email").value,
