@@ -12,6 +12,8 @@ Endpoints MVP (Fase 1):
 - PATCH /api/v1/superadmin/users/{user_id}         → is_active, full_name
 - POST /api/v1/superadmin/users/{user_id}/superuser → toggle is_superuser
 - GET  /api/v1/superadmin/audit                    → logs de auditoría
+- POST /api/v1/superadmin/impersonate/{user_id}    → SUPERADMIN entra como ese user
+- POST /api/v1/superadmin/stop-impersonating       → volver a sesión admin
 
 Fase 2 (futuro, ya con espacio en la UI):
 - /superadmin/plans, /superadmin/coupons, /superadmin/integrations,
@@ -24,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -36,9 +38,101 @@ from app.models.tenant import (
 )
 from app.models.user import User
 from app.models.audit import AuditLog  # si existe; si no, fallback en log
+from app.services.auth_service import AuthService
 
 logger = logging.getLogger("wowhub.superadmin")
 router = APIRouter(prefix="/superadmin", tags=["superadmin"])
+
+# Duración máxima de una sesión de impersonación (minutos).
+# 60 min es suficiente para soporte; pasado eso, el claim `imp.expires_at`
+# se ignora y la sesión vuelve a la del admin.
+IMPERSONATION_TTL_MINUTES = 60
+
+
+# ── Helpers ──────────────────────────────────────────────────────
+def _get_real_admin(request: Request, db: Session) -> User:
+    """Devuelve el superuser REAL, no el usuario impersonado.
+
+    Si la request tiene `imp` claim activo, lee el admin original de
+    `request.state.admin_user` (que `get_current_user` ya pobló).
+    Si no hay impersonación, hace un lookup directo por el `sub` del JWT.
+    """
+    admin = getattr(request.state, "admin_user", None)
+    if admin and getattr(admin, "is_superuser", False) and admin.is_active:
+        return admin
+    # No estamos impersonando: leer directamente del JWT.
+    from app.security import decode_token
+    from app.core.errors import ForbiddenError, UnauthorizedError
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        raise UnauthorizedError("Falta token")
+    try:
+        payload = decode_token(auth.split(" ", 1)[1].strip())
+    except Exception:
+        raise UnauthorizedError("Token inválido")
+    sub = payload.get("sub")
+    if not sub:
+        raise UnauthorizedError("Token sin 'sub'")
+    try:
+        admin = db.get(User, UUID(sub))
+    except (ValueError, TypeError):
+        raise UnauthorizedError("Sub inválido")
+    if not admin or not admin.is_active or not getattr(admin, "is_superuser", False):
+        raise ForbiddenError("Requiere superuser")
+    return admin
+
+
+def _log_impersonation_event(
+    *,
+    db: Session,
+    admin: User,
+    action: str,
+    target_user_id: str,
+    target_user_email: str,
+    tenant_id: Optional[str] = None,
+    description: str = "",
+    request: Optional[Request] = None,
+    extra: Optional[dict] = None,
+) -> None:
+    """Escribe un audit log para eventos de impersonación.
+
+    Usa un try/except defensivo: si falla, no rompe el flujo principal
+    (ya escribimos log en el logger también).
+    """
+    try:
+        from app.services.audit_service import AuditService
+        ip = None
+        if request is not None and request.client:
+            ip = request.client.host
+        xff = request.headers.get("X-Forwarded-For") if request is not None else None
+        if xff:
+            ip = xff.split(",")[0].strip()
+        ua = (request.headers.get("user-agent", "")[:500] if request is not None else "")
+        ex = dict(extra or {})
+        ex["impersonated_user_id"] = target_user_id
+        ex["impersonated_user_email"] = target_user_email
+        if tenant_id:
+            ex["impersonated_tenant_id"] = tenant_id
+        AuditService(db).log(
+            tenant_id=tenant_id,
+            actor=admin,
+            action=action,
+            resource_type="user",
+            resource_id=target_user_id,
+            method="POST",
+            path=(request.url.path if request is not None else None),
+            ip=ip,
+            user_agent=ua,
+            status_code=200,
+            description=description,
+            extra=ex,
+        )
+    except Exception as e:
+        logger.warning("[superadmin/impersonation] audit log error: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 # ── Schemas ──────────────────────────────────────────────────────
@@ -569,3 +663,234 @@ def list_audit(
             )
         )
     return AuditListOut(items=items, total=total, page=page, page_size=page_size)
+
+
+# ── /impersonate ─────────────────────────────────────────────────
+class ImpersonateOut(BaseModel):
+    access_token: str
+    expires_in: int
+    expires_at: str
+    impersonating: dict
+    redirect: str = "/dashboard"
+
+
+@router.post("/impersonate/{user_id}", response_model=ImpersonateOut)
+def impersonate_user(
+    user_id: UUID,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> ImpersonateOut:
+    """SUPERADMIN entra como `user_id`. Devuelve un nuevo access token con
+    claim `imp` que hace que `get_current_user` devuelva al usuario target
+    en lugar del admin. Auto-expira a los 60 minutos.
+
+    Reglas de seguridad:
+    - Solo accesible por un superuser.
+    - No se puede impersonar a sí mismo.
+    - No se puede impersonar a otro superuser.
+    - El target debe estar activo y tener al menos una membresía activa.
+    - Queda registrado en `audit_logs` con `actor=admin, extra.impersonated_user_id`.
+    """
+    admin = _get_real_admin(request, db)
+
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not target.is_active:
+        raise HTTPException(status_code=400, detail="Usuario inactivo, no se puede impersonar")
+    if str(target.id) == str(admin.id):
+        raise HTTPException(status_code=400, detail="No podés impersonarte a vos mismo")
+    if getattr(target, "is_superuser", False):
+        raise HTTPException(
+            status_code=403,
+            detail="No se puede impersonar a un superuser (medida de seguridad)",
+        )
+
+    # Membresía primaria del target: preferimos OWNER, sino la primera activa.
+    memberships = list(
+        db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == str(target.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+        ).scalars()
+    )
+    if not memberships:
+        raise HTTPException(
+            status_code=400,
+            detail="El usuario no tiene membresías activas; no se puede impersonar",
+        )
+    primary = next((m for m in memberships if m.is_owner), memberships[0])
+
+    # Construir claim `imp`
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(minutes=IMPERSONATION_TTL_MINUTES)
+    imp_claim = {
+        "uid": str(target.id),
+        "email": target.email,
+        "full_name": target.full_name,
+        "tid": str(primary.tenant_id),
+        "started_at": now.isoformat(),
+        "expires_at": expires.isoformat(),
+    }
+
+    # Emitir nuevos tokens con imp claim. El `sub` sigue siendo el admin.
+    svc = AuthService(db)
+    access, _refresh, ttl = svc.issue_tokens(admin, primary, imp=imp_claim)
+
+    # Seteamos la cookie httpOnly igual que en login/refresh para que el
+    # guard server-side (que lee la cookie) siga dejando pasar.
+    try:
+        from app.api.v1.auth import _set_access_cookie
+        _set_access_cookie(response, access)
+    except Exception as e:
+        logger.warning("[superadmin/impersonate] could not set cookie: %s", e)
+
+    # Audit log
+    _log_impersonation_event(
+        db=db,
+        admin=admin,
+        action="superadmin.impersonate_start",
+        target_user_id=str(target.id),
+        target_user_email=target.email,
+        tenant_id=str(primary.tenant_id),
+        request=request,
+        description=(
+            f"Superadmin {admin.email} empezó a impersonar a "
+            f"{target.email} (tenant {primary.tenant_id}) por {IMPERSONATION_TTL_MINUTES} min"
+        ),
+        extra={"started_at": now.isoformat(), "expires_at": expires.isoformat()},
+    )
+
+    logger.warning(
+        "[superadmin] SUPERADMIN user_id=%s (%s) IMPERSONATING user_id=%s (%s) until %s",
+        admin.id, admin.email, target.id, target.email, expires.isoformat(),
+    )
+
+    return ImpersonateOut(
+        access_token=access,
+        expires_in=ttl,
+        expires_at=expires.isoformat(),
+        impersonating={
+            "user_id": str(target.id),
+            "email": target.email,
+            "full_name": target.full_name,
+            "tenant_id": str(primary.tenant_id),
+            "role": primary.role.value if hasattr(primary.role, "value") else str(primary.role),
+            "is_owner": bool(primary.is_owner),
+        },
+        redirect="/dashboard",
+    )
+
+
+@router.post("/stop-impersonating")
+def stop_impersonating(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Detiene la impersonación actual y emite un nuevo access token
+    sin el claim `imp` (vuelve a la sesión normal del superuser)."""
+    admin = _get_real_admin(request, db)
+
+    # Leer el claim `imp` actual del JWT para registrar el fin.
+    from app.security import decode_token
+    current_imp = None
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        try:
+            payload = decode_token(auth.split(" ", 1)[1].strip())
+            current_imp = payload.get("imp")
+        except Exception:
+            pass
+
+    if not current_imp:
+        # No estábamos impersonando. Devolvemos tokens frescos igual.
+        pass
+
+    # Encontrar membresía del admin (si tiene) para mantener contexto
+    admin_memberships = list(
+        db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == str(admin.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+        ).scalars()
+    )
+    current = admin_memberships[0] if admin_memberships else None
+
+    svc = AuthService(db)
+    access, _refresh, ttl = svc.issue_tokens(admin, current, imp=None)
+
+    try:
+        from app.api.v1.auth import _set_access_cookie
+        _set_access_cookie(response, access)
+    except Exception as e:
+        logger.warning("[superadmin/stop-impersonating] could not set cookie: %s", e)
+
+    if current_imp:
+        _log_impersonation_event(
+            db=db,
+            admin=admin,
+            action="superadmin.impersonate_end",
+            target_user_id=str(current_imp.get("uid") or ""),
+            target_user_email=str(current_imp.get("email") or ""),
+            tenant_id=str(current_imp.get("tid") or "") or None,
+            request=request,
+            description=(
+                f"Superadmin {admin.email} terminó impersonación de "
+                f"{current_imp.get('email') or 'usuario'}"
+            ),
+            extra={
+                "started_at": current_imp.get("started_at"),
+                "ended_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        logger.warning(
+            "[superadmin] SUPERADMIN user_id=%s (%s) STOPPED impersonating user_id=%s (%s)",
+            admin.id, admin.email, current_imp.get("uid"), current_imp.get("email"),
+        )
+
+    return {
+        "access_token": access,
+        "expires_in": ttl,
+        "impersonating": None,
+        "redirect": "/admin/superadmin",
+    }
+
+
+# ── /impersonation/status ────────────────────────────────────────
+@router.get("/impersonation/status")
+def impersonation_status(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Lee el JWT actual y devuelve el estado de impersonación, si lo hay.
+    Útil para que el frontend hidrate el banner al cargar una página sin
+    tener que esperar al primer fetch de datos.
+    """
+    from app.security import decode_token
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return {"impersonating": None}
+    try:
+        payload = decode_token(auth.split(" ", 1)[1].strip())
+    except Exception:
+        return {"impersonating": None}
+    imp = payload.get("imp")
+    if not imp:
+        return {"impersonating": None}
+    return {
+        "impersonating": {
+            "uid": imp.get("uid"),
+            "email": imp.get("email"),
+            "full_name": imp.get("full_name"),
+            "tid": imp.get("tid"),
+            "started_at": imp.get("started_at"),
+            "expires_at": imp.get("expires_at"),
+        },
+        "admin": {
+            "sub": payload.get("sub"),
+        },
+    }

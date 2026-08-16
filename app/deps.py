@@ -35,6 +35,60 @@ def _peek_jwt_payload(request: Request) -> dict:
         return {}
 
 
+def _resolve_impersonation(
+    request: Request,
+    db: Session,
+    payload: dict,
+    admin: User,
+) -> Optional[User]:
+    """Si el JWT tiene un claim `imp` válido, devuelve el usuario impersonado.
+
+    En caso contrario devuelve None. Como side-effect setea
+    `request.state.admin_user` y `request.state.impersonation` para que
+    endpoints y audit middleware puedan registrar quién es el admin real.
+
+    Reglas de seguridad:
+    - El claim `imp` debe traer `uid` (UUID del usuario target).
+    - El target debe existir, estar activo y NO ser superuser.
+    - Si `imp.expires_at` está seteado, la sesión debe no estar expirada.
+    """
+    imp = payload.get("imp")
+    if not imp:
+        return None
+    target_id = imp.get("uid")
+    if not target_id:
+        return None
+    try:
+        target_uid = UUID(str(target_id))
+    except (ValueError, TypeError):
+        return None
+    target = db.get(User, target_uid)
+    if not target or not target.is_active:
+        return None
+    # Defensa: nunca permitir impersonar a otro superuser (aunque
+    # el endpoint /impersonate ya bloquea, validamos acá también por
+    # si alguien forja un token directamente con jose).
+    if getattr(target, "is_superuser", False):
+        return None
+    # Validar expiración
+    expires_at_str = imp.get("expires_at")
+    if expires_at_str:
+        from datetime import datetime, timezone
+        try:
+            exp_dt = datetime.fromisoformat(str(expires_at_str).replace("Z", "+00:00"))
+            now = datetime.now(timezone.utc)
+            if now > exp_dt:
+                # Impersonación expirada: devolver al admin silenciosamente.
+                # (El frontend ya habrá visto expirar el banner.)
+                return None
+        except (ValueError, TypeError):
+            pass
+    # Stash para auditoría
+    request.state.admin_user = admin
+    request.state.impersonation = imp
+    return target
+
+
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db),
@@ -43,6 +97,11 @@ def get_current_user(
 
     Si el token está expirado o es inválido, lanza `UnauthorizedError`
     (que se traduce en 401).
+
+    IMPERSONACIÓN: si el JWT incluye el claim `imp` (sólo lo emite
+    `POST /superadmin/impersonate/{user_id}`), devuelve el usuario
+    impersonado. El admin original queda accesible en
+    `request.state.admin_user` para fines de auditoría.
     """
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     token = _extract_token(auth)
@@ -55,10 +114,18 @@ def get_current_user(
     sub = payload.get("sub")
     if not sub:
         raise UnauthorizedError("Token sin 'sub'")
-    user = db.get(User, UUID(sub))
-    if not user or not user.is_active:
+    try:
+        admin_uid = UUID(sub)
+    except (ValueError, TypeError):
+        raise UnauthorizedError("Token con 'sub' inválido")
+    admin = db.get(User, admin_uid)
+    if not admin or not admin.is_active:
         raise UnauthorizedError("Usuario no encontrado o inactivo")
-    return user
+    # ¿Hay impersonación activa?
+    target = _resolve_impersonation(request, db, payload, admin)
+    if target is not None:
+        return target
+    return admin
 
 
 def get_current_user_optional(
@@ -70,6 +137,10 @@ def get_current_user_optional(
     Usada por middlewares (audit, analytics) donde NO se debe cortar el
     request si no hay auth — sólo queremos enriquecer el log con el
     `user_id` cuando haya un token válido.
+
+    IMPERSONACIÓN: igual que `get_current_user`, si el JWT tiene `imp`,
+    devuelve el usuario impersonado. El admin original queda accesible
+    en `request.state.admin_user`.
     """
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     if not auth or not auth.lower().startswith("bearer "):
@@ -84,13 +155,16 @@ def get_current_user_optional(
     if not sub:
         return None
     try:
-        uid = UUID(sub)
+        admin_uid = UUID(sub)
     except (ValueError, TypeError):
         return None
-    user = db.get(User, uid)
-    if not user or not user.is_active:
+    admin = db.get(User, admin_uid)
+    if not admin or not admin.is_active:
         return None
-    return user
+    target = _resolve_impersonation(request, db, payload, admin)
+    if target is not None:
+        return target
+    return admin
 
 
 def get_current_membership(

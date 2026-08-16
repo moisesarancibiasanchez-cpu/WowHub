@@ -116,7 +116,7 @@ class AuthService:
         return user, current, memberships
 
     # ── Refresh ─────────────────────────────────────────
-    def refresh(self, refresh_token: str) -> tuple[User, Optional[TenantMembership]]:
+    def refresh(self, refresh_token: str) -> tuple[User, Optional[TenantMembership], Optional[dict]]:
         try:
             payload = decode_token(refresh_token)
         except ValueError as e:
@@ -137,7 +137,10 @@ class AuthService:
                     TenantMembership.tenant_id == str(tid),
                 )
             ).scalar_one_or_none()
-        return user, current
+        # Preservar claim `imp` para que el refresh de un access token
+        # emitido durante impersonación mantenga el contexto.
+        imp = payload.get("imp")
+        return user, current, imp
 
     # ── Switch tenant ───────────────────────────────────
     def switch_tenant(self, user: User, tenant_id: UUID) -> TenantMembership:
@@ -153,7 +156,22 @@ class AuthService:
         return m
 
     # ── Tokens ──────────────────────────────────────────
-    def issue_tokens(self, user: User, current: Optional[TenantMembership]) -> tuple[str, str, int]:
+    def issue_tokens(
+        self,
+        user: User,
+        current: Optional[TenantMembership],
+        *,
+        imp: Optional[dict] = None,
+    ) -> tuple[str, str, int]:
+        """Emite access + refresh tokens.
+
+        `imp` (opcional): si se provee, se incluye como claim `imp` en ambos
+        tokens. Lo usa SUPERADMIN para impersonar a otro usuario: el `sub`
+        sigue siendo el admin, pero `get_current_user` detecta `imp` y devuelve
+        el usuario impersonado. `tid` y `role` del JWT pasan a ser los del
+        usuario impersonado (no del admin) para que `get_current_membership`
+        funcione naturalmente.
+        """
         if current and current.tenant_id is not None:
             tid = current.tenant_id
             tenant_id = tid if isinstance(tid, UUID) else UUID(str(tid))
@@ -162,18 +180,22 @@ class AuthService:
         role = current.role.value if current else user.default_role.value
         # SUPERADMIN: incluimos is_superuser como claim del access token
         # para que `require_superuser` no necesite consultar la BD.
+        extra_claims: dict = {"is_superuser": bool(getattr(user, "is_superuser", False))}
+        if imp:
+            # El sub del JWT sigue siendo el admin; el imp.uid es el impersonado.
+            extra_claims["imp"] = imp
         access = create_access_token(
             user.id,
             tenant_id=tenant_id,
             role=role,
-            extra_claims={"is_superuser": bool(getattr(user, "is_superuser", False))},
+            extra_claims=extra_claims,
         )
         refresh = create_refresh_token(user.id)
         # Reusar info del tenant en el refresh para mantener contexto tras refresh
         if current:
             from app.security import jwt
             from datetime import timedelta
-            # regenerar refresh con tid + is_superuser
+            # regenerar refresh con tid + is_superuser (+ imp si impersonación)
             now = datetime.now(timezone.utc)
             payload = {
                 "sub": str(user.id),
@@ -184,6 +206,8 @@ class AuthService:
                 "exp": int((now + timedelta(days=settings.jwt_refresh_ttl_days)).timestamp()),
                 "type": "refresh",
             }
+            if imp:
+                payload["imp"] = imp
             refresh = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
         ttl = settings.jwt_access_ttl_minutes * 60
         return access, refresh, ttl

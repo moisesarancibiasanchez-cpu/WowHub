@@ -145,8 +145,8 @@ def login_form(
 @router.post("/refresh", response_model=TokenPair)
 def refresh(payload: TokenRefresh, response: Response, db: Session = Depends(get_db)):
     svc = AuthService(db)
-    user, current = svc.refresh(payload.refresh_token)
-    access, refresh_t, ttl = svc.issue_tokens(user, current)
+    user, current, imp = svc.refresh(payload.refresh_token)
+    access, refresh_t, ttl = svc.issue_tokens(user, current, imp=imp)
     _set_access_cookie(response, access)
     current_out = None
     if current:
