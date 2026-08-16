@@ -105,8 +105,8 @@ MODULES: list[dict[str, Any]] = [
     {
         "key": "admin_ia",
         "label": "Admin IA",
-        "path": "/dashboard/admin/ai",
-        "description": "Métricas, logs, trazas, circuit breaker. Solo OWNER/ADMIN.",
+        "path": "/admin/ai",
+        "description": "Métricas, logs, trazas, circuit breaker. Solo OWNER/ADMIN (guard server-side).",
         "requires_activation": False,
         "ai_tools": [],
     },

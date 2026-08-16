@@ -22,6 +22,7 @@ from app.api.v1 import (
     loyalty,
     analytics, campaigns,
 )
+from app.models.user import UserRole
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
 from app.core.security import RateLimitMiddleware
@@ -251,8 +252,44 @@ def dashboard_ai(request: Request):
 
 @app.get("/admin/ai", response_class=HTMLResponse, include_in_schema=False)
 def admin_ai_page(request: Request):
-    """Dashboard admin del AI Core: logs, métricas, trazas, circuit."""
-    return templates.TemplateResponse(request, "dashboard/admin_ai.html", {"settings": settings})
+    """Dashboard admin del AI Core: logs, métricas, trazas, circuit.
+    Requiere rol OWNER o ADMIN — si no, redirige a /dashboard/login."""
+    from app.database import SessionLocal
+    from app.security import decode_token
+
+    token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    with SessionLocal() as db:
+        from app.models.user import User
+        user = db.get(User, user_id)
+        if not user:
+            return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+        role = getattr(user, "default_role", None) or getattr(user, "role", None)
+        if role not in (UserRole.OWNER, UserRole.ADMIN):
+            return RedirectResponse(
+                url="/dashboard?reason=admin_forbidden",
+                status_code=302,
+            )
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/admin_ai.html",
+        {"settings": settings, "user_role": role.value},
+    )
 
 
 # ── Loyalty Pass (UI) ─────────────────────────────────────

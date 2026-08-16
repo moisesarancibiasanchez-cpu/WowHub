@@ -31,7 +31,12 @@ Todos los módulos se acceden desde el menú lateral del dashboard (`/dashboard`
 | **Fidelización** | `/dashboard/loyalty` | Programas de puntos y sellos. | No | (no expuesta aún) |
 | **QR** | `/dashboard/qr` | Códigos QR para tienda física. | No | (no expuesta aún) |
 | **Configuración** | `/dashboard/settings` | Datos del tenant, branding, integraciones, Mi cuenta. | No | `get_tenant_info` |
-| **Admin IA** | `/dashboard/admin/ai` | Métricas, logs, trazas, circuit breaker. (Solo OWNER/ADMIN) | No | (n/a, es la IA misma) |
+| **Admin IA** | `/admin/ai` | Métricas, logs, trazas, circuit breaker. (Solo OWNER/ADMIN) | No | (n/a, es la IA misma) |
+
+> **Admin IA — guard de rol:** la página `/admin/ai` y los endpoints `/api/v1/admin/ai/*` están protegidos con guard server-side. Si el usuario no tiene rol `OWNER` o `ADMIN`:
+> - Si no hay sesión → redirige a `/dashboard/login?reason=admin_auth`.
+> - Si hay sesión pero el rol no alcanza → redirige a `/dashboard?reason=admin_forbidden`.
+> - En el sidebar, el link "Admin IA" se muestra **solo** a OWNER/ADMIN (`data-requires-role="owner,admin"` + JS de guard).
 
 ---
 
@@ -163,4 +168,5 @@ Este handoff queda implementado en `app/services/ai_orchestrator.py` con la regl
 ## 10. Versiones
 
 - v1.0 (16-ago-2026): documento inicial alineado con Bookings Fase 2, 12 módulos en panel, 4 tools de lectura + 4 de escritura + 1 de ayuda.
+- v1.1 (16-ago-2026): corregida ruta real de Admin IA (`/admin/ai`, antes erróneamente `/dashboard/admin/ai`). Agregada nota sobre guard de rol server-side.
 - Próxima: cuando se agregue el módulo de Fidelización a tools IA.

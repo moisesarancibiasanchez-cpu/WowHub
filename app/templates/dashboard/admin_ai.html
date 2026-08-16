@@ -185,7 +185,9 @@ async function loadOverview() {
     const o = await api("/api/v1/admin/ai/overview");
     $("ai-cb-state").textContent = o.circuit_state || "—";
     $("ai-llm-enabled").textContent = o.llm_enabled ? "Sí" : "No";
-    $("ai-llm-model").textContent = o.model || "—";
+    var model = (o.llm_model || "—");
+    if (o.llm_provider) model = o.llm_provider + " · " + model;
+    $("ai-llm-model").textContent = model;
     $("ai-total-conv").textContent = o.total_conversations ?? 0;
     $("ai-total-msg").textContent  = o.total_messages ?? 0;
     $("ai-active-users").textContent = o.active_users_7d ?? 0;

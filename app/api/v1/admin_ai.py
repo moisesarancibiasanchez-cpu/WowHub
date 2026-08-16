@@ -157,6 +157,8 @@ def get_overview(
             last_7d=[MetricDailyOut.model_validate(m) for m in last_7d],
             circuit_state=str(get_circuit().snapshot()),
             llm_enabled=settings.llm_enabled,
+            llm_model=getattr(settings, "llm_model", None),
+            llm_provider=getattr(settings, "llm_provider", None),
             total_conversations=int(total_conv),
             total_messages=int(total_msgs),
             active_users_7d=int(active_users),

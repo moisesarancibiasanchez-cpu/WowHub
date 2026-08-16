@@ -51,6 +51,14 @@
       <span class="ico">🌗</span> Apariencia
     </a>
     <h4>Avanzado</h4>
+    <a href="/dashboard/ai" class="nav-link" data-route="ai">
+      <span class="ico">💬</span> Asistente IA
+    </a>
+    <a href="/admin/ai" class="nav-link" data-route="admin-ai"
+       data-requires-role="owner,admin"
+       style="display:none;">
+      <span class="ico">🛡️</span> Admin IA
+    </a>
     <a href="/docs" target="_blank">
       <span class="ico">📘</span> API Docs
     </a>
@@ -88,12 +96,37 @@ WH.Auth.requireLogin();
   }
 })();
 document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.logout());
-const route = document.body.dataset.route;
-if (route) {
-  document.querySelectorAll(".nav-link").forEach(a => {
-    if (a.dataset.route === route) a.classList.add("active");
+// ── Resaltar link activo en el sidebar ────────────────────
+(function highlightActiveNav() {
+  const path = (location.pathname || "").replace(/\/+$/, "");
+  document.querySelectorAll(".nav-link[data-route]").forEach(a => {
+    const href = (a.getAttribute("href") || "").replace(/\/+$/, "");
+    if (href && (path === href || path.startsWith(href + "/"))) {
+      a.classList.add("active");
+    }
   });
-}
+})();
+
+// ── Mostrar/ocultar links según rol ───────────────────────
+(async function applyRoleGuards() {
+  try {
+    const session = await WH.Auth.ensureSession();
+    const user = session.user || WH.Auth.user();
+    const role = (user && (user.default_role || user.role)) || "";
+    const roleStr = String(role).toLowerCase();
+    document.querySelectorAll("[data-requires-role]").forEach(el => {
+      const allowed = (el.dataset.requiresRole || "")
+        .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (allowed.length === 0 || allowed.includes(roleStr)) {
+        el.style.display = "";
+      } else {
+        el.remove();
+      }
+    });
+  } catch (e) {
+    console.warn("[role-guards]", e);
+  }
+})();
 </script>
 {% block dash_scripts %}{% endblock %}
 {% endblock %}

@@ -200,6 +200,8 @@ class AIOverviewOut(BaseModel):
     last_7d: list[MetricDailyOut]
     circuit_state: str
     llm_enabled: bool
+    llm_model: Optional[str] = None
+    llm_provider: Optional[str] = None
     total_conversations: int
     total_messages: int
     active_users_7d: int
