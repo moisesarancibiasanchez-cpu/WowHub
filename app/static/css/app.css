@@ -73,17 +73,23 @@
    que el contenido no quede pegado a la izquierda cuando hay poco
    espacio (ej: desktop con ambos sidebars visibles deja ~50% al
    centro). Esto beneficia a TODOS los módulos del dashboard de
-   una sola vez, sin tocar cada template.                             */
+   una sola vez, sin tocar cada template.
+
+   NOTA: NO usamos display:flex aquí — en un flex container,
+   `width:100%` en el hijo hace que quiera ocupar todo el ancho y
+   `justify-content:center` no tiene espacio para centrar. La forma
+   correcta es: .dash-main como block normal, .dash-content como
+   block con `margin:0 auto` y `max-width`. Clásico y a prueba de
+   balas.                                                    */
 .dash-main {
   padding: 32px 40px;
-  display: flex;
-  justify-content: center; /* centra el wrapper .dash-content */
 }
 .dash-content {
   width: 100%;
   max-width: 1200px;       /* tope en desktop ancho */
-  margin: 0 auto;          /* cinturón + tirantes: centrado horizontal */
+  margin: 0 auto;          /* centrado horizontal — funciona siempre */
   text-align: left;        /* pero el texto dentro sigue LTR (default UI) */
+  box-sizing: border-box;  /* padding/border cuentan dentro del max-width */
 }
 .dash-main h1 { margin: 0 0 4px; font-size: 26px; }
 .dash-main .sub { color: var(--fg-muted); margin-bottom: 24px; font-size: 14px; }
