@@ -4,7 +4,7 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 16 de agosto de 2026.
-> **Versión:** v1.3 (impersonación de superuser habilitada).
+> **Versión:** v1.4 (documentado modelo de roles y membresías).
 
 ---
 
@@ -131,6 +131,7 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿Cuánto cuesta WowHub?" | "Depende del plan. Revisa la sección de **Planes** en la landing o pregúntale al equipo de ventas." |
 | "Quiero eliminar mi cuenta" | "Por seguridad, la eliminación de cuenta se hace escribiendo a **soporte@wowhub.app**." |
 | "¿Cómo conecto WhatsApp?" | "En **Configuración → Integraciones** (cuando esté disponible). Hoy puedes compartir el link público por WhatsApp manualmente." |
+| "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?" | "Son los 4 roles por membresía en un tenant. **OWNER**: administración completa del tenant (todo). **ADMIN**: administración operativa con casi los mismos poderes que OWNER — puede gestionar productos, reservas, clientes, campañas, miembros y configuración, pero no puede eliminar el tenant ni modificar el OWNER. **STAFF**: operación diaria con acceso limitado (ej. crear reservas, registrar ventas, ver clientes, pero no modificar configuración ni productos). **VIEWER**: solo consulta (lee KPIs, listas, agenda) sin poder ejecutar acciones de escritura. Los roles son **por tenant** — un mismo usuario puede ser OWNER en un tenant y VIEWER en otro. El **SUPERUSER** es otra cosa: es un flag **por usuario** (no por tenant) y aplica a TODA la plataforma; ver §11." |
 | "El superadmin entró a mi tienda, ¿puede ver mis conversaciones del asistente?" | "Sí. Cuando un superuser usa 'Entrar como admin', obtiene la sesión completa del dueño, incluyendo todas sus conversaciones del asistente virtual. Esto es una función administrativa, no es un acceso oculto. Toda entrada y salida queda registrada en la auditoría." |
 | "¿Cómo salgo si el superadmin entró a mi tienda?" | "El superadmin siempre usa el botón '🚪 Salir' del banner de impersonación; vos como dueño no notás nada en tu sesión normal." |
 
@@ -182,6 +183,7 @@ Este handoff queda implementado en `app/services/ai_orchestrator.py` con la regl
 - v1.1 (16-ago-2026): corregida ruta real de Admin IA (`/admin/ai`, antes erróneamente `/dashboard/admin/ai`). Agregada nota sobre guard de rol server-side.
 - **v1.2 (16-ago-2026)**: agregado módulo **SUPERADMIN** (panel de plataforma). 13 módulos en panel. Nuevo guard `require_superuser`. Nuevo claim `is_superuser` en JWT. Nueva ruta `/admin/superadmin` y endpoints `/api/v1/superadmin/*`. Script CLI `python -m scripts.promote_superuser --email ... --grant`.
 - **v1.3 (16-ago-2026)**: habilitada **impersonación de superuser** ("Login As" / "Entrar como admin"). Nuevos endpoints `POST /api/v1/superadmin/users/{id}/impersonate`, `POST /api/v1/superadmin/users/{id}/impersonate-tenant/{slug}`, `POST /api/v1/superadmin/impersonate/stop` y `GET /api/v1/superadmin/tenants/{id}/owner`. Claim JWT `imp={uid, tid, exp}`. Banner persistente de impersonación en `base.html`. Bug fix: limpiado `user`/`current_tenant` stale del localStorage en `confirmImpersonate` y `doStop` para resolver el "Cargando..." infinito. **Actualizado §11 y §7**: ya NO es cierto que el superuser no pueda impersonar; ahora sí puede y la IA debe reconocerlo.
+- **v1.4 (16-ago-2026)**: documentado **modelo de roles y membresías**. Nueva §13 con la jerarquía completa OWNER/ADMIN/STAFF/VIEWER/SUPERUSER, sus permisos actuales vs. aspiracionales, la diferencia entre roles-por-tenant y flag-por-usuario, y cómo la IA debe responder preguntas sobre permisos. Nueva entrada en §6 FAQ: "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?".
 - Próxima: cuando se agregue el módulo de Fidelización a tools IA.
 
 ---
@@ -314,3 +316,74 @@ La **impersonación** (también llamada "Login As" o "Entrar como admin") es una
 ### 12.5 Bug conocido y resolución (histórico)
 
 - **v1.3-fix:** durante un breve período en v1.3, después de una impersonación exitosa el dashboard quedaba en "Cargando..." infinito. La causa fue que `Auth.ensureSession()` retornaba una sesión cacheada desde localStorage con `user` y `current_tenant` stale del superuser, sin rehidratar desde el backend. **Solución:** `confirmImpersonate()` y `doStop()` ahora limpian los campos stale (`user`, `current_tenant`) y resetean `_sessionPromise` antes de redirigir, forzando una rehidratación limpia desde `/api/v1/auth/me/session`.
+
+---
+
+## 13. Modelo de roles y membresías
+
+### 13.1 Concepto clave: dos ejes de permisos
+
+WowHub maneja permisos en **dos dimensiones independientes** que la IA debe entender para no confundirlas:
+
+1. **Roles por membresía (per-tenant):** OWNER, ADMIN, STAFF, VIEWER. Definen qué puede hacer un usuario **dentro de un tenant específico**. Un usuario puede tener un rol distinto en cada tenant del que es miembro.
+2. **Flag de plataforma (per-usuario):** `is_superuser`. Define si un usuario tiene autoridad **transversal sobre toda la plataforma**. Es único por usuario, no por tenant.
+
+Un usuario puede ser `OWNER` en el tenant A y, al mismo tiempo, `VIEWER` en el tenant B, y **además** ser `is_superuser=True`. Esos tres conceptos son ortogonales.
+
+### 13.2 Tabla canónica de roles
+
+| Rol | Scope | Alcance general | Quién lo asigna | Notas |
+|---|---|---|---|---|
+| **OWNER** | Por membresía (1 por tenant como mínimo) | **Administración completa del tenant.** Puede todo: crear/editar/borrar productos, reservas, clientes, campañas, sucursales, miembros, configuración, branding, integraciones, y facturación del tenant. Es el único que puede transferir la propiedad del tenant. | Se asigna automáticamente al crear el tenant (el usuario que lo crea queda como OWNER). Otro OWNER puede asignar un nuevo OWNER. | Cada tenant tiene **al menos 1 OWNER**. No se puede dejar un tenant sin OWNER. |
+| **ADMIN** | Por membresía (0..N por tenant) | **Administración operativa.** Puede gestionar productos, reservas, clientes, campañas, sucursales, miembros (excepto OWNER) y configuración. **Hoy** en el código tiene poderes casi idénticos a OWNER — la diferencia práctica es que no puede eliminar el tenant ni modificar al OWNER. La descripción "según permisos configurados" es **aspiracional** (planeamos permisos granulares por ADMIN en el roadmap). | OWNER o cualquier ADMIN existente. | La IA NO debe prometer permisos granulares finos al usuario — eso aún no está implementado. Si la pregunta es sobre algo específico que un ADMIN puede o no puede hacer, responder con la regla práctica actual. |
+| **STAFF** | Por membresía (0..N por tenant) | **Operación diaria con acceso limitado.** Pensado para empleados operativos: recepcionistas, vendedores, barberos, etc. Hoy puede crear reservas, registrar ventas, ver/actualizar clientes, ver productos y agenda. No debería modificar configuración general ni borrar productos. | OWNER o ADMIN. | Los permisos finos exactos de STAFF están en evolución. Si la IA no está 100% segura de una acción específica, decir "consulta con tu OWNER" en lugar de inventar. |
+| **VIEWER** | Por membresía (0..N por tenant) | **Consulta de información sin acciones críticas.** Solo lectura: KPIs del dashboard, listas (productos, clientes, reservas, campañas), reportes. No puede crear, editar ni borrar nada. | OWNER o ADMIN. | Útil para auditores, socios pasivos, contadores externos, o el dueño revisando desde otro dispositivo sin riesgo de modificar algo por error. |
+| **SUPERUSER** | Flag por usuario (cross-tenant) | **Administración global de la plataforma.** Ve y modifica todos los tenants y todos los usuarios. Accede a `/admin/superadmin` y a los endpoints `/api/v1/superadmin/*`. Puede impersonar a cualquier usuario no-superuser. | Solo otro SUPERUSER desde la UI, o el script CLI `python -m scripts.promote_superuser --email ... --grant` para el bootstrap inicial. | **No es un rol de tenant.** Un SUPERUSER que no es miembro de un tenant no tiene membresía ahí — pero su autoridad cross-tenant le permite ver/actuar igual. Ver §11. |
+
+### 13.3 Diferencia entre ADMIN y OWNER (lo que la IA debe decir)
+
+Esta es una de las preguntas más frecuentes. La respuesta corta y correcta es:
+
+- **OWNER** es el "dueño" del tenant. Hay uno por tenant (como mínimo) y no se puede eliminar el tenant sin su acción.
+- **ADMIN** es un "gerente" con poderes operativos similares. Puede hacer casi todo lo que hace un OWNER en el día a día (gestionar productos, ver reportes, modificar miembros que no sean OWNER, etc.), pero la cuenta del tenant sigue siendo del OWNER.
+
+En la práctica actual, **la diferencia es más legal/administrativa que técnica**: si todos los OWNERs abandonan el tenant, los ADMINs no pueden recuperar la propiedad automáticamente. Si se necesita una separación dura de permisos, lo correcto hoy es crear un tenant separado.
+
+### 13.4 Jerarquía de visibilidad (qué ve cada rol en la UI)
+
+- **OWNER** y **ADMIN** ven el menú lateral completo (12 módulos de §2), incluido "Admin IA".
+- **STAFF** ve el menú con los módulos operativos (Resumen, Productos, Pedidos/Ventas, Reservas, Clientes, Campañas) y **no** ve Configuración, Admin IA ni SUPERADMIN.
+- **VIEWER** ve un menú reducido de solo lectura: Resumen, Productos, Clientes, Reservas, Campañas, Sucursales, Fidelización. **No** ve Configuración, Admin IA ni SUPERADMIN.
+- **SUPERUSER** (adicional a su rol de tenant) ve el link "SUPERADMIN" en el sidebar.
+
+> **Guard server-side:** los endpoints sensibles (`/api/v1/admin/ai/*`, `/api/v1/superadmin/*`, y las acciones destructivas de tenant) están protegidos con `Depends(require_role("OWNER", "ADMIN"))` o `Depends(require_superuser)`. Si un STAFF/VIEWER intenta llamar al endpoint por URL directa, recibe 403. La UI oculta los links, pero el server siempre re-valida.
+
+### 13.5 Quién puede agregar miembros
+
+| Acción | OWNER | ADMIN | STAFF | VIEWER | SUPERUSER |
+|---|---|---|---|---|---|
+| Agregar miembro a su tenant | ✅ | ✅ | ❌ | ❌ | ✅ (vía panel superadmin) |
+| Cambiar rol de un miembro | ✅ | ✅ (excepto OWNER) | ❌ | ❌ | ✅ |
+| Eliminar miembro | ✅ | ✅ (excepto OWNER) | ❌ | ❌ | ✅ |
+| Transferir propiedad (cambiar OWNER) | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Promover a SUPERUSER | ❌ | ❌ | ❌ | ❌ | ✅ (solo desde `/admin/superadmin` o CLI) |
+
+### 13.6 Anti-alucinación específica del modelo de roles
+
+- ❌ No existe un rol "MANAGER" o "EDITOR" o "ANALYST" — solo los 4 (OWNER/ADMIN/STAFF/VIEWER) por tenant + SUPERUSER por plataforma.
+- ❌ No existe un "rol personalizado" configurable por el usuario. La personalización de permisos finos está en roadmap.
+- ❌ No existe "rol de facturación" separado — la facturación del tenant la ve y gestiona el OWNER.
+- ❌ Un usuario NO puede auto-asignarse un rol; lo hace el OWNER, un ADMIN, o un SUPERUSER.
+- ❌ Un usuario NO puede tener un rol en un tenant del cual NO es miembro. Primero hay que agregarlo como miembro.
+- ❌ El flag `is_superuser` NO se "gana" por uso, antigüedad, pago de plan ni referidos. Se otorga manualmente.
+- ❌ Un SUPERUSER NO es automáticamente OWNER de todos los tenants. Puede actuar sobre ellos por autoridad transversal, pero no es miembro hasta que alguien lo agregue (lo cual no es necesario para sus funciones de plataforma).
+
+### 13.7 Cómo debe responder la IA a preguntas sobre roles
+
+Cuando un usuario pregunte "¿qué diferencia hay entre X e Y?" o "¿puedo hacer Z con mi rol?", la IA debe:
+
+1. Identificar el rol del usuario actual desde el JWT (`payload.role` o `membership.role` en `/me/session`).
+2. Responder con la tabla de §13.2 como base.
+3. Si la pregunta es ambigua o sobre una acción específica no documentada, **decir "no tengo esa información exacta; consulta con tu OWNER o con soporte"** en lugar de inventar.
+4. **Nunca** prometer permisos que la tabla no garantiza. Si el usuario dice "soy ADMIN y quiero borrar el tenant", la respuesta correcta es "los ADMIN no pueden eliminar el tenant; esa acción la realiza el OWNER o el equipo de WowHub".
+5. Si el usuario pide ascender a SUPERUSER, remitir a §11.4 (bootstrap CLI o pedir a otro SUPERUSER).
