@@ -408,6 +408,87 @@ async def tool_create_booking(
     )
 
 
+# ── Tool de ayuda sobre la plataforma (Guía de WowHub) ─────
+async def tool_get_app_help(
+    ctx: AIToolContext,
+    *,
+    topic: str = "general",
+    question: str | None = None,
+) -> dict[str, Any]:
+    """Devuelve información verídica sobre WowHub (NO requiere HTTP).
+
+    Lee de `app.services.app_knowledge`, que es la versión estructurada
+    de `docs/CANONICAL_WOWHUB.md`. Esta tool existe para que el agente
+    HELP pueda responder preguntas sobre la plataforma sin alucinar.
+
+    Args:
+        topic: Categoría de la consulta. Valores útiles:
+               - "modules"        → lista de módulos del panel.
+               - "public_urls"    → URLs públicas (landing, reservar, etc).
+               - "auth"           → info de autenticación.
+               - "faq"            → buscar en el FAQ.
+               - "no_existe"      → lista de cosas que NO existen.
+               - "general"        → resumen completo.
+        question: Pregunta libre del usuario (se busca en FAQ si topic='faq').
+
+    Returns:
+        Dict con la info solicitada + marca `source: "app_knowledge"`.
+    """
+    try:
+        from app.services import app_knowledge
+    except Exception as e:  # noqa: BLE001
+        logger.exception("[get_app_help] no se pudo importar app_knowledge: %s", e)
+        return {"error": "app_knowledge no disponible", "fallback": True}
+
+    topic_norm = (topic or "general").strip().lower()
+
+    if topic_norm == "modules":
+        return {
+            "source": "app_knowledge",
+            "topic": "modules",
+            "modules": app_knowledge.list_modules(),
+        }
+    if topic_norm == "public_urls":
+        return {
+            "source": "app_knowledge",
+            "topic": "public_urls",
+            "urls": app_knowledge.list_public_urls(),
+        }
+    if topic_norm == "auth":
+        return {
+            "source": "app_knowledge",
+            "topic": "auth",
+            "auth_info": app_knowledge.list_auth_info(),
+        }
+    if topic_norm == "no_existe":
+        return {
+            "source": "app_knowledge",
+            "topic": "no_existe",
+            "no_existe": app_knowledge.list_no_existe(),
+        }
+    if topic_norm == "module" and question:
+        mod = app_knowledge.get_module(question)
+        if mod:
+            return {"source": "app_knowledge", "topic": "module", "module": mod}
+        return {"source": "app_knowledge", "topic": "module", "found": False,
+                "available": [m["key"] for m in app_knowledge.list_modules()]}
+    if topic_norm == "faq":
+        # Si viene una pregunta, intentamos matchearla con el FAQ.
+        answer = app_knowledge.faq_lookup(question or "")
+        if answer:
+            return {"source": "app_knowledge", "topic": "faq",
+                    "question": question, "answer": answer}
+        return {"source": "app_knowledge", "topic": "faq",
+                "found": False,
+                "hint": "Prueba con: 'cómo activo Reservas', 'dónde cambio mi contraseña', 'URL pública', 'qué módulos hay'."}
+    # general → resumen corto
+    return {
+        "source": "app_knowledge",
+        "topic": "general",
+        "summary": app_knowledge.render_short_summary(),
+    }
+
+
 # ── Catálogo de tools (JSON Schema) ────────────────────
 # Esto es lo que se manda al LLM en `tools=`.
 TOOL_SCHEMAS: list[dict[str, Any]] = [
@@ -663,6 +744,47 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_app_help",
+            "description": (
+                "Devuelve información verídica sobre la plataforma WowHub: "
+                "módulos del panel, rutas, URLs públicas, FAQ y cosas que NO "
+                "existen. SIEMPRE usa esta tool cuando el usuario pregunte "
+                "sobre cómo usar WowHub, dónde está algo, cómo se activa un "
+                "módulo (ninguno requiere activación), URLs para clientes, "
+                "cuenta, configuración, idioma, etc. NO inventes respuestas."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "enum": ["general", "modules", "module", "public_urls",
+                                 "auth", "faq", "no_existe"],
+                        "default": "general",
+                        "description": (
+                            "Categoría de la consulta. 'modules' lista todos "
+                            "los módulos del panel. 'module' busca uno "
+                            "específico (usar con 'question'). 'public_urls' "
+                            "lista URLs públicas (landing, reservar). 'auth' "
+                            "info de cuenta/login. 'faq' busca una pregunta "
+                            "libre (usar con 'question'). 'no_existe' lista "
+                            "cosas que NO existen en WowHub (anti-alucinación)."
+                        ),
+                    },
+                    "question": {
+                        "type": "string",
+                        "description": (
+                            "Pregunta libre del usuario (usar con topic='faq' "
+                            "o topic='module')."
+                        ),
+                    },
+                },
+            },
+        },
+    },
 ]
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -680,6 +802,8 @@ TOOL_DISPATCH: dict[str, Any] = {
     "list_bookings": tool_list_bookings,
     "check_availability": tool_check_availability,
     "create_booking": tool_create_booking,
+    # Guía de WowHub (no hace HTTP, lee de app_knowledge)
+    "get_app_help": tool_get_app_help,
 }
 
 
@@ -690,20 +814,31 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
+            "get_app_help",  # siempre disponible para responder sobre WowHub
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
+            "get_app_help",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
             "list_bookings", "check_availability", "create_booking",
+            "get_app_help",
         ],
         "marketplace": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory",
+            "get_app_help",
+        ],
+        # Nuevo: Guía de WowHub. Solo lectura + get_tenant_info para URLs.
+        # NO tiene tools de escritura (create_*, send_*) — el handoff a
+        # automation es lo que ejecuta la acción, no HELP directamente.
+        "help": [
+            "get_app_help",
+            "get_tenant_info",
         ],
     }
     names = rules.get(agent)

@@ -69,6 +69,16 @@ _GLOBAL_RULES = (
 )
 
 
+# ── Facts de WowHub (inyectados en todos los sub-agentes) ────────
+try:
+    from app.services.app_knowledge import render_short_summary
+    _WOWHUB_FACTS = render_short_summary()
+except Exception:  # noqa: BLE001
+    # Si por alguna razón falla la importación, dejamos string vacío
+    # para no romper la carga de los sub-agentes.
+    _WOWHUB_FACTS = ""
+
+
 # ── 1. Marketing Studio (SIMPLIFICADO) ────────────────────────
 MARKETING = SubAgent(
     name="marketing",
@@ -92,7 +102,7 @@ MARKETING = SubAgent(
         "sin ventas recientes (dead_stock) o los más vendidos (top_selling).\n"
         "- `get_customer_segments` → para encontrar clientes inactivos, VIP, nuevos o top "
         "a los que se les puede avisar sobre una promo."
-    ) + _GLOBAL_RULES,
+    ) + _GLOBAL_RULES + _WOWHUB_FACTS,
     welcome=(
         "¡Hola! Soy tu asistente de marketing 👋\n\n"
         "Te puedo ayudar a crear una promoción, escribir un aviso para redes, "
@@ -133,7 +143,7 @@ GROWTH = SubAgent(
         "- `analyze_inventory` → para ver productos top_selling, low_stock, out_of_stock, "
         "overstock o dead_stock.\n"
         "- `get_customer_segments` → para segmentar clientes (inactive, top, vip, new, no_orders)."
-    ) + _GLOBAL_RULES,
+    ) + _GLOBAL_RULES + _WOWHUB_FACTS,
     welcome=(
         "¡Hola! Soy tu asistente de crecimiento 📈\n\n"
         "Te puedo ayudar a:\n"
@@ -180,7 +190,7 @@ AUTOMATION = SubAgent(
         "- `list_promotions` → para saber qué promoción mencionar.\n"
         "- `analyze_inventory` → para ver si hay productos sin stock antes de avisar "
         "a clientes sobre ellos (no prometer lo que no hay)."
-    ) + _GLOBAL_RULES,
+    ) + _GLOBAL_RULES + _WOWHUB_FACTS,
     welcome=(
         "¡Hola! Soy tu asistente de tareas ✉️\n\n"
         "Te puedo ayudar a:\n"
@@ -222,7 +232,7 @@ MARKETPLACE = SubAgent(
         "- `get_tenant_info` → para saber el nombre del negocio.\n"
         "- `analyze_inventory` → para ver el estado completo del stock "
         "(all, low_stock, out_of_stock, overstock, dead_stock, top_selling)."
-    ) + _GLOBAL_RULES,
+    ) + _GLOBAL_RULES + _WOWHUB_FACTS,
     welcome=(
         "¡Hola! Soy tu asistente de catálogo 🛒\n\n"
         "Te puedo ayudar a:\n"
@@ -245,6 +255,71 @@ MARKETPLACE = SubAgent(
 )
 
 
+# ── 5. Guía de WowHub (plataforma) ───────────────────────────────
+HELP = SubAgent(
+    name="help",
+    label="Guía de WowHub",
+    description="Responde preguntas sobre cómo usar WowHub: módulos, rutas, URLs, FAQ.",
+    system_prompt=(
+        "Eres la **Guía Oficial de WowHub**. Tu única misión es responder "
+        "preguntas SOBRE LA PLATAFORMA (no del negocio del usuario): qué "
+        "módulos hay, dónde están, cómo se usan, qué URL pública compartir, "
+        "cómo cambiar la contraseña, cómo activar algo (recuerda: NADA "
+        "requiere activación), etc.\n\n"
+
+        "REGLA #1 — NUNCA INVENTES: si no sabes una respuesta con certeza, "
+        "usa la tool `get_app_help` con el `topic` apropiado. Si después de "
+        "eso sigues sin estar seguro, di: 'No tengo esa información exacta, "
+        "pero el módulo X está en /dashboard/x. Si quieres, te paso con "
+        "soporte.'\n\n"
+
+        "REGLA #2 — NADA REQUIERE ACTIVACIÓN. Si el usuario pregunta "
+        "'cómo activo X', tu respuesta es: 'X no requiere activación. "
+        "Está disponible para todos los tenants. Ve directo a /dashboard/x'. "
+        "NO inventes toggles, ni secciones, ni flujos de soporte.\n\n"
+
+        "REGLA #3 — PARA EJECUTAR ACCIONES, HAZ HANDOFF A AUTOMATION. "
+        "Tú (HELP) solo informas y guías. Si el usuario dice 'perfecto, "
+        "entonces créame X' o 'hágalo por mí', NO llames tú mismo a "
+        "create_*, send_*, etc. En su lugar, prepara el preview de la "
+        "acción y di: 'Perfecto. Para ejecutar esto te paso con el "
+        "asistente de Automation, que te pedirá la confirmación final. "
+        "¿Procedo?'. El orquestador hará el handoff HELP → automation.\n\n"
+
+        "Herramientas que puedes usar:\n"
+        "- `get_app_help` → OBLIGATORIA para responder preguntas sobre "
+        "módulos, rutas, URLs, FAQ. Llámala SIEMPRE con el `topic` más "
+        "cercano (ej. 'cómo activo Reservas', 'URL pública', 'dónde "
+        "cambio mi contraseña', 'módulos', 'autenticación').\n"
+        "- `get_tenant_info` → para saber el nombre y slug del tenant "
+        "del usuario (necesario para darle su URL pública correcta).\n\n"
+
+        "Formato de respuesta:\n"
+        "- Responde en español, breve (4-5 líneas).\n"
+        "- Termina con una pregunta o un siguiente paso claro.\n"
+        "- Si vas a sugerir una acción, muestra SIEMPRE el preview primero."
+    ) + _GLOBAL_RULES + _WOWHUB_FACTS,
+    welcome=(
+        "¡Hola! Soy la **Guía de WowHub** 🗺️\n\n"
+        "Te puedo ayudar con preguntas sobre la plataforma:\n"
+        "- Qué módulos hay y dónde están.\n"
+        "- Cómo se usa cada función (Reservas, Promociones, etc.).\n"
+        "- URLs públicas para compartir con tus clientes.\n"
+        "- Tu cuenta (contraseña, sesión, etc.).\n\n"
+        "Por ejemplo, dime: ¿qué quieres saber de WowHub?"
+    ),
+    fallback=(
+        "Ahora mismo no puedo conectarme con la IA para responder "
+        "preguntas de plataforma, pero no te preocupes:\n\n"
+        "1. Usa el **menú lateral** para navegar entre módulos.\n"
+        "2. Tu **Resumen** está en /dashboard.\n"
+        "3. **Configuración → Mi cuenta** para datos personales.\n"
+        "4. Si me necesitas de vuelta, pregúntame de nuevo y te respondo "
+        "con la información de WowHub."
+    ),
+)
+
+
 # ── Router (clasificación rápida) ───────────────────────────
 ROUTER = SubAgent(
     name="router",
@@ -253,13 +328,18 @@ ROUTER = SubAgent(
     system_prompt=(
         "Eres el router de WowHub AI. Tu única tarea es clasificar la intención del usuario "
         "en UNA de estas categorías y responder SOLO con el nombre del agente, sin texto adicional:\n"
+        "- help         → preguntas SOBRE WowHub (módulos, rutas, URLs, FAQ, cuenta, configuración, "
+        "'cómo activo X', 'dónde está Y', 'qué es Z'). Si la pregunta es sobre la plataforma y NO "
+        "sobre el negocio del usuario, va a help.\n"
         "- marketing    → promociones, avisos, textos para redes, diseños, combos, descuentos.\n"
         "- growth       → ventas, crecer, ideas nuevas, métricas, resultados, top, qué se vende.\n"
         "- automation   → enviar mensajes a uno o muchos clientes, recordar, reactivar, "
         "campañas, segmento, inactivos, VIP, nuevos.\n"
         "- marketplace  → productos, precios, catálogo, inventario, stock bajo, sin stock, "
         "sin rotación, categorías, SKUs.\n"
-        "Si no encaja claro, responde `marketing`."
+        "Si la pregunta mezcla plataforma + negocio (ej. 'cómo activo Reservas y me agiendas "
+        "una cita'), responde `help` para que la guía tome la palabra primero.\n"
+        "Si no encaja claro, responde `help` (es más seguro que inventar)."
     ),
     welcome="",
     fallback="",
@@ -271,18 +351,19 @@ SUB_AGENTS: dict[str, SubAgent] = {
     "growth": GROWTH,
     "automation": AUTOMATION,
     "marketplace": MARKETPLACE,
+    "help": HELP,
     "router": ROUTER,
 }
 
 
 def get_agent(name: str) -> SubAgent:
-    return SUB_AGENTS.get(name) or MARKETING
+    return SUB_AGENTS.get(name) or HELP
 
 
 def list_sub_agents() -> list[dict[str, str]]:
     return [
         {"name": a.name, "label": a.label, "description": a.description}
-        for a in (MARKETING, GROWTH, AUTOMATION, MARKETPLACE)
+        for a in (MARKETING, GROWTH, AUTOMATION, MARKETPLACE, HELP)
     ]
 
 
@@ -302,19 +383,39 @@ KEYWORDS: dict[str, list[str]] = {
                     "posición", "ordenar", "mercado", "competencia", "sku",
                     "modificar precio", "cambiar precio", "sin stock", "stock bajo",
                     "sin ventas", "sin rotación", "quedó", "sobra", "muerto"],
+    "help":        ["cómo", "donde", "dónde", "qué es", "que es", "para qué", "para que",
+                    "activar", "módulo", "modulo", "función", "funcion", "ayuda",
+                    "no encuentro", "no funciona", "no sé", "no se", "tutorial", "guía",
+                    "guia", "url", "enlace", "link", "compartir", "slug", "contraseña",
+                    "contrasena", "password", "login", "loguear", "sesión", "sesion",
+                    "cuenta", "configurar", "configuración", "configuracion", "idioma",
+                    "logo", "cambiar", "eliminar", "borrar", "plan", "precio", "cuesta",
+                    "whatsapp", "integración", "integracion", "no me deja", "no puedo",
+                    "wowhub", "la plataforma", "el sistema", "la app", "la aplicación"],
 }
 
 
 def heuristic_route(message: str) -> str:
     """Router simple basado en palabras clave. Se usa cuando el LLM
-    no está disponible o como fallback del router."""
+    no está disponible o como fallback del router.
+
+    Cambios v2:
+    - El orden de evaluación prioriza 'help' cuando hay empate o duda,
+      para evitar alucinaciones de los otros agentes sobre WowHub.
+    - El fallback por defecto es 'help' (antes era 'marketing').
+    """
     text = (message or "").lower()
     scores: dict[str, int] = {a: 0 for a in KEYWORDS}
     for agent, words in KEYWORDS.items():
         for w in words:
             if w in text:
                 scores[agent] += 1
-    best = max(scores.items(), key=lambda kv: kv[1])
-    if best[1] == 0:
-        return "marketing"
-    return best[0]
+    # 1) Si no hay match, devolver 'help' (es más seguro que inventar).
+    if max(scores.values()) == 0:
+        return "help"
+    # 2) Si hay empate, priorizar 'help' sobre los demás.
+    top = max(scores.values())
+    tied = [a for a, s in scores.items() if s == top]
+    if len(tied) > 1 and "help" in tied:
+        return "help"
+    return tied[0]

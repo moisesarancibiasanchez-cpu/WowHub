@@ -33,6 +33,9 @@ Base.metadata.create_all(bind=engine)
 print('✔ schema OK')
 "
 
+echo "▶ Aplicando migraciones idempotentes (enum ai_agent_kind 'help')..."
+python -m scripts.migrate_ai_help_enum || echo "⚠ migrate_ai_help_enum falló (continúa igualmente)"
+
 echo "▶ Sembrando datos demo (si DB vacía)..."
 python -m app.seed || echo "⚠ seed falló (continúa igualmente)"
 

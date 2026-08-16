@@ -321,9 +321,11 @@ class AIOrchestrator:
         message: str,
         conversation_id: Optional[UUID] = None,
         force_agent: Optional[AgentKind] = None,
+        handoff: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Devuelve un dict con: conversation_id, message_id, agent, content,
-        fallback, tool_calls, latency_ms, tokens_in, tokens_out."""
+        fallback, tool_calls, latency_ms, tokens_in, tokens_out,
+        handoff_executed, handoff_action."""
         # 1) Rate limit
         check_daily_limit(self.db, self.user_id)
 
@@ -342,6 +344,46 @@ class AIOrchestrator:
             role=MessageRole.USER,
             content=message,
         )
+
+        # 3.5) Handoff explícito HELP → AUTOMATION (u otro).
+        # Si el cliente envía un handoff con confirmación del usuario,
+        # forzamos el agente destino y dejamos una traza clara.
+        handoff_executed = False
+        handoff_action: Optional[str] = None
+        if handoff:
+            try:
+                target = AgentKind(handoff.get("target_agent") or "automation")
+                action = (handoff.get("action") or "").strip()
+                params = handoff.get("params") or {}
+                preview_text = handoff.get("preview_text") or ""
+                if not action:
+                    raise ValueError("handoff.action vacío")
+                # Forzar el agente destino
+                force_agent = target
+                handoff_executed = True
+                handoff_action = action
+                # Inyectar contexto del handoff como un mensaje 'system-like'
+                # adicional al usuario para que el LLM sepa qué ejecutar.
+                # (Se añade DESPUÉS del system prompt y el historial.)
+                self._trace(conv, None, "handoff_received",
+                            {"from_client": True, "target_agent": target.value,
+                             "action": action, "params": params,
+                             "preview_text": preview_text[:500]})
+                # Sobrescribir el mensaje del usuario con uno que ya lleva
+                # la confirmación incorporada (así el LLM no tiene que pedirla).
+                if preview_text:
+                    user_msg.content = (
+                        f"{message}\n\n"
+                        f"[HANDOFF CONFIRMADO] El usuario aceptó la siguiente "
+                        f"propuesta del agente anterior:\n---\n{preview_text}\n---\n"
+                        f"Acción a ejecutar: {action}.\n"
+                        f"Parámetros confirmados: {params}.\n"
+                        f"Procede a ejecutarla ahora sin pedir confirmación adicional."
+                    )
+            except Exception as e:
+                logger.exception("Handoff malformado, se ignora: %s", e)
+                self._trace(conv, None, "handoff_invalid", {"error": str(e)[:200]})
+                # No abortamos: el flujo normal continúa con router normal.
 
         circuit_before = get_circuit().snapshot()
         tools_called: list[str] = []
@@ -579,6 +621,10 @@ class AIOrchestrator:
             "latency_ms": latency_total,
             "tokens_in": tokens_in,
             "tokens_out": tokens_out,
+            # Flags de handoff HELP → AUTOMATION (u otro). El frontend
+            # puede usarlos para mostrar un toast o tracking.
+            "handoff_executed": handoff_executed,
+            "handoff_action": handoff_action,
         }
 
     # ── Helpers internos ─────────────────────────────

@@ -124,10 +124,14 @@ async def post_chat(
 
     if not payload.stream:
         try:
+            handoff_payload = None
+            if payload.message.handoff:
+                handoff_payload = payload.message.handoff.model_dump()
             result = await orch.chat(
                 message=payload.message.content,
                 conversation_id=payload.message.conversation_id,
                 force_agent=payload.message.force_agent,
+                handoff=handoff_payload,
             )
             return ChatResponse(
                 conversation_id=UUID(result["conversation_id"]),
@@ -245,10 +249,14 @@ async def post_chat(
     # ── SSE streaming ────────────────────────────────
     async def event_source():
         try:
+            handoff_payload = None
+            if payload.message.handoff:
+                handoff_payload = payload.message.handoff.model_dump()
             result = await orch.chat(
                 message=payload.message.content,
                 conversation_id=payload.message.conversation_id,
                 force_agent=payload.message.force_agent,
+                handoff=handoff_payload,
             )
             # Single event "done" con todo el contenido.
             # (El LLM streaming real vendría en una fase 2.)
@@ -261,6 +269,8 @@ async def post_chat(
                 "fallback": result["fallback"],
                 "tool_calls": result.get("tool_calls") or [],
                 "latency_ms": result["latency_ms"],
+                "handoff_executed": result.get("handoff_executed", False),
+                "handoff_action": result.get("handoff_action"),
             }
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
         except RateLimitExceeded as e:

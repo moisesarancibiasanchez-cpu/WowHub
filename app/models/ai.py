@@ -27,6 +27,7 @@ class AgentKind(str, enum.Enum):
     GROWTH = "growth"              # Growth Coach
     AUTOMATION = "automation"      # Automation Manager
     MARKETPLACE = "marketplace"    # Smart Marketplace
+    HELP = "help"                  # Guía de WowHub (plataforma)
     ROUTER = "router"              # Mensaje de enrutamiento inicial
 
 

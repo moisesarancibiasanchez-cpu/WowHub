@@ -14,6 +14,34 @@ from app.models.ai import (
 
 
 # ── Chat: request / response ────────────────────────────
+class HandoffPayload(BaseModel):
+    """Payload de handoff entre agentes (ej. HELP → AUTOMATION).
+
+    Cuando el cliente envía un handoff, el orquestador:
+    1. Cambia el agente activo al `target_agent` (típicamente "automation").
+    2. Inyecta el `action` y `params` como contexto para que el agente
+       objetivo ejecute la acción confirmada por el usuario.
+    3. Devuelve un campo `handoff_executed: true` en la respuesta.
+
+    El cliente debe mostrar un preview claro al usuario ANTES de enviar
+    el handoff. Esta es la confirmación explícita que el orquestador
+    exigía ya para tools de escritura (create_*, send_*).
+    """
+    target_agent: AgentKind = Field(
+        ..., description="Agente que ejecutará la acción (ej. AUTOMATION)."
+    )
+    action: str = Field(
+        ..., min_length=1, max_length=120,
+        description="Nombre semántico de la acción (ej. 'create_booking')."
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parámetros confirmados por el usuario para la acción.",
+    )
+    # Texto opcional que el usuario vio y confirmó. Se persiste en el log.
+    preview_text: Optional[str] = None
+
+
 class ChatMessageIn(BaseModel):
     """Mensaje entrante del usuario (request)."""
     content: str = Field(..., min_length=1, max_length=4000)
@@ -21,6 +49,8 @@ class ChatMessageIn(BaseModel):
     conversation_id: Optional[UUID] = None
     # Forzar sub-agente (si no, el router decide)
     force_agent: Optional[AgentKind] = None
+    # Handoff explícito (ej. HELP → AUTOMATION) con confirmación del usuario.
+    handoff: Optional[HandoffPayload] = None
 
 
 class ChatRequest(BaseModel):
