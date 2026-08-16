@@ -150,12 +150,28 @@ function getAuth() {
   return { token: tk, tenant_id: tn };
 }
 
+// Helper fetch con timeout para evitar "Cargando…" eterno si la red cuelga.
+async function fetchWithTimeout(path, opts, timeoutMs) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs || 12000);
+  try {
+    return await fetch(path, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function api(path) {
   const { token, tenant_id } = getAuth();
   const headers = { "Accept": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
   if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
-  const r = await fetch(path, { headers });
+  let r;
+  try {
+    r = await fetchWithTimeout(path, { headers }, 15000);
+  } catch (e) {
+    throw new Error("Timeout/Network: " + (e.message || e.toString()));
+  }
   if (!r.ok) {
     const txt = await r.text().catch(() => "");
     throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
@@ -167,7 +183,12 @@ async function post(path) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = "Bearer " + token;
   if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
-  const r = await fetch(path, { method: "POST", headers });
+  let r;
+  try {
+    r = await fetchWithTimeout(path, { method: "POST", headers }, 15000);
+  } catch (e) {
+    throw new Error("Timeout/Network: " + (e.message || e.toString()));
+  }
   if (!r.ok) {
     const txt = await r.text().catch(() => "");
     throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
@@ -206,6 +227,7 @@ async function loadOverview() {
     $("ai-llm-model").textContent = "—";
     $("ai-req-24h").textContent = "—";
     $("ai-req-24h-meta").textContent = e.message.slice(0, 80);
+    showFatalError("Overview: " + e.message);
   }
 }
 
@@ -232,7 +254,8 @@ async function loadLogs() {
     }).join("");
   } catch (e) {
     console.error("logs:", e);
-    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;text-align:center;padding:16px;">Error: ${esc(e.message)}</td></tr>`;
+    showFatalError("Logs: " + e.message);
   }
 }
 
@@ -262,7 +285,8 @@ async function loadMetrics() {
     }).join("");
   } catch (e) {
     console.error("metrics:", e);
-    tbody.innerHTML = `<tr><td colspan="10" style="color:#ef4444;">Error: ${esc(e.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="color:#ef4444;text-align:center;padding:16px;">Error: ${esc(e.message)}</td></tr>`;
+    showFatalError("Métricas: " + e.message);
   }
 }
 

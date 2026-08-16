@@ -38,11 +38,21 @@ router = APIRouter(prefix="/admin/ai", tags=["admin-ai"])
 
 
 def _require_admin(user: User) -> None:
-    # El modelo User tiene `default_role` (no `role`).
-    # Soportamos ambos por compat.
+    """Permite OWNER/ADMIN del tenant o SUPERUSER (plataforma).
+
+    SUPERUSER no tiene rol de tenant (no es miembro de TenantMembership);
+    debe poder operar la consola AI Core incluso sin impersonación activa.
+    """
+    # El modelo User tiene `default_role` (no `role`). Soportamos ambos por compat.
     role = getattr(user, "role", None) or getattr(user, "default_role", None)
+    if getattr(user, "is_superuser", False):
+        return
     if role not in (UserRole.OWNER, UserRole.ADMIN):
         raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
+
+
+def _is_platform_admin(user: User) -> bool:
+    return bool(getattr(user, "is_superuser", False))
 
 
 def _user_tenants(db: Session, user_id: str) -> list[str]:
@@ -55,15 +65,57 @@ def _user_tenants(db: Session, user_id: str) -> list[str]:
     return [str(r[0]) for r in rows]
 
 
+def _platform_tenants(db: Session) -> list[str]:
+    """Devuelve TODOS los tenant_id de la plataforma (uso exclusivo SUPERUSER)."""
+    from app.models.tenant import Tenant
+    rows = db.execute(select(Tenant.id)).all()
+    return [str(r[0]) for r in rows]
+
+
+def _resolve_tenant_scope(db: Session, user: User) -> Optional[list[str]]:
+    """Resuelve el scope de tenants a consultar.
+
+    - SUPERUSER: ve TODA la plataforma.
+    - OWNER/ADMIN: ve solo los tenants donde es miembro.
+    - Resto: None (no tiene acceso a esta vista).
+    """
+    if _is_platform_admin(user):
+        return _platform_tenants(db)
+    role = getattr(user, "role", None) or getattr(user, "default_role", None)
+    if role not in (UserRole.OWNER, UserRole.ADMIN):
+        return None
+    return _user_tenants(db, str(user.id))
+
+
 @router.get("/overview", response_model=AIOverviewOut)
 def get_overview(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> AIOverviewOut:
     _require_admin(user)
-    tenant_ids = _user_tenants(db, str(user.id))
+    tenant_ids = _resolve_tenant_scope(db, user)
+    if tenant_ids is None:
+        raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
     if not tenant_ids:
-        raise HTTPException(status_code=400, detail="Sin tenants asignados")
+        # Usuario admin sin tenants asignados: devolvemos overview vacío
+        # (no es un error, simplemente no tiene datos para mostrar).
+        return AIOverviewOut(
+            last_24h=MetricDailyOut(
+                day=datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0),
+                agent=AgentKind.MARKETING,
+                requests=0, success=0, fallback=0, errors=0,
+                timeouts=0, rate_limited=0, tokens_in=0, tokens_out=0,
+                avg_latency_ms=0, p95_latency_ms=0, unique_users=0,
+            ),
+            last_7d=[],
+            circuit_state=str(get_circuit().snapshot()),
+            llm_enabled=settings.llm_enabled,
+            llm_model=getattr(settings, "llm_model", None),
+            llm_provider=getattr(settings, "llm_provider", None),
+            total_conversations=0,
+            total_messages=0,
+            active_users_7d=0,
+        )
 
     # Convertir a UUID para todas las queries (PostgreSQL requiere UUID nativo)
     tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
@@ -177,7 +229,9 @@ def get_metrics(
     agent: Optional[AgentKind] = None,
 ) -> list[MetricDailyOut]:
     _require_admin(user)
-    tenant_ids = _user_tenants(db, str(user.id))
+    tenant_ids = _resolve_tenant_scope(db, user)
+    if tenant_ids is None:
+        raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
     if not tenant_ids:
         return []
     tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
@@ -211,7 +265,9 @@ def get_logs(
     agent: Optional[AgentKind] = None,
 ) -> LogListOut:
     _require_admin(user)
-    tenant_ids = _user_tenants(db, str(user.id))
+    tenant_ids = _resolve_tenant_scope(db, user)
+    if tenant_ids is None:
+        raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
     if not tenant_ids:
         return LogListOut(items=[], total=0, page=page, page_size=page_size)
     tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]

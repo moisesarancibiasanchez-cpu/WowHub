@@ -202,6 +202,26 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
   let countdownInterval = null;
   let currentImp = null;
 
+  // Resuelve el timestamp de expiración en ms (epoch) a partir de `imp`.
+  // Soporta `imp.expires_at` (ISO), `imp.exp` (epoch segundos o ms) y
+  // fallback a `imp.started_at` + 60 min (TTL por defecto de SUPERADMIN).
+  function resolveImpExpiryMs(imp) {
+    if (!imp) return null;
+    if (imp.expires_at) {
+      const t = new Date(imp.expires_at).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (typeof imp.exp === "number" && imp.exp > 0) {
+      // Si está en segundos (típico JWT), multiplicar por 1000
+      return imp.exp < 1e12 ? imp.exp * 1000 : imp.exp;
+    }
+    if (imp.started_at) {
+      const t = new Date(imp.started_at).getTime();
+      if (!isNaN(t)) return t + 60 * 60 * 1000; // 60 min default TTL
+    }
+    return null;
+  }
+
   function showBanner(imp) {
     currentImp = imp;
     targetEl.textContent = imp.full_name
@@ -213,12 +233,16 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
     banner.classList.add("shown");
 
     function tick() {
-      if (!currentImp || !currentImp.expires_at) {
-        timerEl.textContent = "--:--";
+      const expMs = resolveImpExpiryMs(currentImp);
+      if (expMs === null) {
+        // Sin información de expiración: mostrar 60:00 como límite
+        // informativo en lugar de "--:--" confuso. El usuario puede
+        // salir con el botón.
+        timerEl.textContent = "60:00";
+        timerEl.classList.remove("expired");
         return;
       }
-      const exp = new Date(currentImp.expires_at).getTime();
-      const ms  = exp - Date.now();
+      const ms = expMs - Date.now();
       if (ms <= 0) {
         timerEl.textContent = "00:00";
         timerEl.classList.add("expired");
@@ -297,12 +321,11 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
     if (!payload) return;
     const imp = payload.imp;
     if (!imp || !imp.uid) return;
-    if (imp.expires_at) {
-      const exp = new Date(imp.expires_at).getTime();
-      if (isNaN(exp) || exp <= Date.now()) {
-        try { localStorage.removeItem("wowhub_access_token"); } catch (_) {}
-        return;
-      }
+    const expMs = resolveImpExpiryMs(imp);
+    if (expMs !== null && expMs <= Date.now()) {
+      // Impersonación ya expirada: limpiar y no mostrar banner.
+      try { localStorage.removeItem("wowhub_access_token"); } catch (_) {}
+      return;
     }
     if (!imp.admin_email && payload.sub) {
       imp.admin_email = payload.sub;
