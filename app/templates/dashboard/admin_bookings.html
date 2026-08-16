@@ -125,19 +125,46 @@
   let _tenant = null;
 
   // ── Helpers ────────────────────────────────────────────
+  // Lee el access token desde TODAS las fuentes posibles, en orden de
+  // preferencia. Esto es defensivo: si app.js aún no cargó (por caché,
+  // por orden de <script>), seguimos pudiendo autenticar.
+  function _readAccessToken(){
+    // 1) Vía window.WH.TokenStore (estructura canónica de app.js)
+    try { const t = window.WH?.TokenStore?.access?.(); if (t) return t; } catch(_) {}
+    // 2) Vía window.Auth (por si una página expone un helper directo)
+    try { const t = window.Auth?.getAccessToken?.(); if (t) return t; } catch(_) {}
+    // 3) Vía la clave canónica de app.js (wowhub.tokens → JSON)
+    try {
+      const raw = localStorage.getItem('wowhub.tokens');
+      if (raw) {
+        const obj = JSON.parse(raw);
+        if (obj && obj.access_token) return obj.access_token;
+      }
+    } catch(_) {}
+    // 4) Fallback legacy (versiones anteriores guardaban en claves planas)
+    return localStorage.getItem('wowhub_access') || '';
+  }
   function authHeaders(){
-    const t = window.Auth?.getAccessToken?.() || localStorage.getItem('wowhub_access') || '';
+    const t = _readAccessToken();
     return { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' };
   }
   // ── FIX 401: detectar sesión expirada y redirigir a /login ──
+  // Limpia TODAS las variantes de almacenamiento de tokens para evitar
+  // que un token muerto siga siendo leído por pestañas/cache.
+  function _clearAllTokens(){
+    try {
+      // canónica (app.js)
+      localStorage.removeItem('wowhub.tokens');
+      localStorage.removeItem('wowhub.currentTenant');
+      // legacy (versiones anteriores)
+      localStorage.removeItem('wowhub_access');
+      localStorage.removeItem('wowhub_refresh');
+      localStorage.removeItem('wowhub_tid');
+    } catch(_) {}
+  }
   function handle401(r){
     if (r && r.status === 401) {
-      // Limpia el token muerto y manda al login con redirect
-      try {
-        localStorage.removeItem('wowhub_access');
-        localStorage.removeItem('wowhub_refresh');
-        localStorage.removeItem('wowhub_tid');
-      } catch(_) {}
+      _clearAllTokens();
       const next = encodeURIComponent(window.location.pathname);
       window.location.href = '/login?next=' + next + '&reason=expired';
       return true;

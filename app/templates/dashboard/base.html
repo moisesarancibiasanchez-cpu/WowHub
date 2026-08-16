@@ -68,6 +68,11 @@
 
 {% block scripts %}
 {{ super() }}
+<!-- FIX CRÍTICO: app.js provee window.WH (api, Auth, TokenStore) usado por
+     requireLogin() en la línea siguiente y por las páginas hijas del dashboard.
+     Sin esto, todas las páginas del dashboard fallaban con
+     "WH is not defined" al primer script. -->
+<script src="/static/js/app.js?v=login-fix-2026-08-16"></script>
 <script src="/static/js/ai.js?v=sidebar-v2"></script>
 <script>
 WH.Auth.requireLogin();
