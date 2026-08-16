@@ -1,11 +1,12 @@
 """Auth endpoints: register, login, refresh, me, switch tenant."""
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.tenant import Tenant, TenantMembership
@@ -18,13 +19,40 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+# ── Cookie helpers ─────────────────────────────────────────
+# El server-side page guard (/admin/superadmin, /admin/ai) lee el JWT de la
+# cookie "wowhub_access_token" porque las navegaciones de browser NO envían
+# el header Authorization. La cookie es httpOnly (no la ve JS) y SameSite=Lax
+# (se envía en navegaciones top-level GET pero no en cross-site POST).
+ACCESS_COOKIE = "wowhub_access_token"
+
+
+def _set_access_cookie(response: Response, access_token: str) -> None:
+    """Setea la cookie httpOnly con el access token. SameSite=Lax para que
+    las navegaciones GET del browser la envíen al server-side guard."""
+    response.set_cookie(
+        key=ACCESS_COOKIE,
+        value=access_token,
+        max_age=settings.jwt_access_ttl_minutes * 60,
+        httponly=True,
+        secure=bool(settings.app_env == "production"),
+        samesite="lax",
+        path="/",
+    )
+
+
+def _clear_access_cookie(response: Response) -> None:
+    response.delete_cookie(key=ACCESS_COOKIE, path="/")
+
+
 @router.post("/register", response_model=TokenPair, status_code=201)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
+def register(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
     """Registro de usuario. Si `create_tenant=true`, crea también un tenant
     con el usuario como OWNER."""
     svc = AuthService(db)
     user, tenant, membership = svc.register(payload)
     access, refresh, ttl = svc.issue_tokens(user, membership)
+    _set_access_cookie(response, access)
     current = None
     if membership:
         t = db.get(Tenant, membership.tenant_id)
@@ -49,10 +77,11 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenPair)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+def login(payload: UserLogin, response: Response, db: Session = Depends(get_db)):
     svc = AuthService(db)
     user, current, _memberships = svc.login(payload.email, payload.password)
     access, refresh, ttl = svc.issue_tokens(user, current)
+    _set_access_cookie(response, access)
     current_out = None
     if current:
         t = db.get(Tenant, current.tenant_id)
@@ -78,20 +107,47 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/login/form", response_model=TokenPair, include_in_schema=False)
 def login_form(
+    response: Response,
     username: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
     """Endpoint OAuth2 password para Swagger UI."""
     payload = UserLogin(email=username, password=password)
-    return login(payload, db)
+    # Reusar lógica de login para setear la cookie
+    svc = AuthService(db)
+    user, current, _memberships = svc.login(payload.email, payload.password)
+    access, refresh, ttl = svc.issue_tokens(user, current)
+    _set_access_cookie(response, access)
+    current_out = None
+    if current:
+        t = db.get(Tenant, current.tenant_id)
+        current_out = MembershipOut(
+            id=current.id,
+            user_id=user.id,
+            tenant_id=t.id,
+            role=current.role,
+            is_owner=current.is_owner,
+            is_active=current.is_active,
+            last_login_at=current.last_login_at,
+            tenant_slug=t.slug,
+            tenant_display_name=t.display_name,
+        )
+    return TokenPair(
+        access_token=access,
+        refresh_token=refresh,
+        expires_in=ttl,
+        user=UserOut.model_validate(user),
+        current_tenant=current_out,
+    )
 
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh(payload: TokenRefresh, db: Session = Depends(get_db)):
+def refresh(payload: TokenRefresh, response: Response, db: Session = Depends(get_db)):
     svc = AuthService(db)
     user, current = svc.refresh(payload.refresh_token)
     access, refresh_t, ttl = svc.issue_tokens(user, current)
+    _set_access_cookie(response, access)
     current_out = None
     if current:
         t = db.get(Tenant, current.tenant_id)
@@ -113,6 +169,14 @@ def refresh(payload: TokenRefresh, db: Session = Depends(get_db)):
         user=UserOut.model_validate(user),
         current_tenant=current_out,
     )
+
+
+@router.post("/logout", include_in_schema=False)
+def logout(response: Response):
+    """Cierra sesión: limpia la cookie httpOnly. El JS también debe limpiar
+    localStorage. Idempotente (se puede llamar aunque no haya sesión)."""
+    _clear_access_cookie(response)
+    return {"ok": True}
 
 
 @router.get("/me", response_model=UserOut)

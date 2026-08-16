@@ -364,7 +364,11 @@ function escapeAttr(s) {
 
 const Auth = {
   isLoggedIn() { return !!TokenStore.access(); },
-  logout() { TokenStore.clear(); window.location.href = "/login"; },
+  async logout() {
+    TokenStore.clear();
+    try { await fetch("/api/v1/auth/logout", { method: "POST" }); } catch (_) {}
+    window.location.href = "/login";
+  },
   user() { return TokenStore.get()?.user; },
   tenant() { return TokenStore.currentTenant(); },
   requireLogin() { if (!this.isLoggedIn()) { window.location.href = "/login?next=" + encodeURIComponent(location.pathname); } },
