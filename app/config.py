@@ -35,7 +35,13 @@ class Settings(BaseSettings):
     jwt_refresh_ttl_days: int = 14
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://localhost:8000"
+    # Incluye localhost (dev) + el dominio de producción de Railway.
+    # Si necesitás más orígenes, set CORS_ORIGINS en el .env o en Railway.
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:8000,"
+        "https://wowhub-api-production.up.railway.app,"
+        "https://wowhub.app,https://www.wowhub.app"
+    )
 
     # Storage
     storage_backend: str = "local"
