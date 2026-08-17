@@ -197,6 +197,81 @@ async def tool_get_tenant_info(ctx: AIToolContext) -> dict[str, Any]:
     return await _api_get(ctx, f"/api/v1/tenants/{ctx.tenant_id}")
 
 
+async def tool_get_tenant_public_urls(ctx: AIToolContext) -> dict[str, Any]:
+    """Devuelve las URLs PÚBLICAS del tenant actual con el slug REAL sustituido.
+
+    A diferencia de `get_app_help(topic="public_urls")` que devuelve los
+    PATRONES con `{slug}` literal, esta tool resuelve `{slug}` por el
+    identificador real del tenant y arma las URLs completas listas para
+    mostrar al usuario y compartir.
+
+    Casos de uso:
+    - "Cuál es mi URL pública"
+    - "El link para que mis clientes agenden"
+    - "Cómo comparto mi tienda"
+    - "Link de mi catálogo"
+
+    Si el tenant todavía no tiene `slug` configurado, devuelve los patrones
+    vacíos + un hint para que el LLM sepa que tiene que avisarle al usuario
+    que primero debe completar el slug en Configuración.
+    """
+    try:
+        from app.services import app_knowledge
+    except Exception as e:  # noqa: BLE001
+        logger.exception("[get_tenant_public_urls] no se pudo importar app_knowledge: %s", e)
+        return {"error": "app_knowledge no disponible", "fallback": True}
+
+    info = await _api_get(ctx, f"/api/v1/tenants/{ctx.tenant_id}")
+    if isinstance(info, dict) and info.get("error"):
+        return {
+            "error": "No pude leer la información del tenant",
+            "detail": info,
+            "hint": "Pídele al usuario que verifique su sesión.",
+        }
+
+    slug = (info or {}).get("slug") if isinstance(info, dict) else None
+    tenant_name = (info or {}).get("name") if isinstance(info, dict) else None
+
+    if not slug:
+        # Tenant sin slug: devolvemos los PATRONES para que la IA le avise
+        # al usuario y le indique dónde configurarlo.
+        return {
+            "source": "app_knowledge",
+            "topic": "tenant_public_urls",
+            "tenant": {"name": tenant_name, "slug": None},
+            "has_slug": False,
+            "patterns": [
+                {"key": u["key"], "pattern": u["pattern"], "description": u["description"]}
+                for u in app_knowledge.list_public_urls()
+            ],
+            "hint": (
+                "Este tenant aún no tiene slug configurado. Pídele al usuario "
+                "que vaya a Configuración → Branding para definir un slug. "
+                "Mientras tanto, muéstrale los patrones como referencia."
+            ),
+        }
+
+    base = settings.public_base_url.rstrip("/")
+    urls: list[dict[str, Any]] = []
+    for u in app_knowledge.list_public_urls():
+        pattern = u["pattern"]
+        full_url = f"{base}{pattern.replace('{slug}', slug)}"
+        urls.append({
+            "key": u["key"],
+            "url": full_url,
+            "description": u["description"],
+        })
+
+    return {
+        "source": "app_knowledge",
+        "topic": "tenant_public_urls",
+        "tenant": {"name": tenant_name, "slug": slug},
+        "has_slug": True,
+        "base_url": base,
+        "urls": urls,
+    }
+
+
 # ── Nuevas tools (integración con módulos) ─────────────────────
 async def tool_analyze_inventory(
     ctx: AIToolContext,
@@ -595,6 +670,23 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_tenant_public_urls",
+            "description": (
+                "Devuelve las URLs PÚBLICAS del tenant actual YA CON EL SLUG REAL "
+                "sustituido (lista para mostrar y compartir). SIEMPRE usa esta tool "
+                "cuando el usuario pregunte por su link para compartir, URL pública, "
+                "link de reservas, link de catálogo o cómo compartir su tienda. NO "
+                "devuelvas el patrón con `{slug}` literal — esta tool ya lo reemplaza "
+                "por el slug real del tenant del usuario. Si el tenant no tiene slug "
+                "configurado, la tool devuelve los patrones y un hint para que la IA "
+                "le pida al usuario configurarlo en Configuración → Branding."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "analyze_inventory",
             "description": "Analiza el inventario del tenant y devuelve un resumen accionable: productos sin stock, con stock bajo, sobre-stock, sin rotación (vendieron hace mucho), o los más vendidos. Útil para preguntas tipo 'qué me falta', 'qué no se vende', 'qué vendío más este mes'.",
             "parameters": {
@@ -795,6 +887,7 @@ TOOL_DISPATCH: dict[str, Any] = {
     "list_customers": tool_list_customers,
     "send_email_to_customer": tool_send_email_to_customer,
     "get_tenant_info": tool_get_tenant_info,
+    "get_tenant_public_urls": tool_get_tenant_public_urls,
     "analyze_inventory": tool_analyze_inventory,
     "get_customer_segments": tool_get_customer_segments,
     "send_campaign": tool_send_campaign,
@@ -836,9 +929,12 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
         # Nuevo: Guía de WowHub. Solo lectura + get_tenant_info para URLs.
         # NO tiene tools de escritura (create_*, send_*) — el handoff a
         # automation es lo que ejecuta la acción, no HELP directamente.
+        # `get_tenant_public_urls` devuelve los links públicos del tenant YA
+        # CON EL SLUG REAL sustituido (lista para mostrar y compartir).
         "help": [
             "get_app_help",
             "get_tenant_info",
+            "get_tenant_public_urls",
         ],
     }
     names = rules.get(agent)

@@ -196,7 +196,10 @@ FAQ: dict[str, str] = {
     ),
     "url pública": (
         "La URL pública para que tus clientes agenden es /u/{slug}/reservar "
-        "(también funciona /u/{slug}/book). Compártela en Instagram, WhatsApp o tu bio."
+        "(también funciona /u/{slug}/book). Compártela en Instagram, WhatsApp "
+        "o tu bio. Para entregar el link REAL con el slug del tenant, el "
+        "asistente IA debe llamar a la tool `get_tenant_public_urls` "
+        "(no devolver el patrón con `{slug}` literal)."
     ),
     "no me deja entrar": (
         "Verifica que tu sesión esté iniciada y que el chip de usuario del topbar "

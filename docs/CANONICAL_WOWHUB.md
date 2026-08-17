@@ -3,8 +3,8 @@
 > **Propósito:** Este documento es la **única fuente de verdad** que el asistente IA de WowHub debe usar para responder preguntas sobre la plataforma (módulos, rutas, activación, URLs, FAQ). Cualquier nueva sección de WowHub que se agregue al producto debe reflejarse aquí.
 >
 > **Mantenedor:** Equipo WowHub.
-> **Última actualización:** 16 de agosto de 2026.
-> **Versión:** v1.5 (FAQ ampliada por categoría, protocolo de incertidumbre, matriz de capacidades como roadmap).
+> **Última actualización:** 17 de agosto de 2026.
+> **Versión:** v1.6 (nueva tool `get_tenant_public_urls`: el asistente HELP devuelve los links públicos del tenant YA CON EL SLUG REAL sustituido, en vez del patrón con `{slug}` literal).
 
 ---
 
@@ -98,6 +98,7 @@ Todas las tools de la IA están definidas en `app/services/ai_tools.py` y se inv
 | `analyze_inventory` | `GET /tenants/{id}/analytics/inventory` | `low_stock`, `out_of_stock`, `dead_stock`, `top_selling`, `overstock`. |
 | `get_customer_segments` | `GET /tenants/{id}/analytics/customer-segments` | `inactive`, `vip`, `new`, `top`, `no_orders`. |
 | `get_app_help` | (nuevo, lee de `app/services/app_knowledge.py`) | Devuelve este documento canónico en formato resumido. |
+| `get_tenant_public_urls` | (nuevo, combina `get_tenant_info` + `app_knowledge.PUBLIC_URLS`) | Devuelve los links públicos del tenant **ya con el slug real sustituido** (ej. `https://wowhub.app/u/cafeluna/reservar`). Usar SIEMPRE que el usuario pregunte por su link para compartir, URL pública, link de reservas, link de catálogo o cómo compartir su tienda. Si el tenant aún no tiene slug, devuelve los patrones + hint. Disponible solo en el sub-agente `help`. |
 
 ### 5.2 Tools de escritura (ejecutan acciones)
 
@@ -109,6 +110,41 @@ Todas las tools de la IA están definidas en `app/services/ai_tools.py` y se inv
 | `send_campaign` | `POST /tenants/{id}/campaigns` | **Sí** — preview de audiencia + cantidad + muestra. |
 
 > **Regla de seguridad innegociable:** ninguna tool de escritura se invoca sin que la IA muestre el **preview** y el usuario responda "sí" (o equivalente) de forma explícita. Esto ya está implementado en el system prompt de `AUTOMATION` y debe replicarse en cualquier agente que herede estas tools (incluido el nuevo `HELP`).
+
+### 5.3 Tool de plataforma: `get_tenant_public_urls` (v1.6)
+
+Disponible **solo** en el sub-agente `help` (no la heredan marketing/growth/automation/marketplace porque no es de negocio).
+
+**Qué hace:** combina `get_tenant_info` (para leer el `slug` real del tenant) con `app_knowledge.PUBLIC_URLS` (los patrones `/u/{slug}/...`) y devuelve las URLs **ya con el slug sustituido**, listas para mostrar y compartir.
+
+**Cuándo usarla:** SIEMPRE que el usuario pregunte por:
+- "Cuál es mi URL pública" / "link para compartir"
+- "El link para que mis clientes agenden"
+- "Cómo comparto mi tienda / mi landing"
+- "Link del catálogo público"
+- "Dónde pongo el QR"
+
+**Contrato de salida:**
+
+```json
+{
+  "source": "app_knowledge",
+  "topic": "tenant_public_urls",
+  "tenant": {"name": "Café Luna", "slug": "cafeluna"},
+  "has_slug": true,
+  "base_url": "https://wowhub.app",
+  "urls": [
+    {"key": "landing",        "url": "https://wowhub.app/u/cafeluna",                "description": "Landing pública del negocio..."},
+    {"key": "catalogo",       "url": "https://wowhub.app/u/cafeluna/catalogo",       "description": "Catálogo público de productos sin login."},
+    {"key": "reservar",       "url": "https://wowhub.app/u/cafeluna/reservar",       "description": "Flujo público de reservas: branch → fecha/hora → datos."},
+    {"key": "reservar_alias", "url": "https://wowhub.app/u/cafeluna/book",           "description": "Alias en inglés de /reservar."}
+  ]
+}
+```
+
+Si el tenant **aún no tiene `slug`** configurado, devuelve los patrones + un `hint` para que el LLM le indique al usuario dónde configurarlo (`Configuración → Branding`).
+
+**Anti-alucinación:** la IA **NUNCA** debe responder con `/u/{slug}/reservar` literal. Si la tool falla, debe decir "ahora no puedo obtener tu link; ve a Configuración para ver tu URL" en vez de inventar el slug.
 
 ---
 
@@ -124,7 +160,7 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿Dónde veo mis ventas?" | "En el menú lateral, **Resumen**, o directo en `/dashboard`." |
 | "¿Cómo creo una promoción?" | "Puedo crearla por ti. Dime: nombre, descuento (% o monto), fechas. Te muestro el preview antes de guardar." |
 | "¿Cómo creo una reserva?" | "Puedo agendarla. Necesito: cliente, sucursal, fecha, hora, duración. Te muestro el preview antes de guardar." |
-| "¿URL pública para que mis clientes agenden?" | "`https://{tu-dominio}/u/{tu-slug}/reservar` — compártela en Instagram, WhatsApp o tu bio." |
+| "¿URL pública para que mis clientes agenden?" | "`https://{tu-dominio}/u/{tu-slug}/reservar` — compártela en Instagram, WhatsApp o tu bio. (El asistente IA resuelve el `{tu-slug}` llamando a la tool `get_tenant_public_urls`, así que la respuesta SIEMPRE incluye el slug real, no el placeholder.)" |
 | "No me deja entrar a X módulo" | "Verifica que tu sesión esté iniciada y que el chip de usuario del topbar muestre el tenant correcto. Si persiste, contáctanos." |
 | "¿Cómo cambio el idioma?" | "Por ahora WowHub está en español. La función multi-idioma está en roadmap." |
 | "¿Cómo cambio el logo de mi tienda?" | "**Configuración → Branding** (subir imagen, máximo 2 MB)." |
