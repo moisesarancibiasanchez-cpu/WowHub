@@ -228,6 +228,48 @@ FAQ: dict[str, str] = {
         "En Configuración → Integraciones (cuando esté disponible). Hoy puedes "
         "compartir el link público por WhatsApp manualmente."
     ),
+    "marketing studio": (
+        "El Marketing Studio es el endpoint POST /api/v1/ai/marketing/generate "
+        "del AI Core. Genera copy de marketing contextual al tenant (negocio + "
+        "producto + ciudad + tono + audiencia) con N variantes y hashtags. Si "
+        "el LLM no está disponible, devuelve un template con fallback=true. "
+        "NO genera imágenes ni persiste el copy — solo devuelve texto listo "
+        "para usar. Comparte rate limit con /chat."
+    ),
+    "copy de marketing": (
+        "Usá el Marketing Studio: POST /api/v1/ai/marketing/generate. Indicá "
+        "intent (instagram_post, whatsapp_broadcast, email_subject, etc.), "
+        "topic (el tema), tone y audience. Te devuelve variantes listas. "
+        "NO se guarda el copy en la base — solo se devuelve."
+    ),
+    "copy para instagram": (
+        "El Marketing Studio puede generarlo: POST /api/v1/ai/marketing/generate "
+        "con intent=instagram_post. Devuelve N variantes con hashtags. Si querés "
+        "story corto, usá intent=instagram_story. Para Reel, intent=instagram_reel."
+    ),
+    "asunto de email": (
+        "El Marketing Studio puede redactarlo: POST /api/v1/ai/marketing/generate "
+        "con intent=email_subject (asunto corto) o intent=email_body (cuerpo). "
+        "Indicá tone (ej. professional, friendly) y audience."
+    ),
+    "copy para whatsapp": (
+        "El Marketing Studio puede generarlo: POST /api/v1/ai/marketing/generate "
+        "con intent=whatsapp_broadcast (difusión) o intent=whatsapp_status "
+        "(estado de 24h). Para SMS, intent=sms (≤160 chars)."
+    ),
+    "imagen con ia": (
+        "Hoy el Marketing Studio solo genera texto. La generación de imágenes "
+        "y videos está en roadmap. NO prometas esa función."
+    ),
+    "cuántas variantes": (
+        "De 1 a 5 variantes, con variants=N (default 3). Cada variante es una "
+        "versión distinta del mismo copy con el mismo intent/tone/audience."
+    ),
+    "límite diario marketing": (
+        "El Marketing Studio NO tiene límite propio: comparte el contador "
+        "diario con /api/v1/ai/chat. Si ya usaste todos tus mensajes del día, "
+        "devuelve 429 antes de llamar al LLM."
+    ),
 }
 
 
@@ -246,6 +288,11 @@ NO_EXISTE: list[str] = [
     "No hay creación de tenant desde el chat.",
     "SUPERADMIN no es un módulo 'premium' ni requiere plan especial: es un rol a nivel de usuario (is_superuser=True), separado de los roles de membresía (OWNER/ADMIN/STAFF/VIEWER).",
     "Solo los usuarios con is_superuser=True ven el link 'SUPERADMIN' en el sidebar y pueden acceder a /admin/superadmin.",
+    "El Marketing Studio NO genera imágenes ni videos — solo texto. La generación de assets visuales está en roadmap.",
+    "El Marketing Studio NO persiste el copy generado — solo lo devuelve en la response. La persistencia es responsabilidad del frontend o de futuras features.",
+    "El Marketing Studio NO tiene límite diario propio: comparte el contador con /api/v1/ai/chat (mismo recurso LLM).",
+    "El Marketing Studio NO permite programar publicaciones — solo genera el copy. Programar/enviar es otra feature (roadmap).",
+    "El Marketing Studio NO detecta el idioma automáticamente — el idioma se pide en el request (default 'es').",
 ]
 
 
@@ -255,6 +302,65 @@ WRITE_TOOLS_REQUIRE_CONFIRMATION: list[str] = [
     "create_booking",
     "send_email_to_customer",
     "send_campaign",
+]
+
+
+# ── 7. Marketing Studio (WowHub AI Core™ — Cap. 19.1) ──────────────
+# Endpoint del AI Core que genera copy de marketing contextual al tenant.
+# Es ATÓMICO (1 request → 1 response con N variantes), a diferencia de
+# /api/v1/ai/chat que es conversacional. Rate limit compartido con /chat.
+MARKETING_STUDIO: dict[str, Any] = {
+    "endpoint": "POST /api/v1/ai/marketing/generate",
+    "auth": "JWT (mismo que /chat)",
+    "rate_limit": "Compartido con /api/v1/ai/chat (mismo contador diario).",
+    "intents": [
+        "instagram_post", "instagram_story", "instagram_reel",
+        "facebook_post", "whatsapp_broadcast", "whatsapp_status",
+        "email_subject", "email_body", "sms",
+        "product_description", "promotion_headline", "promotion_body",
+        "general",
+    ],
+    "tones": [
+        "friendly", "professional", "urgent", "playful",
+        "luxury", "casual", "inspirational",
+    ],
+    "audiences": [
+        "all", "existing", "prospects", "vip", "inactive", "new", "local",
+    ],
+    "variants_range": "1-5 (default 3)",
+    "languages": "ISO 639-1, default 'es'",
+    "fallback": (
+        "Si el LLM no está disponible (circuit abierto, timeout, JSON "
+        "inválido), devuelve templates pre-armados por intent×tone con "
+        "fallback=true. El usuario SIEMPRE recibe copy utilizable."
+    ),
+    "persistence": "NONE — el endpoint es stateless. No guarda el copy.",
+    "scope": "Solo texto. NO genera imágenes ni videos.",
+    "rules": [
+        "NO inventes URLs públicas. Usa solo el public_url del context resuelto.",
+        "NO incluyas bloques ```json ni ``` en el contenido (solo el copy final).",
+        "NO prometas 'imagen generada' o 'video generado' — eso está en roadmap.",
+        "Cada request consume 1 unidad del rate limit diario compartido con /chat.",
+    ],
+}
+
+
+# ── 8. Intenciones conversacionales que disparan Marketing Studio ──
+# Cuando el sub-agente (marketing/growth/automation) detecte una de
+# estas intenciones, debe preparar el MarketingRequest (intent + topic +
+# tone + audience + context) y sugerir al frontend llamar al endpoint.
+MARKETING_STUDIO_TRIGGERS: list[str] = [
+    "escribime un post para instagram",
+    "necesito copy para whatsapp",
+    "redactame un asunto de email",
+    "generame variantes de copy",
+    "quiero un sms corto para mis clientes",
+    "ayudame con copy de marketing",
+    "copy para facebook",
+    "caption para instagram",
+    "tweet / x post",
+    "descripcion de producto",
+    "headline para mi promo",
 ]
 
 
@@ -327,8 +433,16 @@ def render_short_summary() -> str:
     for u in PUBLIC_URLS:
         lines.append(f"  - {u['pattern']} → {u['description']}")
     lines.append("")
+    lines.append("AI Core (endpoints de IA):")
+    lines.append(f"  - POST {MARKETING_STUDIO['endpoint']} → genera copy de marketing contextual al tenant (variants + hashtags + fallback).")
+    lines.append("  - POST /api/v1/ai/chat → chat conversacional multi-agente.")
+    lines.append("  - GET  /api/v1/ai/agents → lista sub-agentes (marketing, growth, automation, marketplace, help).")
+    lines.append("  - GET  /api/v1/ai/status → estado del LLM (circuit, rate, enabled).")
+    lines.append("")
     lines.append("Reglas críticas:")
     lines.append("  - Si te preguntan algo de WowHub que NO sabes con certeza, di 'No estoy seguro, pero X está en /dashboard/x' o sugiere abrir un ticket.")
     lines.append("  - NUNCA inventes nombres de secciones, toggles o flujos que no estén listados aquí.")
     lines.append("  - Para acciones de escritura (create_*, send_*), SIEMPRE muestra preview y pide confirmación explícita antes de ejecutar.")
+    lines.append("  - El Marketing Studio SOLO genera texto. NO inventes que genera imágenes o videos.")
+    lines.append("  - Si el usuario pide 'escribime un post para X', prepará un MarketingRequest y sugerí al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
     return "\n".join(lines)

@@ -3,8 +3,8 @@
 > **Propósito:** Este documento es la **única fuente de verdad** que el asistente IA de WowHub debe usar para responder preguntas sobre la plataforma (módulos, rutas, activación, URLs, FAQ). Cualquier nueva sección de WowHub que se agregue al producto debe reflejarse aquí.
 >
 > **Mantenedor:** Equipo WowHub.
-> **Última actualización:** 17 de agosto de 2026.
-> **Versión:** v1.6 (nueva tool `get_tenant_public_urls`: el asistente HELP devuelve los links públicos del tenant YA CON EL SLUG REAL sustituido, en vez del patrón con `{slug}` literal).
+> **Última actualización:** 18 de agosto de 2026.
+> **Versión:** v1.7 (nuevo endpoint **Marketing Studio** `POST /api/v1/ai/marketing/generate`: generación atómica de copy de marketing contextual al tenant, con fallback de templates cuando el LLM no está disponible).
 
 ---
 
@@ -167,6 +167,10 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿Cuánto cuesta WowHub?" | "Depende del plan. Revisa la sección de **Planes** en la landing o pregúntale al equipo de ventas." |
 | "Quiero eliminar mi cuenta" | "Por seguridad, la eliminación de cuenta se hace escribiendo a **soporte@wowhub.app**." |
 | "¿Cómo conecto WhatsApp?" | "En **Configuración → Integraciones** (cuando esté disponible). Hoy puedes compartir el link público por WhatsApp manualmente." |
+| "¿Me ayudás a escribir un post para Instagram / un copy de marketing / un asunto de email?" | "Sí. Usá el **Marketing Studio**: `POST /api/v1/ai/marketing/generate` con `intent` según el canal (instagram_post, whatsapp_broadcast, email_subject, etc.), `topic` el tema, `tone` y `audience` según tu público. Te devuelve N variantes listas para usar. Si el LLM está caído, devuelve un template (`fallback: true`). El copy NO se guarda en la base — solo se devuelve." |
+| "¿La IA puede generar imágenes para mi promo?" | "Hoy el Marketing Studio solo genera **texto**. La generación de imágenes y videos está en roadmap (ver §18.2)." |
+| "¿Cuántas variantes de copy puedo pedir?" | "De 1 a 5, con `variants: N` (default 3). Cada variante es una versión distinta del mismo copy con el mismo `intent`/`tone`/`audience`." |
+| "¿El Marketing Studio tiene su propio límite diario?" | "No. Comparte el contador con `/api/v1/ai/chat`. Si ya usaste todos tus mensajes del día, devuelve 429 antes de llamar al LLM." |
 | "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?" | "Son los 4 roles por membresía en un tenant. **OWNER**: administración completa del tenant (todo). **ADMIN**: administración operativa con casi los mismos poderes que OWNER — puede gestionar productos, reservas, clientes, campañas, miembros y configuración, pero no puede eliminar el tenant ni modificar el OWNER. **STAFF**: operación diaria con acceso limitado (ej. crear reservas, registrar ventas, ver clientes, pero no modificar configuración ni productos). **VIEWER**: solo consulta (lee KPIs, listas, agenda) sin poder ejecutar acciones de escritura. Los roles son **por tenant** — un mismo usuario puede ser OWNER en un tenant y VIEWER en otro. El **SUPERUSER** es otra cosa: es un flag **por usuario** (no por tenant) y aplica a TODA la plataforma; ver §11." |
 | "¿El superadmin puede entrar a mi tienda y ver mis conversaciones del asistente?" | "Un **SUPERUSER** puede iniciar una sesión temporal de **impersonación** desde `/admin/superadmin`, siempre que el usuario objetivo no sea otro superuser y esté activo. Durante esa sesión puede acceder a las **funciones y datos permitidos para el usuario impersonado** dentro del tenant seleccionado. Esto **puede incluir** las conversaciones del asistente si están disponibles para esa cuenta. La sesión muestra un banner visible de impersonación, dura **como máximo 60 minutos** y todas las acciones quedan registradas (superuser, usuario objetivo, tenant, hora, acción). **Las contraseñas y secretos nunca se muestran.**" |
 | "¿Qué ocurre si un superadmin entra a mi tienda?" | "La sesión normal del dueño **no se reemplaza ni se cierra**. La impersonación se ejecuta en una sesión temporal separada del superuser. El acceso queda registrado en la **auditoría del tenant** y puede ser revisado por usuarios autorizados según la política de WowHub. El superuser debe salir mediante el botón **'🚪 Salir'** del banner o esperar la expiración automática de la sesión." |
@@ -751,3 +755,170 @@ Cuando la IA ejecuta una tool, debe manejar explícitamente los siguientes estad
 | `expired` | La ventana de confirmación pasó. | "La confirmación expiró. ¿Querés que lo intente de nuevo?" |
 
 Esto es especialmente crítico para **campañas y acciones que afectan datos personales**.
+
+---
+
+## 17. Marketing Studio (WowHub AI Core™ — Cap. 19.1)
+
+### 17.1 Qué es
+
+El **Marketing Studio** es un endpoint del AI Core que genera **copy de marketing contextual al tenant** (negocio + producto + ciudad + tono + audiencia) usando el LLM. A diferencia de `/api/v1/ai/chat` (que es conversacional), el Marketing Studio es **atómico**: 1 request → 1 response estructurada con N variantes de copy + hashtags + metadata.
+
+Es el primer caso de uso del motor de IA como producto (recomendación #1 del análisis estratégico del proyecto: "Comenzar con un caso de uso único y de alto impacto (Marketing Studio)").
+
+### 17.2 Endpoint
+
+| Método | Ruta | Auth | Rate limit |
+|---|---|---|---|
+| `POST` | `/api/v1/ai/marketing/generate` | JWT (mismo que `/chat`) | Comparte el contador diario con `/chat` (mismo recurso LLM). |
+
+**Headers:** `Authorization: Bearer <jwt>`, opcional `X-Tenant-Id` (si no, se toma la primera membresía activa del usuario).
+
+### 17.3 Request body (resumen)
+
+```json
+{
+  "intent": "instagram_post",          // canal/formato (enum, ver §17.4)
+  "topic": "Promoción 2x1 en café",    // tema central (3-400 chars)
+  "tone": "friendly",                  // tono (enum, ver §17.5)
+  "audience": "all",                   // segmento (enum, ver §17.6)
+  "keywords": ["café", "promo"],       // opcional, max 12
+  "include_emojis": true,              // default true
+  "include_hashtags": true,            // default false
+  "hashtag_count": 5,                  // 0-20
+  "language": "es",                    // ISO 639-1, default "es"
+  "max_length": null,                  // opcional, 20-4000
+  "variants": 3,                       // 1-5, default 3
+  "context": {                         // contexto del negocio (opcional)
+    "business_name": "Café Luna",      // si se omite, se intenta resolver del tenant
+    "business_type": "cafetería",
+    "city": "Palermo",
+    "product_name": "Cappuccino",
+    "product_features": ["orgánico", "de especialidad"],
+    "price": "$3.500",
+    "promotion_details": "2x1 los martes",
+    "cta": "Reservá tu mesa",
+    "public_url": "https://wowhub.app/u/cafeluna",
+    "extra_notes": "..."
+  }
+}
+```
+
+### 17.4 `intent` — canal/formato (13 valores)
+
+| Valor | Uso | Largo típico |
+|---|---|---|
+| `instagram_post` | Caption de Instagram | 100-500 chars |
+| `instagram_story` | Texto corto para story | ≤80 chars |
+| `instagram_reel` | Guion de Reel (gancho + desarrollo + CTA) | 200-400 chars |
+| `facebook_post` | Post de Facebook | 100-500 chars |
+| `whatsapp_broadcast` | Difusión por WhatsApp Business | 200-600 chars |
+| `whatsapp_status` | Estado de WhatsApp (24h) | ≤140 chars |
+| `email_subject` | Asunto de email (1-2 líneas) | ≤80 chars |
+| `email_body` | Cuerpo de email promocional | 200-1000 chars |
+| `sms` | SMS promocional | ≤160 chars |
+| `product_description` | Descripción de producto del catálogo | 100-400 chars |
+| `promotion_headline` | Titular corto de promoción | ≤60 chars |
+| `promotion_body` | Cuerpo descriptivo de promoción | 100-400 chars |
+| `general` | Texto libre (default) | variable |
+
+### 17.5 `tone` — tono (7 valores)
+
+`friendly` (default), `professional`, `urgent`, `playful`, `luxury`, `casual`, `inspirational`.
+
+### 17.6 `audience` — segmento (7 valores)
+
+`all` (default), `existing`, `prospects`, `vip`, `inactive`, `new`, `local`.
+
+### 17.7 Response
+
+```json
+{
+  "id": "uuid",
+  "intent": "instagram_post",
+  "topic": "Promoción 2x1 en café",
+  "tone": "friendly",
+  "audience": "all",
+  "primary": {
+    "index": 1,
+    "content": "Tu próximo café te sale gratis. ☕ Válido los martes...",
+    "hashtags": ["#CafeLuna", "#Palermo"],
+    "character_count": 187
+  },
+  "variants": [ /* 3 MarketingVariant */ ],
+  "hashtags": ["#CafeLuna", "#Palermo", "#Promo"],
+  "fallback": false,         // true si se usó template (LLM caído)
+  "model": "gpt-4o-mini",   // null si fallback
+  "tokens_in": 412,
+  "tokens_out": 187,
+  "latency_ms": 1842,
+  "resolved_context": {     // mezcla de request + tenant
+    "business_name": "Café Luna",
+    "public_url": "https://wowhub.app/u/cafeluna",
+    "..."
+  }
+}
+```
+
+### 17.8 Fallback (cuando el LLM no está disponible)
+
+Si el LLM falla (circuit abierto, timeout, JSON inválido, rate limit del provider), el endpoint **NO devuelve error** — usa **templates pre-armados** indexados por `intent × tone` y devuelve `fallback: true`. El `model` queda en `null` y `tokens_*` en `null`. Esto garantiza que la UI nunca rompa: el usuario siempre recibe copy utilizable.
+
+Templates incluidos (no exhaustivo):
+- `instagram_post` × `friendly` → "¡{topic}! Vení a disfrutar en {business_name}…"
+- `whatsapp_broadcast` × `urgent` → "¡{topic}! Oferta por tiempo limitado en {business_name}…"
+- `email_subject` × `professional` → "{topic} — {business_name}"
+- `sms` × `friendly` → "¡{topic}! {cta or 'Más info'}: {public_url or ''}" (≤160 chars)
+
+### 17.9 Reglas de uso (anti-alucinación)
+
+- ❌ La IA **NO** debe inventar URLs públicas. Solo usa el `public_url` del `context` resuelto (o el del tenant si tiene slug). Si no hay URL disponible, omite la URL del copy.
+- ❌ La IA **NO** debe incluir bloques ` ```json ` ni ` ``` ` en el contenido (solo el copy final).
+- ❌ La IA **NO** debe prometer "imagen generada" o "video generado" — el Marketing Studio **solo genera texto**. La generación de assets visuales está en roadmap.
+- ✅ Cada request consume 1 unidad del rate limit diario compartido con `/chat`. Si el usuario ya usó sus N mensajes del día, recibe 429 antes de llamar al LLM.
+- ✅ El endpoint es **stateless**: no persiste nada. La persistencia del copy (guardar en borradores, programar envío) es responsabilidad del frontend o de futuras features.
+
+### 17.10 Cuándo la IA conversacional debe sugerir el Marketing Studio
+
+Los sub-agentes `marketing`, `growth` y `automation` deben reconocer estas intenciones y remitir al frontend a llamar al endpoint:
+- "¿Me ayudás a escribir un post para Instagram?"
+- "Necesito copy para una campaña de WhatsApp"
+- "Redactame un asunto de email para mi promo"
+- "Generame 3 variantes de copy para Facebook"
+- "Quiero un SMS corto para mis clientes VIP"
+
+La IA conversacional puede **preparar el preview** del `MarketingRequest` (intent + topic + tone + audience + context) y pedir confirmación, pero la **ejecución** la hace el frontend llamando al endpoint.
+
+### 17.11 Anti-alucinación específica del Marketing Studio
+
+- ❌ No existe "Generar imagen con IA" desde este endpoint (solo texto).
+- ❌ No existe "Programar publicación" desde este endpoint (el copy se devuelve; programar es otra feature).
+- ❌ No existe "Multi-idioma automático" — el idioma se pide en el request y el LLM responde en ese idioma.
+- ❌ No existe un "límite diario" separado del de `/chat` — es el mismo contador.
+- ❌ El endpoint **NO** persiste el copy en la base de datos. Solo lo devuelve.
+
+---
+
+## 18. Cambios recientes y roadmap del AI Core
+
+### 18.1 Cambios recientes
+
+- **v1.7 (18-ago-2026)**: agregado **Marketing Studio** (§17). Endpoint `POST /api/v1/ai/marketing/generate`. 13 `intent`, 7 `tone`, 7 `audience`. 47 tests passing. Servicio en `app/services/marketing_studio.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #1 del análisis estratégico del proyecto.**
+- **v1.6 (17-ago-2026)**: tool `get_tenant_public_urls` (sustituye `{slug}` literal por el slug real del tenant).
+- **v1.5 (17-ago-2026)**: FAQ ampliada por categoría + protocolo de incertidumbre + matriz de capacidades.
+
+### 18.2 Roadmap inmediato del AI Core (próximas iteraciones)
+
+Las siguientes features están **planificadas pero NO implementadas**. La IA NO debe prometerlas como disponibles.
+
+| Feature | Estado | Notas |
+|---|---|---|
+| Streaming SSE real del Marketing Studio | 🛣️ Roadmap | Hoy devuelve JSON único. |
+| Persistencia de borradores de copy | 🛣️ Roadmap | Hoy el copy se devuelve pero no se guarda. |
+| Programación de publicación | 🛣️ Roadmap | Requiere integración con canales (Instagram, WhatsApp, email). |
+| Generación de imágenes con IA | 🛣️ Roadmap | Hoy el Marketing Studio solo genera texto. |
+| Growth Coach™ (Cap. 19.2) | 🛣️ Roadmap | Análisis proactivo de la "Memoria de Negocio" y recomendaciones. |
+| Automation Manager™ (Cap. 19.3) | 🛣️ Roadmap | Orquestación de acciones sugeridas por el Growth Coach. |
+| Smart Marketplace™ (Cap. 19.4) | 🛣️ Roadmap | Sugerencia de módulos premium según perfil del negocio. |
+| Multi-idioma del LLM | 🛣️ Roadmap | Hoy el idioma se pide en el request; en el futuro se detectará del tenant. |
+| Métricas de uso del Marketing Studio | 🛣️ Roadmap | Hoy no se persiste qué copy se generó para qué tenant. |
