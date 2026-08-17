@@ -694,7 +694,12 @@ class AIOrchestrator:
             return text
 
         # Detección rápida: ¿hay algo que valga la pena reemplazar?
-        if not _SLUG_LITERAL_RE.search(text) and not _SLUG_PATH_RE.search(text):
+        if (
+            not _SLUG_LITERAL_RE.search(text)
+            and not _SLUG_PATH_RE.search(text)
+            and not _SLUG_BARE_RE.search(text)
+            and not _SLUG_PAREN_INSTRUCTION_RE.search(text)
+        ):
             return text
 
         # 1) Sacar URLs reales del tool result (si ya se llamó)
@@ -764,6 +769,23 @@ class AIOrchestrator:
             )
             text = _SLUG_LITERAL_RE.sub(fallback_msg, text)
             text = _SLUG_PATH_RE.sub(fallback_msg, text)
+
+        # 5) Paréntesis instructivos del tipo "(cambia `{slug}` por …)".
+        # Si el LLM ya puso la URL real arriba, este paréntesis la contradice
+        # (porque le pide al usuario "reemplazar {slug}"). Lo eliminamos
+        # entero. Caso sin slug: dejar el paréntesis también ayuda (es la
+        # única pista útil), pero ya quedó reemplazado arriba con
+        # `fallback_msg`, así que aquí el match normalmente no aparecerá.
+        text = _SLUG_PAREN_INSTRUCTION_RE.sub("", text)
+
+        # 6) `{slug}` "desnudo" que sobreviva fuera de una URL o paréntesis
+        # (por ejemplo, suelto como token: "tu {slug} es ..."). Lo
+        # sustituimos por el slug real del tenant o, si no hay, por un
+        # placeholder neutro que NO parezca código.
+        if tenant_slug:
+            text = _SLUG_BARE_RE.sub(tenant_slug, text)
+        else:
+            text = _SLUG_BARE_RE.sub("tu slug", text)
 
         return text
 
@@ -847,6 +869,17 @@ def _format_tool_result(name: str, args: dict[str, Any], result: dict[str, Any])
 #    poner el `https://wowhub.app` delante. Lo reemplazamos también por
 #    la URL completa.
 #
+# 3) `_SLUG_BARE_RE` → `{slug}` "desnudo", fuera de la URL. Esto pasa
+#    cuando el LLM ya puso la URL REAL correctamente pero igual añade
+#    un paréntesis instructivo tipo "(cambia `{slug}` por el nombre de
+#    tu negocio)" o `{slug}` como variable suelta. Lo reemplazamos por
+#    el slug real del tenant (o eliminamos la frase completa si está
+#    en un paréntesis que ya no aplica).
+#
+# 4) `_SLUG_PAREN_INSTRUCTION_RE` → paréntesis completos que son una
+#    instrucción de "reemplaza {slug} por...". Los eliminamos enteros
+#    porque contradicen la URL real que acabamos de mostrar.
+#
 # La detección se hace ANTES de devolver al usuario (paso 7.6 del flujo
 # de `AIOrchestrator.chat`). Ver `AIOrchestrator._scrub_slug_placeholders`.
 _SLUG_LITERAL_RE = re.compile(
@@ -858,5 +891,19 @@ _SLUG_PATH_RE = re.compile(
     r"/u/[A-Za-z0-9][A-Za-z0-9_-]{1,80}"          # /u/<slug>  (1-80 chars, empieza con alfanum)
     r"(?:/(?:reservar|book|catalogo))?"           # opcional: /reservar | /book | /catalogo
     r"(?![\w/-])",                                # boundary: no es parte de path más largo
+    re.IGNORECASE,
+)
+_SLUG_BARE_RE = re.compile(
+    r"\{slug\}",                                  # {slug} literal en cualquier contexto
+    re.IGNORECASE,
+)
+# Paréntesis que contienen una instrucción de "reemplaza {slug}".
+# Ejemplos que matchea: "(cambia `{slug}` por el nombre de tu negocio)",
+# "(reemplaza {slug} con tu slug)", "(sustituye {slug})".
+# NO matchea paréntesis legítimos como "(ya está activo)" o "(ejemplo)".
+_SLUG_PAREN_INSTRUCTION_RE = re.compile(
+    r"\s*\((?:[^()]*\bsubstituy\w*|cambi\w*|reemplaz\w*|sustituy\w*|reemplaz\w*|"
+    r"sustituy\w*|remplaz\w*|cambia|cambiar|reemplaza|reemplazar|pon|poner|usa|usar)\b"
+    r"[^()]*\{slug\}[^()]*\)",
     re.IGNORECASE,
 )

@@ -27,6 +27,8 @@ from app.services.ai_orchestrator import (
     AIOrchestrator,
     _SLUG_LITERAL_RE,
     _SLUG_PATH_RE,
+    _SLUG_BARE_RE,
+    _SLUG_PAREN_INSTRUCTION_RE,
 )
 
 
@@ -115,6 +117,34 @@ class TestRegexDetection:
             "URLs con dominio propio NO deben matchear el scrubber. "
             f"Match encontrado en: {s!r}"
         )
+
+    def test_bare_slug_placeholder_detected(self):
+        """`{slug}` "desnudo" (fuera de una URL) debe ser detectado por
+        el regex BARE. Esto pasa cuando el LLM deja el placeholder
+        suelto como variable."""
+        assert _SLUG_BARE_RE.search("Tu {slug} es café-luna")
+        assert _SLUG_BARE_RE.search("cambia {slug} por el nombre")
+        assert _SLUG_BARE_RE.search("{SLUG}")  # case-insensitive
+
+    def test_paren_instruction_with_slug_detected(self):
+        """Un paréntesis que contiene una instrucción de "reemplaza {slug}"
+        debe ser detectado por el regex PAREN_INSTRUCTION."""
+        assert _SLUG_PAREN_INSTRUCTION_RE.search(
+            "(cambia `{slug}` por el nombre de tu negocio)"
+        )
+        assert _SLUG_PAREN_INSTRUCTION_RE.search(
+            "(reemplaza {slug} con tu slug real)"
+        )
+        assert _SLUG_PAREN_INSTRUCTION_RE.search(
+            "(sustituye {slug})"
+        )
+
+    def test_paren_without_instruction_not_matched(self):
+        """Paréntesis legítimos SIN instrucción de reemplazo NO deben
+        matchear (ej. '(ya está activo)')."""
+        assert not _SLUG_PAREN_INSTRUCTION_RE.search("(ya está activo)")
+        assert not _SLUG_PAREN_INSTRUCTION_RE.search("(ejemplo)")
+        assert not _SLUG_PAREN_INSTRUCTION_RE.search("Link al sitio (ver abajo)")
 
 
 # ── 2) Scrubber behavior (con tool result) ──────────────────
@@ -255,6 +285,56 @@ class TestScrubberWithToolResult:
         finally:
             _restore_tool(orch)
 
+    @pytest.mark.asyncio
+    async def test_paren_instruction_with_slug_removed_entirely(self):
+        """El paréntesis instructivo `(cambia `{slug}` por el nombre de tu
+        negocio)` debe ELIMINARSE ENTERAMENTE cuando el tenant tiene slug,
+        porque contradice la URL real que el LLM ya puso arriba."""
+        tool_result = {
+            "has_slug": True,
+            "tenant": {"name": "Café Luna", "slug": "cafeluna"},
+            "base_url": "https://wowhub.app",
+            "urls": [
+                {"key": "reservar",
+                 "url": "https://wowhub.app/u/cafeluna/reservar"},
+            ],
+        }
+        orch = _make_orchestrator(tool_result)
+        try:
+            text = (
+                "Tu link es https://wowhub.app/u/cafeluna/reservar "
+                "(cambia `{slug}` por el nombre de tu negocio)"
+            )
+            out = await orch._scrub_slug_placeholders(text, tool_results=None)
+            assert "{slug}" not in out
+            assert "cambia" not in out
+            # La URL real debe permanecer intacta.
+            assert "https://wowhub.app/u/cafeluna/reservar" in out
+        finally:
+            _restore_tool(orch)
+
+    @pytest.mark.asyncio
+    async def test_bare_slug_placeholder_replaced_with_real_slug(self):
+        """Cualquier `{slug}` "desnudo" que sobreviva debe reemplazarse con
+        el slug real del tenant."""
+        tool_result = {
+            "has_slug": True,
+            "tenant": {"name": "Café Luna", "slug": "cafeluna"},
+            "base_url": "https://wowhub.app",
+            "urls": [
+                {"key": "reservar",
+                 "url": "https://wowhub.app/u/cafeluna/reservar"},
+            ],
+        }
+        orch = _make_orchestrator(tool_result)
+        try:
+            text = "Tu negocio se llama {slug}. Compártelo con tus clientes."
+            out = await orch._scrub_slug_placeholders(text, tool_results=None)
+            assert "{slug}" not in out
+            assert "cafeluna" in out
+        finally:
+            _restore_tool(orch)
+
 
 # ── 3) Scrubber behavior (sin slug) ────────────────────────
 class TestScrubberWithoutSlug:
@@ -371,5 +451,45 @@ class TestRealWorldRegressions:
             assert "/u/corto-el-pelo-por-botillas/reservar" not in out.replace(
                 "https://wowhub.app/u/corto-el-pelo-por-botillas/reservar", ""
             )
+        finally:
+            _restore_tool(orch)
+
+    @pytest.mark.asyncio
+    async def test_user_scenario_paren_instruction_with_real_url(self):
+        """El TERCER caso del usuario:
+        Q: 'dame el link para que mis clientes reserven'
+        A (bug): 'Aquí tienes tu link: https://.../u/corto-el-pelo-por-botillas/reservar
+                  (cambia `{slug}` por el nombre de tu negocio)'
+        Debe arreglarse: la URL real queda, el paréntesis instructivo se ELIMINA.
+        """
+        tool_result = {
+            "has_slug": True,
+            "tenant": {"name": "Corto", "slug": "corto-el-pelo-por-botillas"},
+            "urls": [
+                {"key": "reservar",
+                 "url": "https://wowhub-api-production.up.railway.app/u/corto-el-pelo-por-botellas/reservar"},
+            ],
+        }
+        orch = _make_orchestrator(tool_result)
+        try:
+            buggy_response = (
+                "Aquí tienes tu link para que tus clientes reserven 🎉\n\n"
+                "👉 https://wowhub-api-production.up.railway.app/"
+                "u/corto-el-pelo-por-botellas/reservar\n\n"
+                "(cambia `{slug}` por el nombre de tu negocio)"
+            )
+            out = await orch._scrub_slug_placeholders(buggy_response, tool_results=None)
+            # La URL real debe permanecer intacta.
+            assert (
+                "https://wowhub-api-production.up.railway.app/"
+                "u/corto-el-pelo-por-botellas/reservar"
+                in out
+            )
+            # El paréntesis instructivo debe haber sido eliminado.
+            assert "{slug}" not in out
+            assert "cambia" not in out
+            # (el texto no debe terminar con ")" huérfana o un espacio raro
+            # dejado por la eliminación del paréntesis completo)
+            assert out.rstrip().endswith("reservar")
         finally:
             _restore_tool(orch)
