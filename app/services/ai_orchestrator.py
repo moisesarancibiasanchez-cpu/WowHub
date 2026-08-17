@@ -537,6 +537,17 @@ class AIOrchestrator:
         if assistant_content:
             assistant_content = strip_think(assistant_content)
 
+        # 7.6) Post-procesador anti-{slug}-literal: si la respuesta del
+        # LLM contiene "/u/{slug}/..." (placeholder) o "/u/<slug>/..."
+        # (path sin dominio), lo reemplazamos con URLs REALES del tenant.
+        # El LLM tiende a alucinar estos patrones (los aprendió de su
+        # training data) aunque el system prompt lo prohíba, así que esta
+        # es la red de seguridad final antes de que el usuario lo vea.
+        if assistant_content:
+            assistant_content = await self._scrub_slug_placeholders(
+                assistant_content, tool_results_for_llm if tool_calls else None,
+            )
+
         # 8) Persistir respuesta del assistant
         asst_msg = save_message(
             self.db,
@@ -649,6 +660,113 @@ class AIOrchestrator:
         except Exception as e:
             logger.warning("No se pudo guardar trace: %s", e)
 
+    async def _scrub_slug_placeholders(
+        self,
+        text: str,
+        tool_results: Optional[list[tuple[str, dict[str, Any], dict[str, Any]]]],
+    ) -> str:
+        """Reemplaza placeholders `{slug}` y paths sin dominio en la respuesta
+        del LLM con URLs REALES del tenant.
+
+        El LLM (DeepSeek, GPT-4, etc.) tiende a alucinar el patrón
+        `/u/{slug}/reservar` aunque el system prompt se lo prohíba: es un
+        patrón de URL tan común en su training data que se le escapa. Esta
+        red de seguridad se ejecuta SIEMPRE antes de devolver la respuesta
+        al usuario, para garantizar que:
+
+        - Si la respuesta contiene `/u/{slug}/...` o `/u/<slug>/(reservar|book|catalogo)`
+          SIN dominio, se reemplaza con la URL completa `https://<base>/u/<slug-real>/...`
+          (usando los datos que ya tenemos de `get_tenant_public_urls` o
+          llamando a la tool ahora si el LLM no la llamó).
+        - Si el tenant no tiene slug, se reemplaza por un mensaje que pide
+          configurarlo en Configuración → Branding.
+
+        Args:
+            text: respuesta del assistant (ya con `strip_think` aplicado).
+            tool_results: lista de (tool_name, args, result) de las tools
+                llamadas en este turno. None si el LLM no llamó ninguna.
+
+        Returns:
+            texto con los placeholders/paths reemplazados. Si no había
+            placeholders, devuelve `text` sin tocar.
+        """
+        if not text:
+            return text
+
+        # Detección rápida: ¿hay algo que valga la pena reemplazar?
+        if not _SLUG_LITERAL_RE.search(text) and not _SLUG_PATH_RE.search(text):
+            return text
+
+        # 1) Sacar URLs reales del tool result (si ya se llamó)
+        urls_by_key: dict[str, str] = {}
+        has_slug = False
+        tenant_slug: Optional[str] = None
+        if tool_results:
+            for name, _args, result in tool_results:
+                if name == "get_tenant_public_urls" and isinstance(result, dict):
+                    if result.get("has_slug"):
+                        has_slug = True
+                        tenant_slug = (result.get("tenant") or {}).get("slug")
+                        for u in result.get("urls", []) or []:
+                            if u.get("key") and u.get("url"):
+                                urls_by_key[u["key"]] = u["url"]
+                    break
+
+        # 2) Si el LLM no llamó a la tool (o no devolvió URLs), la llamamos
+        # nosotros en el post-proceso. Mejor tardar un poco más que entregar
+        # un placeholder.
+        if not has_slug:
+            try:
+                result = await TOOL_DISPATCH["get_tenant_public_urls"](self.ctx)
+                if isinstance(result, dict) and result.get("has_slug"):
+                    has_slug = True
+                    tenant_slug = (result.get("tenant") or {}).get("slug")
+                    for u in result.get("urls", []) or []:
+                        if u.get("key") and u.get("url"):
+                            urls_by_key[u["key"]] = u["url"]
+                logger.info(
+                    "[slug_scrubber] post-tool call: has_slug=%s tenant_slug=%s",
+                    has_slug, tenant_slug,
+                )
+            except Exception as e:
+                logger.warning("[slug_scrubber] no se pudo llamar a get_tenant_public_urls: %s", e)
+
+        # 3) Resolver cada match contra la URL real (o fallback)
+        if has_slug and urls_by_key:
+            reservar_url = (
+                urls_by_key.get("reservar")
+                or urls_by_key.get("reservar_alias")
+                or ""
+            )
+            catalogo_url = urls_by_key.get("catalogo") or ""
+            landing_url = urls_by_key.get("landing") or ""
+
+            def _resolve(m: "_re.Match[str]") -> str:
+                s = m.group(0)
+                low = s.lower()
+                # Prioridad: reservar/book > catalogo > landing
+                if "reservar" in low or "/book" in low:
+                    return reservar_url or s
+                if "catalogo" in low:
+                    return catalogo_url or s
+                if "/reservar" in low or "/book" in low:
+                    return reservar_url or s
+                return landing_url or s
+
+            text = _SLUG_LITERAL_RE.sub(_resolve, text)
+            text = _SLUG_PATH_RE.sub(_resolve, text)
+        else:
+            # 4) Tenant sin slug: reemplazar con mensaje accionable.
+            # NO mostramos el placeholder (eso era el bug original).
+            fallback_msg = (
+                "(primero configura tu slug en Configuración → Branding; "
+                "ahí te armo tu link público real)"
+            )
+            text = _SLUG_LITERAL_RE.sub(fallback_msg, text)
+            text = _SLUG_PATH_RE.sub(fallback_msg, text)
+
+        return text
+
 
 def _safe_json(s: str) -> dict[str, Any]:
     try:
@@ -714,3 +832,31 @@ def _format_tool_result(name: str, args: dict[str, Any], result: dict[str, Any])
         payload = payload[:1500] + "…(truncado)"
     args_str = json.dumps(args, ensure_ascii=False, default=str) if args else "{}"
     return f"- {name}({args_str}) → {payload}"
+
+
+# ── Anti-{slug}-literal: regexes para el post-procesador ────────────
+# El LLM tiende a alucinar el patrón `/u/{slug}/reservar` aunque el system
+# prompt se lo prohíba. Estos regexes detectan:
+#
+# 1) `_SLUG_LITERAL_RE` → el placeholder LITERAL `/u/{slug}/...` (con
+#    las llaves `{` `}`). Este es el bug original: el LLM lo escribe
+#    pidiéndole al usuario que "reemplace {slug} por el nombre del negocio".
+#
+# 2) `_SLUG_PATH_RE` → el path SIN dominio `/u/<slug-real>/(reservar|book
+#    |catalogo)`. Esto pasa cuando el LLM sustituye el slug pero olvida
+#    poner el `https://wowhub.app` delante. Lo reemplazamos también por
+#    la URL completa.
+#
+# La detección se hace ANTES de devolver al usuario (paso 7.6 del flujo
+# de `AIOrchestrator.chat`). Ver `AIOrchestrator._scrub_slug_placeholders`.
+_SLUG_LITERAL_RE = re.compile(
+    r"/u/\{slug\}(?:/(?:reservar|book|catalogo))?",
+    re.IGNORECASE,
+)
+_SLUG_PATH_RE = re.compile(
+    r"(?<![\w/:])"                                # boundary: no es parte de otra URL
+    r"/u/[A-Za-z0-9][A-Za-z0-9_-]{1,80}"          # /u/<slug>  (1-80 chars, empieza con alfanum)
+    r"(?:/(?:reservar|book|catalogo))?"           # opcional: /reservar | /book | /catalogo
+    r"(?![\w/-])",                                # boundary: no es parte de path más largo
+    re.IGNORECASE,
+)
