@@ -219,3 +219,200 @@ class StreamEvent(BaseModel):
     error: Optional[str] = None
     fallback: bool = False
     latency_ms: Optional[int] = None
+
+
+# ── Marketing Studio ─────────────────────────────────────
+# WowHub AI Core™ — Marketing Studio (Cap. 19.1)
+# Endpoint: POST /api/v1/ai/marketing/generate
+# Genera copy de marketing contextual al negocio (texto + hashtags +
+# variantes alternativas) usando el LLM. Tiene fallback con templates
+# pre-armados para cuando el LLM no está disponible.
+from enum import Enum
+
+
+class MarketingIntent(str, Enum):
+    """Tipo de contenido que se quiere generar."""
+    INSTAGRAM_POST = "instagram_post"           # Post de Instagram (caption)
+    INSTAGRAM_STORY = "instagram_story"          # Story con texto corto
+    INSTAGRAM_REEL = "instagram_reel"            # Guion de Reel
+    FACEBOOK_POST = "facebook_post"              # Post de Facebook
+    WHATSAPP_BROADCAST = "whatsapp_broadcast"    # Difusión por WhatsApp Business
+    WHATSAPP_STATUS = "whatsapp_status"          # Estado de WhatsApp
+    EMAIL_SUBJECT = "email_subject"              # Asunto de email (1-2 líneas)
+    EMAIL_BODY = "email_body"                    # Cuerpo de email promocional
+    SMS = "sms"                                  # SMS promocional (≤160 chars)
+    PRODUCT_DESCRIPTION = "product_description"  # Descripción de producto del catálogo
+    PROMOTION_HEADLINE = "promotion_headline"    # Titular corto de promoción
+    PROMOTION_BODY = "promotion_body"            # Cuerpo descriptivo de promoción
+    GENERAL = "general"                          # Texto libre (default)
+
+
+class MarketingTone(str, Enum):
+    """Tono del copy."""
+    FRIENDLY = "friendly"          # Cálido, cercano, "tú"
+    PROFESSIONAL = "professional"  # Formal pero accesible
+    URGENT = "urgent"              # Con sentido de urgencia (oferta限时)
+    PLAYFUL = "playful"            # Divertido, con humor ligero
+    LUXURY = "luxury"              # Premium, exclusivo
+    CASUAL = "casual"              # Relajado, coloquial
+    INSPIRATIONAL = "inspirational"  # Motivacional, aspiracional
+
+
+class MarketingAudience(str, Enum):
+    """Segmento objetivo del copy."""
+    ALL = "all"                    # Todos los clientes
+    EXISTING = "existing"          # Clientes actuales
+    PROSPECTS = "prospects"        # Potenciales clientes
+    VIP = "vip"                    # Clientes VIP / top
+    INACTIVE = "inactive"          # Clientes inactivos (winback)
+    NEW = "new"                    # Clientes nuevos
+    LOCAL = "local"                # Audiencia local/barrio
+
+
+class MarketingContext(BaseModel):
+    """Contexto del negocio que se inyecta al prompt del LLM.
+    Todos los campos son opcionales: con menos contexto, el copy será
+    más genérico. Con más, será más personalizado."""
+    business_name: Optional[str] = Field(
+        None, max_length=120,
+        description="Nombre del negocio. Si se omite, se intenta resolver del tenant."
+    )
+    business_type: Optional[str] = Field(
+        None, max_length=120,
+        description="Tipo de negocio (ej. 'cafetería', 'peluquería', 'tienda de ropa')."
+    )
+    city: Optional[str] = Field(
+        None, max_length=80,
+        description="Ciudad o barrio del negocio (para cercanía)."
+    )
+    product_name: Optional[str] = Field(
+        None, max_length=120,
+        description="Nombre del producto o servicio a promocionar (si aplica)."
+    )
+    product_features: Optional[list[str]] = Field(
+        default=None, max_length=8,
+        description="Bullets cortos de features del producto (max 8, ≤60 chars c/u)."
+    )
+    price: Optional[str] = Field(
+        None, max_length=60,
+        description="Precio o rango (ej. '$15.000', '2x $20.000')."
+    )
+    promotion_details: Optional[str] = Field(
+        None, max_length=300,
+        description="Detalles concretos de la promo (ej. '20% off, válido hasta el 30/11')."
+    )
+    cta: Optional[str] = Field(
+        None, max_length=80,
+        description="Call-to-action deseado (ej. 'Reservá ahora', 'Comprá hoy')."
+    )
+    public_url: Optional[str] = Field(
+        None, max_length=300,
+        description="URL pública del negocio (la REAL, ya con el slug sustituido)."
+    )
+    extra_notes: Optional[str] = Field(
+        None, max_length=500,
+        description="Notas adicionales que el usuario quiera incluir."
+    )
+
+
+class MarketingRequest(BaseModel):
+    """Body de POST /api/v1/ai/marketing/generate."""
+    intent: MarketingIntent = Field(
+        default=MarketingIntent.GENERAL,
+        description="Qué tipo de copy se quiere generar."
+    )
+    topic: str = Field(
+        ..., min_length=3, max_length=400,
+        description="Tema o idea central del copy (ej. 'promoción 2x1 en café')."
+    )
+    tone: MarketingTone = Field(
+        default=MarketingTone.FRIENDLY,
+        description="Tono del copy."
+    )
+    audience: MarketingAudience = Field(
+        default=MarketingAudience.ALL,
+        description="Segmento objetivo."
+    )
+    keywords: Optional[list[str]] = Field(
+        default=None, max_length=12,
+        description="Palabras clave a incluir (opcional, max 12)."
+    )
+    include_emojis: bool = Field(
+        default=True,
+        description="Si se permiten emojis en el copy."
+    )
+    include_hashtags: bool = Field(
+        default=False,
+        description="Si se deben incluir hashtags al final."
+    )
+    hashtag_count: int = Field(
+        default=5, ge=0, le=20,
+        description="Cantidad de hashtags a generar (0 = no generar)."
+    )
+    language: str = Field(
+        default="es", min_length=2, max_length=5,
+        description="Código de idioma (ISO 639-1, default 'es')."
+    )
+    max_length: Optional[int] = Field(
+        default=None, ge=20, le=4000,
+        description="Límite opcional de caracteres del contenido principal."
+    )
+    variants: int = Field(
+        default=3, ge=1, le=5,
+        description="Cantidad de variantes a generar (1-5). Default 3."
+    )
+    context: MarketingContext = Field(
+        default_factory=MarketingContext,
+        description="Contexto del negocio (nombre, producto, precio, etc.)."
+    )
+
+
+class MarketingVariant(BaseModel):
+    """Una variante de copy."""
+    index: int = Field(..., ge=1, le=10, description="Índice de la variante (1-based).")
+    content: str = Field(..., description="El copy generado para esta variante.")
+    hashtags: list[str] = Field(
+        default_factory=list,
+        description="Hashtags sugeridos para esta variante (si include_hashtags=true)."
+    )
+    character_count: int = Field(..., ge=0, description="Largo en caracteres del content.")
+
+
+class MarketingResponse(BaseModel):
+    """Respuesta de POST /api/v1/ai/marketing/generate."""
+    id: UUID = Field(
+        default_factory=lambda: __import__("uuid").uuid4(),
+        description="ID único de la generación (no se persiste por ahora)."
+    )
+    intent: MarketingIntent
+    topic: str
+    tone: MarketingTone
+    audience: MarketingAudience
+    primary: MarketingVariant = Field(
+        ...,
+        description="La mejor variante (índice 1 por defecto). Es la recomendada."
+    )
+    variants: list[MarketingVariant] = Field(
+        default_factory=list,
+        description="Todas las variantes generadas (incluye la primary)."
+    )
+    hashtags: list[str] = Field(
+        default_factory=list,
+        description="Hashtags globales sugeridos (deduplicados, de todas las variantes)."
+    )
+    fallback: bool = Field(
+        False,
+        description="True si se usó fallback (LLM no disponible). El copy es template."
+    )
+    model: Optional[str] = Field(
+        None,
+        description="Modelo LLM usado (None si fue fallback)."
+    )
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    latency_ms: int = 0
+    # Contexto efectivo que se usó (resuelto desde tenant si el usuario no lo pasó)
+    resolved_context: Optional[dict] = Field(
+        None,
+        description="Contexto del negocio que se terminó usando (mezcla de request + tenant)."
+    )

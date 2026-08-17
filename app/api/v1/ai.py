@@ -31,7 +31,8 @@ from app.models.tenant import TenantMembership
 from app.models.user import User
 from app.schemas.ai import (
     ChatRequest, ChatResponse, ConversationCreate, ConversationListOut,
-    ConversationOut, MessageListOut, MessageOut,
+    ConversationOut, MarketingRequest, MarketingResponse, MessageListOut,
+    MessageOut,
 )
 from app.security import decode_token
 from app.services.ai_agents import list_sub_agents
@@ -39,6 +40,7 @@ from app.services.ai_orchestrator import (
     AIOrchestrator, RateLimitExceeded, check_daily_limit,
 )
 from app.services.llm_client import get_circuit
+from app.services.marketing_studio import MarketingStudio, TenantContext
 
 logger = logging.getLogger("wowhub.ai.api")
 
@@ -400,3 +402,74 @@ def get_usage(
         "limit": settings.ai_daily_message_limit,
         "remaining": max(0, settings.ai_daily_message_limit - used),
     }
+
+
+# ── Marketing Studio (Cap. 19.1) ──────────────────────────
+# POST /api/v1/ai/marketing/generate
+# Endpoint dedicado para generar copy de marketing contextual al
+# negocio. A diferencia de /chat (que es conversacional), este es
+# atómico: 1 request → 1 response estructurada con N variantes.
+#
+# Rate limit: cuenta contra `ai_daily_message_limit` (compartido con
+# /chat). Esto es coherente: el LLM es el mismo recurso limitado.
+from app.models.tenant import Tenant as TenantModel
+
+
+@router.post("/marketing/generate", response_model=MarketingResponse)
+async def post_marketing_generate(
+    payload: MarketingRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> MarketingResponse:
+    """Genera copy de marketing contextual al tenant.
+
+    Input:
+    - `intent`: canal/formato (instagram_post, whatsapp_broadcast, etc.)
+    - `topic`: tema o idea central
+    - `tone`, `audience`, `keywords`, `include_emojis`,
+      `include_hashtags`, `variants`: parámetros creativos
+    - `context`: datos opcionales del negocio (nombre, producto, precio)
+
+    Output:
+    - `primary`: la mejor variante (recomendada)
+    - `variants`: todas las generadas
+    - `hashtags`: tags globales deduplicados
+    - `fallback`: True si se usó template (LLM no disponible)
+    - `model`, `tokens_in/out`, `latency_ms`: metadata
+    - `resolved_context`: qué datos del negocio se terminaron usando
+    """
+    # Rate limit: mismo contador que /chat
+    try:
+        check_daily_limit(db, str(user.id))  # raises si excede
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Límite diario alcanzado ({e.used}/{e.limit} mensajes). Vuelve mañana.",
+        )
+
+    # Resolver tenant
+    x_tenant = request.headers.get("X-Tenant-Id") or request.headers.get("x-tenant-id")
+    tenant_id = _resolve_tenant_id(db, user, x_tenant)
+
+    # Resolver contexto del tenant (slug + nombre para URLs públicas)
+    t = db.get(TenantModel, tenant_id)
+    # El Tenant model tiene `display_name` (nombre público) y `legal_name`
+    # (razón social). Para marketing usamos display_name.
+    tenant_name = None
+    if t:
+        tenant_name = (
+            getattr(t, "display_name", None)
+            or getattr(t, "legal_name", None)
+            or getattr(t, "name", None)
+        )
+    tenant_ctx = TenantContext(
+        tenant_id=str(tenant_id),
+        slug=getattr(t, "slug", None) if t else None,
+        name=tenant_name,
+        public_base_url=settings.public_base_url,
+    )
+
+    studio = MarketingStudio()
+    response = await studio.generate(payload, tenant_ctx)
+    return response
