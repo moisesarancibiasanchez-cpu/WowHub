@@ -195,11 +195,16 @@ FAQ: dict[str, str] = {
         "Te muestro el preview antes de guardar."
     ),
     "url pública": (
-        "La URL pública para que tus clientes agenden es /u/{slug}/reservar "
-        "(también funciona /u/{slug}/book). Compártela en Instagram, WhatsApp "
-        "o tu bio. Para entregar el link REAL con el slug del tenant, el "
-        "asistente IA debe llamar a la tool `get_tenant_public_urls` "
-        "(no devolver el patrón con `{slug}` literal)."
+        "SIEMPRE llama primero a la tool `get_tenant_public_urls`. Te "
+        "devuelve los links YA con el slug real sustituido (ej. "
+        "https://wowhub.app/u/cafeluna/reservar) listos para mostrar y "
+        "compartir. NUNCA respondas con el patrón de placeholder, NUNCA "
+        "pidas al usuario que reemplace el slug a mano, NUNCA inventes "
+        "el slug. Si la tool falla, di que ahora no puedes obtener el "
+        "link y sugiere Configuración → Branding. Patrones que usa esa "
+        "tool internamente: el de reservas y el de book, con /u/ y el "
+        "slug del tenant — pero esos son para la tool, no para tu "
+        "respuesta."
     ),
     "no me deja entrar": (
         "Verifica que tu sesión esté iniciada y que el chip de usuario del topbar "
