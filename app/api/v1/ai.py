@@ -31,14 +31,15 @@ from app.models.tenant import TenantMembership
 from app.models.user import User
 from app.schemas.ai import (
     ChatRequest, ChatResponse, ConversationCreate, ConversationListOut,
-    ConversationOut, MarketingRequest, MarketingResponse, MessageListOut,
-    MessageOut,
+    ConversationOut, GrowthAnalysisRequest, GrowthAnalysisResponse,
+    MarketingRequest, MarketingResponse, MessageListOut, MessageOut,
 )
 from app.security import decode_token
 from app.services.ai_agents import list_sub_agents
 from app.services.ai_orchestrator import (
     AIOrchestrator, RateLimitExceeded, check_daily_limit,
 )
+from app.services.growth_coach import GrowthCoach, TenantContext as GrowthTenantContext
 from app.services.llm_client import get_circuit
 from app.services.marketing_studio import MarketingStudio, TenantContext
 
@@ -472,4 +473,73 @@ async def post_marketing_generate(
 
     studio = MarketingStudio()
     response = await studio.generate(payload, tenant_ctx)
+    return response
+
+
+# ── Growth Coach (Cap. 19.2) ───────────────────────────
+# POST /api/v1/ai/growth/analyze
+# Endpoint dedicado para análisis proactivo de la "Memoria de Negocio"
+# (ventas, inventario, clientes, promociones, reservas). A diferencia
+# de /chat (conversacional) y /marketing/generate (genera copy), este
+# endpoint es ANALÍTICO: 1 request → 1 response estructurada con
+# insights accionables y un snapshot de los datos que usó.
+#
+# Rate limit: cuenta contra `ai_daily_message_limit` (compartido con
+# /chat y /marketing/generate). El LLM es el mismo recurso limitado.
+@router.post("/growth/analyze", response_model=GrowthAnalysisResponse)
+async def post_growth_analyze(
+    payload: GrowthAnalysisRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> GrowthAnalysisResponse:
+    """Analiza la Memoria de Negocio y devuelve insights accionables.
+
+    Input:
+    - `focus`: área a analizar (overview | sales | inventory | customers |
+      promotions | bookings | mixed). Default `overview`.
+    - `lookback_days`: ventana de análisis (7-180, default 30).
+    - `language`: idioma del summary y de las recomendaciones.
+    - `max_insights`: cantidad máxima de insights (3-20, default 8).
+
+    Output:
+    - `summary`: resumen ejecutivo de 1-3 oraciones.
+    - `insights`: lista de `GrowthInsight` ordenados por priority desc.
+    - `business_memory`: snapshot de los datos que se usaron
+      (transparencia anti-alucinación).
+    - `fallback`: True si se usó análisis determinístico (LLM no
+      disponible). En ese caso la response sigue siendo útil.
+    - `model`, `tokens_in/out`, `latency_ms`: metadata.
+    """
+    # Rate limit: mismo contador que /chat y /marketing/generate
+    try:
+        check_daily_limit(db, str(user.id))  # raises si excede
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Límite diario alcanzado ({e.used}/{e.limit} mensajes). Vuelve mañana.",
+        )
+
+    # Resolver tenant
+    x_tenant = request.headers.get("X-Tenant-Id") or request.headers.get("x-tenant-id")
+    tenant_id = _resolve_tenant_id(db, user, x_tenant)
+
+    # Resolver contexto del tenant (slug + nombre para el prompt del LLM)
+    t = db.get(TenantModel, tenant_id)
+    tenant_name = None
+    if t:
+        tenant_name = (
+            getattr(t, "display_name", None)
+            or getattr(t, "legal_name", None)
+            or getattr(t, "name", None)
+        )
+    tenant_ctx = GrowthTenantContext(
+        tenant_id=str(tenant_id),
+        slug=getattr(t, "slug", None) if t else None,
+        name=tenant_name,
+        public_base_url=settings.public_base_url,
+    )
+
+    coach = GrowthCoach()
+    response = await coach.analyze(payload, tenant_ctx, db)
     return response

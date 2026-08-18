@@ -416,3 +416,244 @@ class MarketingResponse(BaseModel):
         None,
         description="Contexto del negocio que se terminó usando (mezcla de request + tenant)."
     )
+
+
+# ── Growth Coach (WowHub AI Core™ — Cap. 19.2) ────────────────────
+# Análisis proactivo de la "Memoria de Negocio" (ventas, inventario,
+# clientes, promociones, reservas) que devuelve insights accionables.
+# Endpoint: POST /api/v1/ai/growth/analyze
+
+class GrowthFocus(str):
+    """Placeholder; usamos Literal en su lugar (Pydantic v2 + tipado limpio)."""
+    pass
+
+
+# En Pydantic v2 los "enums de string" se modelan mejor con str + Literal.
+GrowthFocusLiteral = Literal[
+    "overview",     # vista 360 del negocio (default)
+    "sales",        # ingresos, ticket promedio, tendencias
+    "inventory",    # stock bajo, muerto, top selling
+    "customers",    # segmentos, inactivos, VIPs
+    "promotions",   # activas, frecuencia, impacto
+    "bookings",     # reservas, cancelaciones, servicios top
+    "mixed",        # prioriza diversidad de categorías (1-2 por categoría)
+]
+
+
+class GrowthAnalysisRequest(BaseModel):
+    """Request de POST /api/v1/ai/growth/analyze."""
+    focus: Literal[
+        "overview", "sales", "inventory", "customers",
+        "promotions", "bookings", "mixed",
+    ] = Field(
+        "overview",
+        description=(
+            "Área del negocio a analizar. 'overview' = 360° general. "
+            "'mixed' = 1-2 insights por categoría (útil para vista semanal)."
+        ),
+    )
+    lookback_days: int = Field(
+        30,
+        ge=7,
+        le=180,
+        description="Ventana de análisis en días (mín 7, máx 180). Default 30.",
+    )
+    language: str = Field(
+        "es",
+        min_length=2,
+        max_length=8,
+        description="Idioma del summary y de las recomendaciones (ISO 639-1).",
+    )
+    max_insights: int = Field(
+        8,
+        ge=3,
+        le=20,
+        description="Cantidad máxima de insights a devolver. Default 8, máx 20.",
+    )
+
+
+class GrowthInsightType:
+    """Tipos de insight (string constants)."""
+    OPPORTUNITY = "opportunity"        # oportunidad de crecer
+    WARNING = "warning"                # alerta que requiere atención
+    ANOMALY = "anomaly"                # comportamiento fuera de patrón
+    RECOMMENDATION = "recommendation"  # sugerencia accionable
+    INSIGHT = "insight"                # observación informativa
+
+
+class GrowthInsightCategory:
+    """Categorías del insight (a qué parte del negocio aplica)."""
+    SALES = "sales"
+    INVENTORY = "inventory"
+    CUSTOMERS = "customers"
+    PROMOTIONS = "promotions"
+    BOOKINGS = "bookings"
+    OPERATIONS = "operations"
+
+
+class GrowthInsightPriority:
+    """Prioridad del insight (el endpoint los ordena por esto desc)."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+class GrowthInsight(BaseModel):
+    """Un insight accionable generado por el Growth Coach."""
+    id: UUID = Field(
+        default_factory=lambda: __import__("uuid").uuid4(),
+        description="ID único del insight (no se persiste por ahora).",
+    )
+    type: Literal[
+        "opportunity", "warning", "anomaly", "recommendation", "insight",
+    ] = Field(
+        ...,
+        description=(
+            "Tipo: opportunity (crecer), warning (alerta), anomaly (fuera de patrón), "
+            "recommendation (acción concreta), insight (observación)."
+        ),
+    )
+    priority: Literal["low", "medium", "high", "urgent"] = Field(
+        ...,
+        description="Prioridad operativa. El endpoint ordena por esto descendente.",
+    )
+    category: Literal[
+        "sales", "inventory", "customers", "promotions", "bookings", "operations",
+    ] = Field(
+        ...,
+        description="Categoría del insight (a qué módulo del dashboard apunta).",
+    )
+    title: str = Field(
+        ...,
+        min_length=5,
+        max_length=120,
+        description="Título corto del insight (≤120 chars, listo para mostrar como heading).",
+    )
+    description: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Descripción de 1-3 oraciones que explica el insight.",
+    )
+    evidence: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista de datos puntuales que respaldan el insight "
+            "(ej. ['Ingresos últimos 7 días: $1.2M', 'Hace 30 días: $1.8M'])."
+        ),
+    )
+    recommended_actions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista de acciones sugeridas (1-5). La UI puede renderizarlas como "
+            "checklist o como 'Quick action' que lleva al módulo correspondiente."
+        ),
+    )
+    linked_module: Optional[str] = Field(
+        None,
+        max_length=64,
+        description=(
+            "Slug del módulo al que apunta la acción principal "
+            "(ej. 'promotions', 'products', 'bookings'). None si no aplica."
+        ),
+    )
+    metric_impact_estimate: Optional[str] = Field(
+        None,
+        max_length=120,
+        description=(
+            "Estimación rough del impacto (ej. '+10-15% ingresos', 'recuperar 8 clientes inactivos'). "
+            "Opcional y aproximado — el LLM NO debe prometer cifras exactas."
+        ),
+    )
+
+
+class BusinessMemorySnapshot(BaseModel):
+    """Snapshot de la 'Memoria de Negocio' que se le pasó al LLM.
+
+    Se devuelve en la response para que la UI/debug vean EXACTAMENTE qué
+    datos usó el Growth Coach para generar los insights (transparencia
+    anti-alucinación).
+    """
+    tenant_id: str
+    tenant_name: Optional[str] = None
+    tenant_slug: Optional[str] = None
+    lookback_days: int
+    generated_at: datetime = Field(
+        default_factory=lambda: __import__("datetime").datetime.utcnow(),
+    )
+    # Cada sección es un dict libre para no atar el schema al formato
+    # exacto del LLM o de los servicios de analytics. La idea es
+    # documentar QUÉ se miró, no imponer un shape rígido.
+    sales: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Métricas de ventas: total_revenue, order_count, avg_ticket, daily_revenue[], comparison_vs_prev.",
+    )
+    inventory: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Estado de inventario: total_products, low_stock, out_of_stock, top_selling, dead_stock.",
+    )
+    customers: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Segmentos: total_customers, segments{new,vip,inactive,top}, avg_orders_per_customer.",
+    )
+    promotions: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Promociones: total, active, recent.",
+    )
+    bookings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Reservas: total, upcoming, cancellation_rate, top_services.",
+    )
+    data_completeness: dict[str, bool] = Field(
+        default_factory=dict,
+        description=(
+            "Mapa sección→bool indicando si había datos suficientes. "
+            "Sirve para que la UI muestre 'Sin datos de inventario' en lugar "
+            "de inventar insights sobre secciones vacías."
+        ),
+    )
+
+
+class GrowthAnalysisResponse(BaseModel):
+    """Response de POST /api/v1/ai/growth/analyze."""
+    id: UUID = Field(
+        default_factory=lambda: __import__("uuid").uuid4(),
+        description="ID único del análisis (no se persiste por ahora).",
+    )
+    focus: str
+    lookback_days: int
+    language: str
+    summary: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Resumen ejecutivo de 1-3 oraciones sobre el estado del negocio.",
+    )
+    insights: list[GrowthInsight] = Field(
+        default_factory=list,
+        description="Lista de insights (ordenados por priority desc, max=req.max_insights).",
+    )
+    business_memory: BusinessMemorySnapshot = Field(
+        ...,
+        description="Snapshot de los datos analizados (transparencia anti-alucinación).",
+    )
+    generated_at: datetime = Field(
+        default_factory=lambda: __import__("datetime").datetime.utcnow(),
+    )
+    fallback: bool = Field(
+        False,
+        description="True si se usó fallback determinístico (LLM no disponible).",
+    )
+    fallback_reason: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Razón del fallback (ej. 'circuit_open', 'not_configured', 'invalid_json').",
+    )
+    model: Optional[str] = Field(
+        None,
+        description="Modelo LLM usado (None si fue fallback).",
+    )
+    tokens_in: Optional[int] = None
+    tokens_out: Optional[int] = None
+    latency_ms: int = 0
