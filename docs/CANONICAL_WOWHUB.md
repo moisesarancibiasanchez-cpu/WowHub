@@ -3,8 +3,8 @@
 > **Propósito:** Este documento es la **única fuente de verdad** que el asistente IA de WowHub debe usar para responder preguntas sobre la plataforma (módulos, rutas, activación, URLs, FAQ). Cualquier nueva sección de WowHub que se agregue al producto debe reflejarse aquí.
 >
 > **Mantenedor:** Equipo WowHub.
-> **Última actualización:** 18 de agosto de 2026.
-> **Versión:** v1.7 (nuevo endpoint **Marketing Studio** `POST /api/v1/ai/marketing/generate`: generación atómica de copy de marketing contextual al tenant, con fallback de templates cuando el LLM no está disponible).
+> **Última actualización:** 19 de agosto de 2026.
+> **Versión:** v1.8 (nuevo endpoint **Growth Coach** `POST /api/v1/ai/growth/analyze`: análisis proactivo de la "Memoria de Negocio" del tenant con insights accionables, con fallback determinístico cuando el LLM no está disponible).
 
 ---
 
@@ -146,6 +146,21 @@ Si el tenant **aún no tiene `slug`** configurado, devuelve los patrones + un `h
 
 **Anti-alucinación:** la IA **NUNCA** debe responder con `/u/{slug}/reservar` literal. Si la tool falla, debe decir "ahora no puedo obtener tu link; ve a Configuración para ver tu URL" en vez de inventar el slug.
 
+### 5.4 Endpoints AI Core (atómicos)
+
+A diferencia de las tools de lectura/escritura (que se invocan dentro del flujo de chat), estos endpoints son **atómicos**: 1 request → 1 response estructurada. Son los "productos" del WowHub AI Core™.
+
+| Endpoint | Cap. | Auth | Rate limit | Qué hace |
+|---|---|---|---|---|
+| `POST /api/v1/ai/chat` | 18 | JWT + `X-Tenant-Id` | `ai_daily_message_limit` (compartido) | Chat conversacional multi-agente (streaming opcional). |
+| `POST /api/v1/ai/marketing/generate` | 19.1 | JWT + `X-Tenant-Id` | Compartido con `/chat` | Genera N variantes de copy de marketing contextual al tenant. |
+| `POST /api/v1/ai/growth/analyze` | 19.2 | JWT + `X-Tenant-Id` | Compartido con `/chat` | Analiza la Memoria de Negocio del tenant y devuelve insights accionables. |
+| `GET  /api/v1/ai/agents` | 18 | JWT | — | Lista los sub-agentes disponibles (marketing, growth, automation, marketplace, help). |
+| `GET  /api/v1/ai/status` | 18 | JWT | — | Estado del LLM (circuit breaker, rate usado, enabled). |
+| `GET  /api/v1/ai/usage` | 18 | JWT | — | Mensajes consumidos hoy vs. el límite diario. |
+
+> **Regla unificada de rate limit:** el contador diario (`ai_daily_message_limit`) es el mismo para `/chat`, `/marketing/generate` y `/growth/analyze`. Esto es coherente: el LLM es el mismo recurso limitado. El Growth Coach y el Marketing Studio NO tienen cuota propia.
+
 ---
 
 ## 6. FAQ rápidas (overrides literales)
@@ -171,6 +186,12 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿La IA puede generar imágenes para mi promo?" | "Hoy el Marketing Studio solo genera **texto**. La generación de imágenes y videos está en roadmap (ver §18.2)." |
 | "¿Cuántas variantes de copy puedo pedir?" | "De 1 a 5, con `variants: N` (default 3). Cada variante es una versión distinta del mismo copy con el mismo `intent`/`tone`/`audience`." |
 | "¿El Marketing Studio tiene su propio límite diario?" | "No. Comparte el contador con `/api/v1/ai/chat`. Si ya usaste todos tus mensajes del día, devuelve 429 antes de llamar al LLM." |
+| "¿Cómo analizo mi negocio / qué me recomendás / cómo sé si voy bien?" | "Usá el **Growth Coach**: `POST /api/v1/ai/growth/analyze`. Indicá `focus` (overview, sales, inventory, customers, promotions, bookings o mixed), `lookback_days` (7-180, default 30) e `idioma`. Te devuelve un resumen ejecutivo + lista de insights priorizados (urgent → low) con acciones recomendadas. Si el LLM está caído, devuelve análisis determinístico (`fallback: true`) — igual obtenés insights útiles. NO ejecuta acciones: solo analiza y sugiere." |
+| "¿Dónde veo los insights / recomendaciones del Growth Coach?" | "Hoy se exponen vía el endpoint `POST /api/v1/ai/growth/analyze` y los resultados se renderizan en el Resumen o dentro del chat. NO hay un módulo separado en el sidebar." |
+| "¿El Growth Coach ejecuta las acciones que recomienda?" | "No. El Growth Coach solo ANALIZA y SUGIERE (devuelve `recommended_actions` y `linked_module`). La ejecución la hace el usuario desde el módulo correspondiente (ej. `linked_module: promotions` → ir a `/dashboard/promotions`). El Automation Manager (futuro) sería quien ejecute automáticamente." |
+| "¿Cada cuánto corre el Growth Coach?" | "Es un endpoint **on-demand**: corre cuando vos lo llamás. NO se ejecuta periódicamente ni genera notificaciones automáticas. Si querés un análisis fresco, llamalo a `/api/v1/ai/growth/analyze`." |
+| "¿El Growth Coach tiene un límite diario propio?" | "No. Comparte el contador con `/api/v1/ai/chat` y `/marketing/generate`. Si ya consumiste el día, devuelve 429." |
+| "¿Qué hace diferente al Growth Coach del Marketing Studio?" | "El **Marketing Studio** GENERA copy de marketing (textos listos para publicar). El **Growth Coach** ANALIZA tu negocio y devuelve insights accionables (qué tenés que hacer). Son complementarios: usá Studio para escribir, Coach para decidir." |
 | "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?" | "Son los 4 roles por membresía en un tenant. **OWNER**: administración completa del tenant (todo). **ADMIN**: administración operativa con casi los mismos poderes que OWNER — puede gestionar productos, reservas, clientes, campañas, miembros y configuración, pero no puede eliminar el tenant ni modificar el OWNER. **STAFF**: operación diaria con acceso limitado (ej. crear reservas, registrar ventas, ver clientes, pero no modificar configuración ni productos). **VIEWER**: solo consulta (lee KPIs, listas, agenda) sin poder ejecutar acciones de escritura. Los roles son **por tenant** — un mismo usuario puede ser OWNER en un tenant y VIEWER en otro. El **SUPERUSER** es otra cosa: es un flag **por usuario** (no por tenant) y aplica a TODA la plataforma; ver §11." |
 | "¿El superadmin puede entrar a mi tienda y ver mis conversaciones del asistente?" | "Un **SUPERUSER** puede iniciar una sesión temporal de **impersonación** desde `/admin/superadmin`, siempre que el usuario objetivo no sea otro superuser y esté activo. Durante esa sesión puede acceder a las **funciones y datos permitidos para el usuario impersonado** dentro del tenant seleccionado. Esto **puede incluir** las conversaciones del asistente si están disponibles para esa cuenta. La sesión muestra un banner visible de impersonación, dura **como máximo 60 minutos** y todas las acciones quedan registradas (superuser, usuario objetivo, tenant, hora, acción). **Las contraseñas y secretos nunca se muestran.**" |
 | "¿Qué ocurre si un superadmin entra a mi tienda?" | "La sesión normal del dueño **no se reemplaza ni se cierra**. La impersonación se ejecuta en una sesión temporal separada del superuser. El acceso queda registrado en la **auditoría del tenant** y puede ser revisado por usuarios autorizados según la política de WowHub. El superuser debe salir mediante el botón **'🚪 Salir'** del banner o esperar la expiración automática de la sesión." |
@@ -194,6 +215,13 @@ Si la IA no está segura, debe decir **"no tengo esa información"** antes que i
 - ❌ No hay un "Asistente Premium" definido en planes — la IA es la misma para todos.
 - ❌ No hay una URL pública de reservas distinta de `/u/{slug}/reservar` o `/u/{slug}/book`.
 - ❌ **No** existe un botón "Login As" o "Entrar como admin" visible para usuarios normales; la función de impersonación es exclusiva del superuser y solo se muestra dentro de `/admin/superadmin`.
+- ❌ El **Growth Coach NO ejecuta acciones** sobre el negocio: solo ANALIZA datos y devuelve insights con `recommended_actions` y `linked_module`. La ejecución de las acciones (ej. "Crear promo 2x1", "Enviar WhatsApp a inactivos") la hace el usuario o el Automation Manager (roadmap).
+- ❌ El **Growth Coach NO se agenda automáticamente** ni se ejecuta periódicamente. Es un endpoint on-demand: el usuario lo llama desde el panel o lo pide al chat.
+- ❌ El **Growth Coach NO tiene un dashboard dedicado** en el sidebar. Sus resultados se muestran dentro del Resumen o del chat (no es un módulo nuevo del panel).
+- ❌ El **Growth Coach NO persiste** los análisis ni los insights en la base. Cada llamada es stateless — la UI puede guardar la última response en localStorage si quiere.
+- ❌ El **Growth Coach NO tiene límite diario propio**: comparte el contador con `/chat` y `/marketing/generate`. Si ya se consumió el día, devuelve 429.
+- ❌ El **Growth Coach NO genera imágenes, gráficos ni videos** — solo devuelve texto estructurado (summary + insights). Visualizaciones son responsabilidad del frontend.
+- ❌ El **Growth Coach NO reemplaza al Marketing Studio**: uno analiza (insights), el otro genera (copy). Son productos complementarios.
 
 **Acciones prohibidas para la IA** (nunca debe intentar):
 
@@ -903,6 +931,7 @@ La IA conversacional puede **preparar el preview** del `MarketingRequest` (inten
 
 ### 18.1 Cambios recientes
 
+- **v1.8 (19-ago-2026)**: agregado **Growth Coach** (§19 — Cap. 19.2). Endpoint `POST /api/v1/ai/growth/analyze`. Análisis proactivo de la "Memoria de Negocio" (ventas, inventario, clientes, promociones, reservas). Devuelve `summary` + `insights` priorizados (urgent → low) con `recommended_actions` y `linked_module`. Soporta 7 `focus` (overview, sales, inventory, customers, promotions, bookings, mixed) y `lookback_days` (7-180, default 30). 64 tests passing. Servicio en `app/services/growth_coach.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #2 del análisis estratégico del proyecto.** Rate limit compartido con `/chat` y `/marketing/generate`. Fallback determinístico que SIEMPRE produce insights útiles.
 - **v1.7 (18-ago-2026)**: agregado **Marketing Studio** (§17). Endpoint `POST /api/v1/ai/marketing/generate`. 13 `intent`, 7 `tone`, 7 `audience`. 47 tests passing. Servicio en `app/services/marketing_studio.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #1 del análisis estratégico del proyecto.**
 - **v1.6 (17-ago-2026)**: tool `get_tenant_public_urls` (sustituye `{slug}` literal por el slug real del tenant).
 - **v1.5 (17-ago-2026)**: FAQ ampliada por categoría + protocolo de incertidumbre + matriz de capacidades.
@@ -917,8 +946,161 @@ Las siguientes features están **planificadas pero NO implementadas**. La IA NO 
 | Persistencia de borradores de copy | 🛣️ Roadmap | Hoy el copy se devuelve pero no se guarda. |
 | Programación de publicación | 🛣️ Roadmap | Requiere integración con canales (Instagram, WhatsApp, email). |
 | Generación de imágenes con IA | 🛣️ Roadmap | Hoy el Marketing Studio solo genera texto. |
-| Growth Coach™ (Cap. 19.2) | 🛣️ Roadmap | Análisis proactivo de la "Memoria de Negocio" y recomendaciones. |
 | Automation Manager™ (Cap. 19.3) | 🛣️ Roadmap | Orquestación de acciones sugeridas por el Growth Coach. |
 | Smart Marketplace™ (Cap. 19.4) | 🛣️ Roadmap | Sugerencia de módulos premium según perfil del negocio. |
 | Multi-idioma del LLM | 🛣️ Roadmap | Hoy el idioma se pide en el request; en el futuro se detectará del tenant. |
 | Métricas de uso del Marketing Studio | 🛣️ Roadmap | Hoy no se persiste qué copy se generó para qué tenant. |
+| Dashboard dedicado del Growth Coach | 🛣️ Roadmap | Hoy se renderiza en Resumen / chat. Pendiente panel con histórico. |
+| Growth Coach programado / alertas | 🛣️ Roadmap | Hoy es on-demand. Futuras versiones: jobs recurrentes + notificaciones. |
+
+---
+
+## 19. Growth Coach (WowHub AI Core™ — Cap. 19.2)
+
+### 19.1 Qué es
+
+El **Growth Coach** es el módulo de WowHub AI Core™ que **analiza la "Memoria de Negocio"** del tenant (ventas, inventario, clientes, promociones, reservas) y devuelve **insights accionables** priorizados. A diferencia del Marketing Studio (que GENERA copy), el Growth Coach ANALIZA y SUGIERE — la ejecución de las acciones la hace el usuario desde el módulo correspondiente.
+
+**Características clave:**
+- Endpoint **atómico**: 1 request → 1 response estructurada (summary + insights + snapshot).
+- **Memoria de Negocio** como input: el servicio agrega datos de `StatsService`, `AnalyticsService` y queries directas a `Promotion` / `Booking`.
+- **Transparencia anti-alucinación**: la response incluye el `business_memory` (snapshot de los datos que se usaron) para que la UI y el debug vean exactamente qué se miró.
+- **LLM + fallback determinístico**: si el LLM está disponible, devuelve insights enriquecidos. Si no, devuelve análisis basado en reglas (10+ escenarios cubiertos) — la UI **nunca rompe**.
+
+### 19.2 Endpoint
+
+```
+POST /api/v1/ai/growth/analyze
+```
+
+**Auth:** JWT (mismo que `/chat`) + header `X-Tenant-Id`.
+**Rate limit:** compartido con `/chat` y `/marketing/generate` (`ai_daily_message_limit`). Si el día ya se consumió, devuelve 429.
+
+### 19.3 Request body
+
+| Campo | Tipo | Default | Descripción |
+|---|---|---|---|
+| `focus` | enum | `"overview"` | `overview` \| `sales` \| `inventory` \| `customers` \| `promotions` \| `bookings` \| `mixed`. `mixed` = 1-2 insights por categoría. |
+| `lookback_days` | int (7-180) | `30` | Ventana de análisis en días. |
+| `language` | str (ISO 639-1) | `"es"` | Idioma del summary y de las recomendaciones. |
+| `max_insights` | int (3-20) | `8` | Cantidad máxima de insights a devolver. |
+
+**Ejemplo:**
+
+```json
+{
+  "focus": "overview",
+  "lookback_days": 30,
+  "language": "es",
+  "max_insights": 8
+}
+```
+
+### 19.4 Response
+
+```json
+{
+  "id": "uuid",
+  "focus": "overview",
+  "lookback_days": 30,
+  "language": "es",
+  "summary": "Tu negocio creció 12% en ventas vs. el mes pasado, pero tenés 3 productos top sin stock.",
+  "insights": [
+    {
+      "id": "uuid",
+      "type": "warning",
+      "priority": "urgent",
+      "category": "inventory",
+      "title": "3 productos sin stock",
+      "description": "Tres productos top están sin stock hace 5 días.",
+      "evidence": ["Café latte: stock=0", "Brownie: stock=0", "Tostado: stock=0"],
+      "recommended_actions": [
+        "Ir a Productos y reponer los más vendidos primero",
+        "Contactar proveedores para reposición urgente"
+      ],
+      "linked_module": "products",
+      "metric_impact_estimate": "Recuperar ventas perdidas por falta de stock"
+    }
+  ],
+  "business_memory": {
+    "tenant_id": "...",
+    "tenant_name": "Café Luna",
+    "tenant_slug": "cafeluna",
+    "lookback_days": 30,
+    "sales": { "total_orders": 124, "total_revenue_cents": 1500000, ... },
+    "inventory": { "low_stock": [...], "out_of_stock": [...], ... },
+    "customers": { "total_customers": 80, "segments": {...} },
+    "promotions": { "total": 3, "active": 1 },
+    "bookings": { "total": 45, "cancellation_rate": 0.08 },
+    "data_completeness": { "sales": true, "inventory": true, ... }
+  },
+  "generated_at": "2026-08-19T01:00:00Z",
+  "fallback": false,
+  "fallback_reason": null,
+  "model": "claude-3-5-sonnet",
+  "tokens_in": 1200,
+  "tokens_out": 600,
+  "latency_ms": 1800
+}
+```
+
+### 19.5 Categorías de insights (6)
+
+`"sales"` · `"inventory"` · `"customers"` · `"promotions"` · `"bookings"` · `"operations"` (cualquier insight cae en una de estas).
+
+### 19.6 Tipos de insights (5)
+
+`"opportunity"` (oportunidad de crecer) · `"warning"` (alerta que requiere atención) · `"anomaly"` (fuera de patrón) · `"recommendation"` (acción concreta) · `"insight"` (observación informativa).
+
+### 19.7 Prioridades (4)
+
+`"urgent"` (4) > `"high"` (3) > `"medium"` (2) > `"low"` (1). El endpoint SIEMPRE ordena los insights por prioridad descendente.
+
+### 19.8 Fallback determinístico (cuando el LLM no está disponible)
+
+Si el circuit breaker está abierto, no hay API key, el LLM devuelve JSON inválido o cualquier otra falla, se activa un **análisis basado en reglas** que SIEMPRE produce insights útiles:
+
+| Disparador | Prioridad | Categoría | Módulo vinculado |
+|---|---|---|---|
+| 3+ productos sin stock | `urgent` | `inventory` | `products` |
+| 1-2 productos sin stock | `high` | `inventory` | `products` |
+| Stock bajo (cualquier cantidad) | `medium` | `inventory` | `products` |
+| 3+ productos sin ventas 60+ días (dead stock) | `medium` | `inventory` | `promotions` |
+| 3+ clientes inactivos | `high` | `customers` | `marketing_studio` |
+| 3+ clientes VIP | `low` | `customers` | `campaigns` |
+| 0 promociones creadas (nunca) | `high` | `promotions` | `promotions` |
+| Promos creadas pero 0 activas | `medium` | `promotions` | `promotions` |
+| Tasa de cancelación de reservas > 20% (con 5+ reservas) | `high` | `bookings` | `bookings` |
+| Tenant sin datos en ninguna sección | `high` | `operations` | `products` |
+
+### 19.9 Reglas de uso (anti-alucinación)
+
+- ✅ El LLM SOLO puede usar cifras del snapshot. NO inventa.
+- ✅ Las acciones recomendadas son 1-5 por insight, concretas y ejecutables.
+- ✅ El endpoint SIEMPRE devuelve 200 — si el LLM falla, devuelve `fallback: true` con un reason (`circuit_open`, `invalid_json`, `unexpected:TypeError`, etc.).
+- ❌ NO inventa módulos, rutas ni endpoints. Solo menciona módulos que EXISTEN.
+- ❌ NO incluye URLs, links ni "consultar con soporte" salvo para problemas críticos.
+- ❌ NO promete cifras exactas en `metric_impact_estimate` (siempre aproximado).
+- ❌ NO ejecuta acciones. Sugiere. La ejecución es responsabilidad del usuario o del Automation Manager (futuro).
+
+### 19.10 Cuándo la IA conversacional debe sugerir el Growth Coach
+
+Cuando el sub-agente (especialmente `growth` o `help`) detecte una de estas intenciones, debe **preparar un `GrowthAnalysisRequest`** y sugerir al frontend llamar al endpoint:
+
+- "Analizá mi negocio" / "qué me recomendás" / "cómo viene mi tienda"
+- "Por qué bajaron las ventas" / "qué productos están sin stock"
+- "Tengo clientes que no compran hace rato" / "qué hago con los inactivos"
+- "Necesito ideas para crecer" / "qué oportunidades tengo"
+- "Resumen del último mes" / "reporte de actividad"
+
+### 19.11 Anti-alucinación específica del Growth Coach
+
+- ❌ NO ejecuta acciones — solo ANALIZA y SUGIERE.
+- ❌ NO se agenda automáticamente — es on-demand.
+- ❌ NO tiene un dashboard dedicado en el sidebar.
+- ❌ NO persiste análisis ni insights en la base (stateless).
+- ❌ NO tiene límite diario propio (compartido con `/chat`).
+- ❌ NO genera imágenes, gráficos ni videos — solo texto estructurado.
+- ❌ NO reemplaza al Marketing Studio: uno analiza, el otro genera copy.
+
+Ver lista ampliada en §7 ("Cosas que NO existen").
