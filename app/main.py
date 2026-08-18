@@ -21,6 +21,7 @@ from app.api.v1 import (
     ai, admin_ai, superadmin,
     loyalty,
     analytics, campaigns,
+    automation,  # Automation Manager™ (Cap. 19.3)
 )
 from app.models.user import UserRole
 from app.config import settings
@@ -151,6 +152,8 @@ app.include_router(bookings.public_router, prefix="/api/v1")
 # Analytics + Campaigns (alimentan al Asistente IA)
 app.include_router(analytics.router, prefix="/api/v1")
 app.include_router(campaigns.router, prefix="/api/v1")
+# Automation Manager™ (Cap. 19.3) — ejecuta acciones del Growth Coach
+app.include_router(automation.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────

@@ -30,3 +30,5 @@ from app.models.loyalty_pass import (  # noqa: F401
     LoyaltyCampaign, CustomerPass, PassStamp, QrToken,
     PassSource, PassStatus, StampReason, QrTokenKind,
 )
+# Automation Manager™ (Cap. 19.3) — audit log de ejecuciones
+from app.models.automation import AutomationExecution, AutomationStatus  # noqa: F401

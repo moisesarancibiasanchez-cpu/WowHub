@@ -85,6 +85,10 @@ def reset_db():
         cart, invoice, booking, legal, onboarding, upload,
         # Loyalty Pass
         loyalty_pass,  # noqa
+        # AI Core v0.3
+        ai,  # noqa
+        # Automation Manager (Cap. 19.3)
+        automation,  # noqa
     )
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

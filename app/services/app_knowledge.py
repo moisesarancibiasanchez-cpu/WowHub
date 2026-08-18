@@ -179,6 +179,37 @@ FAQ: dict[str, str] = {
         "SUPERADMIN es exclusivo para usuarios con `is_superuser=True` y no se muestra en el sidebar "
         "de los demás usuarios."
     ),
+    # ── Automation Manager (Cap. 19.3) — FAQ ──
+    "qué es el automation manager": (
+        "El Automation Manager es el módulo que EJECUTA las recomendaciones "
+        "que devuelve el Growth Coach. Cierra el ciclo análisis→acción. "
+        "3 acciones MVP: create_promotion, create_booking, send_campaign. "
+        "SIEMPRE requiere preview antes de ejecutar, escribe audit log y "
+        "tiene rate limit propio (50/día/usuario)."
+    ),
+    "cómo ejecuto una acción del growth coach": (
+        "Flujo: 1) El Growth Coach devuelve un insight con `recommended_action`. "
+        "2) El frontend llama POST /api/v1/automation/preview con la action y los params. "
+        "3) Mostrás el preview al usuario en un modal. "
+        "4) Si confirma, llamás POST /api/v1/automation/execute con `dry_run=false`, "
+        "`confirmed=true` y el `preview_id` que devolvió el preview. "
+        "El backend valida, ejecuta y devuelve el `resource_id` creado."
+    ),
+    "qué acciones puedo automatizar": (
+        "Hoy 3 acciones en MVP: `create_promotion` (admin+), "
+        "`create_booking` (staff+), `send_campaign` (admin+, email a un segmento). "
+        "Próximamente: `send_whatsapp_template` (roadmap)."
+    ),
+    "cuál es el límite de automation": (
+        "El límite es configurable vía `ai_daily_automation_limit` "
+        "(default 50/día/usuario). Cuenta SOLO ejecuciones confirmadas, "
+        "NO previews. Si te pasás, el backend devuelve 429 con código `rate_limited`."
+    ),
+    "puedo ver el historial de automatizaciones": (
+        "Sí. GET /api/v1/automation/history devuelve el historial paginado "
+        "del tenant. Filtros: `action_type`, `status`. El listado NO expone "
+        "`params` (privacidad); el superadmin puede verlos en /admin/superadmin."
+    ),
     "dónde cambio mi contraseña": (
         "Ve a Configuración → Mi cuenta, o usa el botón Cambiar contraseña "
         "en tu perfil."
@@ -293,6 +324,19 @@ NO_EXISTE: list[str] = [
     "El Marketing Studio NO tiene límite diario propio: comparte el contador con /api/v1/ai/chat (mismo recurso LLM).",
     "El Marketing Studio NO permite programar publicaciones — solo genera el copy. Programar/enviar es otra feature (roadmap).",
     "El Marketing Studio NO detecta el idioma automáticamente — el idioma se pide en el request (default 'es').",
+    # ── Automation Manager (Cap. 19.3) — anti-alucinación ──
+    "El Automation Manager NO ejecuta acciones sin `confirmed=true` Y `dry_run=false` simultáneos. Sin esto → 400 confirmation_required.",
+    "El Automation Manager NO acepta acciones fuera del ActionRegistry (ActionType es Literal cerrado; valores no listados → 422 por Pydantic).",
+    "El Automation Manager NO usa el tenant_id del body — siempre del JWT (cierre cross-tenant).",
+    "El Automation Manager NO cuenta previews contra el rate limit — solo ejecuciones.",
+    "El Automation Manager NO permite re-ejecutar un preview_id ya consumido (one-shot, anti-doble-click).",
+    "El Automation Manager NO permite ejecutar con params distintos al preview (anti-drift).",
+    "El Automation Manager NO tiene WhatsApp todavía — solo email vía send_campaign. send_whatsapp_template está en roadmap.",
+    "El Automation Manager NO es un orquestador de jobs recurrentes — no cron, no scheduler. Es on-demand.",
+    "El Automation Manager NO tiene un panel de historial dedicado en el sidebar — se consulta vía GET /automation/history.",
+    "El Automation Manager NO incluye acciones destructivas (no hay cancel_booking, delete_promotion en MVP).",
+    "El Automation Manager NO hace rollback del audit log en ejecuciones fallidas — queremos ver el intento (sí hace rollback del resource).",
+    "El preview del Automation Manager NO toca la DB — es un dry_run puro que devuelve un texto legible y un preview_id con TTL 10 min.",
 ]
 
 
@@ -361,6 +405,93 @@ MARKETING_STUDIO_TRIGGERS: list[str] = [
     "tweet / x post",
     "descripcion de producto",
     "headline para mi promo",
+]
+
+
+# ── 9. Automation Manager (WowHub AI Core™ — Cap. 19.3) ────────────
+# Orquestador de las recommended_actions que devuelve el Growth Coach.
+# Cierra el ciclo análisis→acción: el coach recomienda, el usuario
+# confirma, el manager ejecuta. Es ATÓMICO (1 request → 1 response) y
+# SIEMPRE requiere preview antes de ejecutar (anti-CSRF, anti-doble-click).
+AUTOMATION_MANAGER: dict[str, Any] = {
+    "endpoints": {
+        "actions_list": "GET /api/v1/automation/actions",
+        "action_detail": "GET /api/v1/automation/actions/{action_type}",
+        "preview": "POST /api/v1/automation/preview",
+        "execute": "POST /api/v1/automation/execute",
+        "history": "GET /api/v1/automation/history",
+    },
+    "auth": "JWT (mismo que /chat) — el tenant_id SIEMPRE sale del JWT, nunca del body.",
+    "actions": [
+        {
+            "key": "create_promotion",
+            "required_role": "admin",
+            "description": "Crea una promoción en el tenant.",
+            "params_schema": "PromotionCreate (name, percent_off | amount_off, starts_at, ends_at, branch_ids[], ...).",
+        },
+        {
+            "key": "create_booking",
+            "required_role": "staff",
+            "description": "Agenda una reserva en nombre de un cliente.",
+            "params_schema": "BookingIn (customer_name, customer_phone, branch_id, starts_at, ends_at, party_size, ...).",
+        },
+        {
+            "key": "send_campaign",
+            "required_role": "admin",
+            "description": "Envía una campaña de email a un segmento de clientes.",
+            "params_schema": "CampaignCreate (segment_key, subject, body, from_name, ...).",
+        },
+    ],
+    "flow": (
+        "1) GET /automation/actions → lista de acciones disponibles para el rol del usuario. "
+        "2) POST /preview {action_type, params, dry_run=true} → resuelve, valida, devuelve "
+        "preview legible y `preview_id` con TTL 10 min. NO toca la DB. "
+        "3) El frontend muestra el preview al usuario en un modal. "
+        "4) POST /execute {action_type, params, dry_run=false, confirmed=true, preview_id} → "
+        "valida el preview_id (anti-CSRF + anti-drift), ejecuta el handler, escribe audit log, "
+        "devuelve `resource_id` + `resource_url`."
+    ),
+    "rate_limit": (
+        "Configurable vía `ai_daily_automation_limit` (default 50/día/usuario). "
+        "Cuenta SOLO ejecuciones confirmadas, NO previews. Si te pasás, el backend "
+        "devuelve 429 con código `rate_limited`."
+    ),
+    "preview_ttl_seconds": 600,
+    "preview_one_shot": True,
+    "audit_log": (
+        "Tabla `automation_executions` con todos los intentos (succeeded + failed). "
+        "El audit log persiste aunque el resource haga rollback — queremos ver el "
+        "intento. `params` se guarda encriptado; `GET /history` no los expone por defecto."
+    ),
+    "rollback_policy": (
+        "Si el handler falla a mitad de camino, el resource creado se hace rollback. "
+        "El audit log SIEMPRE persiste (status=failed + error). Si la validación de "
+        "params falla, NO se escribe audit log (es error de input, no de ejecución)."
+    ),
+    "rules": [
+        "NUNCA llames /execute sin haber mostrado el preview antes (o sin entender sus implicancias).",
+        "NUNCA inventes `preview_id` — lo devuelve SIEMPRE /preview.",
+        "NUNCA omitas `confirmed=true` en /execute. El backend rechaza con 400 confirmation_required.",
+        "NUNCA uses `tenant_id` del body — el backend lo lee del JWT. Si lo pasás, se ignora silenciosamente.",
+        "El prefijo de la insight del Growth Coach (recommended_action.action_type + recommended_action.params) se mapea 1:1 a una acción del registry.",
+        "send_whatsapp_template NO está implementado todavía — si el coach lo sugiere, indicale al usuario que esa acción está en roadmap.",
+    ],
+}
+
+
+# ── 10. Intenciones conversacionales que disparan Automation Manager ──
+# Cuando el sub-agente (growth/automation) detecte una de estas
+# intenciones + devuelva un insight con `recommended_action`, el
+# frontend debe preparar un `AutomationRequest` y llamar al endpoint
+# /preview primero, mostrar el modal, y luego /execute.
+AUTOMATION_MANAGER_TRIGGERS: list[str] = [
+    "ejecutá la promo que me recomendó el growth coach",
+    "mandá la campaña a los clientes inactivos",
+    "agendá la reserva que me sugirió el coach",
+    "aplicá la recomendación del coach",
+    "ejecutá la acción recomendada",
+    "creá la promo del insight",
+    "lanzá la campaña del insight",
 ]
 
 
@@ -438,6 +569,10 @@ def render_short_summary() -> str:
     lines.append("  - POST /api/v1/ai/chat → chat conversacional multi-agente.")
     lines.append("  - GET  /api/v1/ai/agents → lista sub-agentes (marketing, growth, automation, marketplace, help).")
     lines.append("  - GET  /api/v1/ai/status → estado del LLM (circuit, rate, enabled).")
+    lines.append("  - POST /api/v1/automation/preview → preview (dry_run) de una recommended_action del Growth Coach. Devuelve preview_id con TTL 10 min.")
+    lines.append("  - POST /api/v1/automation/execute → ejecuta la acción SOLO si confirmed=true y dry_run=false. Valida el preview_id (anti-CSRF). Escribe audit log.")
+    lines.append("  - GET  /api/v1/automation/actions → catálogo de acciones disponibles para el rol del usuario.")
+    lines.append("  - GET  /api/v1/automation/history → historial paginado de ejecuciones del tenant (no expone params).")
     lines.append("")
     lines.append("Reglas críticas:")
     lines.append("  - Si te preguntan algo de WowHub que NO sabes con certeza, di 'No estoy seguro, pero X está en /dashboard/x' o sugiere abrir un ticket.")
@@ -445,4 +580,6 @@ def render_short_summary() -> str:
     lines.append("  - Para acciones de escritura (create_*, send_*), SIEMPRE muestra preview y pide confirmación explícita antes de ejecutar.")
     lines.append("  - El Marketing Studio SOLO genera texto. NO inventes que genera imágenes o videos.")
     lines.append("  - Si el usuario pide 'escribime un post para X', prepará un MarketingRequest y sugerí al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
+    lines.append("  - Cuando el Growth Coach devuelva un insight con `recommended_action`, el frontend DEBE llamar /preview antes que /execute. NUNCA ejecutes una acción de escritura sin el paso de preview + confirmación del usuario.")
+    lines.append("  - El Automation Manager tiene 3 acciones MVP: create_promotion, create_booking, send_campaign. send_whatsapp_template está en roadmap.")
     return "\n".join(lines)

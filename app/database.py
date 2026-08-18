@@ -60,6 +60,7 @@ def init_db() -> None:
         promotion, qr, landing, order,
         site_config,  # noqa
         loyalty_pass,  # noqa
+        automation,  # Automation Manager (Cap. 19.3)
     )
     Base.metadata.create_all(bind=engine)
     # ── Migración puntual: cashier_pin VARCHAR(8) → VARCHAR(64) ──

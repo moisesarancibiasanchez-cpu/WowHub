@@ -4,7 +4,7 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 19 de agosto de 2026.
-> **Versión:** v1.8 (nuevo endpoint **Growth Coach** `POST /api/v1/ai/growth/analyze`: análisis proactivo de la "Memoria de Negocio" del tenant con insights accionables, con fallback determinístico cuando el LLM no está disponible).
+> **Versión:** v1.9 (nuevo módulo **Automation Manager** `POST /api/v1/automation/preview` y `POST /api/v1/automation/execute`: orquesta las `recommended_actions` que devuelve el Growth Coach — `create_promotion`, `create_booking`, `send_campaign` — con preview obligatorio, audit log persistente y rate limit propio).
 
 ---
 
@@ -931,6 +931,7 @@ La IA conversacional puede **preparar el preview** del `MarketingRequest` (inten
 
 ### 18.1 Cambios recientes
 
+- **v1.9 (19-ago-2026)**: agregado **Automation Manager** (§20 — Cap. 19.3). Cierra el ciclo Growth Coach → Acción. Endpoints `POST /api/v1/automation/preview` (dry-run, genera preview_id) y `POST /api/v1/automation/execute` (requiere `dry_run=false` + `confirmed=true`). 3 acciones MVP en `ActionRegistry`: `create_promotion` (admin+), `create_booking` (staff+), `send_campaign` (admin+). Audit log persistente en nueva tabla `automation_executions` (tenant_id, user_id, action_type, status, resource_id, params JSON). Rate limit propio `ai_daily_automation_limit` (default 50/día/usuario, solo cuenta ejecuciones, NO previews). Preview cache con TTL 10 min + one-shot (anti-CSRF / anti-doble-click). 48 tests passing. Servicio en `app/services/automation_manager.py`, schemas en `app/schemas/automation.py`, modelo en `app/models/automation.py`, endpoint en `app/api/v1/automation.py`. **Inspirado en la recomendación #3 del análisis estratégico del proyecto.**
 - **v1.8 (19-ago-2026)**: agregado **Growth Coach** (§19 — Cap. 19.2). Endpoint `POST /api/v1/ai/growth/analyze`. Análisis proactivo de la "Memoria de Negocio" (ventas, inventario, clientes, promociones, reservas). Devuelve `summary` + `insights` priorizados (urgent → low) con `recommended_actions` y `linked_module`. Soporta 7 `focus` (overview, sales, inventory, customers, promotions, bookings, mixed) y `lookback_days` (7-180, default 30). 64 tests passing. Servicio en `app/services/growth_coach.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #2 del análisis estratégico del proyecto.** Rate limit compartido con `/chat` y `/marketing/generate`. Fallback determinístico que SIEMPRE produce insights útiles.
 - **v1.7 (18-ago-2026)**: agregado **Marketing Studio** (§17). Endpoint `POST /api/v1/ai/marketing/generate`. 13 `intent`, 7 `tone`, 7 `audience`. 47 tests passing. Servicio en `app/services/marketing_studio.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #1 del análisis estratégico del proyecto.**
 - **v1.6 (17-ago-2026)**: tool `get_tenant_public_urls` (sustituye `{slug}` literal por el slug real del tenant).
@@ -946,7 +947,8 @@ Las siguientes features están **planificadas pero NO implementadas**. La IA NO 
 | Persistencia de borradores de copy | 🛣️ Roadmap | Hoy el copy se devuelve pero no se guarda. |
 | Programación de publicación | 🛣️ Roadmap | Requiere integración con canales (Instagram, WhatsApp, email). |
 | Generación de imágenes con IA | 🛣️ Roadmap | Hoy el Marketing Studio solo genera texto. |
-| Automation Manager™ (Cap. 19.3) | 🛣️ Roadmap | Orquestación de acciones sugeridas por el Growth Coach. |
+| `send_whatsapp_template` en Automation Manager | 🛣️ Roadmap | Hoy solo email. Roadmap: WhatsApp Cloud API. |
+| Acciones con efectos secundarios (p.ej. cancelar reserva) | 🛣️ Roadmap | Hoy MVP solo tiene 3 acciones de creación. |
 | Smart Marketplace™ (Cap. 19.4) | 🛣️ Roadmap | Sugerencia de módulos premium según perfil del negocio. |
 | Multi-idioma del LLM | 🛣️ Roadmap | Hoy el idioma se pide en el request; en el futuro se detectará del tenant. |
 | Métricas de uso del Marketing Studio | 🛣️ Roadmap | Hoy no se persiste qué copy se generó para qué tenant. |
@@ -1102,5 +1104,88 @@ Cuando el sub-agente (especialmente `growth` o `help`) detecte una de estas inte
 - ❌ NO tiene límite diario propio (compartido con `/chat`).
 - ❌ NO genera imágenes, gráficos ni videos — solo texto estructurado.
 - ❌ NO reemplaza al Marketing Studio: uno analiza, el otro genera copy.
+
+Ver lista ampliada en §7 ("Cosas que NO existen").
+
+---
+
+## 20. Automation Manager (WowHub AI Core™ — Cap. 19.3)
+
+### 20.1 Qué es
+
+El **Automation Manager** es el módulo que **ejecuta** las `recommended_actions` que devuelve el **Growth Coach** (Cap. 19.2). Es el "puente" entre análisis (Growth Coach) y acción real (crear la promo, agendar la reserva, mandar la campaña).
+
+**Características clave:**
+- **3 acciones MVP** en `ActionRegistry` (todas verificadas con Pydantic server-side):
+  - `create_promotion` — crea una Promotion. Rol requerido: **admin+** (OWNER, ADMIN).
+  - `create_booking` — agenda una reserva vía `BookingService`. Rol requerido: **staff+** (OWNER, ADMIN, STAFF).
+  - `send_campaign` — envía campaña de email a un segmento. Rol requerido: **admin+** (OWNER, ADMIN).
+- **Vista** (VIEWER) puede **previewear** acciones pero **NO ejecutar**.
+- **Preview obligatorio**: el flujo es siempre `POST /preview` (dry-run, devuelve `preview_id`) → `POST /execute` (con `dry_run=false`, `confirmed=true` y el `preview_id` recibido).
+- **Audit log persistente**: cada ejecución (exitosa o fallida) escribe una fila en `automation_executions` (tenant_id, user_id, action_type, status, resource_id, resource_url, params JSON, error). Accesible vía `GET /history`.
+- **Rate limit propio**: `ai_daily_automation_limit` (default **50/día/usuario**, configurable). Cuenta **solo ejecuciones**, NO previews.
+- **Anti-CSRF / anti-doble-click**: el `preview_id` se valida contra un cache server-side con TTL 10 min, es **one-shot** (se consume al ejecutar) y rechaza drift de params (si los params cambiaron entre preview y execute, falla con `preview_drift`).
+- **Tenant isolation**: el `tenant_id` SIEMPRE se toma del JWT (vía `TenantMembership`), NUNCA del body. Esto cierra el vector cross-tenant write.
+
+### 20.2 Endpoints
+
+| Método | Path | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/automation/actions` | Lista de acciones disponibles (catálogo). |
+| `GET` | `/api/v1/automation/actions/{action_type}` | Detalle de una acción (label, descripción, schema, ejemplo). |
+| `POST` | `/api/v1/automation/preview` | Genera un preview (dry-run, NO toca DB). Devuelve `preview_id`. |
+| `POST` | `/api/v1/automation/execute` | Ejecuta (requiere `dry_run=false` + `confirmed=true`). |
+| `GET` | `/api/v1/automation/history` | Historial paginado del tenant (filtros: `action_type`, `status`). |
+
+### 20.3 Flujo recomendado (UX)
+
+```
+1. Usuario ve un insight del Growth Coach con recommended_action:
+   "Crear una promo 2x1 en Cafés del 20 al 27 de agosto"
+2. Frontend llama:
+   POST /api/v1/automation/preview {
+     "action_type": "create_promotion",
+     "params": { "name": "2x1 Cafés", "discount_type": "percent",
+                 "discount_value": 50, "category_ids": [...], ... }
+   }
+3. Backend devuelve:
+   { "preview_id": "abc123", "result": {
+       "preview": "Vas a crear la promoción 2x1 Cafés:\n  • ...",
+       "status": "preview_ready"
+     }
+   }
+4. UI muestra un modal con el preview + botones [Cancelar] [Ejecutar]
+5. Usuario hace clic en [Ejecutar]:
+   POST /api/v1/automation/execute {
+     "action_type": "create_promotion",
+     "params": { ... mismo params ... },
+     "dry_run": false,
+     "confirmed": true,
+     "preview_id": "abc123"
+   }
+6. Backend:
+   - Valida JWT + tenant
+   - Valida permisos (rol)
+   - Verifica rate limit
+   - Valida preview_id (one-shot, TTL, no-drift)
+   - Ejecuta el handler
+   - Escribe audit log en `automation_executions`
+   - Devuelve { "result": { "resource_id": "promo-uuid", "resource_url": "/dashboard/promotions/promo-uuid" } }
+```
+
+### 20.4 Anti-alucinación específica del Automation Manager
+
+- ❌ NO ejecuta acciones sin `confirmed=true` Y `dry_run=false` simultáneos. Sin esto → 400 `confirmation_required`.
+- ❌ NO acepta acciones fuera del `ActionRegistry` (el `ActionType` es `Literal` cerrado; valores no listados → 422 por Pydantic).
+- ❌ NO usa el `tenant_id` del body — siempre del JWT (cierre cross-tenant).
+- ❌ NO cuenta previews contra el rate limit (solo ejecuciones).
+- ❌ NO permite re-ejecutar un `preview_id` ya consumido (one-shot).
+- ❌ NO permite ejecutar con params distintos al preview (anti-drift).
+- ❌ NO persiste `params` en el listado de historial expuesto al cliente (privacidad). Solo el superadmin puede verlos.
+- ❌ NO hace rollback del audit log en ejecuciones fallidas (queremos ver el intento).
+- ❌ NO tiene WhatsApp todavía (solo email vía `send_campaign`).
+- ❌ NO es un orquestador de jobs recurrentes (no cron, no scheduler — es on-demand).
+- ❌ NO tiene un panel de "historial" dedicado en el sidebar — se consulta vía `GET /history` desde el módulo de cada recurso o desde el chat.
+- ❌ NO incluye acciones destructivas (no hay `cancel_booking`, `delete_promotion` en MVP).
 
 Ver lista ampliada en §7 ("Cosas que NO existen").

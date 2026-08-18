@@ -116,6 +116,9 @@ class Settings(BaseSettings):
     # Chat por usuario
     ai_context_messages: int = 20
     ai_daily_message_limit: int = 100
+    # Automation Manager (Cap. 19.3) — ejecuciones por usuario/día
+    # Cuenta solo /execute confirmados (NO los previews).
+    ai_daily_automation_limit: int = 50
     # Fallback cuando el LLM está caído
     ai_fallback_enabled: bool = True
 
