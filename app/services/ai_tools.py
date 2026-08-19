@@ -323,8 +323,8 @@ async def tool_get_tenant_dashboard_urls(ctx: AIToolContext) -> dict[str, Any]:
                 for m in app_knowledge.list_modules()
             ],
             "hint": (
-                "No pude armar URLs absolutas. Mostrá los paths como "
-                "referencia y avisale al usuario que tiene que estar "
+                "No pude armar URLs absolutas. Muestra los paths como "
+                "referencia y avísale al usuario que tiene que estar "
                 "logueado en el panel para acceder."
             ),
         }
@@ -347,7 +347,7 @@ async def tool_get_tenant_dashboard_urls(ctx: AIToolContext) -> dict[str, Any]:
         "base_url": base,
         "dashboard_urls": urls,
         "hint": (
-            "Mostrá estos links con markdown `[texto](url)` para que sean "
+            "Muestra estos links con markdown `[texto](url)` para que sean "
             "clickeables. NO respondas con el path desnudo tipo "
             "`/dashboard/products` — el usuario no puede hacer click en eso "
             "fuera del SPA."
@@ -797,7 +797,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "YA ARMADAS con `settings.public_base_url` como prefijo. SIEMPRE "
                 "usa esta tool cuando el usuario pregunte por un link al panel, "
                 "pida un paso a paso que involucre navegación, o quieras enviarle "
-                "el link por WhatsApp/email. Mostrá los links como markdown "
+                "el link por WhatsApp/email. Muestra los links como markdown "
                 "`[texto](url)` para que sean clickeables. NUNCA respondas con el "
                 "path desnudo tipo `/dashboard/products` — fuera del SPA no es "
                 "clickeable. Las rutas del panel son las mismas para todos los "

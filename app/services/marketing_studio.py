@@ -113,7 +113,7 @@ FORMATO DE SALIDA — DEVUELVE SOLO ESTE JSON (sin markdown, sin ```):
 # mantienen la UX viva: el usuario siempre recibe ALGO publicable.
 _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
     MarketingIntent.INSTAGRAM_POST.value: {
-        "friendly": "{greeting} {business_name} tiene algo especial para vos: {topic}. {cta}",
+        "friendly": "{greeting} {business_name} tiene algo especial para ti: {topic}. {cta}",
         "urgent": "Última oportunidad ✨ {topic} en {business_name}. {cta} (oferta limitada)",
         "playful": "¡Alerta! 🚨 {business_name} trae {topic}. {cta}",
         "professional": "En {business_name} presentamos {topic}. {cta}",
@@ -125,9 +125,9 @@ _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
         "friendly": "¡Hola! 👋 {business_name} te trae {topic}. {cta}",
         "urgent": "¡Última hora! {topic} en {business_name}. {cta}",
         "professional": "Estimado cliente: {business_name} le informa sobre {topic}. {cta}",
-        "playful": "¡Hey! {business_name} tiene algo rico para vos: {topic}. {cta}",
+        "playful": "¡Hey! {business_name} tiene algo rico para ti: {topic}. {cta}",
         "luxury": "Le invitamos a descubrir {topic} en {business_name}. {cta}",
-        "casual": "Pasada por {business_name}: {topic}. {cta}",
+        "casual": "Pasa por {business_name}: {topic}. {cta}",
         "inspirational": "Tu próximo momento favorito empieza acá: {topic} en {business_name}. {cta}",
     },
     MarketingIntent.EMAIL_SUBJECT.value: {
@@ -135,8 +135,8 @@ _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
         "urgent": "Última oportunidad: {topic}",
         "playful": "Hey, ¿viste esto? {topic}",
         "professional": "Novedades en {business_name}: {topic}",
-        "luxury": "Una experiencia para vos: {topic}",
-        "casual": "Pasada por {business_name}",
+        "luxury": "Una experiencia para ti: {topic}",
+        "casual": "Pasa por {business_name}",
         "inspirational": "Hoy empieza algo nuevo: {topic}",
     },
     MarketingIntent.SMS.value: {
@@ -160,20 +160,20 @@ _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
     MarketingIntent.PROMOTION_BODY.value: {
         "friendly": "En {business_name} tenemos {topic}. {promotion_details} {cta}",
         "urgent": "Por tiempo limitado en {business_name}: {topic}. {promotion_details} {cta}",
-        "playful": "¡{topic}! {promotion_details} Pasá por {business_name} y aprovechá. {cta}",
+        "playful": "¡{topic}! {promotion_details} Pasa por {business_name} y aprovecha. {cta}",
         "professional": "Le invitamos a conocer {topic} en {business_name}. {promotion_details} {cta}",
         "luxury": "Disfrute de {topic} en {business_name}. {promotion_details} {cta}",
         "casual": "{topic} en {business_name}. {promotion_details}",
         "inspirational": "Hoy puede ser el día: {topic} en {business_name}. {promotion_details} {cta}",
     },
     MarketingIntent.PRODUCT_DESCRIPTION.value: {
-        "friendly": "Conocé {product_name} en {business_name}. {product_features}",
+        "friendly": "Conoce {product_name} en {business_name}. {product_features}",
         "urgent": "¡{product_name} te espera! {product_features} {price}",
-        "playful": "Mirá lo que tenemos: {product_name}. {product_features}",
+        "playful": "Mira lo que tenemos: {product_name}. {product_features}",
         "professional": "{product_name} — {product_features} {price}",
         "luxury": "Presentamos {product_name}: {product_features} {price}",
         "casual": "{product_name}: {product_features}",
-        "inspirational": "Descubrí {product_name} en {business_name}. {product_features}",
+        "inspirational": "Descubre {product_name} en {business_name}. {product_features}",
     },
     MarketingIntent.INSTAGRAM_STORY.value: {
         "friendly": "{topic} ✨ {cta}",
@@ -185,18 +185,18 @@ _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
         "inspirational": "{topic}",
     },
     MarketingIntent.INSTAGRAM_REEL.value: {
-        "friendly": "[Guion Reel] Hoy te mostramos {topic}. Pasá por {business_name} y viví la experiencia. {cta}",
+        "friendly": "[Guion Reel] Hoy te mostramos {topic}. Pasa por {business_name} y vive la experiencia. {cta}",
         "urgent": "[Guion Reel] HOY: {topic}. No te lo pierdas. {cta}",
-        "playful": "[Guion Reel] Mirá esto: {topic}. Pasá ya por {business_name}. {cta}",
+        "playful": "[Guion Reel] Mira esto: {topic}. Pasa ya por {business_name}. {cta}",
         "professional": "[Guion Reel] {topic} en {business_name}. {cta}",
         "luxury": "[Guion Reel] Te invitamos a descubrir {topic}. {business_name}. {cta}",
-        "casual": "[Guion Reel] {topic}. Pasá por {business_name}.",
+        "casual": "[Guion Reel] {topic}. Pasa por {business_name}.",
         "inspirational": "[Guion Reel] Tu momento es hoy: {topic}. {business_name}. {cta}",
     },
     MarketingIntent.FACEBOOK_POST.value: {
         "friendly": "¡Hola comunidad! En {business_name} tenemos {topic}. {cta}",
         "urgent": "¡Última oportunidad! {topic} en {business_name}. {cta}",
-        "playful": "Pasada por {business_name}: {topic}. {cta}",
+        "playful": "Pasa por {business_name}: {topic}. {cta}",
         "professional": "Les presentamos {topic} en {business_name}. {cta}",
         "luxury": "Les invitamos a conocer {topic} en {business_name}. {cta}",
         "casual": "{topic} en {business_name}. {cta}",
@@ -223,7 +223,7 @@ _FALLBACK_TEMPLATES: dict[str, dict[str, str]] = {
     MarketingIntent.GENERAL.value: {
         "friendly": "{topic} en {business_name}. {cta}",
         "urgent": "¡{topic}! Oferta limitada en {business_name}. {cta}",
-        "playful": "🎉 {topic} — pasá por {business_name}. {cta}",
+        "playful": "🎉 {topic} — pasa por {business_name}. {cta}",
         "professional": "{business_name} presenta {topic}. {cta}",
         "luxury": "Exclusivo en {business_name}: {topic}. {cta}",
         "casual": "{topic} — {business_name}. {cta}",

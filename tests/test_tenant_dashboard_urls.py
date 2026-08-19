@@ -269,3 +269,176 @@ class TestSystemPromptRegression:
         no_existe = app_knowledge.list_no_existe()
         joined = " ".join(no_existe).lower()
         assert "get_tenant_dashboard_urls" in joined
+
+
+# ── Anti-regresión: español de Chile (v1.9.1-r1) ─────────────────
+class TestChileanSpanishRegression:
+    """Verifica que el sistema está en español de Chile, NO en español de Argentina.
+
+    Reglas cubiertas:
+    - No voseo en system prompts (tú, no vos).
+    - No argentinismos: "guita", "boludo", "morfar", "trucho", "al toque", "copado".
+    - FAQ keys usan tildes del imperativo tú: "pásame", "mándame".
+    - Imperativo en respuestas: "Llama", "Muestra", "sugiere" (no voseo).
+    """
+
+    VOSE_FORBIDDEN = [
+        "llamá ", "llamás", "mostrá", "mostrás", "mostrame",
+        "mandame", "pasame", "decime", "fijate", "fijáte",
+        "usá", "usá ", "usá.", "usá,",
+        "devolvé", "mandá ", "mandá.", "mandá,",
+        "querés", "tenés", "sos ", "sos.", "sos,",
+        "hacés", "podés", "sabés", "escribime",
+        "ejecutá", "agendá", "aplicá", "creá", "lanzá", "indicá",
+        "prepará", "sugerí",
+        "andá", "andá ", "andá.", "andá,", "dale al",
+        "jalamos", "jalar", "boludo", "morfar", "trucho",
+        "al toque", "copado", "guita", "pibe", "re-bueno",
+        "para vos:",
+    ]
+
+    def test_global_rules_no_voseo(self):
+        """El _GLOBAL_RULES debe declarar el dialecto chileno explícitamente."""
+        from app.services.ai_agents import _GLOBAL_RULES
+        # La regla anti-voseo debe estar presente en la regla 0
+        assert "español de Chile" in _GLOBAL_RULES
+        assert "Usa TÚ" in _GLOBAL_RULES or "TÚ (no voseo)" in _GLOBAL_RULES
+        assert "voseo" in _GLOBAL_RULES.lower()
+
+    def test_app_knowledge_faq_keys_chilean(self):
+        """Los FAQ keys deben usar tildes chilenas (tú imperativo)."""
+        faq = app_knowledge.FAQ
+        # Keys que DEBEN tener la tilde del imperativo tú
+        expected_chilean_keys = [
+            "pásame el link de",
+            "mándame el link por",
+        ]
+        for expected in expected_chilean_keys:
+            assert expected in faq, (
+                f"FAQ key chilena faltante: {expected!r}. "
+                f"Found: {[k for k in faq if 'link' in k]}"
+            )
+
+    def test_app_knowledge_no_voseo_in_responses(self):
+        """Las respuestas de las FAQ nuevas no deben tener voseo."""
+        faq = app_knowledge.FAQ
+        new_faq_keys = [
+            "cómo abro el panel de productos",
+            "cómo abro el panel de",
+            "dónde veo el admin ia",
+            "pásame el link de",
+            "mándame el link por",
+        ]
+        for k in new_faq_keys:
+            assert k in faq, f"FAQ key faltante: {k!r}"
+            text = faq[k]
+            text_low = text.lower()
+            # No debe contener voseo imperativo
+            assert "llamá" not in text_low, f"Voseo en {k!r}: {text!r}"
+            assert "mostrá" not in text_low, f"Voseo en {k!r}: {text!r}"
+            assert "usá" not in text_low, f"Voseo en {k!r}: {text!r}"
+            assert "avisale" not in text_low, f"Voseo en {k!r}: {text!r}"
+            # Y debe usar imperativo con TÚ
+            assert (
+                "llama" in text_low
+                or "devuelve" in text_low
+                or "sugiere" in text_low
+                or "suger" in text_low
+            ), f"Sin imperativo tú en {k!r}: {text!r}"
+
+    def test_no_existe_no_voseo(self):
+        """Las entradas de NO_EXISTE nuevas no deben tener voseo."""
+        no_existe = app_knowledge.list_no_existe()
+        # Filtramos las de v1.9.1 (las que mencionan dashboard URLs)
+        new_no_existe = [
+            s for s in no_existe
+            if "dashboard" in s.lower() or "get_tenant_dashboard" in s.lower()
+        ]
+        assert len(new_no_existe) >= 6, f"Esperaba >= 6 entradas de v1.9.1, encontré {len(new_no_existe)}"
+        for s in new_no_existe:
+            s_low = s.lower()
+            assert "llamá" not in s_low, f"Voseo en NO_EXISTE: {s!r}"
+            assert "usá" not in s_low, f"Voseo en NO_EXISTE: {s!r}"
+            assert "devolvé" not in s_low, f"Voseo en NO_EXISTE: {s!r}"
+            assert "devolv" not in s_low or "devuelve" in s_low, f"Voseo en NO_EXISTE: {s!r}"
+
+    def test_render_short_summary_no_voseo(self):
+        """El render_short_summary no debe tener voseo en las reglas nuevas."""
+        summary = app_knowledge.render_short_summary()
+        lines = summary.split("\n")
+        dashboard_lines = [
+            l for l in lines
+            if "dashboard" in l.lower() or "get_tenant_dashboard" in l.lower()
+        ]
+        assert len(dashboard_lines) >= 2, "Esperaba >= 2 reglas nuevas de v1.9.1 en el summary"
+        for line in dashboard_lines:
+            ll = line.lower()
+            assert "llamá" not in ll, f"Voseo en summary: {line!r}"
+            assert "mostrá" not in ll, f"Voseo en summary: {line!r}"
+            assert "usá" not in ll, f"Voseo en summary: {line!r}"
+
+    def test_ai_tools_no_voseo(self):
+        """Los hints y descriptions de la tool no deben tener voseo."""
+        schemas = ai_tools.TOOL_SCHEMAS
+        # TOOL_SCHEMAS es una LIST de schemas OpenAI (no dict).
+        # Buscamos la tool por nombre dentro de la lista.
+        tool = next(
+            (t for t in schemas if t.get("function", {}).get("name") == "get_tenant_dashboard_urls"),
+            None,
+        )
+        assert tool is not None, "get_tenant_dashboard_urls no está en TOOL_SCHEMAS"
+        desc = tool.get("function", {}).get("description", "").lower()
+        assert "mostrá" not in desc, f"Voseo en tool description: {desc!r}"
+        assert "usá" not in desc, f"Voseo en tool description: {desc!r}"
+        # Y debe usar imperativo tú
+        assert "usa esta tool" in desc or "llama" in desc or "muestra" in desc
+
+    def test_ai_tools_fallback_hint_no_voseo(self):
+        """El hint del fallback (sin base_url) no debe tener voseo."""
+        import asyncio
+        from app.services.ai_tools import AIToolContext, tool_get_tenant_dashboard_urls
+
+        class _C:
+            user_id = "u"
+            tenant_id = "t"
+            access_token = "x"
+            base_url = ""
+
+        async def _run():
+            return await tool_get_tenant_dashboard_urls(_C())
+
+        out = asyncio.run(_run())
+        hint = out.get("hint", "").lower()
+        assert "mostrá" not in hint, f"Voseo en fallback hint: {out['hint']!r}"
+        assert "avisale" not in hint, f"Voseo en fallback hint: {out['hint']!r}"
+        # Y debe usar imperativo tú
+        assert "muestra" in hint or "avísale" in hint, (
+            f"Sin imperativo tú en hint: {out['hint']!r}"
+        )
+
+    def test_marketing_studio_templates_no_voseo(self):
+        """Los templates de marketing_studio no deben tener voseo."""
+        from app.services import marketing_studio
+        templates = marketing_studio._FALLBACK_TEMPLATES
+        for intent_name, tones in templates.items():
+            for tone, tmpl in tones.items():
+                tl = tmpl.lower()
+                # Buscar voseo imperativo (formas CON tilde, distintivas de voseo).
+                # NO chequear "conocer" (infinitivo) ni "conoc" (sub-cadena neutra)
+                # porque "le invitamos a conocer" es correcto en español de Chile
+                # (formal "usted") y "Conoce {producto}" es imperativo TÚ válido.
+                for vose in [
+                    "pasá", "mirá", "descubrí", "viví", "aprovechá", "traé",
+                    "conocé", "conocés",
+                ]:
+                    assert vose not in tl, f"Voseo en template {intent_name}/{tone}: {tmpl!r}"
+                # "para vos" es voseo preposicional
+                assert "para vos" not in tl, f"Voseo preposicional en {intent_name}/{tone}: {tmpl!r}"
+
+    def test_growth_coach_no_voseo(self):
+        """Los insights del growth coach no deben tener voseo."""
+        # Búsqueda simple en strings clave del módulo
+        from app.services import growth_coach
+        src = open(growth_coach.__file__).read().lower()
+        for vose in ['"no tenés', '"creá', "no tenés promos", "creá tu primera promo"]:
+            assert vose not in src, f"Voseo en growth_coach.py: {vose!r}"

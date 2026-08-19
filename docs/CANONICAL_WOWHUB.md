@@ -183,16 +183,16 @@ Estas son respuestas literales que la IA debe dar si el usuario pregunta exactam
 | "¿Cuánto cuesta WowHub?" | "Depende del plan. Revisa la sección de **Planes** en la landing o pregúntale al equipo de ventas." |
 | "Quiero eliminar mi cuenta" | "Por seguridad, la eliminación de cuenta se hace escribiendo a **soporte@wowhub.app**." |
 | "¿Cómo conecto WhatsApp?" | "En **Configuración → Integraciones** (cuando esté disponible). Hoy puedes compartir el link público por WhatsApp manualmente." |
-| "¿Me ayudás a escribir un post para Instagram / un copy de marketing / un asunto de email?" | "Sí. Usá el **Marketing Studio**: `POST /api/v1/ai/marketing/generate` con `intent` según el canal (instagram_post, whatsapp_broadcast, email_subject, etc.), `topic` el tema, `tone` y `audience` según tu público. Te devuelve N variantes listas para usar. Si el LLM está caído, devuelve un template (`fallback: true`). El copy NO se guarda en la base — solo se devuelve." |
+| "¿Me ayudas a escribir un post para Instagram / un copy de marketing / un asunto de email?" | "Sí. Usa el **Marketing Studio**: `POST /api/v1/ai/marketing/generate` con `intent` según el canal (instagram_post, whatsapp_broadcast, email_subject, etc.), `topic` el tema, `tone` y `audience` según tu público. Te devuelve N variantes listas para usar. Si el LLM está caído, devuelve un template (`fallback: true`). El copy NO se guarda en la base — solo se devuelve." |
 | "¿La IA puede generar imágenes para mi promo?" | "Hoy el Marketing Studio solo genera **texto**. La generación de imágenes y videos está en roadmap (ver §18.2)." |
 | "¿Cuántas variantes de copy puedo pedir?" | "De 1 a 5, con `variants: N` (default 3). Cada variante es una versión distinta del mismo copy con el mismo `intent`/`tone`/`audience`." |
 | "¿El Marketing Studio tiene su propio límite diario?" | "No. Comparte el contador con `/api/v1/ai/chat`. Si ya usaste todos tus mensajes del día, devuelve 429 antes de llamar al LLM." |
-| "¿Cómo analizo mi negocio / qué me recomendás / cómo sé si voy bien?" | "Usá el **Growth Coach**: `POST /api/v1/ai/growth/analyze`. Indicá `focus` (overview, sales, inventory, customers, promotions, bookings o mixed), `lookback_days` (7-180, default 30) e `idioma`. Te devuelve un resumen ejecutivo + lista de insights priorizados (urgent → low) con acciones recomendadas. Si el LLM está caído, devuelve análisis determinístico (`fallback: true`) — igual obtenés insights útiles. NO ejecuta acciones: solo analiza y sugiere." |
+| "¿Cómo analizo mi negocio / qué me recomiendas / cómo sé si voy bien?" | "Usa el **Growth Coach**: `POST /api/v1/ai/growth/analyze`. Indica `focus` (overview, sales, inventory, customers, promotions, bookings o mixed), `lookback_days` (7-180, default 30) e `idioma`. Te devuelve un resumen ejecutivo + lista de insights priorizados (urgent → low) con acciones recomendadas. Si el LLM está caído, devuelve análisis determinístico (`fallback: true`) — igual obtienes insights útiles. NO ejecuta acciones: solo analiza y sugiere." |
 | "¿Dónde veo los insights / recomendaciones del Growth Coach?" | "Hoy se exponen vía el endpoint `POST /api/v1/ai/growth/analyze` y los resultados se renderizan en el Resumen o dentro del chat. NO hay un módulo separado en el sidebar." |
 | "¿El Growth Coach ejecuta las acciones que recomienda?" | "No. El Growth Coach solo ANALIZA y SUGIERE (devuelve `recommended_actions` y `linked_module`). La ejecución la hace el usuario desde el módulo correspondiente (ej. `linked_module: promotions` → ir a `/dashboard/promotions`). El Automation Manager (futuro) sería quien ejecute automáticamente." |
-| "¿Cada cuánto corre el Growth Coach?" | "Es un endpoint **on-demand**: corre cuando vos lo llamás. NO se ejecuta periódicamente ni genera notificaciones automáticas. Si querés un análisis fresco, llamalo a `/api/v1/ai/growth/analyze`." |
+| "¿Cada cuánto corre el Growth Coach?" | "Es un endpoint **on-demand**: corre cuando tú lo llamas. NO se ejecuta periódicamente ni genera notificaciones automáticas. Si quieres un análisis fresco, llámalo a `/api/v1/ai/growth/analyze`." |
 | "¿El Growth Coach tiene un límite diario propio?" | "No. Comparte el contador con `/api/v1/ai/chat` y `/marketing/generate`. Si ya consumiste el día, devuelve 429." |
-| "¿Qué hace diferente al Growth Coach del Marketing Studio?" | "El **Marketing Studio** GENERA copy de marketing (textos listos para publicar). El **Growth Coach** ANALIZA tu negocio y devuelve insights accionables (qué tenés que hacer). Son complementarios: usá Studio para escribir, Coach para decidir." |
+| "¿Qué hace diferente al Growth Coach del Marketing Studio?" | "El **Marketing Studio** GENERA copy de marketing (textos listos para publicar). El **Growth Coach** ANALIZA tu negocio y devuelve insights accionables (qué tienes que hacer). Son complementarios: usa Studio para escribir, Coach para decidir." |
 | "¿Qué diferencia hay entre OWNER, ADMIN, STAFF y VIEWER?" | "Son los 4 roles por membresía en un tenant. **OWNER**: administración completa del tenant (todo). **ADMIN**: administración operativa con casi los mismos poderes que OWNER — puede gestionar productos, reservas, clientes, campañas, miembros y configuración, pero no puede eliminar el tenant ni modificar el OWNER. **STAFF**: operación diaria con acceso limitado (ej. crear reservas, registrar ventas, ver clientes, pero no modificar configuración ni productos). **VIEWER**: solo consulta (lee KPIs, listas, agenda) sin poder ejecutar acciones de escritura. Los roles son **por tenant** — un mismo usuario puede ser OWNER en un tenant y VIEWER en otro. El **SUPERUSER** es otra cosa: es un flag **por usuario** (no por tenant) y aplica a TODA la plataforma; ver §11." |
 | "¿El superadmin puede entrar a mi tienda y ver mis conversaciones del asistente?" | "Un **SUPERUSER** puede iniciar una sesión temporal de **impersonación** desde `/admin/superadmin`, siempre que el usuario objetivo no sea otro superuser y esté activo. Durante esa sesión puede acceder a las **funciones y datos permitidos para el usuario impersonado** dentro del tenant seleccionado. Esto **puede incluir** las conversaciones del asistente si están disponibles para esa cuenta. La sesión muestra un banner visible de impersonación, dura **como máximo 60 minutos** y todas las acciones quedan registradas (superuser, usuario objetivo, tenant, hora, acción). **Las contraseñas y secretos nunca se muestran.**" |
 | "¿Qué ocurre si un superadmin entra a mi tienda?" | "La sesión normal del dueño **no se reemplaza ni se cierra**. La impersonación se ejecuta en una sesión temporal separada del superuser. El acceso queda registrado en la **auditoría del tenant** y puede ser revisado por usuarios autorizados según la política de WowHub. El superuser debe salir mediante el botón **'🚪 Salir'** del banner o esperar la expiración automática de la sesión." |
@@ -1008,7 +1008,7 @@ POST /api/v1/ai/growth/analyze
   "focus": "overview",
   "lookback_days": 30,
   "language": "es",
-  "summary": "Tu negocio creció 12% en ventas vs. el mes pasado, pero tenés 3 productos top sin stock.",
+  "summary": "Tu negocio creció 12% en ventas vs. el mes pasado, pero tienes 3 productos top sin stock.",
   "insights": [
     {
       "id": "uuid",
@@ -1224,16 +1224,16 @@ get_tenant_dashboard_urls(ctx: AIToolContext) → dict
 | Prefijo | `https://{slug}.wowhub.app` (con subdominio) | `https://wowhub.app` (mismo para todos) |
 | Requiere slug | Sí (sustituye `{slug}`) | No (mismas rutas para todos) |
 | Contexto | Multi-tenant (cada tienda la suya) | Single-tenant (sesión resuelve) |
-| Uso típico | "Pasame mi link para compartir" | "Cómo abro el panel de productos" |
+| Uso típico | "Pásame mi link para compartir" | "Cómo abro el panel de productos" |
 
 ### 21.4 Reglas críticas (anti-alucinación)
 
-- ❌ **NO respondas con paths desnudos** tipo `/dashboard/products`. Fuera del SPA no es clickeable. SIEMPRE llamá a la tool y devolvé la URL absoluta.
-- ❌ **NO inventes la URL base** del panel. SIEMPRE usá la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost` ni `railway.app`.
+- ❌ **NO respondas con paths desnudos** tipo `/dashboard/products`. Fuera del SPA no es clickeable. SIEMPRE llama a la tool y devuelve la URL absoluta.
+- ❌ **NO inventes la URL base** del panel. SIEMPRE usa la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost` ni `railway.app`.
 - ❌ **NO incluyas el slug del tenant** en el path del panel. Las URLs del panel son las MISMAS para todos los tenants (ej. `https://wowhub.app/dashboard/products`) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio.
 - ❌ **NO confundas** `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).
-- ✅ **Mostrá los links como markdown** `[Abrir Productos](https://wowhub.app/dashboard/products)` para que sean clickeables.
-- ✅ **Si la tool falla** (raro, `settings.public_base_url` no configurado), avisale al usuario y sugerí Configuración → Branding.
+- ✅ **Muestra los links como markdown** `[Abrir Productos](https://wowhub.app/dashboard/products)` para que sean clickeables.
+- ✅ **Si la tool falla** (raro, `settings.public_base_url` no configurado), avísale al usuario y sugiere Configuración → Branding.
 
 ### 21.5 Ejemplo de respuesta correcta
 

@@ -190,8 +190,8 @@ FAQ: dict[str, str] = {
     "cómo ejecuto una acción del growth coach": (
         "Flujo: 1) El Growth Coach devuelve un insight con `recommended_action`. "
         "2) El frontend llama POST /api/v1/automation/preview con la action y los params. "
-        "3) Mostrás el preview al usuario en un modal. "
-        "4) Si confirma, llamás POST /api/v1/automation/execute con `dry_run=false`, "
+        "3) Muestras el preview al usuario en un modal. "
+        "4) Si confirma, llamas POST /api/v1/automation/execute con `dry_run=false`, "
         "`confirmed=true` y el `preview_id` que devolvió el preview. "
         "El backend valida, ejecuta y devuelve el `resource_id` creado."
     ),
@@ -212,31 +212,31 @@ FAQ: dict[str, str] = {
     ),
     # ── Dashboard URLs (v1.9.1) — UX fix: links clickeables ──
     "cómo abro el panel de productos": (
-        "Llamá primero a la tool `get_tenant_dashboard_urls`. Te devuelve "
+        "Llama primero a la tool `get_tenant_dashboard_urls`. Te devuelve "
         "los links YA CON la URL absoluta armada (ej. "
         "https://wowhub.app/dashboard/products) listos para mostrar con "
         "markdown `[Abrir Productos](url)` y que el usuario haga 1 click. "
         "NUNCA respondas con `/dashboard/products` desnudo — fuera del SPA "
-        "no es clickeable. Si la tool falla, sugerí Configuración → Branding."
+        "no es clickeable. Si la tool falla, sugiere Configuración → Branding."
     ),
     "cómo abro el panel de": (
-        "Llamá primero a `get_tenant_dashboard_urls`. Te devuelve todos "
+        "Llama primero a `get_tenant_dashboard_urls`. Te devuelve todos "
         "los links del panel con la URL absoluta (no el path relativo) "
         "para que sean clickeables. NUNCA respondas con paths desnudos."
     ),
     "dónde veo el admin ia": (
-        "Llamá a `get_tenant_dashboard_urls` y devolvé el link de Admin IA "
+        "Llama a `get_tenant_dashboard_urls` y devuelve el link de Admin IA "
         "armado como markdown. Solo OWNER/ADMIN pueden acceder. Si el "
-        "usuario es STAFF/VIEWER, decile que necesita permisos de admin."
+        "usuario es STAFF/VIEWER, dile que necesita permisos de admin."
     ),
-    "pasame el link de": (
-        "Llamá a `get_tenant_dashboard_urls` y devolvé el link armado como "
+    "pásame el link de": (
+        "Llama a `get_tenant_dashboard_urls` y devuelve el link armado como "
         "markdown `[texto](https://wowhub.app/dashboard/...)` para que sea "
         "clickeable. NUNCA respondas con el path desnudo tipo "
         "`/dashboard/products`."
     ),
-    "mandame el link por": (
-        "Llamá a `get_tenant_dashboard_urls` y devolvé el link ABSOLUTO. "
+    "mándame el link por": (
+        "Llama a `get_tenant_dashboard_urls` y devuelve el link ABSOLUTO. "
         "Como es una URL completa (no path relativo), el usuario puede "
         "compartirla por WhatsApp, email, SMS, etc."
     ),
@@ -298,20 +298,20 @@ FAQ: dict[str, str] = {
         "para usar. Comparte rate limit con /chat."
     ),
     "copy de marketing": (
-        "Usá el Marketing Studio: POST /api/v1/ai/marketing/generate. Indicá "
+        "Usa el Marketing Studio: POST /api/v1/ai/marketing/generate. Indica "
         "intent (instagram_post, whatsapp_broadcast, email_subject, etc.), "
         "topic (el tema), tone y audience. Te devuelve variantes listas. "
         "NO se guarda el copy en la base — solo se devuelve."
     ),
     "copy para instagram": (
         "El Marketing Studio puede generarlo: POST /api/v1/ai/marketing/generate "
-        "con intent=instagram_post. Devuelve N variantes con hashtags. Si querés "
-        "story corto, usá intent=instagram_story. Para Reel, intent=instagram_reel."
+        "con intent=instagram_post. Devuelve N variantes con hashtags. Si quieres "
+        "story corto, usa intent=instagram_story. Para Reel, intent=instagram_reel."
     ),
     "asunto de email": (
         "El Marketing Studio puede redactarlo: POST /api/v1/ai/marketing/generate "
         "con intent=email_subject (asunto corto) o intent=email_body (cuerpo). "
-        "Indicá tone (ej. professional, friendly) y audience."
+        "Indica tone (ej. professional, friendly) y audience."
     ),
     "copy para whatsapp": (
         "El Marketing Studio puede generarlo: POST /api/v1/ai/marketing/generate "
@@ -368,9 +368,9 @@ NO_EXISTE: list[str] = [
     "El Automation Manager NO hace rollback del audit log en ejecuciones fallidas — queremos ver el intento (sí hace rollback del resource).",
     "El preview del Automation Manager NO toca la DB — es un dry_run puro que devuelve un texto legible y un preview_id con TTL 10 min.",
     # ── Dashboard URLs (v1.9.1) — anti-alucinación ──
-    "Las rutas del panel (ej. /dashboard/products) NO son URLs absolutas. Para que sean clickeables fuera del SPA, SIEMPRE llamá primero a la tool `get_tenant_dashboard_urls` que las arma con `settings.public_base_url` como prefijo.",
-    "El AI NO debe inventar la URL base del panel. SIEMPRE usá la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost`.",
-    "El AI NO debe responder con paths desnudos como `/dashboard/products` cuando el usuario pide un link. Eso no es clickeable en WhatsApp/email/SMS. Usá SIEMPRE la tool y devolvé el link completo.",
+    "Las rutas del panel (ej. /dashboard/products) NO son URLs absolutas. Para que sean clickeables fuera del SPA, SIEMPRE llama primero a la tool `get_tenant_dashboard_urls` que las arma con `settings.public_base_url` como prefijo.",
+    "El AI NO debe inventar la URL base del panel. SIEMPRE usa la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost`.",
+    "El AI NO debe responder con paths desnudos como `/dashboard/products` cuando el usuario pide un link. Eso no es clickeable en WhatsApp/email/SMS. USA SIEMPRE la tool y devuelve el link completo.",
     "Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio. NO incluyas el slug del tenant en el path.",
     "El AI NO debe incluir `/u/{slug}/` en los links del panel — eso es para URLs PÚBLICAS. Para el panel, el prefijo es solo `https://wowhub.app/dashboard/...`.",
     "El AI NO debe confundir `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).",
@@ -431,12 +431,12 @@ MARKETING_STUDIO: dict[str, Any] = {
 # estas intenciones, debe preparar el MarketingRequest (intent + topic +
 # tone + audience + context) y sugerir al frontend llamar al endpoint.
 MARKETING_STUDIO_TRIGGERS: list[str] = [
-    "escribime un post para instagram",
+    "escríbeme un post para instagram",
     "necesito copy para whatsapp",
-    "redactame un asunto de email",
-    "generame variantes de copy",
+    "redacta un asunto de email",
+    "genera variantes de copy",
     "quiero un sms corto para mis clientes",
-    "ayudame con copy de marketing",
+    "ayuda con copy de marketing",
     "copy para facebook",
     "caption para instagram",
     "tweet / x post",
@@ -522,13 +522,13 @@ AUTOMATION_MANAGER: dict[str, Any] = {
 # frontend debe preparar un `AutomationRequest` y llamar al endpoint
 # /preview primero, mostrar el modal, y luego /execute.
 AUTOMATION_MANAGER_TRIGGERS: list[str] = [
-    "ejecutá la promo que me recomendó el growth coach",
-    "mandá la campaña a los clientes inactivos",
-    "agendá la reserva que me sugirió el coach",
-    "aplicá la recomendación del coach",
-    "ejecutá la acción recomendada",
-    "creá la promo del insight",
-    "lanzá la campaña del insight",
+    "ejecuta la promo que me recomendó el growth coach",
+    "manda la campaña a los clientes inactivos",
+    "agenda la reserva que me sugirió el coach",
+    "aplica la recomendación del coach",
+    "ejecuta la acción recomendada",
+    "crea la promo del insight",
+    "lanza la campaña del insight",
 ]
 
 
@@ -553,11 +553,11 @@ DASHBOARD_URLS: dict[str, Any] = {
         "configuracion", "admin_ia", "superadmin",
     ],
     "rules": [
-        "SIEMPRE llamá a `get_tenant_dashboard_urls` cuando el usuario pida un link al panel.",
-        "Mostrá los links como markdown `[texto](url)` para que sean clickeables.",
+        "SIEMPRE llama a `get_tenant_dashboard_urls` cuando el usuario pida un link al panel.",
+        "Muestra los links como markdown `[texto](url)` para que sean clickeables.",
         "NUNCA respondas con paths desnudos tipo `/dashboard/products` — no son clickeables fuera del SPA.",
         "Las URLs son las MISMAS para todos los tenants. NO incluyas el slug en el path.",
-        "Si la tool falla (settings.public_base_url no configurado), avisale al usuario y sugerí Configuración → Branding.",
+        "Si la tool falla (settings.public_base_url no configurado), avísale al usuario y sugiere Configuración → Branding.",
     ],
 }
 
@@ -646,9 +646,9 @@ def render_short_summary() -> str:
     lines.append("  - NUNCA inventes nombres de secciones, toggles o flujos que no estén listados aquí.")
     lines.append("  - Para acciones de escritura (create_*, send_*), SIEMPRE muestra preview y pide confirmación explícita antes de ejecutar.")
     lines.append("  - El Marketing Studio SOLO genera texto. NO inventes que genera imágenes o videos.")
-    lines.append("  - Si el usuario pide 'escribime un post para X', prepará un MarketingRequest y sugerí al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
+    lines.append("  - Si el usuario pide 'escríbeme un post para X', prepara un MarketingRequest y sugiere al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
     lines.append("  - Cuando el Growth Coach devuelva un insight con `recommended_action`, el frontend DEBE llamar /preview antes que /execute. NUNCA ejecutes una acción de escritura sin el paso de preview + confirmación del usuario.")
     lines.append("  - El Automation Manager tiene 3 acciones MVP: create_promotion, create_booking, send_campaign. send_whatsapp_template está en roadmap.")
-    lines.append("  - LINKS DEL PANEL: SIEMPRE llamá a la tool `get_tenant_dashboard_urls` para devolver links ABSOLUTOS clickeables. NUNCA respondas con paths desnudos como `/dashboard/products` — fuera del SPA no son clickeables. Mostrá los links como markdown `[texto](url)`.")
-    lines.append("  - Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products). NO incluyas el slug del tenant en el path del panel — eso es solo para URLs públicas (usá `get_tenant_public_urls`).")
+    lines.append("  - LINKS DEL PANEL: SIEMPRE llama a la tool `get_tenant_dashboard_urls` para devolver links ABSOLUTOS clickeables. NUNCA respondas con paths desnudos como `/dashboard/products` — fuera del SPA no son clickeables. Muestra los links como markdown `[texto](url)`.")
+    lines.append("  - Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products). NO incluyas el slug del tenant en el path del panel — eso es solo para URLs públicas (usa `get_tenant_public_urls`).")
     return "\n".join(lines)
