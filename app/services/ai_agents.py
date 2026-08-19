@@ -199,8 +199,8 @@ GROWTH = SubAgent(
         "armar un combo con los 2 más vendidos.\n"
         "2. Crea una **promoción del 10%** en productos que no se venden hace más de 30 días "
         "desde [Promociones](https://wowhub.app/dashboard/promotions).\n"
-        "3. Escríbele un mensaje a clientes que no compran hace 60+ días desde "
-        "[Campañas](https://wowhub.app/dashboard/campaigns) con un cupón.\n\n"
+        "3. Escríbele un mensaje a clientes que no compran hace 60+ días: "
+        "dime el segmento y te lo envío yo mismo por email.\n\n"
         "Si me dices cuál quieres aplicar, en cuanto vuelva lo hago por ti."
     ),
 )
@@ -248,8 +248,8 @@ AUTOMATION = SubAgent(
         "[Clientes](https://wowhub.app/dashboard/customers) y sigue estos pasos:\n\n"
         "1. Filtra por \"última compra hace +60 días\".\n"
         "2. Pulsa **Enviar mensaje** y escribe el cupón de regreso.\n"
-        "3. Para envíos masivos por segmento, usa "
-        "[Campañas](https://wowhub.app/dashboard/campaigns).\n\n"
+        "3. Para envíos masivos por segmento, pídemelo: yo lo envío por email "
+        "al segmento que me indiques (te muestro el preview antes de mandar).\n\n"
         "Si me das los datos, en cuanto vuelva los envío por ti."
     ),
 )
@@ -385,7 +385,7 @@ HELP = SubAgent(
         "3. [Promociones](https://wowhub.app/dashboard/promotions) — descuentos y combos.\n"
         "4. [Clientes](https://wowhub.app/dashboard/customers) — base y segmentos.\n"
         "5. [Reservas](https://wowhub.app/dashboard/bookings) — agenda y nuevas reservas.\n"
-        "6. [Configuración](https://wowhub.app/dashboard/settings) — branding, slug, Mi cuenta.\n\n"
+        "6. [Sitio y branding](https://wowhub.app/dashboard/site) — logo, colores, slug y datos del negocio.\n\n"
         "Si me necesitas de vuelta, pregúntame de nuevo y te respondo con la información de WowHub."
     ),
 )

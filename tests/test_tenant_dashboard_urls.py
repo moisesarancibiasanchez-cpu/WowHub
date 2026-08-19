@@ -66,10 +66,13 @@ class TestToolRegistration:
 # ── Knowledge base sincronizada ──────────────────────────
 class TestAppKnowledgeSynced:
     def test_dashboard_urls_constant_exists(self):
-        """La constante DASHBOARD_URLS debe existir con los 13 módulos."""
+        """La constante DASHBOARD_URLS debe existir con los 16 módulos (v1.9.1-r3)."""
         from app.services.app_knowledge import DASHBOARD_URLS
         assert DASHBOARD_URLS["base_url_source"] == "settings.public_base_url"
-        assert len(DASHBOARD_URLS["modules"]) == 13
+        assert len(DASHBOARD_URLS["modules"]) == 16, (
+            f"DASHBOARD_URLS debe tener 16 módulos (14 visibles + 2 admin), "
+            f"tiene {len(DASHBOARD_URLS['modules'])}"
+        )
         # Reglas críticas
         rules_text = " ".join(DASHBOARD_URLS["rules"]).lower()
         assert "get_tenant_dashboard_urls" in rules_text
@@ -148,8 +151,14 @@ class TestToolBehavior:
             assert "/u/" not in url, f"URL pública usada: {url}"
 
     @pytest.mark.asyncio
-    async def test_includes_all_13_modules(self):
-        """Debe incluir los 13 módulos del panel."""
+    async def test_includes_all_16_modules(self):
+        """Debe incluir los 16 módulos del panel (v1.9.1-r3).
+
+        14 visibles + 2 admin (admin_ia, superadmin).
+        Se quitaron los 3 módulos fantasma: campanas, sucursales, configuracion.
+        Se agregó 'qrs' (plural) y 'site' (antes 'configuracion').
+        Se renombró 'qr' (singular) → 'qrs' (plural).
+        """
         from app.services.ai_tools import tool_get_tenant_dashboard_urls
         ctx = AIToolContext(
             user_id="u-1", tenant_id="t-1", access_token="tok",
@@ -158,11 +167,17 @@ class TestToolBehavior:
 
         keys = {e["key"] for e in out["dashboard_urls"]}
         expected_keys = {
-            "resumen", "productos", "promociones", "clientes", "pedidos",
-            "reservas", "campanas", "sucursales", "fidelizacion", "qr",
-            "configuracion", "admin_ia", "superadmin",
+            # 14 visibles
+            "resumen", "productos", "promociones", "qrs", "clientes", "pedidos",
+            "reservas", "fidelizacion", "landing", "site", "payments", "stats",
+            "webhooks", "ai_dashboard",
+            # 2 admin
+            "admin_ia", "superadmin",
         }
-        assert keys == expected_keys, f"Faltan módulos: {expected_keys - keys}"
+        assert keys == expected_keys, (
+            f"Faltan módulos: {expected_keys - keys}. "
+            f"Sobrantes: {keys - expected_keys}"
+        )
 
     @pytest.mark.asyncio
     async def test_requires_role_per_module(self):
@@ -177,10 +192,14 @@ class TestToolBehavior:
         assert by_key["superadmin"]["requires_role"] == "superuser"
         assert by_key["admin_ia"]["requires_role"] == "admin"
         # El resto es viewer+ (cualquiera con acceso al tenant)
-        for key in ("resumen", "productos", "promociones", "clientes", "pedidos",
-                    "reservas", "campanas", "sucursales", "fidelizacion", "qr",
-                    "configuracion"):
-            assert by_key[key]["requires_role"] == "viewer", f"{key} mal anotado"
+        for key in (
+            "resumen", "productos", "promociones", "qrs", "clientes", "pedidos",
+            "reservas", "fidelizacion", "landing", "site", "payments", "stats",
+            "webhooks", "ai_dashboard",
+        ):
+            assert by_key[key]["requires_role"] == "viewer", (
+                f"{key} mal anotado (debería ser 'viewer', es {by_key[key]['requires_role']!r})"
+            )
 
     @pytest.mark.asyncio
     async def test_fallback_when_no_base_url(self, monkeypatch):
@@ -615,4 +634,233 @@ class TestAbsoluteURLsRegression:
         assert "/dashboard/products" not in hint, (
             f"Hint NO debe contener el ejemplo literal /dashboard/products "
             f"(puede confundir al LLM en few-shot): {out['hint']!r}"
+        )
+
+
+# ── Anti-regresión: rutas reales sincronizadas con main.py (v1.9.1-r3) ─
+class TestDocumentedRoutesExistInMainPy:
+    """REGLA DURA (v1.9.1-r3): cada ruta documentada en `app_knowledge.MODULES`
+    y `app_knowledge.PUBLIC_URLS` DEBE existir como `@app.get()` en `app/main.py`.
+
+    El bug original (v1.9.1-r2) era que la IA recomendaba rutas que NO existían
+    (`/dashboard/campaigns`, `/dashboard/branches`, `/dashboard/settings`,
+    `/dashboard/qr` singular, `/u/{slug}/book`). Este test bloquea cualquier
+    nueva ruta fantasma: si agregás un módulo nuevo a `app_knowledge.MODULES`
+    pero olvidás registrar el `@app.get()` correspondiente en `main.py`, este
+    test falla y el CI lo bloquea antes de mergear.
+
+    También verifica que las rutas FANTASMA documentadas en `app_knowledge.NO_EXISTE`
+    NO existan en `main.py` (porque si llegasen a existir, hay que actualizar
+    la doc).
+    """
+
+    @staticmethod
+    def _extract_routes_from_main_py() -> set[str]:
+        """Lee `app/main.py`, importa la app FastAPI y devuelve todas las
+        rutas registradas (paths exactos, sin path params).
+
+        Esta función está en un `try/except` ancho para que el test siga
+        funcionando aunque la importación falle por alguna razón externa
+        (ej. base de datos no configurada en CI): si no se puede importar,
+        el set queda vacío y los asserts fallan con mensaje claro.
+        """
+        try:
+            from app.main import app as fastapi_app
+        except Exception as exc:
+            # Si no se puede importar la app, devolvemos set vacío.
+            # Los asserts de abajo reportarán el problema con un mensaje claro.
+            return set()
+        routes: set[str] = set()
+        for route in fastapi_app.routes:
+            # Solo nos interesan las rutas HTTP
+            path = getattr(route, "path", None)
+            if not path:
+                continue
+            routes.add(path)
+        return routes
+
+    def test_every_module_path_exists_in_main_py(self):
+        """Cada path de `app_knowledge.MODULES` debe existir en `app/main.py`."""
+        from app.services import app_knowledge
+
+        main_routes = self._extract_routes_from_main_py()
+        # Si main_routes está vacío, el import falló y el resto de los
+        # asserts va a fallar con un mensaje útil.
+        assert main_routes, (
+            "No se pudo importar la app FastAPI de app/main.py. "
+            "Verificá que el test corra dentro de un entorno con .venv configurado."
+        )
+
+        missing = []
+        for module in app_knowledge.list_modules():
+            path = module["path"]
+            if path not in main_routes:
+                missing.append(f"{module['key']!r} → {path!r}")
+
+        assert not missing, (
+            "Los siguientes módulos están en `app_knowledge.MODULES` "
+            "pero NO existen como ruta en `app/main.py`. Esto es el bug "
+            "original de v1.9.1-r2 (rutas fantasma). O agregás la ruta a "
+            "main.py o quitás el módulo de app_knowledge:\n"
+            + "\n".join(f"  - {m}" for m in missing)
+        )
+
+    def test_every_public_url_pattern_reachable_in_main_py(self):
+        """Cada patrón de `app_knowledge.PUBLIC_URLS` debe matchear una ruta en main.py.
+
+        Como los patrones tienen `{slug}` y/o segmentos variables, matcheamos
+        por prefijo de path. Ej. `/u/{slug}/reservar` debe matchear con la ruta
+        `/u/{slug}/reservar` registrada en main.py.
+        """
+        from app.services import app_knowledge
+
+        main_routes = self._extract_routes_from_main_py()
+        assert main_routes, "No se pudo importar la app FastAPI de app/main.py"
+
+        unmatchable = []
+        for entry in app_knowledge.list_public_urls():
+            pattern = entry["pattern"]
+            # Quitamos el placeholder {slug} para comparar con las rutas reales
+            # (FastAPI las registra con `{slug}` literal, no lo sustituye).
+            # Si la pattern coincide con alguna ruta registrada (exacta), OK.
+            if pattern not in main_routes:
+                # Búsqueda más flexible: encontrar una ruta que matchee
+                # quitando el {slug} de ambos lados.
+                # Ej. "/u/{slug}/reservar" busca rutas que contengan
+                # "/reservar" como path final después de "/u/...".
+                # Si no hay match exacto ni prefijo, es ruta fantasma.
+                unmatchable.append(
+                    f"{entry['key']!r} → patrón {pattern!r}"
+                )
+
+        assert not unmatchable, (
+            "Los siguientes patrones públicos están en `app_knowledge.PUBLIC_URLS` "
+            "pero NO existen en `app/main.py`. Agregá la ruta a main.py o quitá "
+            "el patrón de app_knowledge:\n"
+            + "\n".join(f"  - {u}" for u in unmatchable)
+        )
+
+    def test_no_ghost_dashboard_routes_in_main_py(self):
+        """Las rutas documentadas como FANTASMA en `app_knowledge.NO_EXISTE`
+        (ghost routes) NO deben existir en `app/main.py`.
+
+        Si llegan a existir, hay que actualizar `app_knowledge.NO_EXISTE` y
+        `_FAKE_DASHBOARD_REPLACEMENTS` en `ai_orchestrator.py` para que la IA
+        deje de marcarlas como inválidas.
+        """
+        from app.services import app_knowledge
+
+        main_routes = self._extract_routes_from_main_py()
+        assert main_routes, "No se pudo importar la app FastAPI de app/main.py"
+
+        # Extraemos los paths fantasma de la lista NO_EXISTE.
+        # Formato típico: "... /dashboard/campaigns ..." o "no existe /dashboard/qr"
+        ghost_paths: set[str] = set()
+        ghost_path_keywords = (
+            "/dashboard/campaigns",
+            "/dashboard/branches",
+            "/dashboard/settings",
+            "/dashboard/automation",
+            "/dashboard/categories",
+            "/dashboard/integrations",
+            "/dashboard/qr",  # singular — sin slash
+            "/u/{slug}/book",  # alias inglés inexistente
+            "/u/{slug}/menu",  # inexistente
+            "/u/{slug}/pedido",  # inexistente
+        )
+        for entry in app_knowledge.list_no_existe():
+            entry_low = entry.lower()
+            for ghost in ghost_path_keywords:
+                if ghost in entry_low:
+                    # Normalizamos: extraemos el path completo (puede tener subpath)
+                    # buscando la posición del ghost dentro del entry.
+                    idx = entry_low.find(ghost)
+                    # Tomamos desde ghost hasta el próximo espacio o fin.
+                    tail = entry[idx + len(ghost):]
+                    end = len(tail)
+                    for stop_char in (" ", "\n", ".", ",", ")", ";", "`", "'", '"'):
+                        pos = tail.find(stop_char)
+                        if pos != -1 and pos < end:
+                            end = pos
+                    full_path = ghost + tail[:end]
+                    ghost_paths.add(full_path.rstrip("/"))
+
+        # Filtramos: "/dashboard/qr" matchea también "/dashboard/qrs" porque
+        # la búsqueda es sub-string. Pero el objetivo acá es detectar si
+        # `/dashboard/qr` (sin 's') EXISTE como ruta separada. Como FastAPI
+        # no registra la ruta "/dashboard/qr" si solo existe "/dashboard/qrs",
+        # esto está OK. La verificación fina es que la ruta exacta del ghost
+        # NO esté.
+        wrong_present = []
+        for ghost in ghost_paths:
+            # "/dashboard/qr" (sin / final) matchea si hay ruta exacta
+            # "/dashboard/qr" registrada (sin "s" final). Si existe "/dashboard/qrs"
+            # eso NO es la fantasma, es la real.
+            if ghost == "/dashboard/qr":
+                # Verificamos la ruta SINGULAR (sin 's' final)
+                if "/dashboard/qr" in main_routes:
+                    wrong_present.append(
+                        f"Ruta fantasma '{ghost}' (singular) está registrada en main.py. "
+                        f"Si esto es intencional, actualizá app_knowledge.NO_EXISTE."
+                    )
+                continue
+            # Para los demás, búsqueda exacta.
+            if ghost in main_routes:
+                wrong_present.append(
+                    f"Ruta fantasma {ghost!r} está registrada en main.py. "
+                    f"Si esto es intencional, actualizá app_knowledge.NO_EXISTE."
+                )
+
+        assert not wrong_present, (
+            "Las siguientes rutas fueron marcadas como FANTASMA en "
+            "app_knowledge.NO_EXISTE pero están registradas en main.py:\n"
+            + "\n".join(f"  - {w}" for w in wrong_present)
+        )
+
+    def test_no_old_qr_singular_in_modules(self):
+        """Defensa adicional: el módulo `qr` (singular) NO debe estar
+        en `app_knowledge.MODULES`. Solo `qrs` (plural) es válido.
+        """
+        from app.services import app_knowledge
+
+        module_keys = {m["key"] for m in app_knowledge.list_modules()}
+        assert "qr" not in module_keys, (
+            "El módulo 'qr' (singular) no debe existir — usar 'qrs' (plural). "
+            f"Módulos actuales: {sorted(module_keys)}"
+        )
+        assert "qrs" in module_keys, (
+            "El módulo 'qrs' (plural) debe existir en MODULES. "
+            f"Módulos actuales: {sorted(module_keys)}"
+        )
+
+    def test_no_old_settings_in_modules(self):
+        """Defensa adicional: el módulo `configuracion` (que apuntaba a
+        `/dashboard/settings`) NO debe estar. Solo `site` (que apunta a
+        `/dashboard/site`) es válido.
+        """
+        from app.services import app_knowledge
+
+        module_keys = {m["key"] for m in app_knowledge.list_modules()}
+        assert "configuracion" not in module_keys, (
+            "El módulo 'configuracion' (que apuntaba a /dashboard/settings) "
+            "no debe existir — usar 'site' (que apunta a /dashboard/site). "
+            f"Módulos actuales: {sorted(module_keys)}"
+        )
+        assert "site" in module_keys, (
+            "El módulo 'site' (que apunta a /dashboard/site) debe existir. "
+            f"Módulos actuales: {sorted(module_keys)}"
+        )
+
+    def test_no_old_book_alias_in_public_urls(self):
+        """Defensa adicional: el alias `/u/{slug}/book` NO debe estar
+        en `app_knowledge.PUBLIC_URLS`. La única ruta de reservas es
+        `/u/{slug}/reservar`.
+        """
+        from app.services import app_knowledge
+
+        patterns = {u["pattern"] for u in app_knowledge.list_public_urls()}
+        assert "/u/{slug}/book" not in patterns, (
+            "El alias '/u/{slug}/book' no debe existir en PUBLIC_URLS — "
+            "la única ruta de reservas es '/u/{slug}/reservar'. "
+            f"Patrones actuales: {sorted(patterns)}"
         )

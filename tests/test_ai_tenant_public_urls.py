@@ -132,7 +132,14 @@ class TestToolBehavior:
         assert urls_by_key["landing"] == f"{expected_base}/u/cafeluna"
         assert urls_by_key["catalogo"] == f"{expected_base}/u/cafeluna/catalogo"
         assert urls_by_key["reservar"] == f"{expected_base}/u/cafeluna/reservar"
-        assert urls_by_key["reservar_alias"] == f"{expected_base}/u/cafeluna/book"
+        # v1.9.1-r3: el alias `/u/{slug}/book` fue ELIMINADO porque esa ruta
+        # NO existe en app/main.py. La única ruta de reservas es `/u/{slug}/reservar`.
+        assert "reservar_alias" not in urls_by_key, (
+            "El alias 'reservar_alias' (/u/{slug}/book) no debe existir — "
+            "esa ruta NO está en main.py y confundiría al usuario."
+        )
+        # Y se agregó la URL pública de loyalty (v1.9.1-r3)
+        assert urls_by_key.get("loyalty") == f"{expected_base}/loyalty/cafeluna"
 
     @pytest.mark.asyncio
     async def test_returns_patterns_when_no_slug(self, monkeypatch):

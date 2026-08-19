@@ -548,6 +548,15 @@ class AIOrchestrator:
                 assistant_content, tool_results_for_llm if tool_calls else None,
             )
 
+        # 7.7) Post-procesador anti-rutas-fantasma (v1.9.1-r3): si el LLM
+        # emite URLs con paths que NO existen en app/main.py (ej.
+        # /dashboard/settings, /dashboard/qr singular, /dashboard/campaigns)
+        # o URLs con slugs placeholder hardcodeados (ej. tu-negocio, mi-empresa),
+        # las corregimos automáticamente. Esta capa cierra los huecos que
+        # `_scrub_slug_placeholders` no cubre.
+        if assistant_content:
+            assistant_content = self._scrub_fake_routes(assistant_content)
+
         # 8) Persistir respuesta del assistant
         asst_msg = save_message(
             self.db,
@@ -789,6 +798,77 @@ class AIOrchestrator:
 
         return text
 
+    def _scrub_fake_routes(self, text: str) -> str:
+        """Anti-fake-URL v1.9.1-r3: corrige URLs con rutas o slugs falsos.
+
+        Cubre los huecos que `_scrub_slug_placeholders` no cubre:
+        1) URLs con host válido pero slug placeholder hardcodeado
+           (ej. `wowhub.app/u/tu-negocio/reservar`).
+        2) `/u/{TUSLUG}/...` con el placeholder en MAYÚSCULAS.
+        3) URLs del panel con rutas que NO existen en `app/main.py`
+           (ej. `/dashboard/settings` → auto-corrige a `/dashboard/site`;
+           `/dashboard/qr` → auto-corrige a `/dashboard/qrs`).
+        4) URLs del panel con rutas que NO tienen vista (solo API,
+           ej. `/dashboard/campaigns`): las marca con un sufijo para que
+           el usuario sepa que debe usar la tool correspondiente, no la URL.
+
+        Esta función es SÍNCRONA (no llama a tools ni a la DB) y es
+        baratura: corre 3 regexes y reemplaza. Se ejecuta DESPUÉS de
+        `_scrub_slug_placeholders` como segunda red de seguridad.
+        """
+        if not text:
+            return text
+
+        # 1) /u/{TUSLUG}/... en MAYÚSCULAS → mensaje neutro
+        text = _FAKE_PUBLIC_UPPERCASE_RE.sub(
+            "[URL pública con tu slug real — pregúntame y te la paso]", text,
+        )
+
+        # 2) Host válido + slug placeholder hardcodeado (tu-, mi-, my-)
+        #    → mensaje neutro (mejor que entregar una URL falsa)
+        text = _FAKE_PUBLIC_HOST_RE.sub(
+            "[URL pública con tu slug real — pregúntame y te la paso]", text,
+        )
+
+        # 3) Rutas del panel que NO existen en main.py
+        def _panel_repl(m: re.Match) -> str:
+            bad_path = m.group("bad")
+            # Auto-corregir si tenemos replacement. Usamos prefix-match
+            # (no exact match) porque el LLM puede emitir
+            # `/dashboard/qr/abc` y queremos auto-corregirlo a
+            # `/dashboard/qrs/abc` (preservando el subpath).
+            matched_prefix: Optional[str] = None
+            for fake_prefix in _FAKE_DASHBOARD_REPLACEMENTS:
+                if bad_path == fake_prefix or bad_path.startswith(fake_prefix + "/"):
+                    matched_prefix = fake_prefix
+                    break
+            if matched_prefix is not None:
+                real = _FAKE_DASHBOARD_REPLACEMENTS[matched_prefix]
+                # Reemplazar SOLO el prefijo, preservando el subpath
+                # (ej. `/dashboard/qr/abc` → `/dashboard/qrs/abc`).
+                tail = bad_path[len(matched_prefix):]
+                return m.group(0).replace(bad_path, real + tail)
+            # Si no hay replacement, marcar y dar pista
+            hint_map = {
+                "/dashboard/campaigns":
+                    " (no tiene vista — usa la tool send_campaign)",
+                "/dashboard/branches":
+                    " (no tiene vista — se ve en get_tenant_info)",
+                "/dashboard/automation":
+                    " (no tiene vista — usa POST /api/v1/automation/preview)",
+                "/dashboard/categories":
+                    " (no tiene vista — se gestiona dentro de Productos)",
+                "/dashboard/integrations":
+                    " (no tiene vista — está en roadmap)",
+            }
+            for prefix, hint in hint_map.items():
+                if bad_path == prefix or bad_path.startswith(prefix + "/"):
+                    return f"[ruta no disponible{hint}]"
+            return m.group(0)
+
+        text = _FAKE_DASHBOARD_PATH_RE.sub(_panel_repl, text)
+        return text
+
 
 def _safe_json(s: str) -> dict[str, Any]:
     try:
@@ -907,3 +987,48 @@ _SLUG_PAREN_INSTRUCTION_RE = re.compile(
     r"[^()]*\{slug\}[^()]*\)",
     re.IGNORECASE,
 )
+
+
+# ── Anti-fake-URL (v1.9.1-r3): placeholders NO-canónicos + rutas fantasma ──
+# El LLM puede alucinar variantes NO cubiertas por las regexes de arriba.
+# Esta capa adicional detecta:
+#
+# 1) `_FAKE_PUBLIC_HOST_RE` → URL pública con un slug que NO es placeholder
+#    (no tiene `{slug}` ni `<slug>`) pero igual es falso: empieza con
+#    "tu-", "mi-", "my-" o es un slug plausible inventado. Cuando se detecta,
+#    lo tratamos como un placeholder más: la tool pública lo reemplaza con
+#    el slug real.
+#
+# 2) `_FAKE_PUBLIC_UPPERCASE_RE` → /u/{TUSLUG}/... con el placeholder
+#    en mayúsculas. Es el mismo bug que `_SLUG_LITERAL_RE` pero en upper.
+#
+# 3) `_FAKE_DASHBOARD_PATH_RE` → rutas del panel que NO existen en main.py
+#    (settings, qr singular, campaigns, branches, automation, categories,
+#    integrations). Si el LLM las emite, se reemplazan por la ruta real
+#    o por un mensaje "esa ruta no existe, usa la correcta".
+_FAKE_PUBLIC_HOST_RE = re.compile(
+    r"(?P<host>wowhub\.app|localhost|127\.0\.0\.1|wowhub-api-production\.up\.railway\.app)"
+    r"/u/(?P<slug>tu-[a-záéíóúñ-]+|mi-[a-záéíóúñ-]+|"
+    r"my-[a-z-]+|your-[a-z-]+|example|test-[a-z-]+|sample[_-][a-z-]+)",
+    re.IGNORECASE,
+)
+_FAKE_PUBLIC_UPPERCASE_RE = re.compile(
+    r"/u/\{[A-Z]+\}(?:/(?:reservar|book|catalogo|menu|pedido))?",
+)
+# Rutas del panel que NO existen en app/main.py (v1.9.1-r3 — sincronizado
+# con app_knowledge.NO_EXISTE). El LLM las emite siguiendo la doc vieja.
+_FAKE_DASHBOARD_PATH_RE = re.compile(
+    r"https?://[^\s)>\]]*"
+    r"(?P<bad>/dashboard/(?:settings|qr|campaigns|branches|automation|categories|integrations)"
+    r"(?:/[^\s)>\]]*)?)",
+    re.IGNORECASE,
+)
+# Mapa de ruta falsa → ruta real correcta (para auto-corregir cuando podemos).
+_FAKE_DASHBOARD_REPLACEMENTS: dict[str, str] = {
+    "/dashboard/settings": "/dashboard/site",
+    "/dashboard/qr": "/dashboard/qrs",
+    # /dashboard/campaigns, /dashboard/branches, /dashboard/automation,
+    # /dashboard/categories, /dashboard/integrations NO tienen vista
+    # (solo API) → no las auto-reemplazamos; las marcamos para que el
+    # usuario use la tool correspondiente.
+}

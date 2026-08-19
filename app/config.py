@@ -27,7 +27,26 @@ class Settings(BaseSettings):
     # Este valor se usa para armar las URLs ABSOLUTAS que devuelve la tool
     # `get_tenant_dashboard_urls` y `get_tenant_public_urls`. Si está vacío,
     # la tool devuelve paths relativos + warning (modo defensivo).
+    #
+    # v1.9.1-r3: si está vacío en runtime (no seteado en .env ni en Railway),
+    # se hace fallback automático a `base_url` (útil para dev local: si dejás
+    # el default de `base_url=http://localhost:8000` y no tocás nada, la IA
+    # sugiere links `http://localhost:8000/dashboard/products` en vez del
+    # `https://wowhub.app` que rompería en dev). El método `effective_public_base_url`
+    # es la propiedad canónica que las tools deben usar.
     public_base_url: str = "https://wowhub.app"
+
+    @property
+    def effective_public_base_url(self) -> str:
+        """Devuelve `public_base_url` si está seteado, si no `base_url`.
+
+        Esto evita que en dev local (donde nadie setea PUBLIC_BASE_URL en .env)
+        la IA recomiende links `https://wowhub.app/...` que NO funcionan
+        en localhost. Si en producción tampoco se setea, el default
+        `https://wowhub.app` aplica igual (porque `public_base_url` ya tiene
+        ese default, no queda vacío).
+        """
+        return (self.public_base_url or "").strip() or self.base_url
 
     # DB
     database_url: str = "sqlite:///./wowhub.db"

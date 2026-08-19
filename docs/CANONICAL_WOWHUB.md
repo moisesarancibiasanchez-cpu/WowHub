@@ -3,8 +3,10 @@
 > **Propósito:** Este documento es la **única fuente de verdad** que el asistente IA de WowHub debe usar para responder preguntas sobre la plataforma (módulos, rutas, activación, URLs, FAQ). Cualquier nueva sección de WowHub que se agregue al producto debe reflejarse aquí.
 >
 > **Mantenedor:** Equipo WowHub.
-> **Última actualización:** 19 de agosto de 2026.
-> **Versión:** v1.9.1 (micro-release sobre v1.9: nueva tool `get_tenant_dashboard_urls` que devuelve los links del panel con URL absoluta clickeable. Cambia solo UX — sin cambios de schema ni de endpoints).
+> **Última actualización:** 20 de agosto de 2026.
+> **Versión:** v1.9.1-r3 (micro-release correctiva sobre v1.9.1-r2: corrige rutas fantasma de la tabla §2 que NO existen en `app/main.py`. Las únicas rutas válidas son las que este documento lista explícitamente. Cambia solo documentación + sistema anti-alucinación de la IA — sin cambios de schema ni de endpoints).
+> v1.9.1-r2 (nueva regla "URL absolutas, paths desnudos prohibidos" + system-prompt reinforcement + post-procesador `_scrub_slug_placeholders` que reemplaza `{slug}` por el slug real del tenant).
+> v1.9.1 (micro-release sobre v1.9: nueva tool `get_tenant_dashboard_urls` que devuelve los links del panel con URL absoluta clickeable. Cambia solo UX — sin cambios de schema ni de endpoints).
 > v1.9 (nuevo módulo **Automation Manager** `POST /api/v1/automation/preview` y `POST /api/v1/automation/execute`: orquesta las `recommended_actions` que devuelve el Growth Coach — `create_promotion`, `create_booking`, `send_campaign` — con preview obligatorio, audit log persistente y rate limit propio).
 
 ---
@@ -17,6 +19,8 @@
 
 ## 2. Módulos del dashboard (panel del dueño)
 
+> **v1.9.1-r3:** Las rutas de esta tabla son la **única fuente de verdad** — sincronizadas con `app/main.py`. Rutas fantasmas (`/dashboard/campaigns`, `/dashboard/branches`, `/dashboard/qr` singular, `/dashboard/settings`) ya **no existen** y la IA NO debe mencionarlas. Si el dueño las pide, redirigir a la ruta real correcta.
+
 Todos los módulos se acceden desde el menú lateral del dashboard (`/dashboard`). El dueño llega con sesión iniciada y el tenant resuelto en el topbar.
 
 | Módulo | Ruta interna | Descripción corta | ¿Requiere activación? | Tool IA |
@@ -24,14 +28,17 @@ Todos los módulos se acceden desde el menú lateral del dashboard (`/dashboard`
 | **Resumen** | `/dashboard` | KPIs, ventas, productos top, agenda de hoy. | No | `get_stats_overview` |
 | **Productos** | `/dashboard/products` | Catálogo, stock, precios, categorías, imágenes. | No | `list_products` |
 | **Promociones** | `/dashboard/promotions` | Motor de descuentos, combos, campañas activas. | No | `list_promotions`, `create_promotion` |
+| **QRs** | `/dashboard/qrs` | Códigos QR para tienda física (plural). | No | (no expuesta aún) |
 | **Clientes** | `/dashboard/customers` | Base de clientes, tags, puntos de fidelización. | No | `list_customers` |
 | **Pedidos / Ventas** | `/dashboard/orders` | Órdenes, estados, ticket promedio. | No | (vía stats) |
 | **Reservas** | `/dashboard/bookings` | Agenda, KPIs, filtros, modal nueva reserva. | No | `list_bookings`, `create_booking`, `check_availability` |
-| **Campañas** | `/dashboard/campaigns` | Segmentos y envíos de email masivo. | No | `send_campaign`, `get_customer_segments` |
-| **Sucursales** | `/dashboard/branches` | Sedes, horarios (`hours` JSON), ubicación. | No | (vía tenant info) |
 | **Fidelización** | `/dashboard/loyalty` | Programas de puntos y sellos. | No | (no expuesta aún) |
-| **QR** | `/dashboard/qr` | Códigos QR para tienda física. | No | (no expuesta aún) |
-| **Configuración** | `/dashboard/settings` | Datos del tenant, branding, integraciones, Mi cuenta. | No | `get_tenant_info` |
+| **Landing** | `/dashboard/landing` | Editor de la landing pública del tenant. | No | (no expuesta aún) |
+| **Sitio y branding** | `/dashboard/site` | Datos del tenant, logo, colores, slug, Mi cuenta. (Antes mal llamado "Configuración" con ruta `/dashboard/settings`) | No | `get_tenant_info` |
+| **Pagos** | `/dashboard/payments` | Configuración de MercadoPago y métodos de pago. | No | (vía tenant info) |
+| **Estadísticas** | `/dashboard/stats` | Reportes detallados y embudos de conversión. | No | `get_stats_overview` |
+| **Webhooks** | `/dashboard/webhooks` | Endpoints de webhook y reintentos. | No | (no expuesta aún) |
+| **Asistente IA** | `/dashboard/ai` | Configuración del asistente IA del tenant. | No | (n/a, es la IA misma) |
 | **Admin IA** | `/admin/ai` | Métricas, logs, trazas, circuit breaker. (Solo OWNER/ADMIN) | No | (n/a, es la IA misma) |
 | **SUPERADMIN** | `/admin/superadmin` | Panel de plataforma: KPIs globales, gestión de tiendas, usuarios, auditoría. (Solo `is_superuser=True`) | No | (n/a, panel de plataforma) |
 
@@ -58,10 +65,12 @@ Estas son las URLs que el dueño comparte con sus clientes:
 | Landing del negocio | `https://{dominio}/u/{slug}` | Página pública del tenant. `{slug}` es el identificador (ej. `barberia-juan`). |
 | Catálogo público | `https://{dominio}/u/{slug}/catalogo` | Productos visibles sin login. |
 | Reservar (cliente) | `https://{dominio}/u/{slug}/reservar` | Flujo público de reservas: branch → fecha/hora → datos. |
-| Reservar (alias inglés) | `https://{dominio}/u/{slug}/book` | Alias equivalente a `/reservar`. |
 | Cancelar reserva | (enlace del email con token opaco) | No hay URL "fija"; cada reserva genera un link único con `cancel_token`. |
+| Loyalty (puntos/sellos) | `https://{dominio}/loyalty/{slug}` | Portal público para que el cliente vea sus puntos y sellos. |
 
-> **Error común a corregir:** si la IA dice "la URL pública es `/book/{slug}`" o similar, está mal. El patrón correcto es `/u/{slug}/book` o `/u/{slug}/reservar`.
+> **v1.9.1-r3 — Error común a corregir:**
+> 1. Si la IA dice "la URL pública es `/u/{slug}/book`" o `/u/{slug}/menu` o `/u/{slug}/pedido` → está mal. La **única** ruta pública de reservas es `/u/{slug}/reservar`. No existe alias en inglés.
+> 2. Si la IA dice "la URL es `{slug}.wowhub.app`" → está mal. WowHub **no usa subdominios por tenant**: usa paths (`/u/{slug}`) sobre el dominio único (`wowhub.app` o el custom del tenant).
 
 ---
 
@@ -73,7 +82,7 @@ Estas son las URLs que el dueño comparte con sus clientes:
 | Registro | `POST /api/v1/auth/register` |
 | Refrescar token | `POST /api/v1/auth/refresh` |
 | Cambiar contraseña | `POST /api/v1/auth/password` (desde Mi cuenta) |
-| Mi cuenta | `/dashboard/settings` → sección "Mi cuenta" |
+| Mi cuenta | `/dashboard/site` → sección "Mi cuenta" |
 | Cerrar sesión | `POST /api/v1/auth/logout` (limpia JWT) |
 | Recuperar contraseña | `POST /api/v1/auth/password/reset` (envía email con token) |
 
@@ -214,7 +223,7 @@ Si la IA no está segura, debe decir **"no tengo esa información"** antes que i
 - ❌ No hay "Multi-idioma" todavía.
 - ❌ No hay "Borrar tenant" desde el chat.
 - ❌ No hay un "Asistente Premium" definido en planes — la IA es la misma para todos.
-- ❌ No hay una URL pública de reservas distinta de `/u/{slug}/reservar` o `/u/{slug}/book`.
+- ❌ No hay una URL pública de reservas distinta de `/u/{slug}/reservar` (no existe alias `/u/{slug}/book`).
 - ❌ **No** existe un botón "Login As" o "Entrar como admin" visible para usuarios normales; la función de impersonación es exclusiva del superuser y solo se muestra dentro de `/admin/superadmin`.
 - ❌ El **Growth Coach NO ejecuta acciones** sobre el negocio: solo ANALIZA datos y devuelve insights con `recommended_actions` y `linked_module`. La ejecución de las acciones (ej. "Crear promo 2x1", "Enviar WhatsApp a inactivos") la hace el usuario o el Automation Manager (roadmap).
 - ❌ El **Growth Coach NO se agenda automáticamente** ni se ejecuta periódicamente. Es un endpoint on-demand: el usuario lo llama desde el panel o lo pide al chat.
@@ -674,7 +683,7 @@ Si la pregunta del usuario es ambigua o falta contexto, la IA debe:
 | Activar módulos | **No requerido** | Todos los usuarios autorizados | — | "No requiere activación." |
 | Reservas | ✅ Disponible | Según rol/tenant | `/dashboard/bookings` | "Reservas no requiere activación..." |
 | Promociones | ✅ Disponible | OWNER/ADMIN | `/dashboard/promotions` | "Puedo crearla por ti..." |
-| Campañas email | ✅ Disponible | OWNER/ADMIN | `/dashboard/campaigns` | "Sí, con preview antes de enviar." |
+| Campañas email | ✅ Disponible | OWNER/ADMIN | (no tiene vista — usa la tool `send_campaign`) | "Sí, con preview antes de enviar." |
 | WhatsApp Business | 🛣️ Roadmap | Nadie actualmente | — | "Está planificado, pero aún no disponible." |
 | Exportar CSV | ✅ Disponible | Según permisos | Panel (varios módulos) | "Puedes exportar CSV desde..." |
 | Exportar Excel nativo | ❌ No disponible | Nadie | — | "No está disponible actualmente." |
@@ -894,7 +903,7 @@ Es el primer caso de uso del motor de IA como producto (recomendación #1 del an
 Si el LLM falla (circuit abierto, timeout, JSON inválido, rate limit del provider), el endpoint **NO devuelve error** — usa **templates pre-armados** indexados por `intent × tone` y devuelve `fallback: true`. El `model` queda en `null` y `tokens_*` en `null`. Esto garantiza que la UI nunca rompa: el usuario siempre recibe copy utilizable.
 
 Templates incluidos (no exhaustivo):
-- `instagram_post` × `friendly` → "¡{topic}! Vení a disfrutar en {business_name}…"
+- `instagram_post` × `friendly` → "¡{topic}! Ven a disfrutar en {business_name}…"
 - `whatsapp_broadcast` × `urgent` → "¡{topic}! Oferta por tiempo limitado en {business_name}…"
 - `email_subject` × `professional` → "{topic} — {business_name}"
 - `sms` × `friendly` → "¡{topic}! {cta or 'Más info'}: {public_url or ''}" (≤160 chars)
@@ -1221,10 +1230,12 @@ get_tenant_dashboard_urls(ctx: AIToolContext) → dict
 | Aspecto | `get_tenant_public_urls` | `get_tenant_dashboard_urls` |
 |---|---|---|
 | URLs | Públicas (landing, /reservar, /catalogo) | Panel autenticado (/dashboard/*) |
-| Prefijo | `https://{slug}.wowhub.app` (con subdominio) | `https://wowhub.app` (mismo para todos) |
-| Requiere slug | Sí (sustituye `{slug}`) | No (mismas rutas para todos) |
+| **Prefijo** | `https://wowhub.app/u/{slug}` (**path-based**, no subdominio) | `https://wowhub.app/dashboard/*` (mismo para todos) |
+| Requiere slug | Sí (sustituye `{slug}` en el path) | No (mismas rutas para todos) |
 | Contexto | Multi-tenant (cada tienda la suya) | Single-tenant (sesión resuelve) |
 | Uso típico | "Pásame mi link para compartir" | "Cómo abro el panel de productos" |
+
+> **v1.9.1-r3 — corrección crítica:** WowHub **NO usa subdominios** por tenant (no existe `{slug}.wowhub.app`). El formato correcto es **path-based**: `https://wowhub.app/u/{slug}/...`. Esto aplica a TODAS las URLs públicas (landing, catálogo, reservar, loyalty). La tabla de arriba ya refleja el formato correcto. Si el AI Core o cualquier documento muestra `https://barberia-juan.wowhub.app/...` es un error — corregir de inmediato.
 
 ### 21.4 Reglas críticas (anti-alucinación)
 
@@ -1238,10 +1249,10 @@ get_tenant_dashboard_urls(ctx: AIToolContext) → dict
 ### 21.5 Ejemplo de respuesta correcta
 
 **Antes (v1.9):**
-> Tu cuenta está vacía. Cargá productos en `/dashboard/products` para empezar.
+> Tu cuenta está vacía. Carga productos en `/dashboard/products` para empezar.
 
 **Después (v1.9.1):**
-> Tu cuenta está vacía. Cargá productos en **[Abrir Productos](https://wowhub.app/dashboard/products)** para empezar.
+> Tu cuenta está vacía. Carga productos en **[Abrir Productos](https://wowhub.app/dashboard/products)** para empezar.
 
 ### 21.6 Implementación
 
@@ -1269,8 +1280,8 @@ Esta sección es la fuente de verdad de qué es y qué NO es una URL válida en 
 
 | Tipo | Tool a invocar | Ejemplo real | Notas |
 |---|---|---|---|
-| **Panel autenticado** (Productos, Promociones, Reservas, Admin IA, Configuración, SUPERADMIN) | `get_tenant_dashboard_urls` | `https://wowhub.app/dashboard/products` | Misma URL para todos los tenants. El contexto multi-tenant lo da la sesión/JWT. |
-| **URL pública del tenant** (landing, catálogo, reservar, book) | `get_tenant_public_urls` | `https://wowhub.app/u/cafeluna/reservar` | El slug sale del backend, NUNCA se escribe a mano. |
+| **Panel autenticado** (Productos, Promociones, QRs, Reservas, Sitio y branding, Admin IA, SUPERADMIN) | `get_tenant_dashboard_urls` | `https://wowhub.app/dashboard/products` | Misma URL para todos los tenants. El contexto multi-tenant lo da la sesión/JWT. |
+| **URL pública del tenant** (landing, catálogo, reservar, loyalty) | `get_tenant_public_urls` | `https://wowhub.app/u/cafeluna/reservar` | El slug sale del backend, NUNCA se escribe a mano. La única ruta pública de reservas es `/u/{slug}/reservar` (no existe `/u/{slug}/book`). |
 
 ### 22.2 Formato de respuesta obligatorio
 
@@ -1302,7 +1313,7 @@ Cuando el usuario pida un link, una URL, un paso a paso con navegación, o quier
 1. **Identificar el tipo de URL** (panel vs pública) consultando la sección 22.1.
 2. **Llamar la tool correspondiente** (NO improvisar).
 3. **Mostrar el resultado como markdown** `[Texto](https://...)`.
-4. **Si la tool falla o el tenant no tiene slug**, decir: "Ahora no puedo obtener tu link; ve a Configuración → Branding para definir tu slug" o "Ahora no puedo armar el link del panel; revisa tu sesión". **NO inventar**.
+4. **Si la tool falla o el tenant no tiene slug**, decir: "Ahora no puedo obtener tu link; ve a Sitio y branding para definir tu slug" (o "Ahora no puedo armar el link del panel; revisa tu sesión"). **NO inventar**.
 
 ### 22.5 Ejemplo de respuesta correcta vs incorrecta
 

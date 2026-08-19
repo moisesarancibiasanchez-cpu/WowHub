@@ -63,22 +63,6 @@ MODULES: list[dict[str, Any]] = [
         "ai_tools": ["list_bookings", "check_availability", "create_booking"],
     },
     {
-        "key": "campanas",
-        "label": "Campañas",
-        "path": "/dashboard/campaigns",
-        "description": "Segmentos y envíos de email masivo.",
-        "requires_activation": False,
-        "ai_tools": ["send_campaign", "get_customer_segments"],
-    },
-    {
-        "key": "sucursales",
-        "label": "Sucursales",
-        "path": "/dashboard/branches",
-        "description": "Sedes, horarios (hours JSON), ubicación.",
-        "requires_activation": False,
-        "ai_tools": ["get_tenant_info"],
-    },
-    {
         "key": "fidelizacion",
         "label": "Fidelización",
         "path": "/dashboard/loyalty",
@@ -87,20 +71,60 @@ MODULES: list[dict[str, Any]] = [
         "ai_tools": [],
     },
     {
-        "key": "qr",
-        "label": "QR",
-        "path": "/dashboard/qr",
-        "description": "Códigos QR para tienda física.",
+        "key": "qrs",
+        "label": "QRs",
+        "path": "/dashboard/qrs",
+        "description": "Códigos QR para tienda física, mesas, productos.",
         "requires_activation": False,
         "ai_tools": [],
     },
     {
-        "key": "configuracion",
-        "label": "Configuración",
-        "path": "/dashboard/settings",
-        "description": "Datos del tenant, branding, integraciones, Mi cuenta.",
+        "key": "site",
+        "label": "Sitio y branding",
+        "path": "/dashboard/site",
+        "description": "Branding del sitio: logo, colores, nombre, slug, datos del negocio.",
         "requires_activation": False,
         "ai_tools": ["get_tenant_info"],
+    },
+    {
+        "key": "landing",
+        "label": "Landing del negocio",
+        "path": "/dashboard/landing",
+        "description": "Editor de la landing pública del tenant (colores, contacto, redes).",
+        "requires_activation": False,
+        "ai_tools": ["get_tenant_info"],
+    },
+    {
+        "key": "payments",
+        "label": "Pagos",
+        "path": "/dashboard/payments",
+        "description": "Estado de pagos, mock provider, integraciones.",
+        "requires_activation": False,
+        "ai_tools": [],
+    },
+    {
+        "key": "stats",
+        "label": "Estadísticas",
+        "path": "/dashboard/stats",
+        "description": "KPIs, tendencias, comparativas.",
+        "requires_activation": False,
+        "ai_tools": ["get_stats_overview"],
+    },
+    {
+        "key": "webhooks",
+        "label": "Webhooks",
+        "path": "/dashboard/webhooks",
+        "description": "Configuración de webhooks salientes.",
+        "requires_activation": False,
+        "ai_tools": [],
+    },
+    {
+        "key": "ai_dashboard",
+        "label": "Asistente IA (vista usuario)",
+        "path": "/dashboard/ai",
+        "description": "Asistente IA en contexto del dashboard (cualquier rol).",
+        "requires_activation": False,
+        "ai_tools": [],
     },
     {
         "key": "admin_ia",
@@ -139,9 +163,9 @@ PUBLIC_URLS: list[dict[str, str]] = [
         "description": "Flujo público de reservas: branch → fecha/hora → datos.",
     },
     {
-        "key": "reservar_alias",
-        "pattern": "/u/{slug}/book",
-        "description": "Alias en inglés de /reservar.",
+        "key": "loyalty",
+        "pattern": "/loyalty/{slug}",
+        "description": "Página pública de fidelización del tenant (cliente final).",
     },
 ]
 
@@ -173,11 +197,12 @@ FAQ: dict[str, str] = {
         "Ve directo a /dashboard/bookings desde el menú lateral."
     ),
     "qué módulos hay": (
-        "WowHub tiene 13 módulos en el panel: Resumen, Productos, Promociones, "
-        "Clientes, Pedidos, Reservas, Campañas, Sucursales, Fidelización, QR, "
-        "Configuración, Admin IA y SUPERADMIN. Los 12 primeros están disponibles sin activación. "
-        "SUPERADMIN es exclusivo para usuarios con `is_superuser=True` y no se muestra en el sidebar "
-        "de los demás usuarios."
+        "WowHub tiene 14 módulos visibles en el panel del dueño: Resumen, Productos, "
+        "Promociones, QRs, Clientes, Pedidos, Reservas, Fidelización, "
+        "Landing del negocio, Sitio y branding, Pagos, Estadísticas, Webhooks, "
+        "Asistente IA. Los 14 módulos visibles están disponibles para todos los tenants sin activación. "
+        "Admin IA (en /admin/ai) y SUPERADMIN (en /admin/superadmin) son paneles "
+        "con guard de rol: el primero requiere OWNER/ADMIN, el segundo `is_superuser=True`."
     ),
     # ── Automation Manager (Cap. 19.3) — FAQ ──
     "qué es el automation manager": (
@@ -400,6 +425,35 @@ NO_EXISTE: list[str] = [
     "(URL pública del tenant, slug real sustituido, prefijo "
     "settings.public_base_url + /u/{slug_real}/). Cada una resuelve un "
     "caso distinto. Usar la tool equivocada produce URLs falsas.",
+    # ── Anti-rutas-fantasma (v1.9.1-r3) — rutas que NO existen en main.py ──
+    "La ruta `/dashboard/settings` NO EXISTE. La configuración del tenant "
+    "(branding, logo, datos del negocio) está en `/dashboard/site` "
+    "y la landing personalizable está en `/dashboard/landing`.",
+    "La ruta `/dashboard/qr` (singular) NO EXISTE. La ruta real es "
+    "`/dashboard/qrs` (plural). NUNCA uses el singular en una URL.",
+    "La ruta `/dashboard/campaigns` NO EXISTE como vista HTML. El envío "
+    "masivo de campañas se hace vía la tool `send_campaign` (Automation "
+    "Manager) llamando a la API, NO desde una pantalla del panel. "
+    "Para enviar emails a un cliente puntual, usa `send_email_to_customer`.",
+    "La ruta `/dashboard/branches` NO EXISTE. Las sucursales se gestionan "
+    "vía API (POST /api/v1/branches) y se consultan en la respuesta de "
+    "`get_tenant_info` (campo `branches`).",
+    "La ruta `/dashboard/automation` NO EXISTE como vista. El Automation "
+    "Manager se invoca solo vía API (POST /api/v1/automation/preview y "
+    "/execute), no tiene pantalla dedicada.",
+    "La ruta `/dashboard/categories` NO EXISTE. Las categorías se gestionan "
+    "dentro de Productos (no tienen pantalla propia).",
+    "La ruta `/dashboard/integrations` NO EXISTE. Las integraciones "
+    "(WhatsApp, Stripe, MercadoPago) están en roadmap y se configuran "
+    "por API o por variables de entorno.",
+    "La URL pública `/u/{slug}/book` NO EXISTE. La URL real para que los "
+    "clientes agenden es `/u/{slug}/reservar`. NO ofrezcas el alias en "
+    "inglés porque dirige a un 404.",
+    "La URL pública `/u/{slug}/menu` NO EXISTE. El catálogo público es "
+    "`/u/{slug}/catalogo`.",
+    "La URL pública `/u/{slug}/pedido` NO EXISTE. No hay vista de pedido "
+    "para clientes externos; el flujo de pedido se hace desde el panel "
+    "o vía API.",
 ]
 
 
@@ -574,9 +628,9 @@ DASHBOARD_URLS: dict[str, Any] = {
     "modules": [
         # Se genera dinámicamente desde MODULES para no duplicar.
         # Esta lista es solo DOCUMENTATIVA (qué módulos están disponibles).
-        "resumen", "productos", "promociones", "clientes", "pedidos",
-        "reservas", "campanas", "sucursales", "fidelizacion", "qr",
-        "configuracion", "admin_ia", "superadmin",
+        "resumen", "productos", "promociones", "qrs", "clientes", "pedidos",
+        "reservas", "fidelizacion", "landing", "site", "payments", "stats",
+        "webhooks", "ai_dashboard", "admin_ia", "superadmin",
     ],
     "rules": [
         "SIEMPRE llama a `get_tenant_dashboard_urls` cuando el usuario pida un link al panel.",
