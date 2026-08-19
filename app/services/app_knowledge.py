@@ -210,6 +210,36 @@ FAQ: dict[str, str] = {
         "del tenant. Filtros: `action_type`, `status`. El listado NO expone "
         "`params` (privacidad); el superadmin puede verlos en /admin/superadmin."
     ),
+    # ── Dashboard URLs (v1.9.1) — UX fix: links clickeables ──
+    "cómo abro el panel de productos": (
+        "Llamá primero a la tool `get_tenant_dashboard_urls`. Te devuelve "
+        "los links YA CON la URL absoluta armada (ej. "
+        "https://wowhub.app/dashboard/products) listos para mostrar con "
+        "markdown `[Abrir Productos](url)` y que el usuario haga 1 click. "
+        "NUNCA respondas con `/dashboard/products` desnudo — fuera del SPA "
+        "no es clickeable. Si la tool falla, sugerí Configuración → Branding."
+    ),
+    "cómo abro el panel de": (
+        "Llamá primero a `get_tenant_dashboard_urls`. Te devuelve todos "
+        "los links del panel con la URL absoluta (no el path relativo) "
+        "para que sean clickeables. NUNCA respondas con paths desnudos."
+    ),
+    "dónde veo el admin ia": (
+        "Llamá a `get_tenant_dashboard_urls` y devolvé el link de Admin IA "
+        "armado como markdown. Solo OWNER/ADMIN pueden acceder. Si el "
+        "usuario es STAFF/VIEWER, decile que necesita permisos de admin."
+    ),
+    "pasame el link de": (
+        "Llamá a `get_tenant_dashboard_urls` y devolvé el link armado como "
+        "markdown `[texto](https://wowhub.app/dashboard/...)` para que sea "
+        "clickeable. NUNCA respondas con el path desnudo tipo "
+        "`/dashboard/products`."
+    ),
+    "mandame el link por": (
+        "Llamá a `get_tenant_dashboard_urls` y devolvé el link ABSOLUTO. "
+        "Como es una URL completa (no path relativo), el usuario puede "
+        "compartirla por WhatsApp, email, SMS, etc."
+    ),
     "dónde cambio mi contraseña": (
         "Ve a Configuración → Mi cuenta, o usa el botón Cambiar contraseña "
         "en tu perfil."
@@ -337,6 +367,13 @@ NO_EXISTE: list[str] = [
     "El Automation Manager NO incluye acciones destructivas (no hay cancel_booking, delete_promotion en MVP).",
     "El Automation Manager NO hace rollback del audit log en ejecuciones fallidas — queremos ver el intento (sí hace rollback del resource).",
     "El preview del Automation Manager NO toca la DB — es un dry_run puro que devuelve un texto legible y un preview_id con TTL 10 min.",
+    # ── Dashboard URLs (v1.9.1) — anti-alucinación ──
+    "Las rutas del panel (ej. /dashboard/products) NO son URLs absolutas. Para que sean clickeables fuera del SPA, SIEMPRE llamá primero a la tool `get_tenant_dashboard_urls` que las arma con `settings.public_base_url` como prefijo.",
+    "El AI NO debe inventar la URL base del panel. SIEMPRE usá la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost`.",
+    "El AI NO debe responder con paths desnudos como `/dashboard/products` cuando el usuario pide un link. Eso no es clickeable en WhatsApp/email/SMS. Usá SIEMPRE la tool y devolvé el link completo.",
+    "Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio. NO incluyas el slug del tenant en el path.",
+    "El AI NO debe incluir `/u/{slug}/` en los links del panel — eso es para URLs PÚBLICAS. Para el panel, el prefijo es solo `https://wowhub.app/dashboard/...`.",
+    "El AI NO debe confundir `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).",
 ]
 
 
@@ -495,6 +532,36 @@ AUTOMATION_MANAGER_TRIGGERS: list[str] = [
 ]
 
 
+# ── 11. Dashboard URLs clickeables (WowHub AI Core™ — v1.9.1) ──────
+# Catálogo que la tool `get_tenant_dashboard_urls` usa para armar los
+# links ABSOLUTOS del panel (no paths relativos). Las rutas son las
+# MISMAS para todos los tenants — el contexto multi-tenant lo da la
+# sesión/JWT, no el subdominio.
+#
+# Esta constante existe para que cualquier agente (marketing, growth,
+# automation, help) sepa qué módulos existen y pueda pedirle al LLM que
+# use la tool en vez de inventar paths.
+DASHBOARD_URLS: dict[str, Any] = {
+    "endpoint": "tool get_tenant_dashboard_urls (no es HTTP, lee de app_knowledge)",
+    "base_url_source": "settings.public_base_url",
+    "url_format": "{base_url}{path} → https://wowhub.app/dashboard/products (ejemplo)",
+    "modules": [
+        # Se genera dinámicamente desde MODULES para no duplicar.
+        # Esta lista es solo DOCUMENTATIVA (qué módulos están disponibles).
+        "resumen", "productos", "promociones", "clientes", "pedidos",
+        "reservas", "campanas", "sucursales", "fidelizacion", "qr",
+        "configuracion", "admin_ia", "superadmin",
+    ],
+    "rules": [
+        "SIEMPRE llamá a `get_tenant_dashboard_urls` cuando el usuario pida un link al panel.",
+        "Mostrá los links como markdown `[texto](url)` para que sean clickeables.",
+        "NUNCA respondas con paths desnudos tipo `/dashboard/products` — no son clickeables fuera del SPA.",
+        "Las URLs son las MISMAS para todos los tenants. NO incluyas el slug en el path.",
+        "Si la tool falla (settings.public_base_url no configurado), avisale al usuario y sugerí Configuración → Branding.",
+    ],
+}
+
+
 # ── API pública del módulo ────────────────────────────────────────
 def list_modules() -> list[dict[str, Any]]:
     return MODULES
@@ -582,4 +649,6 @@ def render_short_summary() -> str:
     lines.append("  - Si el usuario pide 'escribime un post para X', prepará un MarketingRequest y sugerí al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
     lines.append("  - Cuando el Growth Coach devuelva un insight con `recommended_action`, el frontend DEBE llamar /preview antes que /execute. NUNCA ejecutes una acción de escritura sin el paso de preview + confirmación del usuario.")
     lines.append("  - El Automation Manager tiene 3 acciones MVP: create_promotion, create_booking, send_campaign. send_whatsapp_template está en roadmap.")
+    lines.append("  - LINKS DEL PANEL: SIEMPRE llamá a la tool `get_tenant_dashboard_urls` para devolver links ABSOLUTOS clickeables. NUNCA respondas con paths desnudos como `/dashboard/products` — fuera del SPA no son clickeables. Mostrá los links como markdown `[texto](url)`.")
+    lines.append("  - Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products). NO incluyas el slug del tenant en el path del panel — eso es solo para URLs públicas (usá `get_tenant_public_urls`).")
     return "\n".join(lines)

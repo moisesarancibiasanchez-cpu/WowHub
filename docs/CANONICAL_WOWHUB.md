@@ -4,7 +4,8 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 19 de agosto de 2026.
-> **Versión:** v1.9 (nuevo módulo **Automation Manager** `POST /api/v1/automation/preview` y `POST /api/v1/automation/execute`: orquesta las `recommended_actions` que devuelve el Growth Coach — `create_promotion`, `create_booking`, `send_campaign` — con preview obligatorio, audit log persistente y rate limit propio).
+> **Versión:** v1.9.1 (micro-release sobre v1.9: nueva tool `get_tenant_dashboard_urls` que devuelve los links del panel con URL absoluta clickeable. Cambia solo UX — sin cambios de schema ni de endpoints).
+> v1.9 (nuevo módulo **Automation Manager** `POST /api/v1/automation/preview` y `POST /api/v1/automation/execute`: orquesta las `recommended_actions` que devuelve el Growth Coach — `create_promotion`, `create_booking`, `send_campaign` — con preview obligatorio, audit log persistente y rate limit propio).
 
 ---
 
@@ -931,6 +932,7 @@ La IA conversacional puede **preparar el preview** del `MarketingRequest` (inten
 
 ### 18.1 Cambios recientes
 
+- **v1.9.1 (19-ago-2026)**: micro-release UX — **Dashboard URLs clickeables** (§21). Nueva tool `get_tenant_dashboard_urls` (no es HTTP, lee de `app_knowledge`) que devuelve los links del panel YA CON URL ABSOLUTA clickeable (ej. `https://wowhub.app/dashboard/products`) usando `settings.public_base_url` como prefijo. La IA ahora puede responder con `[Abrir Productos](url)` que es clickeable en cualquier chat UI, email, WhatsApp, SMS. Disponible para los 5 sub-agentes (marketing, growth, automation, marketplace, help). Sin cambios de schema ni de endpoints — solo UX. Constante `DASHBOARD_URLS` en `app/services/app_knowledge.py`, 5 FAQ entries nuevas, 6 entradas en `NO_EXISTE` (anti-alucinación sobre "no respondas con paths desnudos"), `render_short_summary()` con 2 reglas críticas adicionales. Inspirado en feedback directo del usuario: "el link debería ser la ruta completa, para que el usuario pueda entrar fácilmente".
 - **v1.9 (19-ago-2026)**: agregado **Automation Manager** (§20 — Cap. 19.3). Cierra el ciclo Growth Coach → Acción. Endpoints `POST /api/v1/automation/preview` (dry-run, genera preview_id) y `POST /api/v1/automation/execute` (requiere `dry_run=false` + `confirmed=true`). 3 acciones MVP en `ActionRegistry`: `create_promotion` (admin+), `create_booking` (staff+), `send_campaign` (admin+). Audit log persistente en nueva tabla `automation_executions` (tenant_id, user_id, action_type, status, resource_id, params JSON). Rate limit propio `ai_daily_automation_limit` (default 50/día/usuario, solo cuenta ejecuciones, NO previews). Preview cache con TTL 10 min + one-shot (anti-CSRF / anti-doble-click). 48 tests passing. Servicio en `app/services/automation_manager.py`, schemas en `app/schemas/automation.py`, modelo en `app/models/automation.py`, endpoint en `app/api/v1/automation.py`. **Inspirado en la recomendación #3 del análisis estratégico del proyecto.**
 - **v1.8 (19-ago-2026)**: agregado **Growth Coach** (§19 — Cap. 19.2). Endpoint `POST /api/v1/ai/growth/analyze`. Análisis proactivo de la "Memoria de Negocio" (ventas, inventario, clientes, promociones, reservas). Devuelve `summary` + `insights` priorizados (urgent → low) con `recommended_actions` y `linked_module`. Soporta 7 `focus` (overview, sales, inventory, customers, promotions, bookings, mixed) y `lookback_days` (7-180, default 30). 64 tests passing. Servicio en `app/services/growth_coach.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #2 del análisis estratégico del proyecto.** Rate limit compartido con `/chat` y `/marketing/generate`. Fallback determinístico que SIEMPRE produce insights útiles.
 - **v1.7 (18-ago-2026)**: agregado **Marketing Studio** (§17). Endpoint `POST /api/v1/ai/marketing/generate`. 13 `intent`, 7 `tone`, 7 `audience`. 47 tests passing. Servicio en `app/services/marketing_studio.py`, schemas en `app/schemas/ai.py`, endpoint en `app/api/v1/ai.py`. **Inspirado en la recomendación #1 del análisis estratégico del proyecto.**
@@ -1189,3 +1191,68 @@ El **Automation Manager** es el módulo que **ejecuta** las `recommended_actions
 - ❌ NO incluye acciones destructivas (no hay `cancel_booking`, `delete_promotion` en MVP).
 
 Ver lista ampliada en §7 ("Cosas que NO existen").
+
+---
+
+## 21. Dashboard URLs clickeables (WowHub AI Core™ — v1.9.1)
+
+### 21.1 Qué es
+
+**Micro-release UX** sobre v1.9. La IA ahora devuelve los links del panel como **URLs absolutas clickeables** (ej. `https://wowhub.app/dashboard/products`) en vez de paths relativos desnudos (ej. `/dashboard/products`). Esto permite que el usuario haga **1 click** desde el chat, email, WhatsApp, SMS o cualquier otro canal — sin tener que abrir primero el dashboard y navegar manualmente.
+
+**Cambia solo UX.** No hay nuevos endpoints, no hay nuevos schemas, no hay cambios en la DB. Es una **tool nueva** (`get_tenant_dashboard_urls`) más un cambio de comportamiento en el system prompt.
+
+### 21.2 La nueva tool
+
+```
+get_tenant_dashboard_urls(ctx: AIToolContext) → dict
+```
+
+- **No es HTTP.** Lee de `app_knowledge` + `settings.public_base_url`.
+- **Devuelve** un dict con:
+  - `base_url` — el `public_base_url` configurado (ej. `https://wowhub.app`).
+  - `dashboard_urls` — lista de los 13 módulos del panel con `key`, `label`, `url` (absoluta), `description`, `requires_role`.
+  - `hint` — recordatorio de que el LLM debe mostrarlos como markdown `[texto](url)`.
+
+**Disponible para los 5 sub-agentes:** `marketing`, `growth`, `automation`, `marketplace`, `help`.
+
+### 21.3 Diferencia con `get_tenant_public_urls`
+
+| Aspecto | `get_tenant_public_urls` | `get_tenant_dashboard_urls` |
+|---|---|---|
+| URLs | Públicas (landing, /reservar, /catalogo) | Panel autenticado (/dashboard/*) |
+| Prefijo | `https://{slug}.wowhub.app` (con subdominio) | `https://wowhub.app` (mismo para todos) |
+| Requiere slug | Sí (sustituye `{slug}`) | No (mismas rutas para todos) |
+| Contexto | Multi-tenant (cada tienda la suya) | Single-tenant (sesión resuelve) |
+| Uso típico | "Pasame mi link para compartir" | "Cómo abro el panel de productos" |
+
+### 21.4 Reglas críticas (anti-alucinación)
+
+- ❌ **NO respondas con paths desnudos** tipo `/dashboard/products`. Fuera del SPA no es clickeable. SIEMPRE llamá a la tool y devolvé la URL absoluta.
+- ❌ **NO inventes la URL base** del panel. SIEMPRE usá la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost` ni `railway.app`.
+- ❌ **NO incluyas el slug del tenant** en el path del panel. Las URLs del panel son las MISMAS para todos los tenants (ej. `https://wowhub.app/dashboard/products`) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio.
+- ❌ **NO confundas** `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).
+- ✅ **Mostrá los links como markdown** `[Abrir Productos](https://wowhub.app/dashboard/products)` para que sean clickeables.
+- ✅ **Si la tool falla** (raro, `settings.public_base_url` no configurado), avisale al usuario y sugerí Configuración → Branding.
+
+### 21.5 Ejemplo de respuesta correcta
+
+**Antes (v1.9):**
+> Tu cuenta está vacía. Cargá productos en `/dashboard/products` para empezar.
+
+**Después (v1.9.1):**
+> Tu cuenta está vacía. Cargá productos en **[Abrir Productos](https://wowhub.app/dashboard/products)** para empezar.
+
+### 21.6 Implementación
+
+- `app/services/ai_tools.py` — `tool_get_tenant_dashboard_urls()` + schema + dispatch + agregado a los 5 agentes.
+- `app/services/app_knowledge.py` — constante `DASHBOARD_URLS` (documentativa), 5 FAQ entries, 6 entradas en `NO_EXISTE`, `render_short_summary()` con 2 reglas críticas.
+- `docs/CANONICAL_WOWHUB.md` §21 (esta sección).
+- **Tests:** `tests/test_tenant_dashboard_urls.py` — cobertura de tool + render + anti-alucinación.
+- **Sin migración de DB** — solo código Python + docs.
+
+### 21.7 Roadmap
+
+- 🛣️ Cachear el resultado en el contexto del chat (hoy se llama cada vez; es barato pero podría evitarse).
+- 🛣️ Versionar `public_base_url` por tenant (hoy es global; futuro: cada tienda puede tener su propio dominio custom).
+- 🛣️ Deep links con query params (ej. `?utm_source=ai&action=create_promotion` para analytics).

@@ -272,6 +272,109 @@ async def tool_get_tenant_public_urls(ctx: AIToolContext) -> dict[str, Any]:
     }
 
 
+async def tool_get_tenant_dashboard_urls(ctx: AIToolContext) -> dict[str, Any]:
+    """Devuelve las URLs ABSOLUTAS y CLICKABLES del panel del WowHub AI Core.
+
+    A diferencia de `get_app_help(topic="modules")` que devuelve los PATHS
+    relativos (`/dashboard/products`), esta tool arma los links COMPLETOS
+    con `settings.public_base_url` como prefijo, listos para que el LLM los
+    muestre como `[texto](url)` y el usuario haga 1 click.
+
+    Las rutas del panel son las MISMAS para todos los tenants (el contexto
+    multi-tenant lo da la sesión/JWT, no el subdominio). Por eso la URL
+    base es `public_base_url` y NO incluye el slug del tenant.
+
+    Casos de uso:
+    - "Cómo abro el panel de productos"
+    - "Dónde veo mis reservas"
+    - "El link del Admin IA"
+    - "Pasame el link a la configuración"
+    - "Mandame el link por WhatsApp" (cross-channel)
+
+    Cada link viene con:
+    - `key`: identificador interno (products, promotions, etc.)
+    - `url`: link absoluto (https://wowhub.app/dashboard/products)
+    - `description`: descripción breve del módulo
+    - `requires_role`: rol mínimo necesario (para que la IA sepa si el
+      usuario puede acceder; si su rol es menor, igual le muestra el link
+      pero con un disclaimer para que verifique).
+
+    Si el AI no puede resolver `settings.public_base_url` (raro, pero
+    defensivo), devuelve los paths relativos + un warning para que la IA
+    sepa que los links no van a ser clickeables fuera del SPA.
+    """
+    try:
+        from app.services import app_knowledge
+    except Exception as e:  # noqa: BLE001
+        logger.exception("[get_tenant_dashboard_urls] no se pudo importar app_knowledge: %s", e)
+        return {"error": "app_knowledge no disponible", "fallback": True}
+
+    base = (settings.public_base_url or "").rstrip("/")
+    if not base:
+        # Fallback defensivo: devolver paths relativos con warning.
+        return {
+            "source": "app_knowledge",
+            "topic": "tenant_dashboard_urls",
+            "has_base_url": False,
+            "warning": "settings.public_base_url no está configurado.",
+            "paths": [
+                {"key": m["key"], "path": m["path"], "description": m["description"],
+                 "requires_role": m.get("requires_role_min", "staff")}
+                for m in app_knowledge.list_modules()
+            ],
+            "hint": (
+                "No pude armar URLs absolutas. Mostrá los paths como "
+                "referencia y avisale al usuario que tiene que estar "
+                "logueado en el panel para acceder."
+            ),
+        }
+
+    urls: list[dict[str, Any]] = []
+    for m in app_knowledge.list_modules():
+        full_url = f"{base}{m['path']}"
+        urls.append({
+            "key": m["key"],
+            "label": m["label"],
+            "url": full_url,
+            "description": m["description"],
+            "requires_role": _min_role_for_module(m["key"]),
+        })
+
+    return {
+        "source": "app_knowledge",
+        "topic": "tenant_dashboard_urls",
+        "has_base_url": True,
+        "base_url": base,
+        "dashboard_urls": urls,
+        "hint": (
+            "Mostrá estos links con markdown `[texto](url)` para que sean "
+            "clickeables. NO respondas con el path desnudo tipo "
+            "`/dashboard/products` — el usuario no puede hacer click en eso "
+            "fuera del SPA."
+        ),
+    }
+
+
+def _min_role_for_module(module_key: str) -> str:
+    """Rol mínimo requerido para acceder a un módulo del panel.
+
+    Hoy:
+    - superadmin       → is_superuser (a nivel de USUARIO, no membership)
+    - admin_ia         → OWNER | ADMIN (de la membership)
+    - config + modulos → STAFF+
+    - resto            → VIEWER+ (cualquiera con acceso al tenant)
+
+    Esta función existe para que la tool pueda anotar el requisito de rol
+    en cada URL. NO bloquea el acceso — el guard server-side en cada
+    endpoint hace el check real.
+    """
+    if module_key == "superadmin":
+        return "superuser"
+    if module_key == "admin_ia":
+        return "admin"
+    return "viewer"
+
+
 # ── Nuevas tools (integración con módulos) ─────────────────────
 async def tool_analyze_inventory(
     ctx: AIToolContext,
@@ -687,6 +790,25 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "get_tenant_dashboard_urls",
+            "description": (
+                "Devuelve las URLs ABSOLUTAS y CLICKABLES del panel de WowHub "
+                "(productos, promociones, reservas, Admin IA, Configuración, etc) "
+                "YA ARMADAS con `settings.public_base_url` como prefijo. SIEMPRE "
+                "usa esta tool cuando el usuario pregunte por un link al panel, "
+                "pida un paso a paso que involucre navegación, o quieras enviarle "
+                "el link por WhatsApp/email. Mostrá los links como markdown "
+                "`[texto](url)` para que sean clickeables. NUNCA respondas con el "
+                "path desnudo tipo `/dashboard/products` — fuera del SPA no es "
+                "clickeable. Las rutas del panel son las mismas para todos los "
+                "tenants (el contexto multi-tenant lo da la sesión)."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "analyze_inventory",
             "description": "Analiza el inventario del tenant y devuelve un resumen accionable: productos sin stock, con stock bajo, sobre-stock, sin rotación (vendieron hace mucho), o los más vendidos. Útil para preguntas tipo 'qué me falta', 'qué no se vende', 'qué vendío más este mes'.",
             "parameters": {
@@ -888,6 +1010,7 @@ TOOL_DISPATCH: dict[str, Any] = {
     "send_email_to_customer": tool_send_email_to_customer,
     "get_tenant_info": tool_get_tenant_info,
     "get_tenant_public_urls": tool_get_tenant_public_urls,
+    "get_tenant_dashboard_urls": tool_get_tenant_dashboard_urls,
     "analyze_inventory": tool_analyze_inventory,
     "get_customer_segments": tool_get_customer_segments,
     "send_campaign": tool_send_campaign,
@@ -907,34 +1030,42 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
-            "get_app_help",  # siempre disponible para responder sobre WowHub
+            "get_app_help",
+            "get_tenant_dashboard_urls",  # para devolver links clickeables del panel
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
             "get_app_help",
+            "get_tenant_dashboard_urls",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
             "list_bookings", "check_availability", "create_booking",
             "get_app_help",
+            "get_tenant_dashboard_urls",
         ],
         "marketplace": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory",
             "get_app_help",
+            "get_tenant_dashboard_urls",
         ],
         # Nuevo: Guía de WowHub. Solo lectura + get_tenant_info para URLs.
         # NO tiene tools de escritura (create_*, send_*) — el handoff a
         # automation es lo que ejecuta la acción, no HELP directamente.
         # `get_tenant_public_urls` devuelve los links públicos del tenant YA
         # CON EL SLUG REAL sustituido (lista para mostrar y compartir).
+        # `get_tenant_dashboard_urls` devuelve los links ABSOLUTOS del panel
+        # (ej. https://wowhub.app/dashboard/products) listos para markdown
+        # `[texto](url)`.
         "help": [
             "get_app_help",
             "get_tenant_info",
             "get_tenant_public_urls",
+            "get_tenant_dashboard_urls",
         ],
     }
     names = rules.get(agent)
