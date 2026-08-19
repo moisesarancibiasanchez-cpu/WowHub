@@ -442,3 +442,177 @@ class TestChileanSpanishRegression:
         src = open(growth_coach.__file__).read().lower()
         for vose in ['"no tenés', '"creá', "no tenés promos", "creá tu primera promo"]:
             assert vose not in src, f"Voseo en growth_coach.py: {vose!r}"
+
+
+# ── Anti-regresión: URLs absolutas + anti-placeholder (v1.9.1-r2) ──
+class TestAbsoluteURLsRegression:
+    """Verifica que el sistema NUNCA devuelve placeholders literales,
+    paths desnudos ni dominios hardcodeados. Solamente URLs ABSOLUTAS
+    con el dominio de `settings.public_base_url` (default `https://wowhub.app`).
+
+    Bug original: el AI respondía con `wowhub.app/u/tu-negocio/reservar` o
+    con paths desnudos `/dashboard/products`, que NO son clickeables.
+    """
+
+    # Palabras/frases prohibidas como parte de una URL pública
+    FORBIDDEN_PLACEHOLDERS = [
+        "tu-negocio", "tu-tienda", "tu-empresa", "tu-sucursal", "tu-restaurante",
+        "mi-negocio", "mi-tienda", "mi-empresa", "mi-sucursal",
+        "my-business", "my-shop", "my-store",
+    ]
+
+    # Paths desnudos del panel (sin prefijo de dominio)
+    NAKED_PATHS = [
+        "/dashboard/products", "/dashboard/promotions", "/dashboard/bookings",
+        "/dashboard/customers", "/dashboard/campaigns", "/dashboard/settings",
+    ]
+
+    # Dominios prohibidos hardcodeados en una URL de respuesta
+    FORBIDDEN_DOMAINS = [
+        "wowhub-api-production.up.railway.app",
+        "localhost:3000", "localhost:8000", "127.0.0.1",
+    ]
+
+    def test_global_rules_has_links_rule_10(self):
+        """La Regla 10 'LINKS Y URLS' debe existir en _GLOBAL_RULES (regla dura)."""
+        from app.services.ai_agents import _GLOBAL_RULES
+        assert "10. LINKS Y URLS" in _GLOBAL_RULES, (
+            "Regla 10 LINKS Y URLS no encontrada en _GLOBAL_RULES. "
+            "Esta es la regla dura anti-placeholder/anti-path-desnudo."
+        )
+        # Debe mencionar los placeholders prohibidos
+        for placeholder in ("tu-negocio", "{slug}"):
+            assert placeholder in _GLOBAL_RULES, (
+                f"Regla 10 debe mencionar el placeholder prohibido {placeholder!r}"
+            )
+        # Debe mencionar el dominio backend prohibido
+        assert "wowhub-api-production.up.railway.app" in _GLOBAL_RULES, (
+            "Regla 10 debe mencionar explícitamente el dominio backend prohibido"
+        )
+
+    def test_no_existe_anti_placeholder(self):
+        """NO_EXISTE debe tener entradas que prohíban placeholders literales."""
+        no_existe = app_knowledge.list_no_existe()
+        joined = " ".join(no_existe).lower()
+        # Cada placeholder prohibido debe aparecer como PROHIBICIÓN explícita
+        for placeholder in self.FORBIDDEN_PLACEHOLDERS:
+            assert placeholder in joined, (
+                f"NO_EXISTE debe prohibir el placeholder {placeholder!r}. "
+                f"Encontrado: {[s for s in no_existe if placeholder in s.lower()]}"
+            )
+        # Y el patrón {slug} literal debe estar prohibido
+        assert "{slug}" in joined, "NO_EXISTE debe mencionar '{slug}' como prohibido"
+
+    def test_no_existe_anti_naked_path(self):
+        """NO_EXISTE debe tener una entrada que prohíba paths desnudos."""
+        no_existe = app_knowledge.list_no_existe()
+        joined = " ".join(no_existe).lower()
+        # Debe haber una entrada específica contra paths desnudos
+        assert "paths desnudos" in joined or "path desnudo" in joined, (
+            "NO_EXISTE debe tener una entrada específica contra paths desnudos"
+        )
+
+    def test_no_existe_anti_hardcoded_domain(self):
+        """NO_EXISTE debe prohibir el dominio backend hardcodeado."""
+        no_existe = app_knowledge.list_no_existe()
+        joined = " ".join(no_existe).lower()
+        for domain in self.FORBIDDEN_DOMAINS:
+            assert domain in joined, (
+                f"NO_EXISTE debe prohibir el dominio hardcodeado {domain!r}"
+            )
+
+    def test_render_short_summary_has_anti_placeholder_rule(self):
+        """El render_short_summary debe incluir la regla anti-placeholder."""
+        summary = app_knowledge.render_short_summary()
+        low = summary.lower()
+        # Anti-placeholder: debe mencionar 'tu-negocio' o 'mi-negocio' como prohibido
+        assert ("anti-placeholder" in low) or ("tu-negocio" in low) or ("{slug}" in low), (
+            "render_short_summary debe incluir la regla ANTI-PLACEHOLDER"
+        )
+        # Anti-dominio: debe mencionar 'anti-dominio' o el dominio backend
+        assert ("anti-dominio" in low) or ("wowhub-api-production" in low), (
+            "render_short_summary debe incluir la regla ANTI-DOMINIO"
+        )
+
+    def test_public_urls_tool_description_warns_about_placeholders(self):
+        """El schema de get_tenant_public_urls debe mencionar placeholders prohibidos."""
+        schemas = ai_tools.TOOL_SCHEMAS
+        tool = next(
+            (t for t in schemas if t.get("function", {}).get("name") == "get_tenant_public_urls"),
+            None,
+        )
+        assert tool is not None, "get_tenant_public_urls no está en TOOL_SCHEMAS"
+        desc = tool.get("function", {}).get("description", "").lower()
+        # Debe mencionar al menos uno de los placeholders como prohibido
+        assert (
+            "tu-negocio" in desc
+            or "tu-tienda" in desc
+            or "my-business" in desc
+            or "<slug>" in desc
+        ), f"description debe mencionar placeholders prohibidos: {desc!r}"
+        # Y debe mencionar el formato markdown
+        assert "markdown" in desc or "[" in desc, (
+            f"description debe indicar el formato markdown [Texto](url): {desc!r}"
+        )
+
+    def test_dashboard_urls_tool_description_warns_about_hardcoded_domain(self):
+        """El schema de get_tenant_dashboard_urls debe mencionar el NO-hardcodeo de dominio."""
+        schemas = ai_tools.TOOL_SCHEMAS
+        tool = next(
+            (t for t in schemas if t.get("function", {}).get("name") == "get_tenant_dashboard_urls"),
+            None,
+        )
+        assert tool is not None
+        desc = tool.get("function", {}).get("description", "").lower()
+        # Debe mencionar que NUNCA se hardcodea el dominio
+        assert "hardcode" in desc or "no uses" in desc or "nunca" in desc, (
+            f"description debe advertir contra hardcodear el dominio: {desc!r}"
+        )
+
+    def test_settings_public_base_url_default_is_wowhub_app(self):
+        """El default de settings.public_base_url debe ser https://wowhub.app.
+
+        Esto es el fix raíz: si el .env o Railway no setean la variable,
+        el sistema usa el dominio público correcto, NO el backend de Railway.
+        """
+        from app.config import Settings
+        # Crear Settings sin leer el .env (para forzar el default puro)
+        s = Settings(_env_file=None)
+        assert s.public_base_url == "https://wowhub.app", (
+            f"Default de public_base_url debe ser 'https://wowhub.app', "
+            f"es {s.public_base_url!r}"
+        )
+        # Y NO debe ser el dominio backend
+        assert "railway.app" not in s.public_base_url, (
+            f"public_base_url no debe apuntar al backend de Railway: {s.public_base_url!r}"
+        )
+
+    def test_fallback_hint_no_naked_path_example(self):
+        """El hint de la tool (con base_url OK) NO debe contener el ejemplo
+        literal de un path desnudo que pueda confundir al LLM en few-shot.
+
+        El hint reformulado (v1.9.1-r2) menciona 'paths desnudos' como
+        prohibición, pero NO como ejemplo de path a evitar (eso era el bug
+        que hacía que el LLM respondiera con el path desnudo).
+        """
+        from app.services.ai_tools import AIToolContext, tool_get_tenant_dashboard_urls
+
+        class _C:
+            user_id = "u"
+            tenant_id = "t"
+            access_token = "x"
+            base_url = "https://wowhub.app"
+
+        import asyncio
+        out = asyncio.run(tool_get_tenant_dashboard_urls(_C()))
+        hint = out.get("hint", "").lower()
+        # Debe advertir contra paths desnudos
+        assert "paths desnudos" in hint or "nunca respondas" in hint, (
+            f"Hint debe advertir contra paths desnudos: {out['hint']!r}"
+        )
+        # Pero NO debe tener un ejemplo literal como `/dashboard/products` entre backticks
+        # (porque el few-shot del LLM puede interpretar el ejemplo como OK)
+        assert "/dashboard/products" not in hint, (
+            f"Hint NO debe contener el ejemplo literal /dashboard/products "
+            f"(puede confundir al LLM en few-shot): {out['hint']!r}"
+        )

@@ -1256,3 +1256,98 @@ get_tenant_dashboard_urls(ctx: AIToolContext) → dict
 - 🛣️ Cachear el resultado en el contexto del chat (hoy se llama cada vez; es barato pero podría evitarse).
 - 🛣️ Versionar `public_base_url` por tenant (hoy es global; futuro: cada tienda puede tener su propio dominio custom).
 - 🛣️ Deep links con query params (ej. `?utm_source=ai&action=create_promotion` para analytics).
+
+---
+
+## 22. Anti-alucinación de URLs (WowHub AI Core™ — v1.9.1-r2)
+
+**Problema detectado en producción:** el AI Core devolvía al usuario URLs con placeholders literales (ej. `wowhub.app/u/tu-negocio/reservar`) o paths desnudos del panel (ej. `/dashboard/products`) que NO son clickeables fuera del SPA. El usuario copiaba el link, lo pegaba en WhatsApp, y llegaba a una página inexistente. Eso deteriora la confianza en el producto.
+
+Esta sección es la fuente de verdad de qué es y qué NO es una URL válida en una respuesta del AI, y cómo debe resolverse cada caso.
+
+### 22.1 Tipos de URL en WowHub
+
+| Tipo | Tool a invocar | Ejemplo real | Notas |
+|---|---|---|---|
+| **Panel autenticado** (Productos, Promociones, Reservas, Admin IA, Configuración, SUPERADMIN) | `get_tenant_dashboard_urls` | `https://wowhub.app/dashboard/products` | Misma URL para todos los tenants. El contexto multi-tenant lo da la sesión/JWT. |
+| **URL pública del tenant** (landing, catálogo, reservar, book) | `get_tenant_public_urls` | `https://wowhub.app/u/cafeluna/reservar` | El slug sale del backend, NUNCA se escribe a mano. |
+
+### 22.2 Formato de respuesta obligatorio
+
+**SIEMPRE** que el AI devuelva un link, el formato debe ser:
+
+```markdown
+[Texto del módulo](https://wowhub.app/dashboard/products)
+```
+
+- `[Texto]` describe la acción o el destino.
+- `(https://...)` es la URL ABSOLUTA con el prefijo real.
+- El prefijo sale SIEMPRE de `settings.public_base_url` (default: `https://wowhub.app`).
+
+### 22.3 Lo que NUNCA debe aparecer en una respuesta del AI
+
+| Prohibido | Por qué | Qué hacer en su lugar |
+|---|---|---|
+| `wowhub.app/u/tu-negocio/reservar` | El placeholder `tu-negocio` no existe como dominio. Link FALSO. | Llamar `get_tenant_public_urls`. |
+| `wowhub.app/u/{slug}/reservar` | El `{slug}` literal no se sustituye en el frontend. | Llamar `get_tenant_public_urls`. |
+| `/dashboard/products` (path desnudo) | No es clickeable fuera del SPA. | Llamar `get_tenant_dashboard_urls` y mostrar como markdown. |
+| `https://wowhub-api-production.up.railway.app/dashboard/products` | Es el backend, no el dominio público. | El default de `settings.public_base_url` debe ser `https://wowhub.app`. |
+| `localhost:3000/dashboard/products` | Solo dev. NUNCA en producción. | Idem. |
+| "Reemplaza `{slug}` por el nombre de tu negocio" | Obliga al usuario a hacer trabajo del AI. | Llamar la tool y devolver el link YA armado. |
+
+### 22.4 Reglas duras (Regla 10 en `_GLOBAL_RULES`)
+
+Cuando el usuario pida un link, una URL, un paso a paso con navegación, o quiera compartir por WhatsApp/email/SMS, el AI debe:
+
+1. **Identificar el tipo de URL** (panel vs pública) consultando la sección 22.1.
+2. **Llamar la tool correspondiente** (NO improvisar).
+3. **Mostrar el resultado como markdown** `[Texto](https://...)`.
+4. **Si la tool falla o el tenant no tiene slug**, decir: "Ahora no puedo obtener tu link; ve a Configuración → Branding para definir tu slug" o "Ahora no puedo armar el link del panel; revisa tu sesión". **NO inventar**.
+
+### 22.5 Ejemplo de respuesta correcta vs incorrecta
+
+**❌ Incorrecto (v1.9.1):**
+> Anda a `/dashboard/products` para cargar productos. Tu link público es `wowhub.app/u/tu-negocio/catalogo`.
+
+**✅ Correcto (v1.9.1-r2):**
+> Abre [Productos](https://wowhub.app/dashboard/products) desde el menú lateral. Para compartir tu tienda, usa tu link público: [Ver catálogo](https://wowhub.app/u/cafeluna/catalogo).
+
+### 22.6 Anti-placeholder — lista taxativa de palabras prohibidas en URLs
+
+NUNCA debe aparecer ninguna de estas como parte de una URL en una respuesta del AI:
+
+- `tu-negocio`, `tu-tienda`, `tu-empresa`, `tu-sucursal`, `tu-restaurante`
+- `mi-negocio`, `mi-tienda`, `mi-empresa`, `mi-sucursal`
+- `my-business`, `my-shop`, `my-store`
+- `<slug>`, `{slug}`, `[slug]`, `[tu-slug]`, `<tu-slug>`
+- `ejemplo`, `example`, `test-slug`, `sample`
+
+El slug real del tenant sale SOLO de `get_tenant_public_urls`. Una URL con placeholder es directamente una URL FALSA.
+
+### 22.7 Anti-dominio — dominios prohibidos hardcodeados
+
+NUNCA debe aparecer ninguno de estos como prefijo de una URL en una respuesta del AI:
+
+- `wowhub-api-production.up.railway.app` (backend de Railway, no público)
+- `localhost`, `127.0.0.1` (solo dev)
+- `wowhub.app` (puede aparecer como parte de la URL, pero SOLO si vino de la tool, no si fue escrito a mano)
+
+El prefijo sale SIEMPRE de `settings.public_base_url` (default: `https://wowhub.app`).
+
+### 22.8 Implementación
+
+- `app/services/ai_agents.py` — Regla 10 en `_GLOBAL_RULES` (concatenada a los 5 sub-agents).
+- `app/services/ai_agents.py` — `fallback` de los 5 sub-agents con ejemplos de links clickeables.
+- `app/services/app_knowledge.py` — 4 entradas nuevas en `NO_EXISTE` (anti-placeholder, anti-path, anti-dominio, anti-confusion).
+- `app/services/app_knowledge.py` — 3 líneas nuevas en `render_short_summary()` (anti-placeholder, anti-dominio, formato markdown).
+- `app/services/ai_tools.py` — `description` reforzado de `get_tenant_public_urls` y `get_tenant_dashboard_urls` (mencionan explícitamente placeholders prohibidos y dominio no hardcodeado).
+- `app/services/ai_tools.py` — `hint` de la tool reformulado (sin ejemplo literal de path que pueda confundir al LLM).
+- `app/config.py` — default de `public_base_url` cambiado a `https://wowhub.app`.
+- `.env` — `PUBLIC_BASE_URL` actualizado a `https://wowhub.app`.
+- **Tests:** `tests/test_tenant_dashboard_urls.py` — clase `TestAbsoluteURLsRegression` con 8 tests nuevos.
+
+### 22.9 Roadmap
+
+- 🛣️ Validar al runtime que toda URL devuelta por el AI (cuando se renderiza en el chat) matchee el patrón `^https://wowhub\.app/...` antes de enviarla al frontend. Si no matchea, sanitizar.
+- 🛣️ Penalizar en el feedback loop cuando el usuario edita la URL que el AI le dio.
+- 🛣️ Soportar dominio custom por tenant (ej. `tienda.com` en vez de `wowhub.app/u/cafeluna`).

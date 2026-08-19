@@ -347,10 +347,10 @@ async def tool_get_tenant_dashboard_urls(ctx: AIToolContext) -> dict[str, Any]:
         "base_url": base,
         "dashboard_urls": urls,
         "hint": (
-            "Muestra estos links con markdown `[texto](url)` para que sean "
-            "clickeables. NO respondas con el path desnudo tipo "
-            "`/dashboard/products` — el usuario no puede hacer click en eso "
-            "fuera del SPA."
+            "Muestra los links con markdown `[texto](url)` para que sean "
+            "clickeables. NUNCA respondas con paths desnudos ni con "
+            "placeholders literales como 'tu-negocio' o '{slug}' — fuera "
+            "del SPA no son clickeables y dejan al usuario con un link roto."
         ),
     }
 
@@ -779,10 +779,14 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "sustituido (lista para mostrar y compartir). SIEMPRE usa esta tool "
                 "cuando el usuario pregunte por su link para compartir, URL pública, "
                 "link de reservas, link de catálogo o cómo compartir su tienda. NO "
-                "devuelvas el patrón con `{slug}` literal — esta tool ya lo reemplaza "
-                "por el slug real del tenant del usuario. Si el tenant no tiene slug "
-                "configurado, la tool devuelve los patrones y un hint para que la IA "
-                "le pida al usuario configurarlo en Configuración → Branding."
+                "devuelvas el patrón con `{slug}` literal ni con placeholders como "
+                "'tu-negocio', 'tu-tienda', 'mi-negocio', 'my-business', '<slug>' o "
+                "'[tu-slug]' — esta tool ya reemplaza el slug por el real del tenant. "
+                "Muestra el resultado como markdown `[Texto](https://...)` para que "
+                "sea clickeable. NUNCA hardcodees el dominio en una URL de respuesta. "
+                "Si el tenant no tiene slug configurado, la tool devuelve los "
+                "patrones y un hint para que la IA le pida al usuario configurarlo "
+                "en Configuración → Branding."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -798,10 +802,12 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "usa esta tool cuando el usuario pregunte por un link al panel, "
                 "pida un paso a paso que involucre navegación, o quieras enviarle "
                 "el link por WhatsApp/email. Muestra los links como markdown "
-                "`[texto](url)` para que sean clickeables. NUNCA respondas con el "
-                "path desnudo tipo `/dashboard/products` — fuera del SPA no es "
-                "clickeable. Las rutas del panel son las mismas para todos los "
-                "tenants (el contexto multi-tenant lo da la sesión)."
+                "`[texto](url)` para que sean clickeables. NUNCA respondas con "
+                "paths desnudos ni con placeholders literales — fuera del SPA no "
+                "son clickeables y dejan al usuario con un link roto. Las rutas "
+                "del panel son las mismas para todos los tenants (el contexto "
+                "multi-tenant lo da la sesión). NUNCA hardcodees el dominio en la "
+                "respuesta — el prefijo sale de `settings.public_base_url`."
             ),
             "parameters": {"type": "object", "properties": {}},
         },

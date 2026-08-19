@@ -374,6 +374,32 @@ NO_EXISTE: list[str] = [
     "Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio. NO incluyas el slug del tenant en el path.",
     "El AI NO debe incluir `/u/{slug}/` en los links del panel — eso es para URLs PÚBLICAS. Para el panel, el prefijo es solo `https://wowhub.app/dashboard/...`.",
     "El AI NO debe confundir `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).",
+    # ── Anti-placeholder (v1.9.1-r2) — placeholders literales prohibidos ──
+    "NUNCA uses placeholders literales como 'tu-negocio', 'tu-tienda', 'tu-empresa', "
+    "'tu-sucursal', 'tu-restaurante', 'my-business', 'my-shop', 'my-store', "
+    "'mi-negocio', 'mi-tienda', 'mi-empresa', 'mi-sucursal', "
+    "'<slug>', '{slug}', '[slug]', '[tu-slug]', '<tu-slug>', "
+    "'ejemplo', 'example', 'test-slug', 'sample' ni variantes en una URL pública. "
+    "El slug del tenant sale SOLO de la tool `get_tenant_public_urls`. "
+    "Una URL pública con placeholder es directamente una URL FALSA — "
+    "el usuario no puede hacer click.",
+    "NUNCA respondas con un path desnudo del panel (ej. /dashboard/products) "
+    "sabiendo que no es clickeable fuera del SPA. SIEMPRE llama primero a "
+    "`get_tenant_dashboard_urls` y muestra el resultado como markdown "
+    "`[Texto](https://...)`. Si la tool falla, di que ahora no puedes "
+    "obtener el link y sugiere revisar la sesión.",
+    "NUNCA hardcodees el dominio en una URL de respuesta al usuario. Está "
+    "prohibido escribir 'wowhub.app', 'wowhub-api-production.up.railway.app', "
+    "'localhost', 'localhost:3000', 'localhost:8000', '127.0.0.1' ni "
+    "cualquier otro dominio a mano. El dominio SIEMPRE sale de "
+    "`settings.public_base_url` vía la tool correspondiente. Si dudas, "
+    "NO escribas la URL — di que la tool la devolverá.",
+    "NUNCA confundas las dos tools de URLs: `get_tenant_dashboard_urls` "
+    "(panel autenticado, MISMA URL para todos los tenants, prefijo "
+    "settings.public_base_url, sin slug) vs `get_tenant_public_urls` "
+    "(URL pública del tenant, slug real sustituido, prefijo "
+    "settings.public_base_url + /u/{slug_real}/). Cada una resuelve un "
+    "caso distinto. Usar la tool equivocada produce URLs falsas.",
 ]
 
 
@@ -651,4 +677,7 @@ def render_short_summary() -> str:
     lines.append("  - El Automation Manager tiene 3 acciones MVP: create_promotion, create_booking, send_campaign. send_whatsapp_template está en roadmap.")
     lines.append("  - LINKS DEL PANEL: SIEMPRE llama a la tool `get_tenant_dashboard_urls` para devolver links ABSOLUTOS clickeables. NUNCA respondas con paths desnudos como `/dashboard/products` — fuera del SPA no son clickeables. Muestra los links como markdown `[texto](url)`.")
     lines.append("  - Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products). NO incluyas el slug del tenant en el path del panel — eso es solo para URLs públicas (usa `get_tenant_public_urls`).")
+    lines.append("  - ANTI-PLACEHOLDER: NUNCA escribas 'tu-negocio', 'tu-tienda', 'mi-negocio', '{slug}', '<slug>', 'my-business' ni ningún placeholder literal en una URL. El slug real del tenant sale SOLO de `get_tenant_public_urls`. Una URL con placeholder es una URL FALSA — el usuario no puede hacer click y queda con la impresión de que WowHub no funciona.")
+    lines.append("  - ANTI-DOMINIO: NUNCA hardcodees el dominio en una URL de respuesta. Está prohibido escribir 'wowhub.app', 'wowhub-api-production.up.railway.app', 'localhost' a mano. El dominio SIEMPRE sale de `settings.public_base_url` vía la tool. El default de `settings.public_base_url` es `https://wowhub.app`.")
+    lines.append("  - FORMATO DE RESPUESTA: si el usuario pide un link, tu respuesta SIEMPRE debe incluir el markdown `[Texto](https://...)` con la URL completa. Un link desnudo o un path sin prefijo es un link ROTO.")
     return "\n".join(lines)

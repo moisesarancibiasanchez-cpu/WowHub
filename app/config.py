@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     secret_key: str = "change-me-in-production-min-32-chars-please-ok"
     base_url: str = "http://localhost:8000"
-    public_base_url: str = "https://wowhub-api-production.up.railway.app"
+    # v1.9.1-r2: el dominio PÚBLICO de la plataforma es wowhub.app.
+    # Este valor se usa para armar las URLs ABSOLUTAS que devuelve la tool
+    # `get_tenant_dashboard_urls` y `get_tenant_public_urls`. Si está vacío,
+    # la tool devuelve paths relativos + warning (modo defensivo).
+    public_base_url: str = "https://wowhub.app"
 
     # DB
     database_url: str = "sqlite:///./wowhub.db"
