@@ -796,18 +796,14 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "get_tenant_dashboard_urls",
             "description": (
-                "Devuelve las URLs ABSOLUTAS y CLICKABLES del panel de WowHub "
-                "(productos, promociones, reservas, Admin IA, Configuración, etc) "
-                "YA ARMADAS con `settings.public_base_url` como prefijo. SIEMPRE "
-                "usa esta tool cuando el usuario pregunte por un link al panel, "
-                "pida un paso a paso que involucre navegación, o quieras enviarle "
-                "el link por WhatsApp/email. Muestra los links como markdown "
-                "`[texto](url)` para que sean clickeables. NUNCA respondas con "
-                "paths desnudos ni con placeholders literales — fuera del SPA no "
-                "son clickeables y dejan al usuario con un link roto. Las rutas "
-                "del panel son las mismas para todos los tenants (el contexto "
-                "multi-tenant lo da la sesión). NUNCA hardcodees el dominio en la "
-                "respuesta — el prefijo sale de `settings.public_base_url`."
+                "⚠️ DEPRECATED en v1.9.1-r4. NO USES esta tool — el OpenAPI de "
+                "producción (https://wowhub-api-production.up.railway.app/openapi.json) "
+                "NO expone rutas HTML de dashboard. Las rutas `/dashboard/*` que "
+                "devolvía esta tool NO existen para clientes externos y dan 404. "
+                "Para URLs públicas (lo único que se puede compartir con clientes), "
+                "usa `get_tenant_public_urls` en su lugar. Si el usuario pregunta por "
+                "el 'panel' o 'admin', explícale que WowHub es una API — la gestión "
+                "interna la hace él desde su sesión autenticada."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -1030,48 +1026,52 @@ TOOL_DISPATCH: dict[str, Any] = {
 
 
 def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
-    """Filtra tools según el sub-agente. Si el agente no existe, devuelve todas."""
+    """Filtra tools según el sub-agente. Si el agente no existe, devuelve todas.
+
+    v1.9.1-r4:
+    - `get_tenant_public_urls` está en los 5 sub-agentes (es la herramienta
+      vigente de URLs públicas con slug real sustituido).
+    - `get_tenant_dashboard_urls` está DEPRECADA y NO se distribuye a los
+      sub-agentes. Sigue en TOOL_DISPATCH y TOOL_SCHEMAS solo por back-compat
+      de tests legacy, pero ningún agente debe poder llamarla.
+    """
     rules: dict[str, list[str]] = {
         "marketing": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
             "get_app_help",
-            "get_tenant_dashboard_urls",  # para devolver links clickeables del panel
+            "get_tenant_public_urls",  # v1.9.1-r4: link público del feature
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
             "list_bookings", "check_availability", "create_booking",
             "get_app_help",
-            "get_tenant_dashboard_urls",
+            "get_tenant_public_urls",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
             "list_bookings", "check_availability", "create_booking",
             "get_app_help",
-            "get_tenant_dashboard_urls",
+            "get_tenant_public_urls",
         ],
         "marketplace": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory",
             "get_app_help",
-            "get_tenant_dashboard_urls",
+            "get_tenant_public_urls",
         ],
         # Nuevo: Guía de WowHub. Solo lectura + get_tenant_info para URLs.
         # NO tiene tools de escritura (create_*, send_*) — el handoff a
         # automation es lo que ejecuta la acción, no HELP directamente.
-        # `get_tenant_public_urls` devuelve los links públicos del tenant YA
-        # CON EL SLUG REAL sustituido (lista para mostrar y compartir).
-        # `get_tenant_dashboard_urls` devuelve los links ABSOLUTOS del panel
-        # (ej. https://wowhub.app/dashboard/products) listos para markdown
-        # `[texto](url)`.
+        # v1.9.1-r4: `get_tenant_public_urls` es la herramienta de URLs
+        # vigente. `get_tenant_dashboard_urls` está DEPRECADA.
         "help": [
             "get_app_help",
             "get_tenant_info",
             "get_tenant_public_urls",
-            "get_tenant_dashboard_urls",
         ],
     }
     names = rules.get(agent)

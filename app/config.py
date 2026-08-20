@@ -34,7 +34,15 @@ class Settings(BaseSettings):
     # sugiere links `http://localhost:8000/dashboard/products` en vez del
     # `https://wowhub.app` que rompería en dev). El método `effective_public_base_url`
     # es la propiedad canónica que las tools deben usar.
-    public_base_url: str = "https://wowhub.app"
+    #
+    # v1.9.1-r4: el dominio público REAL es el backend desplegado en Railway
+    # (https://wowhub-api-production.up.railway.app/), NO wowhub.app.
+    # Razón: la única URL que el sistema puede GARANTIZAR como "existe y
+    # responde hoy" es la del backend en producción (lo confirma su OpenAPI
+    # en /openapi.json). Cualquier otro dominio que la IA entregue como
+    # "tu link público" sería una URL FALSA → 404 → usuario con la impresión
+    # de que WowHub no funciona. La IA NO debe hardcodear wowhub.app.
+    public_base_url: str = "https://wowhub-api-production.up.railway.app"
 
     @property
     def effective_public_base_url(self) -> str:

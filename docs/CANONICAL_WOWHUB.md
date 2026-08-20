@@ -4,7 +4,7 @@
 >
 > **Mantenedor:** Equipo WowHub.
 > **Última actualización:** 20 de agosto de 2026.
-> **Versión:** v1.9.1-r3 (micro-release correctiva sobre v1.9.1-r2: corrige rutas fantasma de la tabla §2 que NO existen en `app/main.py`. Las únicas rutas válidas son las que este documento lista explícitamente. Cambia solo documentación + sistema anti-alucinación de la IA — sin cambios de schema ni de endpoints).
+> **Versión:** v1.9.1-r4 (micro-release correctiva sobre v1.9.1-r3: el OpenAPI de PRODUCCIÓN — `https://wowhub-api-production.up.railway.app/openapi.json` — es ahora la única fuente de verdad canónica, NO `app/main.py` (código de desarrollo) ni `wowhub.app` (dominio que no responde en DNS). Sincroniza §2, §3, §22.1 y §22.4 con la realidad desplegada. Cambia solo documentación + sistema anti-alucinación de la IA — sin cambios de schema ni de endpoints).
 > v1.9.1-r2 (nueva regla "URL absolutas, paths desnudos prohibidos" + system-prompt reinforcement + post-procesador `_scrub_slug_placeholders` que reemplaza `{slug}` por el slug real del tenant).
 > v1.9.1 (micro-release sobre v1.9: nueva tool `get_tenant_dashboard_urls` que devuelve los links del panel con URL absoluta clickeable. Cambia solo UX — sin cambios de schema ni de endpoints).
 > v1.9 (nuevo módulo **Automation Manager** `POST /api/v1/automation/preview` y `POST /api/v1/automation/execute`: orquesta las `recommended_actions` que devuelve el Growth Coach — `create_promotion`, `create_booking`, `send_campaign` — con preview obligatorio, audit log persistente y rate limit propio).
@@ -17,60 +17,79 @@
 
 ---
 
-## 2. Módulos del dashboard (panel del dueño)
+## 2. Features del producto (lo que WowHub ofrece HOY en producción)
 
-> **v1.9.1-r3:** Las rutas de esta tabla son la **única fuente de verdad** — sincronizadas con `app/main.py`. Rutas fantasmas (`/dashboard/campaigns`, `/dashboard/branches`, `/dashboard/qr` singular, `/dashboard/settings`) ya **no existen** y la IA NO debe mencionarlas. Si el dueño las pide, redirigir a la ruta real correcta.
+> **v1.9.1-r4 — IMPORTANTE:** El OpenAPI de PRODUCCIÓN (`https://wowhub-api-production.up.railway.app/openapi.json`) describe **4 features del MVP** visibles al cliente final: **Página, Catálogo, QR y Promociones**. Las otras secciones del OpenAPI (`auth`, `tenants`, `members`, `branches`, `categories`, `products`, `customers`, `promotions`, `qrs`, `landing-config`) son **endpoints ADMIN / CRM autenticados con JWT**, NO features que el cliente final usa.
+>
+> En producción **NO existe un panel HTML público** con rutas `/dashboard/*` o `/admin/*` como vistas HTML. Esas rutas están en `app/main.py` (código de desarrollo) pero **NO están desplegadas** en Railway. Por eso:
+>
+> 1. La IA NO debe entregar links `/dashboard/...` como URLs públicas. Esos links NO existen para clientes externos.
+> 2. La tool `get_tenant_dashboard_urls` está DEPRECADA en v1.9.1-r4.
+> 3. La única tool de URLs vigente es `get_tenant_public_urls` (ver §3).
+> 4. Si el usuario pide "el link de su panel", la IA debe explicarle que WowHub es una API y que la gestión la hace él desde su sesión autenticada.
 
-Todos los módulos se acceden desde el menú lateral del dashboard (`/dashboard`). El dueño llega con sesión iniciada y el tenant resuelto en el topbar.
+### 2.1 Features visibles al cliente final (lo que ven los consumidores)
 
-| Módulo | Ruta interna | Descripción corta | ¿Requiere activación? | Tool IA |
+| Feature | Path público | Descripción corta | ¿Requiere activación? | Tool IA |
 |---|---|---|---|---|
-| **Resumen** | `/dashboard` | KPIs, ventas, productos top, agenda de hoy. | No | `get_stats_overview` |
-| **Productos** | `/dashboard/products` | Catálogo, stock, precios, categorías, imágenes. | No | `list_products` |
-| **Promociones** | `/dashboard/promotions` | Motor de descuentos, combos, campañas activas. | No | `list_promotions`, `create_promotion` |
-| **QRs** | `/dashboard/qrs` | Códigos QR para tienda física (plural). | No | (no expuesta aún) |
-| **Clientes** | `/dashboard/customers` | Base de clientes, tags, puntos de fidelización. | No | `list_customers` |
-| **Pedidos / Ventas** | `/dashboard/orders` | Órdenes, estados, ticket promedio. | No | (vía stats) |
-| **Reservas** | `/dashboard/bookings` | Agenda, KPIs, filtros, modal nueva reserva. | No | `list_bookings`, `create_booking`, `check_availability` |
-| **Fidelización** | `/dashboard/loyalty` | Programas de puntos y sellos. | No | (no expuesta aún) |
-| **Landing** | `/dashboard/landing` | Editor de la landing pública del tenant. | No | (no expuesta aún) |
-| **Sitio y branding** | `/dashboard/site` | Datos del tenant, logo, colores, slug, Mi cuenta. (Antes mal llamado "Configuración" con ruta `/dashboard/settings`) | No | `get_tenant_info` |
-| **Pagos** | `/dashboard/payments` | Configuración de MercadoPago y métodos de pago. | No | (vía tenant info) |
-| **Estadísticas** | `/dashboard/stats` | Reportes detallados y embudos de conversión. | No | `get_stats_overview` |
-| **Webhooks** | `/dashboard/webhooks` | Endpoints de webhook y reintentos. | No | (no expuesta aún) |
-| **Asistente IA** | `/dashboard/ai` | Configuración del asistente IA del tenant. | No | (n/a, es la IA misma) |
-| **Admin IA** | `/admin/ai` | Métricas, logs, trazas, circuit breaker. (Solo OWNER/ADMIN) | No | (n/a, es la IA misma) |
-| **SUPERADMIN** | `/admin/superadmin` | Panel de plataforma: KPIs globales, gestión de tiendas, usuarios, auditoría. (Solo `is_superuser=True`) | No | (n/a, panel de plataforma) |
+| **Página del negocio** | `{base}/api/v1/public/t/{slug}/profile` | Datos del tenant: nombre, descripción, dirección, logo, redes. Read-only (GET). | No | `get_tenant_info` |
+| **Catálogo** | `{base}/api/v1/public/t/{slug}/catalog` | Lista de productos visibles al público (nombre, precio, imagen, descripción, disponibilidad). | No | `list_products` |
+| **Ficha de producto** | `{base}/api/v1/public/t/{slug}/products/{product_slug}` | Detalle de UN producto: precio, galería, variantes, stock visible. | No | (vía `list_products`) |
+| **Promociones** | `{base}/api/v1/public/t/{slug}/promotions` | Promociones activas: descuento, vigencia, condiciones. | No | `list_promotions` |
+| **Categorías** | `{base}/api/v1/public/t/{slug}/categories` | Categorías del catálogo. | No | (vía catálogo) |
+| **Sucursales** | `{base}/api/v1/public/t/{slug}/branches` | Sucursales del tenant: dirección, horarios, teléfono, coordenadas. | No | (vía `get_tenant_info`) |
+| **Landing** | `{base}/api/v1/public/t/{slug}/landing` | Config de la landing pública: colores, copy, links a redes, claims. | No | (no expuesta aún) |
+| **QR redirect** | `{base}/r/{short_code}` | URL CORTA de un QR. Server responde 302 al destino configurado. | No | (no expuesta aún) |
 
-> **Admin IA — guard de rol:** la página `/admin/ai` y los endpoints `/api/v1/admin/ai/*` están protegidos con guard server-side. Si el usuario no tiene rol `OWNER` o `ADMIN`:
-> - Si no hay sesión → redirige a `/dashboard/login?reason=admin_auth`.
-> - Si hay sesión pero el rol no alcanza → redirige a `/dashboard?reason=admin_forbidden`.
-> - En el sidebar, el link "Admin IA" se muestra **solo** a OWNER/ADMIN (`data-requires-role="owner,admin"` + JS de guard).
+> `{base}` = `settings.public_base_url` (default `https://wowhub-api-production.up.railway.app`).
 
-> **SUPERADMIN — guard de plataforma:** la página `/admin/superadmin` y los endpoints `/api/v1/superadmin/*` están protegidos con guard server-side que requiere `is_superuser=True` a nivel de **USUARIO** (no de membresía).
-> - Si no hay sesión → redirige a `/dashboard/login?reason=superadmin_auth`.
-> - Si hay sesión pero el flag es False → redirige a `/dashboard?reason=superadmin_forbidden`.
-> - En el sidebar, el link "SUPERADMIN" se muestra **solo** si `payload.is_superuser === true` (decodificando el JWT en el cliente) o `user.is_superuser === true`.
-> - El claim `is_superuser` se incluye en el access token y el refresh token desde `auth_service.py`.
-> - **Diferencia clave:** los roles de membresía (OWNER/ADMIN/STAFF/VIEWER) son **por tenant**; `is_superuser` es **por usuario** y aplica a TODA la plataforma.
+### 2.2 Gestión interna (autenticada con JWT — NO se entrega como link público)
+
+El dueño accede a la gestión vía API autenticada. Los endpoints viven bajo `/api/v1/tenants/{tid}/...`, `/api/v1/auth/...`, `/api/v1/admin/...`, etc. y requieren JWT. NO hay vista HTML pública para ninguno de estos flujos. Algunos ejemplos:
+
+- **Productos:** `GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/products`
+- **Sucursales:** `GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/branches`
+- **Categorías:** `GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/categories`
+- **Clientes:** `GET /api/v1/tenants/{tid}/customers`
+- **Stats:** `GET /api/v1/tenants/{tid}/stats/overview`
+- **Branding:** `PATCH /api/v1/tenants/{tid}` (campo `logo_url`) o `POST /api/v1/uploads`
+- **Password:** `POST /api/v1/auth/password`
+- **QRs:** `GET/POST/DELETE /api/v1/tenants/{tid}/qrs`
+- **Admin IA:** `GET /api/v1/admin/ai/...` (solo OWNER/ADMIN, JWT + rol)
+- **Superadmin:** `GET /api/v1/superadmin/...` (solo `is_superuser=True`)
+
+> **Admin IA — guard de rol:** los endpoints `/api/v1/admin/ai/*` están protegidos con guard server-side. Si el usuario no tiene rol `OWNER` o `ADMIN` → 403. La página HTML `/admin/ai` está en `app/main.py` (código de desarrollo) pero **NO está desplegada en producción**; los superadmins/owners usan directamente la API autenticada o un panel interno (cuando se despliegue).
+>
+> **Superadmin — guard de plataforma:** los endpoints `/api/v1/superadmin/*` requieren `is_superuser=True` a nivel de **USUARIO** (no de membresía). Si el flag es False → 403. **Diferencia clave:** los roles de membresía (OWNER/ADMIN/STAFF/VIEWER) son **por tenant**; `is_superuser` es **por usuario** y aplica a TODA la plataforma.
 
 ---
 
 ## 3. URLs públicas (sin autenticación)
 
-Estas son las URLs que el dueño comparte con sus clientes:
+Estas son las URLs que el dueño comparte con sus clientes. La IA SIEMPRE debe llamar a la tool `get_tenant_public_urls` para devolverlas con el slug REAL sustituido.
 
 | Función | Patrón | Notas |
 |---|---|---|
-| Landing del negocio | `https://{dominio}/u/{slug}` | Página pública del tenant. `{slug}` es el identificador (ej. `barberia-juan`). |
-| Catálogo público | `https://{dominio}/u/{slug}/catalogo` | Productos visibles sin login. |
-| Reservar (cliente) | `https://{dominio}/u/{slug}/reservar` | Flujo público de reservas: branch → fecha/hora → datos. |
-| Cancelar reserva | (enlace del email con token opaco) | No hay URL "fija"; cada reserva genera un link único con `cancel_token`. |
-| Loyalty (puntos/sellos) | `https://{dominio}/loyalty/{slug}` | Portal público para que el cliente vea sus puntos y sellos. |
+| Perfil del negocio | `https://{base}/api/v1/public/t/{slug}/profile` | Datos del tenant: nombre, descripción, dirección, logo, redes. |
+| Catálogo público | `https://{base}/api/v1/public/t/{slug}/catalog` | Productos visibles sin login. |
+| Ficha de producto | `https://{base}/api/v1/public/t/{slug}/products/{product_slug}` | Detalle de UN producto puntual. |
+| Promociones | `https://{base}/api/v1/public/t/{slug}/promotions` | Promos activas del tenant. |
+| Categorías | `https://{base}/api/v1/public/t/{slug}/categories` | Categorías del catálogo. |
+| Sucursales | `https://{base}/api/v1/public/t/{slug}/branches` | Sucursales: dirección, horarios, teléfono, coordenadas. |
+| Landing | `https://{base}/api/v1/public/t/{slug}/landing` | Config de la landing pública: colores, copy, links. |
+| QR redirect | `https://{base}/r/{short_code}` | URL CORTA de un QR. Server responde 302 al destino configurado. |
 
-> **v1.9.1-r3 — Error común a corregir:**
-> 1. Si la IA dice "la URL pública es `/u/{slug}/book`" o `/u/{slug}/menu` o `/u/{slug}/pedido` → está mal. La **única** ruta pública de reservas es `/u/{slug}/reservar`. No existe alias en inglés.
-> 2. Si la IA dice "la URL es `{slug}.wowhub.app`" → está mal. WowHub **no usa subdominios por tenant**: usa paths (`/u/{slug}`) sobre el dominio único (`wowhub.app` o el custom del tenant).
+> `{base}` = `settings.public_base_url` (default `https://wowhub-api-production.up.railway.app`).
+> `{slug}` = identificador del tenant (ej. `cafeluna`). Sale SIEMPRE de la tool `get_tenant_public_urls`, NUNCA inventado por la IA.
+> `{product_slug}` = slug del producto puntual (sale de `list_products` o de la URL del producto en el catálogo).
+> `{short_code}` = código alfanumérico corto del QR.
+
+> **v1.9.1-r4 — Errores comunes a corregir:**
+> 1. **Formato viejo `/u/{slug}/...` está MUERTO.** El prefijo `/u/{slug}/catalogo`, `/u/{slug}/perfil`, `/u/{slug}/reservar`, `/u/{slug}/menu`, `/u/{slug}/pedido`, `/u/{slug}/book` **NO existe en el OpenAPI de producción y da 404**. La forma REAL es `/api/v1/public/t/{slug}/...`.
+> 2. **`wowhub.app` no responde (NXDOMAIN).** NUNCA entregues links con prefijo `https://wowhub.app/...`. La única URL que puedes garantizar como "existe y responde hoy" es `https://wowhub-api-production.up.railway.app/...`.
+> 3. **`/loyalty/{slug}` NO está desplegado.** El feature de fidelización no existe en producción (solo en roadmap). NO lo ofrezcas como link.
+> 4. **Reservas (`/u/{slug}/reservar` o `/api/v1/.../bookings`) NO están en el MVP actual.** El feature de reservas está en roadmap. La IA NO debe entregar URLs de reservas.
+> 5. **La IA NO debe hardcodear el dominio ni el slug.** Ambos salen SIEMPRE de `settings.public_base_url` y de `get_tenant_public_urls`. Una URL con placeholder o dominio inventado es una URL FALSA.
 
 ---
 
@@ -1276,24 +1295,32 @@ get_tenant_dashboard_urls(ctx: AIToolContext) → dict
 
 Esta sección es la fuente de verdad de qué es y qué NO es una URL válida en una respuesta del AI, y cómo debe resolverse cada caso.
 
-### 22.1 Tipos de URL en WowHub
+### 22.1 Tipos de URL en WowHub (v1.9.1-r4)
+
+> **v1.9.1-r4 — Cambio de modelo:** En producción **NO hay panel HTML público**. Las rutas `/dashboard/*` y `/admin/*` están en `app/main.py` (código de desarrollo) pero NO están desplegadas. Por eso:
+>
+> 1. La IA **NO debe entregar links `/dashboard/...` como URLs públicas**. Esos links NO existen para clientes externos.
+> 2. La tool `get_tenant_dashboard_urls` está **DEPRECADA**.
+> 3. La única tool de URLs vigente es `get_tenant_public_urls`.
 
 | Tipo | Tool a invocar | Ejemplo real | Notas |
 |---|---|---|---|
-| **Panel autenticado** (Productos, Promociones, QRs, Reservas, Sitio y branding, Admin IA, SUPERADMIN) | `get_tenant_dashboard_urls` | `https://wowhub.app/dashboard/products` | Misma URL para todos los tenants. El contexto multi-tenant lo da la sesión/JWT. |
-| **URL pública del tenant** (landing, catálogo, reservar, loyalty) | `get_tenant_public_urls` | `https://wowhub.app/u/cafeluna/reservar` | El slug sale del backend, NUNCA se escribe a mano. La única ruta pública de reservas es `/u/{slug}/reservar` (no existe `/u/{slug}/book`). |
+| **URL pública del tenant** (perfil, catálogo, producto, promociones, categorías, sucursales, landing, QR) | `get_tenant_public_urls` | `https://wowhub-api-production.up.railway.app/api/v1/public/t/cafeluna/catalog` | El slug sale del backend, NUNCA se escribe a mano. Formato `/api/v1/public/t/{slug}/...` (NO `/u/{slug}/...`). |
+| **URL corta de QR** | `get_tenant_public_urls` (key=`qr_redirect`) | `https://wowhub-api-production.up.railway.app/r/abc123` | 302 al destino configurado. |
+| **Panel autenticado** (gestión interna) | **(DEPRECADA en v1.9.1-r4)** | n/a | La gestión interna se hace vía API autenticada con JWT. NO hay link público para compartir con clientes. |
 
 ### 22.2 Formato de respuesta obligatorio
 
 **SIEMPRE** que el AI devuelva un link, el formato debe ser:
 
 ```markdown
-[Texto del módulo](https://wowhub.app/dashboard/products)
+[Texto del feature](https://wowhub-api-production.up.railway.app/api/v1/public/t/cafeluna/catalog)
 ```
 
 - `[Texto]` describe la acción o el destino.
 - `(https://...)` es la URL ABSOLUTA con el prefijo real.
-- El prefijo sale SIEMPRE de `settings.public_base_url` (default: `https://wowhub.app`).
+- El prefijo sale SIEMPRE de `settings.public_base_url` (default: `https://wowhub-api-production.up.railway.app`).
+- El slug y el subpath salen SIEMPRE de `get_tenant_public_urls`.
 
 ### 22.3 Lo que NUNCA debe aparecer en una respuesta del AI
 
@@ -1301,19 +1328,22 @@ Esta sección es la fuente de verdad de qué es y qué NO es una URL válida en 
 |---|---|---|
 | `wowhub.app/u/tu-negocio/reservar` | El placeholder `tu-negocio` no existe como dominio. Link FALSO. | Llamar `get_tenant_public_urls`. |
 | `wowhub.app/u/{slug}/reservar` | El `{slug}` literal no se sustituye en el frontend. | Llamar `get_tenant_public_urls`. |
-| `/dashboard/products` (path desnudo) | No es clickeable fuera del SPA. | Llamar `get_tenant_dashboard_urls` y mostrar como markdown. |
-| `https://wowhub-api-production.up.railway.app/dashboard/products` | Es el backend, no el dominio público. | El default de `settings.public_base_url` debe ser `https://wowhub.app`. |
+| `/u/{slug}/reservar` (cualquier variante: book, menu, pedido, catalogo, perfil) | **El prefijo `/u/{slug}/...` está MUERTO**. Da 404 en producción. | Usar el formato `/api/v1/public/t/{slug}/...`. |
+| `/dashboard/products` (path desnudo) | No existe como link público en producción. | Decir "no hay panel HTML público; la gestión se hace vía API autenticada". |
+| `https://wowhub.app/dashboard/products` | El dominio `wowhub.app` no responde (NXDOMAIN). | Usar `settings.public_base_url` (default `https://wowhub-api-production.up.railway.app`). |
+| `https://wowhub.app/u/...` | El dominio no responde y el formato está muerto. | Idem. |
 | `localhost:3000/dashboard/products` | Solo dev. NUNCA en producción. | Idem. |
 | "Reemplaza `{slug}` por el nombre de tu negocio" | Obliga al usuario a hacer trabajo del AI. | Llamar la tool y devolver el link YA armado. |
 
-### 22.4 Reglas duras (Regla 10 en `_GLOBAL_RULES`)
+### 22.4 Reglas duras (Regla 10 en `_GLOBAL_RULES`) — v1.9.1-r4
 
 Cuando el usuario pida un link, una URL, un paso a paso con navegación, o quiera compartir por WhatsApp/email/SMS, el AI debe:
 
-1. **Identificar el tipo de URL** (panel vs pública) consultando la sección 22.1.
-2. **Llamar la tool correspondiente** (NO improvisar).
-3. **Mostrar el resultado como markdown** `[Texto](https://...)`.
-4. **Si la tool falla o el tenant no tiene slug**, decir: "Ahora no puedo obtener tu link; ve a Sitio y branding para definir tu slug" (o "Ahora no puedo armar el link del panel; revisa tu sesión"). **NO inventar**.
+1. **Identificar QUÉ feature pide el usuario** (público: perfil/catálogo/producto/promo/QR — vs interno: gestión del tenant). Consultar §2.1 y §3.
+2. **Si es público** → llamar `get_tenant_public_urls`. **NUNCA** llamar `get_tenant_dashboard_urls` (está DEPRECADA).
+3. **Si es interno** → explicarle al usuario que WowHub es una API y que la gestión la hace él desde su sesión autenticada (vía `GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/...` con JWT). NO entregar un link público porque NO existe.
+4. **Mostrar el resultado como markdown** `[Texto](https://...)`.
+5. **Si la tool falla o el tenant no tiene slug**, decir: "Ahora no puedo obtener tu link público. Primero andá a la configuración de tu tenant y definí tu slug". **NO inventar** el slug ni el dominio.
 
 ### 22.5 Ejemplo de respuesta correcta vs incorrecta
 

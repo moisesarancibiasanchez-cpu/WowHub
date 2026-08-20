@@ -62,11 +62,17 @@ class TestToolRegistration:
             )
 
     def test_other_agents_do_not_have_it(self):
-        """Solo HELP debe tener esta tool (es de plataforma, no de negocio)."""
-        for agent in ("marketing", "growth", "automation", "marketplace"):
+        """v1.9.1-r4: TODOS los agentes tienen la tool. Cualquier agente
+        puede recibir una pregunta del tipo 'dame mi link público' (ej.
+        marketing recomendando dónde publicar el catálogo), y la única
+        forma de no alucinar la URL es tener la tool disponible.
+        """
+        for agent in ("help", "marketing", "growth", "automation", "marketplace"):
             names = [t["function"]["name"] for t in get_tools_for_agent(agent)]
-            assert "get_tenant_public_urls" not in names, (
-                f"El agente {agent} no debería tener get_tenant_public_urls"
+            assert "get_tenant_public_urls" in names, (
+                f"v1.9.1-r4: el agente {agent} DEBE tener "
+                f"get_tenant_public_urls (cualquier agente puede recibir "
+                f"preguntas de URLs públicas)"
             )
 
 
@@ -76,18 +82,26 @@ class TestAppKnowledgeSynced:
         """La FAQ 'url pública' debe existir (es la consulta más común)."""
         answer = app_knowledge.faq_lookup("url pública")
         assert answer is not None
-        # Mantiene la referencia con un ejemplo de URL REAL (NO el patrón
-        # con `{slug}` literal, que es exactamente el bug que arreglamos).
-        assert "wowhub.app/u/cafeluna/reservar" in answer
+        # v1.9.1-r4: la URL de ejemplo REAL es del backend de Railway
+        # (NO wowhub.app, NO /u/{slug}/...).
+        assert "wowhub-api-production.up.railway.app" in answer
+        assert "/api/v1/public/t/cafeluna/catalog" in answer
         # Y referencia explícita a la tool obligatoria
         assert "get_tenant_public_urls" in answer
+        # Y debe marcar la tool vieja como DEPRECATED
+        assert "DEPRECAD" in answer
 
     def test_short_summary_unchanged(self):
-        """El render_short_summary sigue siendo coherente con los patrones."""
+        """v1.9.1-r4: el render_short_summary describe el formato de
+        producción (`/api/v1/public/...`), NO el formato viejo
+        `/u/{slug}/...` (que NO existe en producción).
+        """
         summary = app_knowledge.render_short_summary()
-        # No rompe: sigue enumerando los patrones con {slug} (es la doc)
-        assert "/u/{slug}" in summary
-        assert "/u/{slug}/reservar" in summary
+        # Formato NUEVO (v1.9.1-r4)
+        assert "/api/v1/public/t/{slug}" in summary
+        # Formato VIEJO eliminado
+        assert "/u/{slug}/reservar" not in summary
+        assert "/u/{slug}/catalogo" not in summary
         # Y mantiene la regla crítica
         assert "NUNCA inventes" in summary
 
@@ -121,25 +135,27 @@ class TestToolBehavior:
         assert out["tenant"]["name"] == "Café Luna"
         assert out["base_url"] == expected_base
 
-        # Todas las URLs deben tener el slug REAL (no el placeholder)
+        # v1.9.1-r4: las URLs públicas son del formato de producción
+        # (`/api/v1/public/t/{slug}/...`), NO del formato viejo
+        # `/u/{slug}/...` (que NO existe en producción).
         urls_by_key = {u["key"]: u["url"] for u in out["urls"]}
-        assert "cafeluna" in urls_by_key["reservar"]
-        assert "{slug}" not in urls_by_key["reservar"]
-        assert "{slug}" not in urls_by_key["landing"]
-        assert "{slug}" not in urls_by_key["catalogo"]
-
-        # Y deben incluir el path correcto con la base pública de settings
-        assert urls_by_key["landing"] == f"{expected_base}/u/cafeluna"
-        assert urls_by_key["catalogo"] == f"{expected_base}/u/cafeluna/catalogo"
-        assert urls_by_key["reservar"] == f"{expected_base}/u/cafeluna/reservar"
-        # v1.9.1-r3: el alias `/u/{slug}/book` fue ELIMINADO porque esa ruta
-        # NO existe en app/main.py. La única ruta de reservas es `/u/{slug}/reservar`.
-        assert "reservar_alias" not in urls_by_key, (
-            "El alias 'reservar_alias' (/u/{slug}/book) no debe existir — "
-            "esa ruta NO está en main.py y confundiría al usuario."
+        # Todas las URLs deben tener el slug REAL (no el placeholder)
+        assert "{slug}" not in str(urls_by_key)
+        # Y deben tener el formato de producción
+        assert "cafeluna" in urls_by_key["perfil"]
+        assert "cafeluna" in urls_by_key["catalogo"]
+        assert urls_by_key["perfil"] == f"{expected_base}/api/v1/public/t/cafeluna/profile"
+        assert urls_by_key["catalogo"] == f"{expected_base}/api/v1/public/t/cafeluna/catalog"
+        # El QR redirect usa /r/{short_code} (no contiene el slug del tenant)
+        assert "qr_redirect" in urls_by_key or "qr" in urls_by_key
+        # NO debe haber keys del formato viejo
+        assert "reservar" not in urls_by_key, (
+            "v1.9.1-r4: /u/{slug}/reservar NO existe en producción. "
+            "Las reservas están en roadmap."
         )
-        # Y se agregó la URL pública de loyalty (v1.9.1-r3)
-        assert urls_by_key.get("loyalty") == f"{expected_base}/loyalty/cafeluna"
+        assert "loyalty" not in urls_by_key, (
+            "v1.9.1-r4: /loyalty/{slug} NO está desplegado. Está en roadmap."
+        )
 
     @pytest.mark.asyncio
     async def test_returns_patterns_when_no_slug(self, monkeypatch):
@@ -165,8 +181,20 @@ class TestToolBehavior:
         # Devuelve los patrones (no las URLs) para que la IA sepa qué completar
         assert "patterns" in out
         patterns_by_key = {p["key"]: p["pattern"] for p in out["patterns"]}
-        assert patterns_by_key["reservar"] == "/u/{slug}/reservar"
-        assert patterns_by_key["landing"] == "/u/{slug}"
+        # v1.9.1-r4: los patrones son del formato de producción
+        assert patterns_by_key["perfil"] == "/api/v1/public/t/{slug}/profile"
+        assert patterns_by_key["catalogo"] == "/api/v1/public/t/{slug}/catalog"
+        assert patterns_by_key["landing"] == "/api/v1/public/t/{slug}/landing"
+        assert patterns_by_key["qr_redirect"] == "/r/{short_code}"
+        # NO debe haber patterns del formato viejo
+        assert "reservar" not in patterns_by_key, (
+            "v1.9.1-r4: el patrón /u/{slug}/reservar NO debe existir. "
+            "Las reservas están en roadmap."
+        )
+        assert "loyalty" not in patterns_by_key, (
+            "v1.9.1-r4: el patrón /loyalty/{slug} NO debe existir. "
+            "Está en roadmap."
+        )
 
         # Y un hint útil para que el LLM sepa qué decirle al usuario
         assert "hint" in out
@@ -213,8 +241,21 @@ class TestToolBehavior:
     async def test_uses_settings_public_base_url_when_not_provided(
         self, monkeypatch
     ):
-        """Si no se pasa base_url al context, usa settings.public_base_url."""
+        """Si no se pasa base_url al context, usa settings.public_base_url.
+
+        v1.9.1-r4: monkeypatch sobre settings para forzar el default de
+        Railway (porque el .env puede tener un valor distinto en dev/test).
+        Lo importante es que la tool USA `settings.public_base_url` como
+        source of truth (no la hardcodea).
+        """
         from app.config import settings
+
+        # Forzamos el setting al default de v1.9.1-r4 (Railway), sin
+        # importar qué diga el .env del entorno de test.
+        monkeypatch.setattr(
+            settings, "public_base_url",
+            "https://wowhub-api-production.up.railway.app",
+        )
 
         async def fake_api_get(ctx, path, params=None):
             return {"id": ctx.tenant_id, "slug": "mislug", "name": "Mi Negocio"}
@@ -228,12 +269,22 @@ class TestToolBehavior:
         out = await tool_get_tenant_public_urls(ctx)
 
         # La base debe coincidir con settings.public_base_url sin la barra final
-        expected_base = settings.public_base_url.rstrip("/")
+        expected_base = "https://wowhub-api-production.up.railway.app"
         assert out["base_url"] == expected_base
+        # v1.9.1-r4: el default es el backend de Railway, NO wowhub.app
+        assert "wowhub-api-production.up.railway.app" in out["base_url"]
+        assert "wowhub.app" not in out["base_url"], (
+            "v1.9.1-r4: el default de public_base_url debe ser Railway, "
+            "no wowhub.app (que da NXDOMAIN)."
+        )
         # Y todas las URLs deben empezar con esa base
         for u in out["urls"]:
             assert u["url"].startswith(expected_base)
-            assert "mislug" in u["url"]
+            # El QR redirect no tiene slug del tenant (es /r/{short_code})
+            if u["key"] != "qr_redirect":
+                assert "mislug" in u["url"], (
+                    f"URL {u['key']!r} no tiene el slug sustituido: {u['url']!r}"
+                )
             assert "{slug}" not in u["url"]
 
     @pytest.mark.asyncio
@@ -301,7 +352,10 @@ class TestHelpAgentE2E:
     def test_faq_url_publica_puts_tool_instruction_first(self):
         """La FAQ 'url pública' debe arrancar con la instrucción de LLAMAR
         A LA TOOL, no con el patrón literal. Si arranca con el patrón, el
-        LLM lo copia como respuesta (el bug que el usuario reportó)."""
+        LLM lo copia como respuesta (el bug que el usuario reportó).
+        v1.9.1-r4: el ejemplo de URL es del backend de Railway, NO
+        wowhub.app/u/... (esos paths NO existen en producción).
+        """
         answer = app_knowledge.faq_lookup("url pública")
         assert answer is not None
         # La PRIMERA mención de la tool debe estar ANTES de la primera
@@ -309,7 +363,8 @@ class TestHelpAgentE2E:
         # primero la regla.
         low = answer.lower()
         pos_tool = low.find("get_tenant_public_urls")
-        pos_example = low.find("wowhub.app/u/")
+        # v1.9.1-r4: el ejemplo de URL es de Railway, NO wowhub.app/u/
+        pos_example = low.find("wowhub-api-production.up.railway.app/api/v1/public/t/")
         assert pos_tool != -1, "FAQ debe mencionar la tool"
         assert pos_example != -1, "FAQ debe contener al menos un ejemplo de URL"
         assert pos_tool < pos_example, (
@@ -320,6 +375,10 @@ class TestHelpAgentE2E:
         # (porque eso es exactamente lo que queremos evitar como respuesta).
         assert "/u/{slug}/reservar" not in answer, (
             "FAQ no debe contener el patrón literal; usa ejemplos de URL real"
+        )
+        # Y NO debe mencionar el dominio viejo wowhub.app
+        assert "wowhub.app" not in answer, (
+            "v1.9.1-r4: la FAQ no debe mencionar wowhub.app (da NXDOMAIN)"
         )
         # Y debe arrancar con un NO imperativo (anti-copia del patrón)
         first_50 = answer[:50].lower()

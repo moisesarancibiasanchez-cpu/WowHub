@@ -848,18 +848,68 @@ class AIOrchestrator:
                 # (ej. `/dashboard/qr/abc` → `/dashboard/qrs/abc`).
                 tail = bad_path[len(matched_prefix):]
                 return m.group(0).replace(bad_path, real + tail)
-            # Si no hay replacement, marcar y dar pista
+            # Si no hay replacement, marcar y dar pista.
+            # v1.9.1-r4: el panel HTML está DEPRECADO como link público.
+            # El mensaje apunta a la API autenticada o a las tools vigentes.
             hint_map = {
-                "/dashboard/campaigns":
-                    " (no tiene vista — usa la tool send_campaign)",
-                "/dashboard/branches":
-                    " (no tiene vista — se ve en get_tenant_info)",
-                "/dashboard/automation":
-                    " (no tiene vista — usa POST /api/v1/automation/preview)",
-                "/dashboard/categories":
-                    " (no tiene vista — se gestiona dentro de Productos)",
-                "/dashboard/integrations":
-                    " (no tiene vista — está en roadmap)",
+                "/dashboard/campaigns": (
+                    " (v1.9.1-r4: no hay panel HTML público. El envío "
+                    "masivo se hace vía la tool send_campaign o el endpoint "
+                    "POST /api/v1/automation/execute con action=send_campaign)"
+                ),
+                "/dashboard/branches": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las sucursales "
+                    "se consultan en get_tenant_info o vía API autenticada "
+                    "GET /api/v1/tenants/{tid}/branches)"
+                ),
+                "/dashboard/automation": (
+                    " (v1.9.1-r4: no hay panel HTML público. El Automation "
+                    "Manager se invoca vía API: POST /api/v1/automation/preview "
+                    "y /execute, no tiene pantalla dedicada)"
+                ),
+                "/dashboard/categories": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las categorías "
+                    "se consultan vía API autenticada o se gestionan dentro "
+                    "del recurso Productos)"
+                ),
+                "/dashboard/integrations": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las integraciones "
+                    "(WhatsApp, Stripe, MercadoPago) están en roadmap y se "
+                    "configuran por API o variables de entorno)"
+                ),
+                "/dashboard/products": (
+                    " (v1.9.1-r4: no hay panel HTML público. La gestión de "
+                    "productos se hace vía API autenticada "
+                    "GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/products)"
+                ),
+                "/dashboard/orders": (
+                    " (v1.9.1-r4: no hay panel HTML público. Los pedidos se "
+                    "gestionan vía API autenticada)"
+                ),
+                "/dashboard/customers": (
+                    " (v1.9.1-r4: no hay panel HTML público. Los clientes se "
+                    "gestionan vía API autenticada)"
+                ),
+                "/dashboard/stats": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las métricas se "
+                    "consultan en GET /api/v1/tenants/{tid}/stats/overview)"
+                ),
+                "/dashboard/promotions": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las promos se "
+                    "gestionan vía API autenticada o con la tool create_promotion)"
+                ),
+                "/dashboard/bookings": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las reservas no "
+                    "están en el MVP actual; feature en roadmap)"
+                ),
+                "/dashboard/loyalty": (
+                    " (v1.9.1-r4: no hay panel HTML público. La fidelización "
+                    "no está desplegada en producción; está en roadmap)"
+                ),
+                "/dashboard/reservations": (
+                    " (v1.9.1-r4: no hay panel HTML público. Las reservas no "
+                    "están en el MVP actual; feature en roadmap)"
+                ),
             }
             for prefix, hint in hint_map.items():
                 if bad_path == prefix or bad_path.startswith(prefix + "/"):
@@ -940,14 +990,20 @@ def _format_tool_result(name: str, args: dict[str, Any], result: dict[str, Any])
 # El LLM tiende a alucinar el patrón `/u/{slug}/reservar` aunque el system
 # prompt se lo prohíba. Estos regexes detectan:
 #
+# v1.9.1-r4: el dominio CANÓNICO es `settings.public_base_url` (default
+# `https://wowhub-api-production.up.railway.app`). El viejo `wowhub.app`
+# ya NO responde (NXDOMAIN). El formato viejo `/u/{slug}/...` tampoco
+# existe (404 en el OpenAPI de producción). La forma REAL es
+# `{settings.public_base_url}/api/v1/public/t/{slug}/...`.
+#
 # 1) `_SLUG_LITERAL_RE` → el placeholder LITERAL `/u/{slug}/...` (con
 #    las llaves `{` `}`). Este es el bug original: el LLM lo escribe
 #    pidiéndole al usuario que "reemplace {slug} por el nombre del negocio".
 #
 # 2) `_SLUG_PATH_RE` → el path SIN dominio `/u/<slug-real>/(reservar|book
 #    |catalogo)`. Esto pasa cuando el LLM sustituye el slug pero olvida
-#    poner el `https://wowhub.app` delante. Lo reemplazamos también por
-#    la URL completa.
+#    poner el `https://<settings.public_base_url>` delante. Lo reemplazamos
+#    también por la URL completa.
 #
 # 3) `_SLUG_BARE_RE` → `{slug}` "desnudo", fuera de la URL. Esto pasa
 #    cuando el LLM ya puso la URL REAL correctamente pero igual añade
@@ -1015,20 +1071,34 @@ _FAKE_PUBLIC_HOST_RE = re.compile(
 _FAKE_PUBLIC_UPPERCASE_RE = re.compile(
     r"/u/\{[A-Z]+\}(?:/(?:reservar|book|catalogo|menu|pedido))?",
 )
-# Rutas del panel que NO existen en app/main.py (v1.9.1-r3 — sincronizado
+# Rutas del panel que NO existen en app/main.py (v1.9.1-r4 — sincronizado
 # con app_knowledge.NO_EXISTE). El LLM las emite siguiendo la doc vieja.
+#
+# v1.9.1-r4: en producción el OpenAPI NO expone rutas HTML de dashboard
+# (https://wowhub-api-production.up.railway.app/openapi.json). El "panel"
+# autenticado está en app/main.py (código de desarrollo) pero NO se le
+# entrega al cliente final. Por eso NINGUNA ruta /dashboard/* tiene
+# auto-corrección hacia otra ruta /dashboard/* (todas son obsoletas como
+# URLs públicas). El scrubber las reemplaza por mensajes que apuntan a
+# la API autenticada o a las tools vigentes.
 _FAKE_DASHBOARD_PATH_RE = re.compile(
     r"https?://[^\s)>\]]*"
-    r"(?P<bad>/dashboard/(?:settings|qr|campaigns|branches|automation|categories|integrations)"
+    r"(?P<bad>/dashboard/(?:settings|qr|campaigns|branches|automation|categories|integrations|products|orders|customers|stats|promotions|bookings|loyalty|reservations)"
     r"(?:/[^\s)>\]]*)?)",
     re.IGNORECASE,
 )
-# Mapa de ruta falsa → ruta real correcta (para auto-corregir cuando podemos).
+# Mapa de ruta falsa → texto correctivo. v1.9.1-r4: ya NO hay auto-fix
+# a otra ruta /dashboard/* (porque el panel público está deprecado).
+# Cada entry es un mensaje de "esa ruta no existe como link público; usa X".
 _FAKE_DASHBOARD_REPLACEMENTS: dict[str, str] = {
-    "/dashboard/settings": "/dashboard/site",
-    "/dashboard/qr": "/dashboard/qrs",
-    # /dashboard/campaigns, /dashboard/branches, /dashboard/automation,
-    # /dashboard/categories, /dashboard/integrations NO tienen vista
-    # (solo API) → no las auto-reemplazamos; las marcamos para que el
-    # usuario use la tool correspondiente.
+    "/dashboard/settings": (
+        "[v1.9.1-r4: no hay panel HTML público en producción. La "
+        "configuración del tenant se hace vía API autenticada: "
+        "PATCH /api/v1/tenants/{tid}]"
+    ),
+    "/dashboard/qr": (
+        "[v1.9.1-r4: no hay panel HTML público en producción. Los QRs se "
+        "gestionan vía API autenticada. El link público CORTO de un QR es "
+        "/r/{short_code} (formato legacy reemplazado por get_tenant_public_urls)]"
+    ),
 }

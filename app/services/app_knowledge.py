@@ -12,160 +12,160 @@ from __future__ import annotations
 from typing import Any
 
 
-# ── 1. Módulos del dashboard ──────────────────────────────────────
+# ── 1. Features del producto (lo que WowHub ofrece HOY en producción) ──
+#
+# v1.9.1-r4: el OpenAPI en producción
+# (https://wowhub-api-production.up.railway.app/openapi.json) describe
+# explícitamente "4 features del MVP: Página, Catálogo, QR y Promociones".
+# Las otras secciones (auth, tenants, members, branches, categories,
+# products, customers, qrs, landing-config) son endpoints ADMIN / CRM
+# autenticados con JWT, NO features visibles al cliente final.
+#
+# Por eso MODULES se reduce a 4 features visibles + 0 admin (los admin
+# no son "features" sino "gestión interna"). La IA NO debe prometer
+# features que no están en el OpenAPI de producción.
 MODULES: list[dict[str, Any]] = [
     {
-        "key": "resumen",
-        "label": "Resumen",
-        "path": "/dashboard",
-        "description": "KPIs, ventas, productos top, agenda de hoy.",
+        "key": "pagina",
+        "label": "Página de tu negocio",
+        "path": "/api/v1/public/t/{slug}/profile",
+        "description": (
+            "Página pública del tenant: nombre, descripción, dirección, "
+            "logo, datos del negocio. Read-only (GET). Equivale al "
+            "perfil público del negocio."
+        ),
         "requires_activation": False,
-        "ai_tools": ["get_stats_overview"],
+        "ai_tools": ["get_tenant_info"],
     },
     {
-        "key": "productos",
-        "label": "Productos",
-        "path": "/dashboard/products",
-        "description": "Catálogo, stock, precios, categorías, imágenes.",
+        "key": "catalogo",
+        "label": "Catálogo de productos",
+        "path": "/api/v1/public/t/{slug}/catalog",
+        "description": (
+            "Lista de productos visibles al público: nombre, precio, "
+            "imagen, descripción, disponibilidad. Read-only (GET). "
+            "Para ver UN producto puntual, el path es "
+            "/api/v1/public/t/{slug}/products/{product_slug}."
+        ),
         "requires_activation": False,
-        "ai_tools": ["list_products", "analyze_inventory"],
+        "ai_tools": ["list_products"],
+    },
+    {
+        "key": "qr",
+        "label": "Códigos QR",
+        "path": "/r/{short_code}",
+        "description": (
+            "Códigos QR de corta duración. Cuando el cliente escanea el "
+            "QR, es redirigido (302) al destino configurado (perfil, "
+            "catálogo, producto, promo, etc.). El path es la URL CORTA "
+            "que el dueño pega en su QR físico."
+        ),
+        "requires_activation": False,
+        "ai_tools": [],
     },
     {
         "key": "promociones",
         "label": "Promociones",
-        "path": "/dashboard/promotions",
-        "description": "Motor de descuentos, combos, campañas activas.",
+        "path": "/api/v1/public/t/{slug}/promotions",
+        "description": (
+            "Promociones activas del tenant: descuento, vigencia, "
+            "condiciones. Read-only (GET) en el endpoint público. La "
+            "gestión interna (crear/editar) se hace vía API autenticada "
+            "POST /api/v1/tenants/{tid}/promotions."
+        ),
         "requires_activation": False,
         "ai_tools": ["list_promotions", "create_promotion"],
-    },
-    {
-        "key": "clientes",
-        "label": "Clientes",
-        "path": "/dashboard/customers",
-        "description": "Base de clientes, tags, puntos de fidelización.",
-        "requires_activation": False,
-        "ai_tools": ["list_customers", "get_customer_segments"],
-    },
-    {
-        "key": "pedidos",
-        "label": "Pedidos / Ventas",
-        "path": "/dashboard/orders",
-        "description": "Órdenes, estados, ticket promedio.",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "reservas",
-        "label": "Reservas",
-        "path": "/dashboard/bookings",
-        "description": "Agenda, KPIs, filtros, modal nueva reserva. Disponible para todos los tenants sin activación.",
-        "requires_activation": False,
-        "ai_tools": ["list_bookings", "check_availability", "create_booking"],
-    },
-    {
-        "key": "fidelizacion",
-        "label": "Fidelización",
-        "path": "/dashboard/loyalty",
-        "description": "Programas de puntos y sellos.",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "qrs",
-        "label": "QRs",
-        "path": "/dashboard/qrs",
-        "description": "Códigos QR para tienda física, mesas, productos.",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "site",
-        "label": "Sitio y branding",
-        "path": "/dashboard/site",
-        "description": "Branding del sitio: logo, colores, nombre, slug, datos del negocio.",
-        "requires_activation": False,
-        "ai_tools": ["get_tenant_info"],
-    },
-    {
-        "key": "landing",
-        "label": "Landing del negocio",
-        "path": "/dashboard/landing",
-        "description": "Editor de la landing pública del tenant (colores, contacto, redes).",
-        "requires_activation": False,
-        "ai_tools": ["get_tenant_info"],
-    },
-    {
-        "key": "payments",
-        "label": "Pagos",
-        "path": "/dashboard/payments",
-        "description": "Estado de pagos, mock provider, integraciones.",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "stats",
-        "label": "Estadísticas",
-        "path": "/dashboard/stats",
-        "description": "KPIs, tendencias, comparativas.",
-        "requires_activation": False,
-        "ai_tools": ["get_stats_overview"],
-    },
-    {
-        "key": "webhooks",
-        "label": "Webhooks",
-        "path": "/dashboard/webhooks",
-        "description": "Configuración de webhooks salientes.",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "ai_dashboard",
-        "label": "Asistente IA (vista usuario)",
-        "path": "/dashboard/ai",
-        "description": "Asistente IA en contexto del dashboard (cualquier rol).",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "admin_ia",
-        "label": "Admin IA",
-        "path": "/admin/ai",
-        "description": "Métricas, logs, trazas, circuit breaker. Solo OWNER/ADMIN (guard server-side).",
-        "requires_activation": False,
-        "ai_tools": [],
-    },
-    {
-        "key": "superadmin",
-        "label": "SUPERADMIN",
-        "path": "/admin/superadmin",
-        "description": "Panel de plataforma: KPIs globales, gestión de tiendas, usuarios, auditoría. Solo para usuarios con `is_superuser=True` (a nivel de USUARIO, no de membresía). Guard server-side.",
-        "requires_activation": False,
-        "ai_tools": [],
     },
 ]
 
 
 # ── 2. URLs públicas (sin auth) ───────────────────────────────────
+#
+# v1.9.1-r4: el OpenAPI en producción
+# (https://wowhub-api-production.up.railway.app/openapi.json) expone
+# EXACTAMENTE 7 paths públicos bajo `/api/v1/public/t/{slug}/`:
+#   - /profile          → datos del negocio
+#   - /catalog          → lista de productos
+#   - /products/{slug}  → ficha de un producto
+#   - /promotions       → promociones activas
+#   - /categories       → categorías del catálogo
+#   - /branches         → sucursales (dirección, horarios)
+#   - /landing          → config de la landing pública
+# Más el path `/r/{short_code}` (default) que es un 302 redirect para
+# los QRs cortos.
+#
+# Esta es la ÚNICA lista válida. Los paths anteriores (`/u/{slug}/...`,
+# `/u/{slug}/reservar`, `/loyalty/{slug}`) NO EXISTEN en el OpenAPI de
+# producción y son RUTAS FANTASMA que la IA NO debe entregar.
 PUBLIC_URLS: list[dict[str, str]] = [
     {
-        "key": "landing",
-        "pattern": "/u/{slug}",
-        "description": "Landing pública del negocio. {slug} = identificador del tenant.",
+        "key": "perfil",
+        "pattern": "/api/v1/public/t/{slug}/profile",
+        "description": (
+            "Datos públicos del tenant: nombre, descripción, dirección, "
+            "logo, redes, datos del negocio. Read-only (GET). "
+            "{slug} = identificador del tenant en la URL."
+        ),
     },
     {
         "key": "catalogo",
-        "pattern": "/u/{slug}/catalogo",
-        "description": "Catálogo público de productos sin login.",
+        "pattern": "/api/v1/public/t/{slug}/catalog",
+        "description": (
+            "Catálogo público de productos: nombre, precio, imagen, "
+            "descripción, disponibilidad. Read-only (GET)."
+        ),
     },
     {
-        "key": "reservar",
-        "pattern": "/u/{slug}/reservar",
-        "description": "Flujo público de reservas: branch → fecha/hora → datos.",
+        "key": "producto",
+        "pattern": "/api/v1/public/t/{slug}/products/{product_slug}",
+        "description": (
+            "Ficha de UN producto: detalle, precio, galería de imágenes, "
+            "variantes, stock visible. {product_slug} = slug del producto. "
+            "Read-only (GET)."
+        ),
     },
     {
-        "key": "loyalty",
-        "pattern": "/loyalty/{slug}",
-        "description": "Página pública de fidelización del tenant (cliente final).",
+        "key": "promociones",
+        "pattern": "/api/v1/public/t/{slug}/promotions",
+        "description": (
+            "Promociones activas del tenant: descuento, vigencia, "
+            "condiciones. Read-only (GET)."
+        ),
+    },
+    {
+        "key": "categorias",
+        "pattern": "/api/v1/public/t/{slug}/categories",
+        "description": (
+            "Categorías del catálogo. Útil para agrupar el catálogo. "
+            "Read-only (GET)."
+        ),
+    },
+    {
+        "key": "sucursales",
+        "pattern": "/api/v1/public/t/{slug}/branches",
+        "description": (
+            "Sucursales del tenant: dirección, horarios, teléfono, "
+            "coordenadas. Read-only (GET)."
+        ),
+    },
+    {
+        "key": "landing",
+        "pattern": "/api/v1/public/t/{slug}/landing",
+        "description": (
+            "Config de la landing pública del tenant: colores, copy, "
+            "links a redes, claims. Read-only (GET). La edición se "
+            "hace internamente vía API autenticada."
+        ),
+    },
+    {
+        "key": "qr_redirect",
+        "pattern": "/r/{short_code}",
+        "description": (
+            "URL CORTA de un QR. Cuando el cliente escanea, el server "
+            "responde 302 hacia el destino configurado (perfil, "
+            "catálogo, producto, promo, etc.). {short_code} = código "
+            "alfanumérico corto del QR."
+        ),
     },
 ]
 
@@ -185,24 +185,26 @@ AUTH_INFO: list[dict[str, str]] = [
 # ── 4. FAQ rápidas (overrides literales) ──────────────────────────
 FAQ: dict[str, str] = {
     "cómo activo Reservas": (
-        "Reservas no requiere activación. Está disponible para todos los tenants. "
-        "Ve directo a /dashboard/bookings desde el menú lateral."
+        "v1.9.1-r4: el feature de Reservas NO está expuesto en el OpenAPI de producción. "
+        "Si lo que el usuario quiere es gestionar reservas internamente, se hace vía "
+        "API autenticada (con JWT). Si es para clientes finales (pedir una reserva), "
+        "esa función tampoco está en el MVP actual — está en roadmap."
     ),
     "cómo activo reservaciones": (
-        "Reservas no requiere activación. Está disponible para todos los tenants. "
-        "Ve directo a /dashboard/bookings desde el menú lateral."
+        "v1.9.1-r4: el feature de Reservas NO está expuesto en el OpenAPI de producción "
+        "(https://wowhub-api-production.up.railway.app/openapi.json). Está en roadmap."
     ),
     "cómo activo reservas": (
-        "Reservas no requiere activación. Está disponible para todos los tenants. "
-        "Ve directo a /dashboard/bookings desde el menú lateral."
+        "v1.9.1-r4: el feature de Reservas NO está expuesto en el OpenAPI de producción. "
+        "Está en roadmap."
     ),
     "qué módulos hay": (
-        "WowHub tiene 14 módulos visibles en el panel del dueño: Resumen, Productos, "
-        "Promociones, QRs, Clientes, Pedidos, Reservas, Fidelización, "
-        "Landing del negocio, Sitio y branding, Pagos, Estadísticas, Webhooks, "
-        "Asistente IA. Los 14 módulos visibles están disponibles para todos los tenants sin activación. "
-        "Admin IA (en /admin/ai) y SUPERADMIN (en /admin/superadmin) son paneles "
-        "con guard de rol: el primero requiere OWNER/ADMIN, el segundo `is_superuser=True`."
+        "WowHub ofrece 4 features públicas (lo que ven tus clientes): "
+        "Página, Catálogo, QR y Promociones. Estas son las 4 funciones del MVP "
+        "desplegado en producción. El dueño también tiene acceso a la gestión interna "
+        "vía API autenticada (productos, sucursales, clientes, etc.) pero esas NO son "
+        "features visibles al cliente final. NINGUNA requiere activación: están todas "
+        "disponibles para cualquier tenant activo."
     ),
     # ── Automation Manager (Cap. 19.3) — FAQ ──
     "qué es el automation manager": (
@@ -237,60 +239,71 @@ FAQ: dict[str, str] = {
     ),
     # ── Dashboard URLs (v1.9.1) — UX fix: links clickeables ──
     "cómo abro el panel de productos": (
-        "Llama primero a la tool `get_tenant_dashboard_urls`. Te devuelve "
-        "los links YA CON la URL absoluta armada (ej. "
-        "https://wowhub.app/dashboard/products) listos para mostrar con "
-        "markdown `[Abrir Productos](url)` y que el usuario haga 1 click. "
-        "NUNCA respondas con `/dashboard/products` desnudo — fuera del SPA "
-        "no es clickeable. Si la tool falla, sugiere Configuración → Branding."
+        "v1.9.1-r4: el panel autenticado del dueño está en `app/main.py` (código "
+        "de desarrollo) pero el OpenAPI de PRODUCCIÓN "
+        "(https://wowhub-api-production.up.railway.app/openapi.json) NO expone rutas "
+        "HTML de dashboard. Llama primero a `get_tenant_info` para confirmar el slug "
+        "del tenant y luego sugiere al usuario la API autenticada "
+        "GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/products (con su JWT). La página "
+        "PÚBLICA del producto (lo que ven los clientes) es "
+        "/api/v1/public/t/{slug}/products/{product_slug}."
     ),
     "cómo abro el panel de": (
-        "Llama primero a `get_tenant_dashboard_urls`. Te devuelve todos "
-        "los links del panel con la URL absoluta (no el path relativo) "
-        "para que sean clickeables. NUNCA respondas con paths desnudos."
+        "v1.9.1-r4: no hay panel HTML público en producción. La gestión es vía "
+        "API autenticada con JWT (GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/...). "
+        "Llama primero a `get_tenant_public_urls` para devolver la URL del feature "
+        "público (catálogo, perfil, QR) si el usuario quiere compartirla."
     ),
     "dónde veo el admin ia": (
-        "Llama a `get_tenant_dashboard_urls` y devuelve el link de Admin IA "
-        "armado como markdown. Solo OWNER/ADMIN pueden acceder. Si el "
-        "usuario es STAFF/VIEWER, dile que necesita permisos de admin."
+        "v1.9.1-r4: la gestión interna de WowHub (incluido el admin) se hace vía "
+        "API autenticada, no hay panel HTML público. Llama a `get_tenant_info` para "
+        "verificar que el usuario sea OWNER/ADMIN; si lo es, sugiere los endpoints "
+        "/api/v1/admin/ai/* con su JWT. Si es STAFF o VIEWER, no tiene permisos."
     ),
     "pásame el link de": (
-        "Llama a `get_tenant_dashboard_urls` y devuelve el link armado como "
-        "markdown `[texto](https://wowhub.app/dashboard/...)` para que sea "
-        "clickeable. NUNCA respondas con el path desnudo tipo "
-        "`/dashboard/products`."
+        "v1.9.1-r4: primero identifica QUÉ feature pide el usuario. Si es público "
+        "(catálogo, perfil, promo, QR), llama a `get_tenant_public_urls` y devuelve "
+        "el link ABSOLUTO del feature (ej. "
+        "`https://wowhub-api-production.up.railway.app/api/v1/public/t/cafeluna/catalog`). "
+        "Si es gestión interna, dile que no hay URL pública — la acción la hace "
+        "él desde su sesión autenticada."
     ),
     "mándame el link por": (
-        "Llama a `get_tenant_dashboard_urls` y devuelve el link ABSOLUTO. "
-        "Como es una URL completa (no path relativo), el usuario puede "
-        "compartirla por WhatsApp, email, SMS, etc."
+        "Llama primero a `get_tenant_public_urls`. La URL pública del feature "
+        "que el usuario quiere compartir (catálogo, perfil, promo, QR) ya viene "
+        "con el slug real sustituido y la base de settings.public_base_url como "
+        "prefijo. Como es una URL completa, el usuario puede compartirla por "
+        "WhatsApp, email, SMS, etc."
     ),
     "dónde cambio mi contraseña": (
-        "Ve a Configuración → Mi cuenta, o usa el botón Cambiar contraseña "
-        "en tu perfil."
+        "v1.9.1-r4: la gestión interna se hace vía API autenticada. El endpoint es "
+        "POST /api/v1/auth/password con el JWT del usuario. No hay pantalla HTML pública "
+        "para esto en producción."
     ),
     "dónde veo mis ventas": (
-        "En el menú lateral, Resumen, o directo en /dashboard."
+        "v1.9.1-r4: la vista de ventas del dueño la entrega la API autenticada. "
+        "Endpoint: GET /api/v1/tenants/{tid}/stats/overview (con JWT). No hay ruta "
+        "HTML pública de dashboard en producción."
     ),
     "cómo creo una promoción": (
         "Puedo crearla por ti. Dime: nombre, descuento (% o monto), fechas. "
         "Te muestro el preview antes de guardar."
     ),
     "cómo creo una reserva": (
-        "Puedo agendarla. Necesito: cliente, sucursal, fecha, hora, duración. "
-        "Te muestro el preview antes de guardar."
+        "v1.9.1-r4: Reservas NO está en el OpenAPI de producción. Está en roadmap. "
+        "Dile al usuario que esa función aún no está disponible para clientes finales."
     ),
     "url pública": (
-        "SIEMPRE llama primero a la tool `get_tenant_public_urls`. Te "
-        "devuelve los links YA con el slug real sustituido (ej. "
-        "https://wowhub.app/u/cafeluna/reservar) listos para mostrar y "
-        "compartir. NUNCA respondas con el patrón de placeholder, NUNCA "
-        "pidas al usuario que reemplace el slug a mano, NUNCA inventes "
-        "el slug. Si la tool falla, di que ahora no puedes obtener el "
-        "link y sugiere Configuración → Branding. Patrones que usa esa "
-        "tool internamente: el de reservas y el de book, con /u/ y el "
-        "slug del tenant — pero esos son para la tool, no para tu "
-        "respuesta."
+        "v1.9.1-r4: SIEMPRE llama primero a la tool `get_tenant_public_urls`. "
+        "Te devuelve los links PÚBLICOS del tenant con el slug real sustituido y "
+        "la base de settings.public_base_url como prefijo (ej. "
+        "`https://wowhub-api-production.up.railway.app/api/v1/public/t/cafeluna/catalog`). "
+        "El formato REAL (v1.9.1-r4) es `/api/v1/public/t/{slug}/...` — NO uses "
+        "el formato viejo `/u/{slug}/...` (esos paths NO EXISTEN en producción y "
+        "dan 404). NUNCA respondas con un patrón de placeholder, NUNCA pidas al "
+        "usuario que reemplace el slug a mano, NUNCA inventes el slug. Si la tool "
+        "falla, di que ahora no puedes obtener el link. La tool `get_tenant_dashboard_urls` "
+        "está DEPRECADA en v1.9.1-r4 — no la llames."
     ),
     "no me deja entrar": (
         "Verifica que tu sesión esté iniciada y que el chip de usuario del topbar "
@@ -300,7 +313,9 @@ FAQ: dict[str, str] = {
         "Por ahora WowHub está en español. La función multi-idioma está en roadmap."
     ),
     "cómo cambio el logo": (
-        "En Configuración → Branding (subir imagen, máximo 2 MB)."
+        "v1.9.1-r4: la gestión de branding se hace vía API autenticada. Endpoint: "
+        "PATCH /api/v1/tenants/{tid} (campo logo_url) o POST /api/v1/uploads para "
+        "subir la imagen (máx 5 MB). No hay pantalla HTML pública para esto en producción."
     ),
     "cuánto cuesta": (
         "Depende del plan. Revisa la sección de Planes en la landing o pregúntale "
@@ -311,8 +326,9 @@ FAQ: dict[str, str] = {
         "soporte@wowhub.app."
     ),
     "cómo conecto whatsapp": (
-        "En Configuración → Integraciones (cuando esté disponible). Hoy puedes "
-        "compartir el link público por WhatsApp manualmente."
+        "v1.9.1-r4: WhatsApp Business NO está implementado todavía. Está en roadmap "
+        "como `send_whatsapp_template` en el Automation Manager. Hoy puedes compartir "
+        "el link público del feature por WhatsApp manualmente."
     ),
     "marketing studio": (
         "El Marketing Studio es el endpoint POST /api/v1/ai/marketing/generate "
@@ -392,13 +408,38 @@ NO_EXISTE: list[str] = [
     "El Automation Manager NO incluye acciones destructivas (no hay cancel_booking, delete_promotion en MVP).",
     "El Automation Manager NO hace rollback del audit log en ejecuciones fallidas — queremos ver el intento (sí hace rollback del resource).",
     "El preview del Automation Manager NO toca la DB — es un dry_run puro que devuelve un texto legible y un preview_id con TTL 10 min.",
-    # ── Dashboard URLs (v1.9.1) — anti-alucinación ──
-    "Las rutas del panel (ej. /dashboard/products) NO son URLs absolutas. Para que sean clickeables fuera del SPA, SIEMPRE llama primero a la tool `get_tenant_dashboard_urls` que las arma con `settings.public_base_url` como prefijo.",
-    "El AI NO debe inventar la URL base del panel. SIEMPRE usa la que devuelve `get_tenant_dashboard_urls` (que lee `settings.public_base_url`). No hardcodees `wowhub.app` ni `localhost`.",
-    "El AI NO debe responder con paths desnudos como `/dashboard/products` cuando el usuario pide un link. Eso no es clickeable en WhatsApp/email/SMS. USA SIEMPRE la tool y devuelve el link completo.",
-    "Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products) — el contexto multi-tenant lo da la sesión/JWT, no el subdominio. NO incluyas el slug del tenant en el path.",
-    "El AI NO debe incluir `/u/{slug}/` en los links del panel — eso es para URLs PÚBLICAS. Para el panel, el prefijo es solo `https://wowhub.app/dashboard/...`.",
-    "El AI NO debe confundir `get_tenant_public_urls` (URLs públicas, requieren slug) con `get_tenant_dashboard_urls` (URLs del panel autenticadas, misma URL para todos los tenants).",
+    # ── v1.9.1-r4 — Anti-alucinación sincronizada con producción ──
+    # La fuente de verdad es el OpenAPI de producción:
+    # https://wowhub-api-production.up.railway.app/openapi.json
+    # NO `app/main.py` (código de desarrollo) NI `wowhub.app` (dominio no desplegado).
+    "v1.9.1-r4: NO EXISTE un panel HTML público en producción. La gestión interna "
+    "(productos, sucursales, clientes, promos, branding) se hace vía API autenticada "
+    "con JWT (GET/POST/PATCH/DELETE /api/v1/tenants/{tid}/...). El OpenAPI en "
+    "producción NO expone rutas `/dashboard/*` ni `/admin/*` como vistas HTML — "
+    "esas rutas están en `app/main.py` (código de desarrollo, NO desplegado).",
+    "v1.9.1-r4: NUNCA respondas con paths desnudos (ej. `/dashboard/products`, "
+    "`/u/{slug}/reservar`, `/api/v1/public/t/cafeluna/catalog` sin prefijo de "
+    "dominio). Un path desnudo NO es una URL clickeable — siempre va envuelto en "
+    "el formato completo `https://<dominio>/<path>` con el dominio de "
+    "`settings.public_base_url` como prefijo. La IA no debe inventar la URL base "
+    "tampoco: si no la tiene, NO escribe la URL — di que la tool la devolverá.",
+    "v1.9.1-r4: el formato correcto de URL pública es "
+    "`{settings.public_base_url}/api/v1/public/t/{slug}/...` "
+    "(ej. `https://wowhub-api-production.up.railway.app/api/v1/public/t/cafeluna/catalog`). "
+    "El formato viejo `/u/{slug}/...` (ej. `/u/cafeluna/perfil`, `/u/cafeluna/catalogo`, "
+    "`/u/cafeluna/reservar`) NO EXISTE en el OpenAPI de producción y da 404. "
+    "NUNCA entregues URLs con el prefijo `/u/{slug}/`.",
+    "v1.9.1-r4: la URL pública `/loyalty/{slug}` NO EXISTE. El feature de fidelización "
+    "no está desplegado en producción (solo en roadmap). NUNCA la ofrezcas como link.",
+    "v1.9.1-r4: el dominio `wowhub.app` NO está desplegado en producción. La única URL "
+    "que puedes garantizar como 'existe y responde hoy' es "
+    "`https://wowhub-api-production.up.railway.app/`. NUNCA entregues links con "
+    "prefijo `https://wowhub.app/...` (dan NXDOMAIN). El default de "
+    "`settings.public_base_url` es el de Railway, no `wowhub.app`.",
+    "v1.9.1-r4: la tool `get_tenant_dashboard_urls` está DEPRECADA. La IA NO debe "
+    "llamarla más. La única tool de URLs es `get_tenant_public_urls`, que devuelve los "
+    "7 paths públicos REALES (perfil, catalogo, producto, promociones, categorias, "
+    "sucursales, landing) + el path del QR corto (`/r/{short_code}`).",
     # ── Anti-placeholder (v1.9.1-r2) — placeholders literales prohibidos ──
     "NUNCA uses placeholders literales como 'tu-negocio', 'tu-tienda', 'tu-empresa', "
     "'tu-sucursal', 'tu-restaurante', 'my-business', 'my-shop', 'my-store', "
@@ -408,52 +449,62 @@ NO_EXISTE: list[str] = [
     "El slug del tenant sale SOLO de la tool `get_tenant_public_urls`. "
     "Una URL pública con placeholder es directamente una URL FALSA — "
     "el usuario no puede hacer click.",
-    "NUNCA respondas con un path desnudo del panel (ej. /dashboard/products) "
-    "sabiendo que no es clickeable fuera del SPA. SIEMPRE llama primero a "
-    "`get_tenant_dashboard_urls` y muestra el resultado como markdown "
-    "`[Texto](https://...)`. Si la tool falla, di que ahora no puedes "
-    "obtener el link y sugiere revisar la sesión.",
+    "NUNCA entregues URLs que NO son absolutas: cualquier path sin prefijo de "
+    "dominio (ej. `/dashboard/products`, `/u/{slug}/reservar`, "
+    "`/api/v1/public/t/cafeluna/catalog` sin `https://...` delante) es una URL "
+    "NO absoluta, no es clickeable en WhatsApp/email/SMS, y deja al usuario con "
+    "la impresión de que WowHub no funciona. SIEMPRE antepón el dominio de "
+    "`settings.public_base_url`.",
+    "NUNCA incluyas el slug del tenant a mano en una URL pública. El slug es un "
+    "identificador interno que solo conoce el sistema — si lo escribís a mano, "
+    "puedes equivocarte. SIEMPRE llama a `get_tenant_public_urls` para que la "
+    "tool resuelva el slug real del tenant y te devuelva la URL completa.",
+    "NUNCA confundas URL del panel (`/dashboard/*`) con URL pública "
+    "(`/api/v1/public/t/{slug}/...`). Son cosas distintas: el panel es "
+    "interno (autenticado con JWT, no compartible con clientes), la URL pública "
+    "es lo que ven los clientes finales sin login. Si el usuario pide "
+    "'mi link', devuelve la URL pública, no la del panel.",
+    "NUNCA inventes la URL base de WowHub. No la seques de la nada, no la "
+    "armes con `${dominio}/path` a mano, no la copies de un ejemplo viejo. "
+    "La base SIEMPRE sale de `settings.public_base_url` (default: backend de "
+    "Railway en producción). Si la tool no puede darte la base, NO escribas "
+    "la URL — di que ahora no puedes obtenerla.",
     "NUNCA hardcodees el dominio en una URL de respuesta al usuario. Está "
     "prohibido escribir 'wowhub.app', 'wowhub-api-production.up.railway.app', "
     "'localhost', 'localhost:3000', 'localhost:8000', '127.0.0.1' ni "
     "cualquier otro dominio a mano. El dominio SIEMPRE sale de "
     "`settings.public_base_url` vía la tool correspondiente. Si dudas, "
     "NO escribas la URL — di que la tool la devolverá.",
-    "NUNCA confundas las dos tools de URLs: `get_tenant_dashboard_urls` "
-    "(panel autenticado, MISMA URL para todos los tenants, prefijo "
-    "settings.public_base_url, sin slug) vs `get_tenant_public_urls` "
-    "(URL pública del tenant, slug real sustituido, prefijo "
-    "settings.public_base_url + /u/{slug_real}/). Cada una resuelve un "
-    "caso distinto. Usar la tool equivocada produce URLs falsas.",
-    # ── Anti-rutas-fantasma (v1.9.1-r3) — rutas que NO existen en main.py ──
-    "La ruta `/dashboard/settings` NO EXISTE. La configuración del tenant "
-    "(branding, logo, datos del negocio) está en `/dashboard/site` "
-    "y la landing personalizable está en `/dashboard/landing`.",
-    "La ruta `/dashboard/qr` (singular) NO EXISTE. La ruta real es "
-    "`/dashboard/qrs` (plural). NUNCA uses el singular en una URL.",
+    # ── Anti-rutas-fantasma (v1.9.1-r3) — heredadas pero con justificación v1.9.1-r4 ──
+    "La ruta `/dashboard/settings` NO EXISTE en producción (no hay panel HTML). "
+    "La configuración del tenant (branding, logo, datos del negocio) se hace vía "
+    "API autenticada: PATCH /api/v1/tenants/{tid}.",
+    "La ruta `/dashboard/qr` (singular) NO EXISTE. La ruta real de QR es "
+    "`/r/{short_code}` (un redirect 302 al destino configurado). NUNCA uses "
+    "el singular en una URL.",
     "La ruta `/dashboard/campaigns` NO EXISTE como vista HTML. El envío "
     "masivo de campañas se hace vía la tool `send_campaign` (Automation "
     "Manager) llamando a la API, NO desde una pantalla del panel. "
     "Para enviar emails a un cliente puntual, usa `send_email_to_customer`.",
-    "La ruta `/dashboard/branches` NO EXISTE. Las sucursales se gestionan "
-    "vía API (POST /api/v1/branches) y se consultan en la respuesta de "
-    "`get_tenant_info` (campo `branches`).",
+    "La ruta `/dashboard/branches` NO EXISTE. Las sucursales se consultan en "
+    "`/api/v1/public/t/{slug}/branches` (público) o `/api/v1/tenants/{tid}/branches` (autenticado).",
     "La ruta `/dashboard/automation` NO EXISTE como vista. El Automation "
     "Manager se invoca solo vía API (POST /api/v1/automation/preview y "
     "/execute), no tiene pantalla dedicada.",
-    "La ruta `/dashboard/categories` NO EXISTE. Las categorías se gestionan "
-    "dentro de Productos (no tienen pantalla propia).",
+    "La ruta `/dashboard/categories` NO EXISTE. Las categorías se consultan en "
+    "`/api/v1/public/t/{slug}/categories` (público) o se gestionan vía API autenticada.",
     "La ruta `/dashboard/integrations` NO EXISTE. Las integraciones "
     "(WhatsApp, Stripe, MercadoPago) están en roadmap y se configuran "
     "por API o por variables de entorno.",
-    "La URL pública `/u/{slug}/book` NO EXISTE. La URL real para que los "
-    "clientes agenden es `/u/{slug}/reservar`. NO ofrezcas el alias en "
-    "inglés porque dirige a un 404.",
+    "La URL pública `/u/{slug}/book` NO EXISTE. Las reservas NO están en el MVP "
+    "actual (v1.9.1-r4). El feature de reservas está en roadmap.",
     "La URL pública `/u/{slug}/menu` NO EXISTE. El catálogo público es "
-    "`/u/{slug}/catalogo`.",
+    "`/api/v1/public/t/{slug}/catalog` (formato v1.9.1-r4, NO `/u/{slug}/catalogo`).",
     "La URL pública `/u/{slug}/pedido` NO EXISTE. No hay vista de pedido "
     "para clientes externos; el flujo de pedido se hace desde el panel "
     "o vía API.",
+    "La URL pública `/u/{slug}/reservar` NO EXISTE. Las reservas no están "
+    "desplegadas en el OpenAPI de producción (están en roadmap).",
 ]
 
 
@@ -612,32 +663,37 @@ AUTOMATION_MANAGER_TRIGGERS: list[str] = [
 ]
 
 
-# ── 11. Dashboard URLs clickeables (WowHub AI Core™ — v1.9.1) ──────
-# Catálogo que la tool `get_tenant_dashboard_urls` usa para armar los
-# links ABSOLUTOS del panel (no paths relativos). Las rutas son las
-# MISMAS para todos los tenants — el contexto multi-tenant lo da la
-# sesión/JWT, no el subdominio.
+# ── 11. DASHBOARD_URLS (DEPRECATED en v1.9.1-r4) ───────────────────
 #
-# Esta constante existe para que cualquier agente (marketing, growth,
-# automation, help) sepa qué módulos existen y pueda pedirle al LLM que
-# use la tool en vez de inventar paths.
+# v1.9.1-r4: el OpenAPI de producción NO expone rutas HTML de dashboard.
+# Las rutas /dashboard/* que están en `app/main.py` son código de
+# desarrollo NO desplegado en Railway. Por eso:
+#
+#   1. La tool `get_tenant_dashboard_urls` está DEPRECADA.
+#   2. Esta constante se mantiene como SHIM para no romper imports
+#      ni tests legacy, pero está vacía (sin modules).
+#   3. La IA NO debe entregar links de panel.
+#
+# Tests legacy que importen DASHBOARD_URLS["modules"] deben ser
+# actualizados a la nueva realidad (4 features públicas).
 DASHBOARD_URLS: dict[str, Any] = {
-    "endpoint": "tool get_tenant_dashboard_urls (no es HTTP, lee de app_knowledge)",
+    "deprecated_in": "v1.9.1-r4",
+    "reason": (
+        "El OpenAPI de producción "
+        "(https://wowhub-api-production.up.railway.app/openapi.json) NO "
+        "expone rutas HTML de dashboard. El panel de gestión solo está "
+        "en `app/main.py` (código de desarrollo, NO desplegado). La "
+        "única tool de URLs vigente es `get_tenant_public_urls`."
+    ),
+    "endpoint": "DEPRECATED — usa `get_tenant_public_urls` en su lugar.",
     "base_url_source": "settings.public_base_url",
-    "url_format": "{base_url}{path} → https://wowhub.app/dashboard/products (ejemplo)",
-    "modules": [
-        # Se genera dinámicamente desde MODULES para no duplicar.
-        # Esta lista es solo DOCUMENTATIVA (qué módulos están disponibles).
-        "resumen", "productos", "promociones", "qrs", "clientes", "pedidos",
-        "reservas", "fidelizacion", "landing", "site", "payments", "stats",
-        "webhooks", "ai_dashboard", "admin_ia", "superadmin",
-    ],
+    "url_format": "DEPRECATED",
+    "modules": [],  # vacío: ya no hay panel público
     "rules": [
-        "SIEMPRE llama a `get_tenant_dashboard_urls` cuando el usuario pida un link al panel.",
-        "Muestra los links como markdown `[texto](url)` para que sean clickeables.",
-        "NUNCA respondas con paths desnudos tipo `/dashboard/products` — no son clickeables fuera del SPA.",
-        "Las URLs son las MISMAS para todos los tenants. NO incluyas el slug en el path.",
-        "Si la tool falla (settings.public_base_url no configurado), avísale al usuario y sugiere Configuración → Branding.",
+        "DEPRECATED en v1.9.1-r4. La IA NO debe usar esta tool.",
+        "Para URLs públicas, usa `get_tenant_public_urls`.",
+        "Para gestión interna, dile al usuario que la acción la hace "
+        "él desde su sesión autenticada (API con JWT).",
     ],
 }
 
@@ -722,16 +778,17 @@ def render_short_summary() -> str:
     lines.append("  - GET  /api/v1/automation/history → historial paginado de ejecuciones del tenant (no expone params).")
     lines.append("")
     lines.append("Reglas críticas:")
-    lines.append("  - Si te preguntan algo de WowHub que NO sabes con certeza, di 'No estoy seguro, pero X está en /dashboard/x' o sugiere abrir un ticket.")
+    lines.append("  - v1.9.1-r4: NO HAY PANEL HTML PÚBLICO en producción. WowHub hoy expone SOLO una API JSON para clientes públicos (los consumidores finales NO navegan un panel HTML). El 'panel' (/dashboard/*) es interno del SaaS — no es un producto que la IA deba entregar como link al usuario final.")
+    lines.append("  - Si te preguntan algo de WowHub que NO sabes con certeza, di 'No estoy seguro' y sugiere abrir un ticket. NO inventes rutas `/dashboard/x` como si fueran públicas — esa ruta NO existe para clientes externos.")
     lines.append("  - NUNCA inventes nombres de secciones, toggles o flujos que no estén listados aquí.")
     lines.append("  - Para acciones de escritura (create_*, send_*), SIEMPRE muestra preview y pide confirmación explícita antes de ejecutar.")
     lines.append("  - El Marketing Studio SOLO genera texto. NO inventes que genera imágenes o videos.")
     lines.append("  - Si el usuario pide 'escríbeme un post para X', prepara un MarketingRequest y sugiere al frontend llamar al endpoint (no redactes el copy directamente en el chat).")
     lines.append("  - Cuando el Growth Coach devuelva un insight con `recommended_action`, el frontend DEBE llamar /preview antes que /execute. NUNCA ejecutes una acción de escritura sin el paso de preview + confirmación del usuario.")
     lines.append("  - El Automation Manager tiene 3 acciones MVP: create_promotion, create_booking, send_campaign. send_whatsapp_template está en roadmap.")
-    lines.append("  - LINKS DEL PANEL: SIEMPRE llama a la tool `get_tenant_dashboard_urls` para devolver links ABSOLUTOS clickeables. NUNCA respondas con paths desnudos como `/dashboard/products` — fuera del SPA no son clickeables. Muestra los links como markdown `[texto](url)`.")
-    lines.append("  - Las URLs del panel son las MISMAS para todos los tenants (ej. https://wowhub.app/dashboard/products). NO incluyas el slug del tenant en el path del panel — eso es solo para URLs públicas (usa `get_tenant_public_urls`).")
+    lines.append("  - LINKS PÚBLICOS (v1.9.1-r4): SIEMPRE llama a la tool `get_tenant_public_urls` para devolver links ABSOLUTOS clickeables del tenant (formato `https://<dominio>/api/v1/public/t/<slug>/<ruta>`). NUNCA respondas con paths desnudos como `/u/{slug}` ni con `/dashboard/*` (no existe para clientes externos). Muestra los links como markdown `[texto](url)`.")
+    lines.append("  - La tool `get_tenant_dashboard_urls` está DEPRECADA en v1.9.1-r4 (devolvía rutas `/dashboard/*` que NO existen como URLs públicas). Si el usuario pide 'el link de su panel', explica que WowHub es una API — el panel interno NO se comparte con clientes finales. Usa `get_tenant_public_urls` para lo que sí se puede compartir.")
     lines.append("  - ANTI-PLACEHOLDER: NUNCA escribas 'tu-negocio', 'tu-tienda', 'mi-negocio', '{slug}', '<slug>', 'my-business' ni ningún placeholder literal en una URL. El slug real del tenant sale SOLO de `get_tenant_public_urls`. Una URL con placeholder es una URL FALSA — el usuario no puede hacer click y queda con la impresión de que WowHub no funciona.")
-    lines.append("  - ANTI-DOMINIO: NUNCA hardcodees el dominio en una URL de respuesta. Está prohibido escribir 'wowhub.app', 'wowhub-api-production.up.railway.app', 'localhost' a mano. El dominio SIEMPRE sale de `settings.public_base_url` vía la tool. El default de `settings.public_base_url` es `https://wowhub.app`.")
+    lines.append("  - ANTI-DOMINIO: NUNCA hardcodees el dominio en una URL de respuesta. Está prohibido escribir 'wowhub.app', 'wowhub-api-production.up.railway.app', 'localhost' a mano. El dominio SIEMPRE sale de `settings.public_base_url` vía la tool. El default de `settings.public_base_url` es `https://wowhub-api-production.up.railway.app` (la URL del backend en producción que OpenAPI garantiza como 'existe y responde hoy').")
     lines.append("  - FORMATO DE RESPUESTA: si el usuario pide un link, tu respuesta SIEMPRE debe incluir el markdown `[Texto](https://...)` con la URL completa. Un link desnudo o un path sin prefijo es un link ROTO.")
     return "\n".join(lines)
