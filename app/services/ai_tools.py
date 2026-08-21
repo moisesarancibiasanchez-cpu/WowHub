@@ -1035,40 +1035,40 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
       sub-agentes. Sigue en TOOL_DISPATCH y TOOL_SCHEMAS solo por back-compat
       de tests legacy, pero ningún agente debe poder llamarla.
 
-    v1.9.1-r6 (CRÍTICO — fix bug reservas alucinadas):
-    - `list_bookings`, `check_availability` y `create_booking` se REMUEVEN
-      del toolset visible a marketing/growth/automation. Aunque el código
-      existe (TOOL_DISPATCH, app/api/v1/bookings.py) y los endpoints están
-      implementados, el FEATURE completo de reservas NO está desplegado en
-      producción todavía — está en roadmap. El LLM veía estos tools en su
-      lista de funciones disponibles y por eso generaba walkthroughs
-      inventados tipo "con `check_availability` ves los bloques…".
-    - Al sacarlos del toolset, el LLM ya no puede "verlos" como disponibles
-      y por tanto NO puede mencionarlos en respuestas, mencionar
-      precondiciones, ni dar walkthroughs de cómo usarlos.
-    - Los tools SIGUEN en TOOL_DISPATCH y TOOL_SCHEMAS por si se necesitan
-      desde código (tests, futuras features). Si en algún momento se
-      decide exponerlos, se vuelven a agregar aquí.
+    v1.9.1-r7 (REVIERTE r6 — el feature de reservas SÍ está desplegado):
+    - `list_bookings`, `check_availability` y `create_booking` se
+      RESTAURAN en el toolset visible a marketing/growth/automation.
+      r6 los había removido asumiendo que reservas estaba en roadmap,
+      pero el owner confirmó el 2026-08-22 que el servicio de reservas
+      ESTÁ ACTIVO en producción — los endpoints funcionan, los tenants
+      pueden crear reservas, y el AI debe poder ayudar a los owners a
+      usarlos con walkthroughs cuando lo pidan.
+    - El AI ahora PUEDE dar instrucciones sobre cómo usar `check_availability`
+      y `create_booking` cuando el usuario lo pida (ej. "dime cómo crear
+      una reserva" → walkthrough real con esos tools).
     """
     rules: dict[str, list[str]] = {
         "marketing": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
-            # v1.9.1-r6: bookings REMOVIDOS (feature en roadmap, no exponer)
+            # v1.9.1-r7: bookings RESTAURADOS (feature activo en producción)
+            "list_bookings", "check_availability", "create_booking",
             "get_app_help",
             "get_tenant_public_urls",  # v1.9.1-r4: link público del feature
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
-            # v1.9.1-r6: bookings REMOVIDOS
+            # v1.9.1-r7: bookings RESTAURADOS
+            "list_bookings", "check_availability", "create_booking",
             "get_app_help",
             "get_tenant_public_urls",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
-            # v1.9.1-r6: bookings REMOVIDOS
+            # v1.9.1-r7: bookings RESTAURADOS
+            "list_bookings", "check_availability", "create_booking",
             "get_app_help",
             "get_tenant_public_urls",
         ],

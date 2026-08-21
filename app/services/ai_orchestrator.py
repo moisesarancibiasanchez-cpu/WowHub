@@ -590,36 +590,37 @@ class AIOrchestrator:
             error_msg = "llm_returned_garbage"
             error_code = "llm_returned_garbage"
 
-        # 7.9) v1.9.1-r6: red de seguridad ANTI-HALLUCINATION de tool names.
-        # Bug crítico visto en producción (reporte del owner 2026-08-21):
-        # el LLM daba walkthroughs inventados para features de roadmap
-        # (reservas) usando nombres de tools que "veía" en su toolbox.
-        # El usuario veía respuestas tipo "con `check_availability` ves los
-        # bloques…" — pura invención del LLM, esos features no están
-        # desplegados en producción.
+        # 7.9) v1.9.1-r7: red de seguridad ANTI-HALLUCINATION de tool names
+        # para features QUE SÍ ESTÁN EN ROADMAP (no en producción).
+        #
+        # v1.9.1-r6 metía en BLACKLIST los tools de `check_availability`,
+        # `create_booking`, `list_bookings` asumiendo que reservas estaba en
+        # roadmap. FALSO — el owner confirmó el 2026-08-22 que el servicio
+        # de reservas ESTÁ ACTIVO en producción. Esos tools se restauraron
+        # en el toolset de los agentes (ver ai_tools.py) y se quitaron
+        # del BLACKLIST acá.
+        #
         # Esta capa NO depende del LLM: es server-side, regex-based, y
         # es la ÚLTIMA línea de defensa antes de mostrar la respuesta
-        # al usuario.
+        # al usuario. Cubre solo las features REALMENTE en roadmap:
+        # loyalty/puntos, pedidos/delivery, whatsapp templates, POS.
         #
         # Disparamos el reemplazo si CUALQUIERA de estas condiciones:
         #   a) La respuesta contiene backticks de un tool name en BLACKLIST
         #      (features de roadmap que NO están en producción).
-        #   b) El mensaje del usuario menciona keywords de roadmap (reservas,
-        #      booking, loyalty/puntos, pedidos/delivery) Y la respuesta
-        #      contiene backticks de un tool name que NO está en el set
-        #      visible del agente (TOOL_DISPATCH). Eso captura tanto tools
-        #      alucinados como tools de bookings que se removieron del
-        #      toolset en r6.
+        #   b) El mensaje del usuario menciona keywords de roadmap
+        #      (loyalty/puntos, pedidos/delivery, whatsapp template) Y la
+        #      respuesta contiene backticks de un tool name, y ese tool NO
+        #      existe en TOOL_DISPATCH (tool alucinado puro).
         if assistant_content and not fallback_used:
             from app.services.ai_tools import TOOL_DISPATCH as _TD
             _real_tool_names = set(_TD.keys())
 
-            # (a) BLACKLIST dura — tools de features NO DESPLEGADAS.
+            # (a) BLACKLIST dura — tools de features REALMENTE en roadmap.
             #     Cualquier mención de estos nombres en backticks = replace.
+            #     v1.9.1-r7: check_availability/create_booking/list_bookings
+            #     QUITAN del BLACKLIST porque reservas está DESPLEGADA.
             _BLACKLIST = {
-                "check_availability",   # reservas (roadmap)
-                "create_booking",       # reservas (roadmap)
-                "list_bookings",        # reservas (roadmap)
                 "add_loyalty_stamp",    # loyalty (roadmap)
                 "redeem_reward",        # loyalty (roadmap)
                 "issue_stamp",          # loyalty (roadmap)
@@ -638,29 +639,35 @@ class AIOrchestrator:
 
             _hallucinated_or_roadmap = _backtick_names & _BLACKLIST
             _msg_lower = (message or "").lower()
+            # v1.9.1-r7: "reserva/reservar/booking/agendar" QUITADOS de
+            # los keywords de roadmap — el feature de reservas está activo.
             _roadmap_keywords = (
-                "reserva", "reservar", "booking", "agendar",
                 "loyalty", "puntos", "fideliz",
                 "pedido", "delivery", "domicilio",
                 "whatsapp template", "whatsapp_template",
             )
             _user_asking_roadmap = any(k in _msg_lower for k in _roadmap_keywords)
+            # Detectar tools alucinados (mencionados en backticks pero que
+            # NO existen en TOOL_DISPATCH). El LLM a veces inventa nombres
+            # convincentes (ej. "schedule_post", "auto_respond") — esos
+            # también son roadmap_hallucination.
+            _hallucinated_tools = {
+                n for n in _backtick_names
+                if n not in _real_tool_names
+                and not n.startswith(("http", "/", "www"))
+                and "_" in n  # heurística: nombres de tools suelen tener _
+            }
 
             if _hallucinated_or_roadmap or (
                 _user_asking_roadmap
-                and any(n in _backtick_names for n in _real_tool_names)
-                and len(_backtick_names & _BLACKLIST) == 0  # evita doble trigger
+                and (_hallucinated_tools or _backtick_names & _BLACKLIST)
             ):
-                # Si el user pregunta por roadmap y el LLM mencionó
-                # CUALQUIER tool (incluso uno real), es muy probable que
-                # esté intentando dar un walkthrough. Reemplazamos con el
-                # mensaje canónico de roadmap.
-                _is_roadmap = bool(_hallucinated_or_roadmap) or _user_asking_roadmap
                 logger.warning(
                     "[ai] respuesta LLM con tool names problemáticos "
-                    "(blacklist=%s, user_roadmap=%s, backticks=%s) — "
-                    "reemplazando con respuesta canónica de roadmap",
+                    "(blacklist=%s, hallucinated=%s, user_roadmap=%s, "
+                    "backticks=%s) — reemplazando con respuesta canónica",
                     _hallucinated_or_roadmap or "[]",
+                    _hallucinated_tools or "[]",
                     _user_asking_roadmap,
                     _backtick_names,
                 )

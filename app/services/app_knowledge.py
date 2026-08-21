@@ -496,15 +496,20 @@ NO_EXISTE: list[str] = [
     "La ruta `/dashboard/integrations` NO EXISTE. Las integraciones "
     "(WhatsApp, Stripe, MercadoPago) están en roadmap y se configuran "
     "por API o por variables de entorno.",
-    "La URL pública `/u/{slug}/book` NO EXISTE. Las reservas NO están en el MVP "
-    "actual (v1.9.1-r4). El feature de reservas está en roadmap.",
+    "La URL pública `/u/{slug}/book` NO EXISTE. Las reservas SÍ están "
+    "desplegadas en producción (v1.9.1-r7+): el AI puede gestionar "
+    "reservas usando los tools `list_bookings`, `check_availability` y "
+    "`create_booking`. Los endpoints públicos son "
+    "`POST /api/v1/loyalty/c/{slug}/check-availability` y "
+    "`POST /api/v1/loyalty/c/{slug}/bookings` (gestionados desde el panel).",
     "La URL pública `/u/{slug}/menu` NO EXISTE. El catálogo público es "
     "`/api/v1/public/t/{slug}/catalog` (formato v1.9.1-r4, NO `/u/{slug}/catalogo`).",
     "La URL pública `/u/{slug}/pedido` NO EXISTE. No hay vista de pedido "
     "para clientes externos; el flujo de pedido se hace desde el panel "
     "o vía API.",
-    "La URL pública `/u/{slug}/reservar` NO EXISTE. Las reservas no están "
-    "desplegadas en el OpenAPI de producción (están en roadmap).",
+    "La URL pública `/u/{slug}/reservar` NO EXISTE. Las reservas SÍ "
+    "están activas: usa el panel de WowHub → sección Reservas, o la "
+    "API autenticada. El feature ya no es roadmap (corregido en r7).",
 ]
 
 
