@@ -1034,26 +1034,41 @@ def get_tools_for_agent(agent: str) -> list[dict[str, Any]]:
     - `get_tenant_dashboard_urls` está DEPRECADA y NO se distribuye a los
       sub-agentes. Sigue en TOOL_DISPATCH y TOOL_SCHEMAS solo por back-compat
       de tests legacy, pero ningún agente debe poder llamarla.
+
+    v1.9.1-r6 (CRÍTICO — fix bug reservas alucinadas):
+    - `list_bookings`, `check_availability` y `create_booking` se REMUEVEN
+      del toolset visible a marketing/growth/automation. Aunque el código
+      existe (TOOL_DISPATCH, app/api/v1/bookings.py) y los endpoints están
+      implementados, el FEATURE completo de reservas NO está desplegado en
+      producción todavía — está en roadmap. El LLM veía estos tools en su
+      lista de funciones disponibles y por eso generaba walkthroughs
+      inventados tipo "con `check_availability` ves los bloques…".
+    - Al sacarlos del toolset, el LLM ya no puede "verlos" como disponibles
+      y por tanto NO puede mencionarlos en respuestas, mencionar
+      precondiciones, ni dar walkthroughs de cómo usarlos.
+    - Los tools SIGUEN en TOOL_DISPATCH y TOOL_SCHEMAS por si se necesitan
+      desde código (tests, futuras features). Si en algún momento se
+      decide exponerlos, se vuelven a agregar aquí.
     """
     rules: dict[str, list[str]] = {
         "marketing": [
             "list_products", "list_promotions", "get_stats_overview",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
-            "list_bookings", "check_availability", "create_booking",
+            # v1.9.1-r6: bookings REMOVIDOS (feature en roadmap, no exponer)
             "get_app_help",
             "get_tenant_public_urls",  # v1.9.1-r4: link público del feature
         ],
         "growth": [
             "get_stats_overview", "list_promotions", "list_customers",
             "get_tenant_info", "analyze_inventory", "get_customer_segments",
-            "list_bookings", "check_availability", "create_booking",
+            # v1.9.1-r6: bookings REMOVIDOS
             "get_app_help",
             "get_tenant_public_urls",
         ],
         "automation": [
             "list_customers", "send_email_to_customer", "list_promotions",
             "get_tenant_info", "get_customer_segments", "send_campaign",
-            "list_bookings", "check_availability", "create_booking",
+            # v1.9.1-r6: bookings REMOVIDOS
             "get_app_help",
             "get_tenant_public_urls",
         ],

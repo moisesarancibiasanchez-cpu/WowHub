@@ -590,6 +590,89 @@ class AIOrchestrator:
             error_msg = "llm_returned_garbage"
             error_code = "llm_returned_garbage"
 
+        # 7.9) v1.9.1-r6: red de seguridad ANTI-HALLUCINATION de tool names.
+        # Bug crítico visto en producción (reporte del owner 2026-08-21):
+        # el LLM daba walkthroughs inventados para features de roadmap
+        # (reservas) usando nombres de tools que "veía" en su toolbox.
+        # El usuario veía respuestas tipo "con `check_availability` ves los
+        # bloques…" — pura invención del LLM, esos features no están
+        # desplegados en producción.
+        # Esta capa NO depende del LLM: es server-side, regex-based, y
+        # es la ÚLTIMA línea de defensa antes de mostrar la respuesta
+        # al usuario.
+        #
+        # Disparamos el reemplazo si CUALQUIERA de estas condiciones:
+        #   a) La respuesta contiene backticks de un tool name en BLACKLIST
+        #      (features de roadmap que NO están en producción).
+        #   b) El mensaje del usuario menciona keywords de roadmap (reservas,
+        #      booking, loyalty/puntos, pedidos/delivery) Y la respuesta
+        #      contiene backticks de un tool name que NO está en el set
+        #      visible del agente (TOOL_DISPATCH). Eso captura tanto tools
+        #      alucinados como tools de bookings que se removieron del
+        #      toolset en r6.
+        if assistant_content and not fallback_used:
+            from app.services.ai_tools import TOOL_DISPATCH as _TD
+            _real_tool_names = set(_TD.keys())
+
+            # (a) BLACKLIST dura — tools de features NO DESPLEGADAS.
+            #     Cualquier mención de estos nombres en backticks = replace.
+            _BLACKLIST = {
+                "check_availability",   # reservas (roadmap)
+                "create_booking",       # reservas (roadmap)
+                "list_bookings",        # reservas (roadmap)
+                "add_loyalty_stamp",    # loyalty (roadmap)
+                "redeem_reward",        # loyalty (roadmap)
+                "issue_stamp",          # loyalty (roadmap)
+                "create_order",         # pedidos/delivery (roadmap)
+                "create_delivery",      # delivery (roadmap)
+                "send_whatsapp_template",  # automation (roadmap, per app_knowledge)
+                "create_pos_sale",      # POS avanzado (roadmap)
+            }
+
+            # Extraer backtick-names de la respuesta del LLM
+            import re as _re
+            _backtick_names = set(
+                m.group(1).strip()
+                for m in _re.finditer(r"`([^`]+)`", assistant_content)
+            )
+
+            _hallucinated_or_roadmap = _backtick_names & _BLACKLIST
+            _msg_lower = (message or "").lower()
+            _roadmap_keywords = (
+                "reserva", "reservar", "booking", "agendar",
+                "loyalty", "puntos", "fideliz",
+                "pedido", "delivery", "domicilio",
+                "whatsapp template", "whatsapp_template",
+            )
+            _user_asking_roadmap = any(k in _msg_lower for k in _roadmap_keywords)
+
+            if _hallucinated_or_roadmap or (
+                _user_asking_roadmap
+                and any(n in _backtick_names for n in _real_tool_names)
+                and len(_backtick_names & _BLACKLIST) == 0  # evita doble trigger
+            ):
+                # Si el user pregunta por roadmap y el LLM mencionó
+                # CUALQUIER tool (incluso uno real), es muy probable que
+                # esté intentando dar un walkthrough. Reemplazamos con el
+                # mensaje canónico de roadmap.
+                _is_roadmap = bool(_hallucinated_or_roadmap) or _user_asking_roadmap
+                logger.warning(
+                    "[ai] respuesta LLM con tool names problemáticos "
+                    "(blacklist=%s, user_roadmap=%s, backticks=%s) — "
+                    "reemplazando con respuesta canónica de roadmap",
+                    _hallucinated_or_roadmap or "[]",
+                    _user_asking_roadmap,
+                    _backtick_names,
+                )
+                assistant_content = (
+                    "Esa función aún no está disponible; está en nuestro "
+                    "roadmap. Te aviso cuando esté lista."
+                )
+                # Mantenemos fallback_used=False (es una respuesta deliberada,
+                # no un fallback) pero marcamos log para diagnóstico.
+                error_msg = "roadmap_hallucination_blocked"
+                error_code = "roadmap_hallucination_blocked"
+
         # 8) Persistir respuesta del assistant
         asst_msg = save_message(
             self.db,
