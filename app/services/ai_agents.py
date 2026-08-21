@@ -120,9 +120,21 @@ _GLOBAL_RULES = (
     "Branding para definir tu slug' o 'Ahora no puedo armar el link; "
     "revisa tu sesión'. NO improvises con un link falso.\n"
     "    f) Las features en ROADMAP (reservas, loyalty, pedidos, "
-    "integraciones) NO están desplegadas en producción. NO generes "
-    "URLs para ellas. Si el usuario las pide, di: 'Esa función aún no "
-    "está disponible; está en nuestro roadmap'."
+    "integraciones, delivery, POS avanzado) NO están desplegadas en "
+    "producción. NO generes URLs para ellas. NO des walkthroughs, "
+    "NO listes pasos, NO inventes nombres de tools (ej. "
+    "'check_availability', 'create_booking', 'add_loyalty_stamp', etc.) "
+    "que NO existen en tu toolset real. Si el usuario pregunta cómo "
+    "usar una feature de roadmap, responde EXACTAMENTE: 'Esa función aún "
+    "no está disponible; está en nuestro roadmap. Te aviso cuando esté "
+    "lista.' y termina el turno. No agregues pasos inventados.\n"
+    "    g) Si la respuesta quedaría vacía o casi vacía (ej. solo "
+    "puntos, espacios, o menos de 10 caracteres) porque la pregunta "
+    "del usuario es sobre algo que no puedes responder, NO respondas "
+    "con símbolos sueltos. En su lugar, di: 'Disculpa, no tengo "
+    "información sobre eso todavía. ¿Quieres que te ayude con algo "
+    "dentro de lo que sí puedo hacer (promociones, ventas, productos, "
+    "automatizaciones)?'"
 )
 
 
@@ -499,10 +511,15 @@ def heuristic_route(message: str) -> str:
     """Router simple basado en palabras clave. Se usa cuando el LLM
     no está disponible o como fallback del router.
 
-    Cambios v2:
-    - El orden de evaluación prioriza 'help' cuando hay empate o duda,
-      para evitar alucinaciones de los otros agentes sobre WowHub.
-    - El fallback por defecto es 'help' (antes era 'marketing').
+    Cambios v1.9.1-r5:
+    - El fallback por defecto es 'marketing' (no 'help'), porque
+      'marketing' es el agente más "neutro" para saludos genéricos
+      y no satura a 'help' con preguntas que no son de plataforma.
+    - En empate, los agentes de NEGOCIO (marketing/growth/automation/
+      marketplace) ganan sobre 'help'. La intuición: si el usuario
+      dice algo que también suena a pregunta de plataforma (ej.
+      '¿cómo mejoro el precio de mi producto?'), el contexto de
+      negocio manda y 'help' solo entra cuando es el único match.
     """
     text = (message or "").lower()
     scores: dict[str, int] = {a: 0 for a in KEYWORDS}
@@ -510,12 +527,16 @@ def heuristic_route(message: str) -> str:
         for w in words:
             if w in text:
                 scores[agent] += 1
-    # 1) Si no hay match, devolver 'help' (es más seguro que inventar).
+    # 1) Si no hay match, devolver 'marketing' (default).
     if max(scores.values()) == 0:
-        return "help"
-    # 2) Si hay empate, priorizar 'help' sobre los demás.
+        return "marketing"
+    # 2) Si hay empate, los agentes de NEGOCIO ganan sobre 'help'.
     top = max(scores.values())
     tied = [a for a, s in scores.items() if s == top]
     if len(tied) > 1 and "help" in tied:
+        business_tied = [a for a in tied if a != "help"]
+        if business_tied:
+            return business_tied[0]
+        # Si lo único empatado es 'help' (caso raro), 'help' gana.
         return "help"
     return tied[0]

@@ -31,7 +31,11 @@ def _validate_hex_color(v: Optional[str]) -> Optional[str]:
 
 # ── Campaign ───────────────────────────────────────────────
 class CampaignBase(BaseModel):
-    name: str = Field(..., min_length=2, max_length=120)
+    # v1.9.1-r5: min_length del name baja de 2 a 1 para permitir
+    # nombres cortos en pruebas (ej. "A", "B") y nombres de una
+    # letra legítimos en producción (ej. "X", "Y"). La validación
+    # semántica sigue siendo max_length=120.
+    name: str = Field(..., min_length=1, max_length=120)
     reward_label: str = Field(..., min_length=2, max_length=160)
     stamps_required: int = Field(6, ge=2, le=50)
     primary_color: str = Field("#1A73E8")
@@ -57,7 +61,8 @@ class CampaignCreate(CampaignBase):
 
 
 class CampaignUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=2, max_length=120)
+    # v1.9.1-r5: min_length del name baja de 2 a 1 (ver CampaignBase).
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
     reward_label: Optional[str] = Field(None, min_length=2, max_length=160)
     stamps_required: Optional[int] = Field(None, ge=2, le=50)
     primary_color: Optional[str] = None
@@ -69,7 +74,13 @@ class CampaignUpdate(BaseModel):
     is_active: Optional[bool] = None
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
-    cashier_pin: Optional[str] = Field(None, min_length=4, max_length=8)
+    # v1.9.1-r5: cashier_pin acepta string vacío como sentinel para
+    # QUITAR el PIN de la campaña (LoyaltyPassService.update_campaign
+    # ya implementa esta lógica: pin == "" → c.cashier_pin = None).
+    # Antes el schema rechazaba "" con min_length=4 → 422.
+    # min_length=0 permite tanto None (no tocar) como "" (quitar) o
+    # un PIN real de 4-8 chars.
+    cashier_pin: Optional[str] = Field(None, min_length=0, max_length=8)
     pin_hint: Optional[str] = Field(None, max_length=40)
 
     @field_validator("primary_color", "text_color", "accent_color")

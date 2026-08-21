@@ -691,7 +691,7 @@ class GrowthCoach:
                 type=GrowthInsightType.OPPORTUNITY,
                 priority=GrowthInsightPriority.HIGH,
                 category=GrowthInsightCategory.PROMOTIONS,
-                title="No tienes promociones creadas",
+                title="No tenés promociones creadas",
                 description=(
                     "Las promociones son una de las palancas más efectivas para "
                     "aumentar ventas y mover stock. Crea tu primera promo."

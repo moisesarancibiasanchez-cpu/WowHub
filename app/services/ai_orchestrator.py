@@ -422,6 +422,14 @@ class AIOrchestrator:
         error_msg: Optional[str] = None
         error_code: Optional[str] = None
 
+        # v1.9.1-r5: inicializamos tool_calls y tool_results_for_llm
+        # ANTES del try para que estén definidos en el bloque `except`
+        # y en el post-procesado (líneas 547-549). Antes, si el LLM
+        # caía con LLMFallback/LLMError, `tool_calls` quedaba sin
+        # definir → UnboundLocalError al pasar por _scrub_slug_placeholders.
+        tool_calls: list[dict[str, Any]] = []
+        tool_results_for_llm: Optional[list[tuple[str, dict[str, Any], dict[str, Any]]]] = None
+
         # 6) Llamada al LLM (con fallback)
         # max_tokens bajo (450) para forzar respuestas cortas y directas.
         # El system prompt ya instruye brevedad, pero esto es la red de
@@ -556,6 +564,31 @@ class AIOrchestrator:
         # `_scrub_slug_placeholders` no cubre.
         if assistant_content:
             assistant_content = self._scrub_fake_routes(assistant_content)
+
+        # 7.8) v1.9.1-r5: red de seguridad anti-respuesta-basura.
+        # Bug visto en producción: el LLM a veces devuelve respuestas
+        # "pegadas" — solo puntos, espacios, o texto trivial — cuando
+        # la pregunta del usuario cae fuera de su toolset (ej. tools
+        # alucinados como 'check_availability' que devuelven error).
+        # Eso deja al usuario viendo "........" en pantalla.
+        # Si el contenido es demasiado corto Y no estamos ya en modo
+        # fallback, lo reemplazamos con un mensaje útil del agente.
+        if (
+            assistant_content
+            and len(assistant_content.strip()) < 10
+            and not fallback_used
+        ):
+            logger.warning(
+                "[ai] respuesta LLM sospechosa (len=%d, content=%r) — "
+                "reemplazando con fallback del agente",
+                len(assistant_content.strip()),
+                assistant_content[:50],
+            )
+            assistant_content = sub.fallback
+            fallback_used = True
+            status = LogStatus.FALLBACK
+            error_msg = "llm_returned_garbage"
+            error_code = "llm_returned_garbage"
 
         # 8) Persistir respuesta del assistant
         asst_msg = save_message(
