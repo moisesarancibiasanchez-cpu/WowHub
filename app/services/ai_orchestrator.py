@@ -590,6 +590,32 @@ class AIOrchestrator:
             error_msg = "llm_returned_garbage"
             error_code = "llm_returned_garbage"
 
+        # 7.8.5) v1.9.1-r8: red de seguridad ANTI-REPETICIÓN.
+        # Bug visto en producción: el LLM (MiniMax-M3) a veces devuelve
+        # respuestas con la MISMA FRASE repetida (ej. "si arma la primera
+        # promoción .... si arma la primera promoción") o con alta
+        # densidad de puntos ('....') como padding. Eso no es contenido
+        # útil para el usuario y NO lo captura el detector de "muy corto"
+        # de 7.8 (porque el response tiene 50-80 chars). Si detectamos
+        # alguno de estos patrones, reemplazamos con el fallback del agente.
+        if (
+            assistant_content
+            and len(assistant_content.strip()) >= 10
+            and not fallback_used
+            and _is_repetitive_response(assistant_content)
+        ):
+            logger.warning(
+                "[ai] respuesta LLM repetitiva/rellenada (len=%d, "
+                "content=%r) — reemplazando con fallback del agente",
+                len(assistant_content.strip()),
+                assistant_content[:80],
+            )
+            assistant_content = sub.fallback
+            fallback_used = True
+            status = LogStatus.FALLBACK
+            error_msg = "llm_returned_repetitive_garbage"
+            error_code = "llm_returned_repetitive_garbage"
+
         # 7.9) v1.9.1-r7: red de seguridad ANTI-HALLUCINATION de tool names
         # para features QUE SÍ ESTÁN EN ROADMAP (no en producción).
         #
@@ -1107,6 +1133,85 @@ def _format_tool_result(name: str, args: dict[str, Any], result: dict[str, Any])
         payload = payload[:1500] + "…(truncado)"
     args_str = json.dumps(args, ensure_ascii=False, default=str) if args else "{}"
     return f"- {name}({args_str}) → {payload}"
+
+
+# ── Anti-repetición (v1.9.1-r8) ──────────────────────────────
+# Bug visto en producción (2026-08-22): el LLM (MiniMax-M3) a veces
+# devuelve respuestas "pegadas" con la MISMA FRASE repetida (ej.
+# "si arma la priemra promociuon .... si arma la priemra promociuon"),
+# o con alta densidad de puntos ('....' / '......' / '...') como
+# padding entre frases. El post-procesador 7.8 (len < 10 → fallback)
+# NO captura estos casos porque la respuesta tiene 50-80 chars.
+#
+# Esta función detecta los 3 patrones típicos de "model degradation":
+#
+#   a) **Substring repetido**: cualquier sub-cadena de >= 15 chars
+#      aparece 2+ veces en la respuesta. Caso típico: el LLM genera
+#      una frase, luego se "atasca" y la vuelve a emitir.
+#   b) **Dot padding**: > 25% de los caracteres del texto son puntos
+#      ('.'). Caso típico: "... .... ......" relleno sin contenido.
+#   c) **Palabra repetida**: la misma palabra (>3 chars) aparece 4+
+#      veces. Caso típico: el LLM entra en loop sobre la misma palabra.
+#
+# Si CUALQUIERA se cumple, devolvemos True y el orquestador reemplaza
+# la respuesta con el fallback del sub-agente. Esto es el "safety net"
+# para modelos que ocasionalmente degradan su output sin tirar error.
+def _is_repetitive_response(text: str) -> bool:
+    """Detecta respuestas de LLM con patrones de 'model degradation'.
+
+    Devuelve True si la respuesta tiene:
+    - Substring de >= 15 chars repetido 2+ veces, O
+    - > 25% de puntos ('.') en el texto, O
+    - Una palabra (>3 chars) repetida 4+ veces.
+    """
+    if not text:
+        return False
+    s = text.strip()
+    if len(s) < 15:
+        # Muy corto para detectar repetición significativa; el detector
+        # de 7.8 (len < 10) ya cubre ese caso. Acá evitamos false positives
+        # en respuestas legítimas pero breves.
+        return False
+
+    # (a) Substring repetido. Buscamos substrings de tamaño 15..len(s)/2
+    # y contamos ocurrencias. O(n^2) pero n<=500 en la práctica, así que
+    # es trivial. Si encontramos CUALQUIER substring de >= 15 chars que
+    # aparezca >= 2 veces, marcamos como repetitivo.
+    upper = len(s)
+    seen_repeat = False
+    # Probamos tamaños de 15 hasta min(60, upper//2). Subir de 60 no
+    # aporta valor (ya capturamos la frase repetida con tamaños menores).
+    for size in range(15, min(60, upper // 2 + 1)):
+        if seen_repeat:
+            break
+        substrs: dict[str, int] = {}
+        for i in range(0, upper - size + 1):
+            sub = s[i:i + size]
+            # Ignorar substrings que son TODO whitespace/puntuación
+            if sub.strip(" .,\t\n") and len(sub.strip(" .,\t\n")) >= 10:
+                substrs[sub] = substrs.get(sub, 0) + 1
+                if substrs[sub] >= 2:
+                    seen_repeat = True
+                    break
+    if seen_repeat:
+        return True
+
+    # (b) Dot padding: > 25% de los chars son puntos.
+    dot_count = s.count(".")
+    if dot_count > 0 and dot_count / max(len(s), 1) > 0.25:
+        return True
+
+    # (c) Misma palabra (>3 chars) repetida 4+ veces.
+    words = [w.strip(".,;:!?()[]{}\"'`") for w in s.split() if len(w.strip(".,;:!?()[]{}\"'`")) > 3]
+    if words:
+        word_counts: dict[str, int] = {}
+        for w in words:
+            wl = w.lower()
+            word_counts[wl] = word_counts.get(wl, 0) + 1
+        if any(c >= 4 for c in word_counts.values()):
+            return True
+
+    return False
 
 
 # ── Anti-{slug}-literal: regexes para el post-procesador ────────────

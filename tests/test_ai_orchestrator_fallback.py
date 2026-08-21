@@ -3,7 +3,7 @@ import pytest
 from uuid import uuid4
 
 from app.config import settings
-from app.services.ai_orchestrator import AIOrchestrator
+from app.services.ai_orchestrator import AIOrchestrator, _is_repetitive_response
 from app.services.llm_client import LLMError, LLMFallback, get_circuit
 from app.services.ai_agents import (
     get_agent, heuristic_route, list_sub_agents,
@@ -150,3 +150,77 @@ async def test_orchestrator_fallback_per_agent(monkeypatch):
     finally:
         db.close()
         get_circuit().force_close()
+
+
+# ── v1.9.1-r8: Anti-repetición (model degradation) ─────────────
+# Bug visto en producción (2026-08-22): el LLM (MiniMax-M3) a veces
+# devuelve respuestas con la misma frase repetida o con muchos puntos
+# como padding. Estos tests cubren el helper `_is_repetitive_response`
+# que detecta esos patrones.
+class TestRepetitiveResponseDetector:
+    def test_detects_repeated_substring(self):
+        # Caso del bug real: misma frase dos veces separada por puntos.
+        text = "si arma la priemra promociuon .... si arma la priemra promociuon"
+        assert _is_repetitive_response(text) is True
+
+    def test_detects_repeated_substring_with_padding(self):
+        # Variante con "......" como separador.
+        text = "lo mejor es empezar con un combo ...... lo mejor es empezar con un combo"
+        assert _is_repetitive_response(text) is True
+
+    def test_detects_repeated_sentence(self):
+        # Oración completa repetida.
+        text = "Te recomiendo crear una promo hoy. Te recomiendo crear una promo hoy."
+        assert _is_repetitive_response(text) is True
+
+    def test_detects_high_dot_ratio(self):
+        # 50% de la respuesta son puntos.
+        text = "...................................................."
+        assert _is_repetitive_response(text) is True
+
+    def test_detects_dot_padding_with_words(self):
+        # Mezcla de palabras y muchos puntos.
+        text = "hola ............................................ chau"
+        assert _is_repetitive_response(text) is True
+
+    def test_detects_word_repetition_loop(self):
+        # La misma palabra repetida 4+ veces (modelo en loop).
+        text = "promoción promoción promoción promoción promoción hoy"
+        assert _is_repetitive_response(text) is True
+
+    def test_does_not_flag_normal_response(self):
+        # Respuesta normal: NO debe ser marcada como repetitiva.
+        text = (
+            "¡Hola! Te ayudo a crear tu primera promoción. "
+            "Cuéntame: ¿qué producto quieres promocionar?"
+        )
+        assert _is_repetitive_response(text) is False
+
+    def test_does_not_flag_long_helpful_response(self):
+        # Walkthrough legítimo con varias frases y repetición natural
+        # de palabras clave (ej. "promoción" 2 veces).
+        text = (
+            "Para crear tu primera promoción: 1) Elige un producto "
+            "top. 2) Define un descuento. 3) Lanza la promoción. "
+            "¿Quieres que te recomiende un producto?"
+        )
+        assert _is_repetitive_response(text) is False
+
+    def test_does_not_flag_short_response(self):
+        # Respuesta muy corta (la cubre el detector 7.8, no este).
+        assert _is_repetitive_response("ok") is False
+        assert _is_repetitive_response("sí") is False
+
+    def test_does_not_flag_empty(self):
+        # Vacío y None NO son repetitivos.
+        assert _is_repetitive_response("") is False
+        assert _is_repetitive_response(None) is False
+
+    def test_does_not_flag_response_with_some_repetition(self):
+        # "promoción" 2 veces es legítimo (palabra clave del dominio).
+        # "la" 3 veces es muy común en español. NO debe flagear.
+        text = (
+            "La promoción de la semana es un 20% de descuento. "
+            "Aprovecha la promo para tus clientes frecuentes."
+        )
+        assert _is_repetitive_response(text) is False
