@@ -38,7 +38,7 @@
 </section>
 
 <!-- Modal: nueva/editar cotización -->
-<div id="quote-modal" class="modal" style="display:none;">
+<div id="quote-modal" class="modal-overlay" style="display:none;">
   <div class="modal-card" style="max-width: 820px; width: 95%;">
     <div class="modal-head">
       <h3 id="modal-title">Nueva cotización</h3>
@@ -110,7 +110,7 @@
 </div>
 
 <!-- Modal: ver detalle -->
-<div id="view-modal" class="modal" style="display:none;">
+<div id="view-modal" class="modal-overlay" style="display:none;">
   <div class="modal-card" style="max-width: 720px; width: 95%;">
     <div class="modal-head">
       <h3 id="view-title">Cotización</h3>
@@ -123,30 +123,8 @@
 {% endblock %}
 
 {% block scripts %}
-<style>
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.modal-card { background: var(--bg-elev, #1a1d23); color: var(--text, #e5e7eb); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); max-height: 92vh; display: flex; flex-direction: column; }
-.modal-head { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; align-items: center; }
-.modal-body { padding: 20px; overflow-y: auto; }
-.modal-foot { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: flex-end; gap: 8px; }
-.form-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.form-field > span { color: var(--text-muted, #9ca3af); }
-.totals-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed rgba(255,255,255,.08); }
-.totals-row.total-final { font-size: 18px; border-bottom: none; padding-top: 10px; color: var(--accent, #10b981); }
-.kpi-card { background: var(--bg-elev, #1a1d23); border-radius: 8px; padding: 14px 18px; min-width: 160px; }
-.kpi-card .label { font-size: 12px; color: var(--text-muted, #9ca3af); text-transform: uppercase; letter-spacing: .5px; }
-.kpi-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th, .data-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); }
-.data-table input, .data-table select { width: 100%; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-.badge-draft    { background: #4b5563; color: #fff; }
-.badge-sent     { background: #2563eb; color: #fff; }
-.badge-viewed   { background: #0891b2; color: #fff; }
-.badge-accepted { background: #059669; color: #fff; }
-.badge-rejected { background: #dc2626; color: #fff; }
-.badge-expired  { background: #b45309; color: #fff; }
-</style>
+{# Estilos movidos a app.css (kpi-card, data-table, modal-*, form-field,
+   totals-row, badge-*). Esta página solo aporta su lógica JS. ── #}
 <script>
 let currentTenantId = null;
 let branches = [];

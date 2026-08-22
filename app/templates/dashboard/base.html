@@ -8,54 +8,8 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
-{# ── UI v2 skin (fase 1) + overrides (fase 2) se inyectan desde
-   base.html (este template lo extiende). Duplicamos los links acá
-   para garantizar el orden de cascada:
-     app.css → tokens-v2.css → v2-overrides.css → ai.css → <style>
-   Sin esta duplicación, ai.css se cargaría ANTES de v2-overrides
-   y los overrides perderían la batalla de especificidad en algunos
-   selectores (.topbar, .hero, etc.).  ── #}
-<link rel="stylesheet" href="/static/css/tokens-v2.css?v=v2-tokens-2026-08-22">
-<link rel="stylesheet" href="/static/css/v2-overrides.css?v=v2-tokens-2026-08-22">
-<style>
-  /* Banner de impersonación — rojo, persistente, imposible de ignorar */
-  #imp-banner {
-    display: none;
-    position: sticky; top: 0; z-index: 9999;
-    background: linear-gradient(90deg, #b91c1c 0%, #7f1d1d 50%, #b91c1c 100%);
-    color: #fff;
-    padding: 10px 18px;
-    font-size: 13px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.3);
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    border-bottom: 2px solid #fca5a5;
-    animation: imp-pulse 2s ease-in-out infinite;
-  }
-  #imp-banner.shown { display: flex !important; }
-  @keyframes imp-pulse {
-    0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 0 0 0 rgba(252,165,165,.0); }
-    50% { box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 0 0 4px rgba(252,165,165,.4); }
-  }
-  #imp-banner .imp-icon { font-size: 18px; }
-  #imp-banner .imp-text { flex: 1 1 auto; }
-  #imp-banner .imp-text strong { color: #fff; }
-  #imp-banner .imp-text .imp-target { color: #fef3c7; font-weight: 600; }
-  #imp-banner .imp-text .imp-admin { color: #fde68a; font-size: 11px; }
-  #imp-banner .imp-timer {
-    background: rgba(0,0,0,.3); padding: 4px 10px; border-radius: 12px;
-    font-family: monospace; font-size: 12px; color: #fef3c7;
-  }
-  #imp-banner .imp-timer.expired { background: #1c1917; color: #fca5a5; animation: imp-blink 0.5s infinite; }
-  @keyframes imp-blink { 50% { opacity: 0.4; } }
-  #imp-banner button.imp-stop {
-    background: #fff; color: #b91c1c; border: none; padding: 6px 14px;
-    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px;
-  }
-  #imp-banner button.imp-stop:hover { background: #fef3c7; }
-  #imp-banner button.imp-stop:disabled { background: #ccc; color: #666; cursor: not-allowed; }
-</style>
+{# El sistema unificado vive en tokens.css + app.css (cargados por
+   base.html). El banner de impersonación está ahora en app.css. ── #}
 {% endblock %}
 
 {% block topbar %}
