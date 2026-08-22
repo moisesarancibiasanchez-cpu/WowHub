@@ -8,6 +8,45 @@
   Aún no tienes un negocio creado. <a href="#" id="create-tenant-link">Crea uno ahora</a>.
 </div>
 
+<!-- ════════════════════════════════════════════════════════════════
+     Daily Brief + Oportunidades (Fase 3 del plan — oportunidades.pdf)
+     Solo se muestra si el tenant tiene datos suficientes.
+     ════════════════════════════════════════════════════════════════ -->
+<div id="ai-brief-section" style="display:none;">
+
+  <section class="daily-brief" id="daily-brief">
+    <div class="daily-brief-greet">
+      <span class="daily-brief-emoji">👋</span>
+      <h2>Buenos días, <span id="brief-user-name">cargando…</span></h2>
+    </div>
+    <p class="daily-brief-text">Tu negocio hoy</p>
+    <ul class="daily-brief-stats">
+      <li><strong>Ventas hoy</strong> <span id="brief-sales">—</span></li>
+      <li><strong>Pedidos hoy</strong> <span id="brief-orders">—</span></li>
+      <li><strong>Margen</strong> <span id="brief-margin">—</span></li>
+      <li><strong>Productos activos</strong> <span id="brief-products">—</span></li>
+    </ul>
+    <p class="daily-brief-ai" id="brief-ai-message">Cargando oportunidades…</p>
+    <div class="daily-brief-actions" id="brief-actions"></div>
+  </section>
+
+  <div style="display:flex; align-items:baseline; justify-content:space-between; margin: 28px 0 14px;">
+    <h2 style="margin:0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em;">
+      Oportunidades para tu negocio
+    </h2>
+    <a href="/dashboard/ai?context=opportunities" style="font-size: 13px; color: var(--accent); text-decoration: none;">
+      Conversar con la IA →
+    </a>
+  </div>
+
+  <div class="opp-grid" id="opp-grid">
+    <div class="opp-card" style="grid-column: 1 / -1; text-align: center; padding: 32px;">
+      <p class="opp-card-body" style="margin: 0;">Cargando oportunidades…</p>
+    </div>
+  </div>
+
+</div>
+
 <div class="grid grid-3">
   <div class="card stat">
     <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Productos activos</div>
@@ -116,6 +155,115 @@
   } catch (err) {
     console.warn("Stats err", err);
   }
+
+  // 5) Cargar Daily Brief + Oportunidades (Fase 3 — oportunidades.pdf)
+  await loadAiBrief(tenant.tenant_id, user);
 })();
+
+// ──────────────────────────────────────────────────────────────
+//  AI Brief + Oportunidades (Fase 3 del plan de oportunidades.pdf)
+// ──────────────────────────────────────────────────────────────
+async function loadAiBrief(tenantId, user) {
+  try {
+    const [brief, opps] = await Promise.all([
+      WH.api.get(`/api/v1/tenants/${tenantId}/opportunities/daily-brief`),
+      WH.api.get(`/api/v1/tenants/${tenantId}/opportunities?limit=9`),
+    ]);
+    renderDailyBrief(brief, user);
+    renderOpportunities(opps.opportunities || []);
+  } catch (err) {
+    console.warn("AI Brief no disponible todavía:", err);
+  }
+}
+
+function fmtMoney(cents) {
+  if (!cents && cents !== 0) return "—";
+  return "$" + Math.round(cents / 100).toLocaleString("es-CL");
+}
+
+function renderDailyBrief(brief, user) {
+  if (!brief) return;
+  const stats = brief.stats || {};
+  const total = brief.opportunities_total || 0;
+  // Nombre del usuario
+  const nameEl = document.getElementById("brief-user-name");
+  if (nameEl) {
+    const firstName = (user && user.full_name) ? user.full_name.split(" ")[0] : "equipo";
+    nameEl.textContent = firstName;
+  }
+  // Stats
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set("brief-sales", fmtMoney(stats.sales_today_cents));
+  set("brief-orders", stats.orders_today != null ? stats.orders_today : "—");
+  set("brief-margin", stats.margin_pct != null ? stats.margin_pct + "%" : "—");
+  set("brief-products", stats.products_active != null ? stats.products_active : "—");
+  // Mensaje IA
+  const aiMsg = document.getElementById("brief-ai-message");
+  if (aiMsg) {
+    if (total === 0) {
+      aiMsg.innerHTML = "No detectamos oportunidades críticas por ahora. ¡Buen trabajo!";
+    } else if (total === 1) {
+      aiMsg.innerHTML = "WowHub detectó <b>1 oportunidad</b> para ti hoy.";
+    } else {
+      aiMsg.innerHTML = `WowHub detectó <b>${total} oportunidades</b> para ti hoy. ¿Por dónde querés empezar?`;
+    }
+  }
+  // Botones contextuales (los 4 del PDF)
+  const actions = document.getElementById("brief-actions");
+  if (actions) {
+    const byCat = brief.opportunities_by_category || {};
+    const btns = [];
+    if (byCat.rentabilidad) btns.push({ label: "Mejorar rentabilidad", url: "/dashboard/ai?context=rentabilidad" });
+    if (byCat.inventario)   btns.push({ label: "Revisar inventario", url: "/dashboard/ai?context=inventario" });
+    if (byCat.clientes)     btns.push({ label: "Recuperar clientes", url: "/dashboard/ai?context=clientes" });
+    if (byCat.ventas)       btns.push({ label: "Vender más", url: "/dashboard/ai?context=ventas" });
+    if (btns.length === 0 && total > 0) {
+      btns.push({ label: "Conversar con la IA", url: "/dashboard/ai?context=opportunities" });
+    }
+    actions.innerHTML = btns.map(b => `<a class="btn btn-sm" href="${b.url}">${b.label}</a>`).join("");
+  }
+  // Mostrar la sección
+  const section = document.getElementById("ai-brief-section");
+  if (section) section.style.display = "block";
+}
+
+function renderOpportunities(opps) {
+  const grid = document.getElementById("opp-grid");
+  if (!grid) return;
+  if (!opps || opps.length === 0) {
+    grid.innerHTML = `
+      <div class="opp-card" style="grid-column: 1 / -1; text-align: center; padding: 32px; border-left-color: var(--accent);">
+        <p class="opp-card-body" style="margin: 0;">
+          Sin oportunidades críticas por ahora. Tu negocio se ve saludable —
+          te avisaremos cuando detectemos algo accionable.
+        </p>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = opps.map(o => `
+    <article class="opp-card opp-card--${escapeHtml(o.severity)}">
+      <header class="opp-card-head">
+        <span class="opp-category" data-cat="${escapeHtml(o.category)}">${escapeHtml(o.category)}</span>
+        <span class="opp-score" data-band="${escapeHtml(o.band)}" title="OpportunityScore = Impacto × Urgencia × Confianza">
+          ${o.score}
+        </span>
+      </header>
+      <h3 class="opp-card-title">${escapeHtml(o.title)}</h3>
+      <p class="opp-card-body">${escapeHtml(o.body)}</p>
+      <footer class="opp-card-foot">
+        <a class="btn btn-sm" href="${escapeAttr(o.action_url)}">${escapeHtml(o.action_label)}</a>
+      </footer>
+    </article>
+  `).join("");
+}
+
+// XSS-safe minimal escape
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
 </script>
 {% endblock %}
