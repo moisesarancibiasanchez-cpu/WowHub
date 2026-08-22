@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+{% extends "base.html" %}
+{% block title %}Pipeline de Pedidos — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 100%;">
+  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div>
+      <h1 style="margin: 0;">Pipeline de Pedidos</h1>
+      <p class="text-muted" style="margin: 4px 0 0;">Vista Kanban: arrastra las tarjetas o usa los botones para avanzar el estado.</p>
+    </div>
+    <div class="flex" style="gap: 8px;">
+      <input id="search-input" class="form-input" placeholder="Buscar por nº, cliente…" style="width: 240px;">
+      <select id="branch-filter" class="form-input" style="width: 180px;">
+        <option value="">Todas las sucursales</option>
+      </select>
+      <button class="btn" id="refresh-btn">Actualizar</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div id="kpis" class="flex" style="gap: 12px; margin-bottom: 20px; flex-wrap: wrap;"></div>
+
+  <div id="alert"></div>
+  <div id="kanban" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; min-height: 60vh;">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+</section>
+
+<!-- Modal: detalle de pedido -->
+<div id="order-modal" class="modal" style="display:none;">
+  <div class="modal-card" style="max-width: 720px; width: 95%;">
+    <div class="modal-head">
+      <h3 id="order-modal-title">Pedido</h3>
+      <button class="btn btn-ghost btn-sm" id="order-modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="order-modal-body"></div>
+    <div class="modal-foot" id="order-modal-foot"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.kpi-card { background: var(--bg-elev, #1a1d23); border-radius: 8px; padding: 14px 18px; min-width: 140px; }
+.kpi-card .label { font-size: 11px; color: var(--text-muted, #9ca3af); text-transform: uppercase; letter-spacing: .5px; }
+.kpi-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.kanban-col { flex: 0 0 280px; background: var(--bg-elev, #16191f); border-radius: 10px; padding: 12px; max-height: 78vh; display: flex; flex-direction: column; }
+.kanban-col h4 { margin: 0 0 8px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; text-transform: uppercase; color: var(--text-muted, #9ca3af); letter-spacing: .5px; }
+.kanban-col h4 .count { background: rgba(255,255,255,.1); padding: 1px 8px; border-radius: 10px; font-size: 11px; color: var(--text, #e5e7eb); }
+.kanban-cards { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.kanban-card { background: var(--bg, #1f2329); border-radius: 8px; padding: 10px 12px; cursor: pointer; border: 1px solid rgba(255,255,255,.05); transition: transform .1s; }
+.kanban-card:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.15); }
+.kanban-card .order-num { font-size: 11px; color: var(--text-muted, #9ca3af); }
+.kanban-card .customer { font-weight: 600; margin: 2px 0; }
+.kanban-card .total { font-size: 14px; color: var(--accent, #10b981); }
+.kanban-card .meta { font-size: 11px; color: var(--text-muted, #9ca3af); margin-top: 4px; }
+.col-pending    { border-top: 3px solid #6b7280; }
+.col-confirmed  { border-top: 3px solid #2563eb; }
+.col-preparing  { border-top: 3px solid #f59e0b; }
+.col-ready      { border-top: 3px solid #10b981; }
+.col-delivered  { border-top: 3px solid #059669; }
+.col-canceled   { border-top: 3px solid #ef4444; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-card { background: var(--bg-elev, #1a1d23); color: var(--text, #e5e7eb); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); max-height: 92vh; display: flex; flex-direction: column; }
+.modal-head { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 20px; overflow-y: auto; }
+.modal-foot { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: flex-end; gap: 8px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.badge-pending    { background: #4b5563; color: #fff; }
+.badge-confirmed  { background: #2563eb; color: #fff; }
+.badge-preparing  { background: #f59e0b; color: #000; }
+.badge-ready      { background: #10b981; color: #fff; }
+.badge-delivered  { background: #059669; color: #fff; }
+.badge-canceled   { background: #ef4444; color: #fff; }
+</style>
+<script>
+let currentTenantId = null;
+let branches = [];
+let orders = [];
+let currentFilter = { search: "", branch: "" };
+
+const $ = (id) => document.getElementById(id);
+const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`;
+
+const COLUMNS = [
+  { key: "pending",    label: "Pendiente",   next: "confirmed",  nextLabel: "Confirmar" },
+  { key: "confirmed",  label: "Confirmado",  next: "preparing",  nextLabel: "En preparación" },
+  { key: "preparing",  label: "En preparación", next: "ready",    nextLabel: "Marcar listo" },
+  { key: "ready",      label: "Listo",       next: "delivered", nextLabel: "Entregar" },
+  { key: "delivered",  label: "Entregado",   next: null,        nextLabel: null },
+  { key: "canceled",   label: "Cancelado",   next: null,        nextLabel: null },
+];
+
+async function getTenant() {
+  const ms = await WH.api.get("/api/v1/me/memberships");
+  if (!ms.length) throw new Error("No perteneces a ningún negocio.");
+  return ms[0].tenant_id;
+}
+
+async function loadBranches() {
+  const sel = $("branch-filter");
+  sel.innerHTML = '<option value="">Todas las sucursales</option>';
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/branches?page_size=200`);
+    branches = data.items || data || [];
+    branches.forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b.id; opt.textContent = b.name;
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+async function loadOrders() {
+  const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/orders?page_size=200`);
+  orders = data.items || data || [];
+  renderKPIs();
+  renderKanban();
+}
+
+function filteredOrders() {
+  const s = currentFilter.search.toLowerCase();
+  return orders.filter(o => {
+    if (currentFilter.branch && o.branch_id !== currentFilter.branch) return false;
+    if (!s) return true;
+    return (
+      (o.order_number || o.number || "").toLowerCase().includes(s) ||
+      (o.customer_name || "").toLowerCase().includes(s) ||
+      (o.customer_phone || "").toLowerCase().includes(s)
+    );
+  });
+}
+
+function renderKPIs() {
+  const list = filteredOrders();
+  const byStatus = { pending: 0, confirmed: 0, preparing: 0, ready: 0, delivered: 0, canceled: 0 };
+  let totalCents = 0, todayCents = 0;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  for (const o of list) {
+    const st = (o.status || "").toLowerCase();
+    if (byStatus[st] !== undefined) byStatus[st]++;
+    totalCents += o.total_cents || 0;
+    if (o.created_at && new Date(o.created_at) >= today) todayCents += o.total_cents || 0;
+  }
+  const active = byStatus.pending + byStatus.confirmed + byStatus.preparing + byStatus.ready;
+  $("kpis").innerHTML = `
+    <div class="kpi-card"><div class="label">Activos</div><div class="value">${active}</div></div>
+    <div class="kpi-card"><div class="label">Pendientes</div><div class="value">${byStatus.pending}</div></div>
+    <div class="kpi-card"><div class="label">En curso</div><div class="value">${byStatus.confirmed + byStatus.preparing}</div></div>
+    <div class="kpi-card"><div class="label">Listos</div><div class="value">${byStatus.ready}</div></div>
+    <div class="kpi-card"><div class="label">Entregados</div><div class="value">${byStatus.delivered}</div></div>
+    <div class="kpi-card"><div class="label">Valor hoy</div><div class="value">${fmtMoney(todayCents)}</div></div>
+    <div class="kpi-card"><div class="label">Valor total</div><div class="value">${fmtMoney(totalCents)}</div></div>
+  `;
+}
+
+function renderKanban() {
+  const list = filteredOrders();
+  const groups = {};
+  for (const col of COLUMNS) groups[col.key] = [];
+  for (const o of list) {
+    const st = (o.status || "pending").toLowerCase();
+    if (groups[st]) groups[st].push(o);
+    else groups["pending"].push(o);
+  }
+  $("kanban").innerHTML = COLUMNS.map(col => {
+    const cards = groups[col.key];
+    return `
+      <div class="kanban-col col-${col.key}">
+        <h4>${col.label} <span class="count">${cards.length}</span></h4>
+        <div class="kanban-cards">
+          ${cards.map(o => `
+            <div class="kanban-card" onclick="openOrder('${o.id}')">
+              <div class="order-num">${o.order_number || o.number || (o.id || "").slice(0,8)}</div>
+              <div class="customer">${o.customer_name || "—"}</div>
+              <div class="total">${fmtMoney(o.total_cents)}</div>
+              <div class="meta">${(o.items || []).length} items · ${new Date(o.created_at).toLocaleString("es-CL")}</div>
+            </div>
+          `).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function openOrder(id) {
+  try {
+    const o = await WH.api.get(`/api/v1/tenants/${currentTenantId}/orders/${id}`);
+    $("order-modal-title").textContent = `Pedido ${o.order_number || o.number || (o.id || "").slice(0,8)}`;
+    $("order-modal-body").innerHTML = `
+      <div class="flex" style="justify-content: space-between; align-items: start; margin-bottom: 12px;">
+        <div>
+          <strong>${o.customer_name || "—"}</strong>${o.customer_phone ? " · " + o.customer_phone : ""}${o.customer_email ? "<br>" + o.customer_email : ""}
+          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${new Date(o.created_at).toLocaleString("es-CL")} · ${o.source || "web"}</div>
+        </div>
+        <span class="badge badge-${(o.status || "pending").toLowerCase()}">${(o.status || "pending").toUpperCase()}</span>
+      </div>
+      ${o.shipping_address ? `<div style="margin-bottom: 8px;"><strong>Envío:</strong> ${o.shipping_address}</div>` : ""}
+      ${o.notes ? `<div style="margin-bottom: 8px;"><strong>Notas:</strong> ${o.notes}</div>` : ""}
+      <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+        <thead><tr style="text-align: left; font-size: 11px; color: var(--text-muted, #9ca3af); text-transform: uppercase;">
+          <th>Producto</th><th>Cant.</th><th>Unitario</th><th>Total</th>
+        </tr></thead>
+        <tbody>
+          ${(o.items || []).map(i => `
+            <tr>
+              <td style="padding: 6px 0;">${i.product_name || i.name || "—"}</td>
+              <td>${i.quantity}</td>
+              <td>${fmtMoney(i.unit_price_cents)}</td>
+              <td><strong>${fmtMoney(i.total_cents)}</strong></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <div style="text-align: right; margin-top: 12px;">
+        <div>Subtotal: <strong>${fmtMoney(o.subtotal_cents)}</strong></div>
+        ${o.discount_cents ? `<div>Descuento: -${fmtMoney(o.discount_cents)}</div>` : ""}
+        ${o.shipping_cents ? `<div>Envío: +${fmtMoney(o.shipping_cents)}</div>` : ""}
+        ${o.tax_cents ? `<div>Impuestos: +${fmtMoney(o.tax_cents)}</div>` : ""}
+        <div style="font-size: 18px; margin-top: 6px; color: var(--accent, #10b981);">Total: <strong>${fmtMoney(o.total_cents)}</strong></div>
+      </div>
+    `;
+    const foot = $("order-modal-foot");
+    foot.innerHTML = "";
+    const col = COLUMNS.find(c => c.key === (o.status || "pending").toLowerCase());
+    if (col?.next) {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = `→ ${col.nextLabel}`;
+      btn.onclick = async () => {
+        try {
+          await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${o.id}/transition`, { to_status: col.next.toUpperCase() });
+          $("order-modal").style.display = "none";
+          loadOrders();
+        } catch (err) { alert(err.message || err); }
+      };
+      foot.appendChild(btn);
+    }
+    if (o.status !== "CANCELED" && o.status !== "DELIVERED") {
+      const btnC = document.createElement("button");
+      btnC.className = "btn btn-ghost";
+      btnC.textContent = "Cancelar pedido";
+      btnC.onclick = async () => {
+        if (!confirm("¿Cancelar este pedido?")) return;
+        try {
+          await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${o.id}/cancel`, { reason: "Cancelado desde pipeline" });
+          $("order-modal").style.display = "none";
+          loadOrders();
+        } catch (err) { alert(err.message || err); }
+      };
+      foot.appendChild(btnC);
+    }
+    const btnClose = document.createElement("button");
+    btnClose.className = "btn btn-ghost";
+    btnClose.textContent = "Cerrar";
+    btnClose.onclick = () => $("order-modal").style.display = "none";
+    foot.appendChild(btnClose);
+    $("order-modal").style.display = "flex";
+  } catch (err) {
+    $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
+  }
+}
+
+// ── Eventos ──
+$("branch-filter").addEventListener("change", () => { currentFilter.branch = $("branch-filter").value; renderKPIs(); renderKanban(); });
+let searchT = null;
+$("search-input").addEventListener("input", () => {
+  clearTimeout(searchT);
+  searchT = setTimeout(() => { currentFilter.search = $("search-input").value; renderKPIs(); renderKanban(); }, 250);
+});
+$("refresh-btn").addEventListener("click", loadOrders);
+$("order-modal-close").addEventListener("click", () => $("order-modal").style.display = "none");
+
+// Auto-refresh cada 30s
+setInterval(loadOrders, 30000);
+
+(async function init() {
+  try {
+    currentTenantId = await getTenant();
+    await loadBranches();
+    await loadOrders();
+  } catch (err) {
+    $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
+  }
+})();
+</script>
+{% endblock %}

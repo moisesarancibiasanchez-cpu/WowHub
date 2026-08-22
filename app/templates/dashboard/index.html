@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Resumen{% endblock %}
 {% block dash_content %}
@@ -47,7 +52,7 @@
 
 </div>
 
-<div class="grid grid-3">
+<div class="grid grid-3" id="kpi-row-1">
   <div class="card stat">
     <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Productos activos</div>
     <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-products">—</div>
@@ -62,6 +67,42 @@
     <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">QRs generados</div>
     <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-qrs">—</div>
     <a href="/dashboard/qrs" style="font-size: 13px;">Gestionar →</a>
+  </div>
+</div>
+
+<div class="grid grid-3 mt-3" id="kpi-row-2">
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Pedidos</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-orders">—</div>
+    <a href="/dashboard/orders" style="font-size: 13px;">Ver pedidos →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Reservas activas</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-bookings">—</div>
+    <a href="/dashboard/bookings" style="font-size: 13px;">Ver reservas →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Cotizaciones abiertas</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-quotes">—</div>
+    <a href="/dashboard/quotes" style="font-size: 13px;">Ver cotizaciones →</a>
+  </div>
+</div>
+
+<div class="grid grid-3 mt-3">
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Clientes</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-customers">—</div>
+    <a href="/dashboard/customers" style="font-size: 13px;">Ver clientes →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Tarjetas de fidelidad</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-loyalty">—</div>
+    <a href="/dashboard/loyalty" style="font-size: 13px;">Ver fidelización →</a>
+  </div>
+  <div class="card stat">
+    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Stock bajo / Sin stock</div>
+    <div style="font-size: 32px; font-weight: 700; margin-top: 4px; color: #f59e0b;" id="stat-stock">—</div>
+    <a href="/dashboard/inventory" style="font-size: 13px;">Revisar inventario →</a>
   </div>
 </div>
 
@@ -144,14 +185,26 @@
   $("public-url-help").textContent = "Comparte este link con tus clientes:";
 
   try {
-    const [p, pr, q] = await Promise.all([
+    const [p, pr, q, o, b, qt, cu, lp, st] = await Promise.all([
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders?page_size=1`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/bookings/stats`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/quotes/stats`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers?page_size=1`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/loyalty/passes?page_size=1`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/analytics/inventory?category=low_stock`),
     ]);
     $("stat-products").textContent = (p && typeof p.total === "number") ? p.total : 0;
     $("stat-promos").textContent = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
     $("stat-qrs").textContent = Array.isArray(q) ? q.length : 0;
+    $("stat-orders").textContent = (o && typeof o.total === "number") ? o.total : 0;
+    $("stat-bookings").textContent = (b && b.by_status) ? (b.by_status.pending || 0) + (b.by_status.confirmed || 0) : 0;
+    $("stat-quotes").textContent = qt ? ((qt.by_status.draft || 0) + (qt.by_status.sent || 0) + (qt.by_status.viewed || 0)) : 0;
+    $("stat-customers").textContent = (cu && typeof cu.total === "number") ? cu.total : 0;
+    $("stat-loyalty").textContent = (lp && typeof lp.total === "number") ? lp.total : 0;
+    $("stat-stock").textContent = (st && typeof st.count === "number") ? st.count : 0;
   } catch (err) {
     console.warn("Stats err", err);
   }

@@ -1,6 +1,6 @@
 # WowHub — Prototipo Python
 
-Plataforma SaaS modular para PyMEs en LATAM. **v0.2.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks.
+Plataforma SaaS modular para PyMEs en LATAM. **v0.3.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks, **Cotizaciones**, **Pipeline Kanban**, **Inventario**.
 
 Construido con **FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Jinja2 + JS vanilla**.
 
@@ -62,7 +62,7 @@ docker-compose exec api python -m app.seed
 - Storage aislado por tenant: `./storage/{tenant_id}/...` (imágenes subidas).
 - En producción: agregar **PostgreSQL Row-Level Security** (ver spec sección 6).
 
-### Modelo de datos (v0.2.0)
+### Modelo de datos (v0.3.0)
 
 ```
 User ─< Membership >─ Tenant ─< Branch ─< BranchProduct >─ Product
@@ -86,10 +86,11 @@ User ─< Membership >─ Tenant ─< Branch ─< BranchProduct >─ Product
                                 ├──< Invoice                  # boleta/factura
                                 ├──< TokenBlacklist           # JWT revocados
                                 ├──< WebhookEvent             # outbox + retries
+                                ├──< Quote ─< QuoteItem       # cotizaciones (v0.3.0)
                                 └──< AuditLog                 # quién hizo qué
 ```
 
-24 entidades cubriendo CRM ligero, e-commerce básico, reservas, fidelización, pagos, webhooks, auditoría, branding y uploads.
+25 entidades cubriendo CRM ligero, e-commerce básico, reservas, fidelización, pagos, webhooks, auditoría, branding, uploads y cotizaciones.
 
 ### Endpoints principales (v0.2.0 — 23 routers)
 

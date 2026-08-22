@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+{% extends "base.html" %}
+{% block title %}Cotización {{ quote.number if quote else "" }} — {{ tenant_name }}{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 760px;">
+  <div class="card" id="quote-card">
+    <div class="flex" style="justify-content: space-between; align-items: start; margin-bottom: 16px;">
+      <div>
+        <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: .05em;">{{ tenant_name }}</div>
+        <h1 style="margin: 4px 0 0;">Cotización <span id="q-number">—</span></h1>
+        <div class="text-muted" id="q-title" style="margin-top: 4px;"></div>
+      </div>
+      <span class="badge" id="q-status" style="display:none;"></span>
+    </div>
+
+    <div id="q-error" class="alert alert-error" style="display:none;"></div>
+
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+      <div>
+        <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Para</div>
+        <div id="q-recipient" style="font-weight: 600;"></div>
+        <div id="q-contact" class="text-muted" style="font-size: 13px;"></div>
+      </div>
+      <div>
+        <div class="text-muted" style="font-size: 11px; text-transform: uppercase;">Validez</div>
+        <div id="q-validity"></div>
+      </div>
+    </div>
+
+    <table class="data-table" id="q-items" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="text-align: left; font-size: 11px; text-transform: uppercase; color: var(--text-muted, #9ca3af);">
+          <th style="padding: 6px 0;">Producto / Servicio</th>
+          <th>Cant.</th>
+          <th>Unitario</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody id="q-items-body"></tbody>
+    </table>
+
+    <div style="text-align: right; margin-top: 16px;">
+      <div>Subtotal: <strong id="q-subtotal">$0</strong></div>
+      <div id="q-discount-row" style="display:none;">Descuento: -<strong id="q-discount">$0</strong></div>
+      <div id="q-tax-row" style="display:none;">Impuestos: +<strong id="q-tax">$0</strong></div>
+      <div style="font-size: 22px; margin-top: 8px;">Total: <strong id="q-total" style="color: var(--accent, #10b981);">$0</strong></div>
+    </div>
+
+    <div id="q-notes-wrap" style="display:none; margin-top: 16px;">
+      <strong>Notas:</strong>
+      <p id="q-notes" style="margin: 4px 0 0;"></p>
+    </div>
+    <div id="q-terms-wrap" style="display:none; margin-top: 12px;">
+      <strong>Términos y condiciones:</strong>
+      <p id="q-terms" style="margin: 4px 0 0;"></p>
+    </div>
+
+    <div id="q-actions" class="flex" style="gap: 8px; margin-top: 24px; flex-wrap: wrap; display: none;">
+      <button class="btn" id="btn-accept" style="background: #059669;">✅ Aceptar cotización</button>
+      <button class="btn btn-ghost" id="btn-reject" style="color: #ef4444;">✕ Rechazar</button>
+    </div>
+
+    <div id="q-final" class="alert alert-ok" style="display: none; margin-top: 16px;"></div>
+
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,.1); font-size: 12px; color: var(--text-muted, #9ca3af); text-align: center;">
+      Cotización generada con <strong>WowHub</strong> · {{ tenant_name }}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.badge-draft    { background: #4b5563; color: #fff; }
+.badge-sent     { background: #2563eb; color: #fff; }
+.badge-viewed   { background: #0891b2; color: #fff; }
+.badge-accepted { background: #059669; color: #fff; }
+.badge-rejected { background: #dc2626; color: #fff; }
+.badge-expired  { background: #b45309; color: #fff; }
+</style>
+<script>
+const token = location.pathname.split("/").pop();
+const STATUS_LABELS = {
+  draft: "Borrador", sent: "Enviada", viewed: "Vista",
+  accepted: "Aceptada", rejected: "Rechazada", expired: "Vencida"
+};
+const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`;
+
+async function load() {
+  try {
+    const r = await fetch(`/api/v1/public/quotes/${encodeURIComponent(token)}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      document.getElementById("q-error").textContent = err.detail || "No se encontró la cotización.";
+      document.getElementById("q-error").style.display = "block";
+      return;
+    }
+    const q = await r.json();
+    paint(q);
+  } catch (err) {
+    document.getElementById("q-error").textContent = err.message || "Error de red";
+    document.getElementById("q-error").style.display = "block";
+  }
+}
+
+function paint(q) {
+  document.getElementById("q-number").textContent = q.number;
+  document.getElementById("q-title").textContent = q.title;
+  const st = document.getElementById("q-status");
+  st.textContent = STATUS_LABELS[q.status] || q.status;
+  st.className = `badge badge-${q.status}`;
+  st.style.display = "inline-block";
+
+  document.getElementById("q-recipient").textContent = q.recipient_name;
+  const contactBits = [q.recipient_email, q.recipient_phone].filter(Boolean);
+  document.getElementById("q-contact").textContent = contactBits.join(" · ");
+
+  let valid = "—";
+  if (q.valid_until) valid = `Válida hasta ${new Date(q.valid_until).toLocaleDateString("es-CL")}`;
+  else if (q.sent_at) valid = `Enviada ${new Date(q.sent_at).toLocaleDateString("es-CL")}`;
+  else valid = `Creada ${new Date(q.created_at).toLocaleDateString("es-CL")}`;
+  document.getElementById("q-validity").textContent = valid;
+
+  const tbody = document.getElementById("q-items-body");
+  tbody.innerHTML = (q.items || []).map(i => `
+    <tr style="border-top: 1px solid rgba(255,255,255,.08);">
+      <td style="padding: 8px 0;">${escapeHtml(i.product_name)}${i.description ? `<br><span class="text-muted" style="font-size:11px;">${escapeHtml(i.description)}</span>` : ""}</td>
+      <td>${i.quantity}</td>
+      <td>${fmtMoney(i.unit_price_cents)}</td>
+      <td><strong>${fmtMoney(i.total_cents)}</strong></td>
+    </tr>
+  `).join("") || '<tr><td colspan="4" class="text-muted">Sin líneas.</td></tr>';
+
+  document.getElementById("q-subtotal").textContent = fmtMoney(q.subtotal_cents);
+  if (q.discount_cents) {
+    document.getElementById("q-discount-row").style.display = "block";
+    document.getElementById("q-discount").textContent = fmtMoney(q.discount_cents);
+  }
+  if (q.tax_cents) {
+    document.getElementById("q-tax-row").style.display = "block";
+    document.getElementById("q-tax").textContent = fmtMoney(q.tax_cents);
+  }
+  document.getElementById("q-total").textContent = fmtMoney(q.total_cents);
+
+  if (q.notes) {
+    document.getElementById("q-notes-wrap").style.display = "block";
+    document.getElementById("q-notes").textContent = q.notes;
+  }
+  if (q.terms) {
+    document.getElementById("q-terms-wrap").style.display = "block";
+    document.getElementById("q-terms").textContent = q.terms;
+  }
+
+  // Acciones
+  const actions = document.getElementById("q-actions");
+  const final = document.getElementById("q-final");
+  if (["draft", "sent", "viewed"].includes(q.status)) {
+    actions.style.display = "flex";
+  } else {
+    actions.style.display = "none";
+    if (q.status === "accepted") {
+      final.textContent = "✅ Has aceptado esta cotización. El equipo la procesará en breve.";
+      final.style.display = "block";
+    } else if (q.status === "rejected") {
+      final.textContent = "Has rechazado esta cotización.";
+      final.style.background = "rgba(239,68,68,.15)";
+      final.style.color = "#fca5a5";
+      final.style.display = "block";
+    } else if (q.status === "expired") {
+      final.textContent = "Esta cotización ha vencido. Contacta al equipo para renovarla.";
+      final.style.background = "rgba(245,158,11,.15)";
+      final.style.color = "#fde68a";
+      final.style.display = "block";
+    }
+  }
+}
+
+async function act(action) {
+  if (!confirm(action === "accept" ? "¿Aceptar esta cotización?" : "¿Rechazar esta cotización?")) return;
+  try {
+    const r = await fetch(`/api/v1/public/quotes/${encodeURIComponent(token)}/${action}`, { method: "POST" });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert(err.detail || "No se pudo procesar la acción.");
+      return;
+    }
+    const q = await r.json();
+    paint(q);
+  } catch (err) {
+    alert(err.message || "Error de red");
+  }
+}
+
+document.getElementById("btn-accept").addEventListener("click", () => act("accept"));
+document.getElementById("btn-reject").addEventListener("click", () => act("reject"));
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+load();
+</script>
+{% endblock %}

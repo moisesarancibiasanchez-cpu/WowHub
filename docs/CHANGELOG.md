@@ -5,6 +5,64 @@ Este archivo sigue parcialmente el estándar [Keep a Changelog](https://keepacha
 
 ---
 
+## [0.3.0] — 2026-08-22
+
+### Added — Módulo de Cotizaciones, Pipeline Kanban, Inventario y Resumen consolidado
+
+#### Cotizaciones (nuevo módulo completo)
+- **Modelo**: `Quote` + `QuoteItem` con máquina de estados (`DRAFT → SENT → VIEWED → ACCEPTED / REJECTED / EXPIRED`).
+- **Schemas Pydantic**: `QuoteCreate`, `QuoteUpdate`, `QuoteOut`, `QuoteListItem`, `QuoteStats`, `QuoteItemCreate`, `QuoteItemOut`.
+- **Servicio** (`app/services/quote_service.py`): CRUD, list con búsqueda, stats por estado, transiciones, conversión a `Order`, generación de `public_token` único (`secrets.token_urlsafe(12)`).
+- **API owner** (autenticada, scope por `tenant_id`):
+  - `GET    /api/v1/tenants/{tid}/quotes` — listado paginado.
+  - `GET    /api/v1/tenants/{tid}/quotes/stats` — KPIs (total, value, acceptance rate, draft value, accepted value).
+  - `GET    /api/v1/tenants/{tid}/quotes/{id}` — detalle.
+  - `POST   /api/v1/tenants/{tid}/quotes` — crear.
+  - `PATCH  /api/v1/tenants/{tid}/quotes/{id}` — editar.
+  - `DELETE /api/v1/tenants/{tid}/quotes/{id}` — eliminar.
+  - `POST   /api/v1/tenants/{tid}/quotes/{id}/send` — marcar como enviada.
+  - `POST   /api/v1/tenants/{tid}/quotes/{id}/accept` — aceptar.
+  - `POST   /api/v1/tenants/{tid}/quotes/{id}/reject` — rechazar.
+  - `POST   /api/v1/tenants/{tid}/quotes/{id}/convert` — convertir a pedido.
+- **API pública** (sin auth, por token):
+  - `GET    /api/v1/public/quotes/{token}` — abre la cotización.
+  - `POST   /api/v1/public/quotes/{token}/accept` — cliente acepta.
+  - `POST   /api/v1/public/quotes/{token}/reject` — cliente rechaza.
+- **UI dashboard** `/dashboard/quotes` — KPIs, filtros, tabla, modal crear/editar, modal ver, acciones de estado, conversión a pedido.
+- **UI pública** `/quote/{token}` — vista cliente con Aceptar / Rechazar.
+- **Token público único**: `secrets.token_urlsafe(12)` con validación de unicidad.
+
+#### Pipeline de Pedidos (Kanban)
+- Nueva UI `/dashboard/pipeline` con columnas por estado: `pending → confirmed → preparing → ready → delivered` (más `canceled`).
+- Auto-refresco cada 30 s.
+- Botones inline para transiciones válidas.
+- Modal de detalle del pedido.
+
+#### Inventario
+- Nueva UI `/dashboard/inventory` con:
+  - KPIs (total SKUs, stock total, alertas de reposición, valor de inventario).
+  - Tabla por producto-sucursal con `stock`, `reserved`, `available`, `low_stock_threshold`.
+  - Alertas visuales (bajo / sin stock / OK).
+  - Búsqueda y filtro por sucursal.
+  - Modal para ajustar stock.
+
+#### Resumen consolidado
+- `/dashboard` ahora carga 9 KPIs en paralelo:
+  Pedidos, Reservas activas, Cotizaciones abiertas, Clientes, Tarjetas de fidelidad, Stock bajo, Productos, Facturas, Visitas.
+
+#### Sidebar
+- Reorganizado en 2 secciones siguiendo el spec del usuario:
+  - **Negocio** (Resumen, Funcionalidades, Clientes, Reservas, Productos, Promociones, QRs, Sitio público, Fidelidad)
+  - **Gestión interna** (Pedidos, Pipeline, Inventario, Cotizaciones)
+
+#### Documentación
+- README actualizado a v0.3.0 con modelo de datos, endpoints de cotizaciones y notas de inventario.
+
+### Fixed
+- `Page` schema de cotizaciones ahora respeta el campo `total_pages` esperado (mismatch con `pages` del servicio original).
+
+---
+
 ## [No publicado] — 2026-08-16
 
 ### Added — Integración del Asistente Virtual con todos los módulos

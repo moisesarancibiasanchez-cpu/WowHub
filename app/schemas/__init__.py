@@ -22,3 +22,7 @@ from app.schemas.order import (  # noqa: F401
     OrderCreate, OrderOut, OrderItemOut,
 )
 from app.schemas.common import Page  # noqa: F401
+from app.schemas.quote import (  # noqa: F401
+    QuoteCreate, QuoteUpdate, QuoteOut, QuoteListItem, QuoteStats,
+    QuoteItemCreate, QuoteItemOut,
+)

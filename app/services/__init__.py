@@ -16,3 +16,4 @@ from app.services.stats_service import StatsService  # noqa: F401
 from app.services.upload_service import UploadService  # noqa: F401
 from app.services.webhook_service import WebhookDispatcher  # noqa: F401
 from app.services.i18n_service import I18nService  # noqa: F401
+from app.services.quote_service import QuoteService  # noqa: F401

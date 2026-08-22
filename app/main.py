@@ -23,6 +23,7 @@ from app.api.v1 import (
     analytics, campaigns,
     automation,  # Automation Manager™ (Cap. 19.3)
     opportunities,  # Opportunity Engine (Fase 3 del plan, ver oportunidades.pdf)
+    quotes,  # Cotizaciones (Quotes) — Gestión interna
 )
 from app.models.user import UserRole
 from app.config import settings
@@ -182,6 +183,9 @@ app.include_router(campaigns.router, prefix="/api/v1")
 app.include_router(automation.router, prefix="/api/v1")
 # Opportunity Engine (Fase 3) — oportunidades priorizadas para el dashboard
 app.include_router(opportunities.router, prefix="/api/v1")
+# Cotizaciones (Quotes) — owner + público
+app.include_router(quotes.router, prefix="/api/v1")
+app.include_router(quotes.public_router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -454,6 +458,60 @@ def public_booking_page(slug: str, request: Request):
     return templates.TemplateResponse(
         request, "public/booking.html",
         {"settings": settings, "slug": slug, "tenant_name": tenant_name},
+    )
+
+
+# ── Cotizaciones (UI owner) ─────────────────────────────────
+@app.get("/dashboard/quotes", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_quotes(request: Request):
+    """Panel del dueño: cotizaciones con KPIs, filtros, modal de crear/editar."""
+    return templates.TemplateResponse(
+        request, "dashboard/quotes.html",
+        {"settings": settings, "body_class": "route-quotes"},
+    )
+
+
+# ── Vista pública de cotización (token) ─────────────────────
+@app.get("/quote/{token}", response_class=HTMLResponse, include_in_schema=False)
+def public_quote_page(token: str, request: Request):
+    """El cliente abre la cotización por su token único (sin login)."""
+    tenant_name = ""
+    try:
+        with SessionLocal() as db:
+            from app.models.quote import Quote
+            q = db.execute(
+                select(Quote).where(Quote.public_token == token)
+            ).scalar_one_or_none()
+            if q:
+                from app.models.tenant import Tenant
+                t = db.get(Tenant, q.tenant_id)
+                if t:
+                    tenant_name = t.display_name or t.legal_name or t.slug
+    except Exception:
+        pass
+    return templates.TemplateResponse(
+        request, "public/quote.html",
+        {"settings": settings, "token": token, "tenant_name": tenant_name},
+    )
+
+
+# ── Inventario (UI owner) ──────────────────────────────────
+@app.get("/dashboard/inventory", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_inventory(request: Request):
+    """Panel del dueño: stock por sucursal con alertas de reposición."""
+    return templates.TemplateResponse(
+        request, "dashboard/inventory.html",
+        {"settings": settings, "body_class": "route-inventory"},
+    )
+
+
+# ── Pipeline de Pedidos (UI owner) ─────────────────────────
+@app.get("/dashboard/pipeline", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_pipeline(request: Request):
+    """Panel del dueño: Kanban de pedidos por estado (PENDING → DELIVERED)."""
+    return templates.TemplateResponse(
+        request, "dashboard/pipeline.html",
+        {"settings": settings, "body_class": "route-pipeline"},
     )
 
 

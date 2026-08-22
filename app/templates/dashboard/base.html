@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
 {% extends "base.html" %}
 {% block title %}{% block dash_title %}Dashboard{% endblock %} — WowHub{% endblock %}
 
@@ -83,31 +88,45 @@
   <aside class="dash-side">
     <h4>Negocio</h4>
     <a href="/dashboard" class="nav-link" data-route="dashboard">
-      <span class="ico">▦</span> Resumen
+      <span class="ico">⌂</span> Resumen
     </a>
     <a href="/dashboard/products" class="nav-link" data-route="products">
-      <span class="ico">📦</span> Productos
+      <span class="ico">▦</span> Productos / Catálogo
     </a>
     <a href="/dashboard/promotions" class="nav-link" data-route="promotions">
-      <span class="ico">🎉</span> Promociones
+      <span class="ico">%</span> Promociones
     </a>
     <a href="/dashboard/qrs" class="nav-link" data-route="qrs">
-      <span class="ico">📱</span> QRs
+      <span class="ico">▣</span> Códigos QR
     </a>
     <a href="/dashboard/customers" class="nav-link" data-route="customers">
-      <span class="ico">👥</span> Clientes
+      <span class="ico">◉</span> Clientes
     </a>
     <a href="/dashboard/loyalty" class="nav-link" data-route="loyalty">
-      <span class="ico">🎟️</span> Fidelización
+      <span class="ico">★</span> Fidelidad
     </a>
     <a href="/dashboard/bookings" class="nav-link" data-route="bookings">
-      <span class="ico">📅</span> Reservas
+      <span class="ico">◷</span> Reservas
     </a>
     <a href="/dashboard/landing" class="nav-link" data-route="landing">
-      <span class="ico">🎨</span> Landing
+      <span class="ico">⇗</span> Sitio público
     </a>
     <a href="/dashboard/site" class="nav-link" data-route="site">
       <span class="ico">🌗</span> Apariencia
+    </a>
+
+    <h4>Gestión interna</h4>
+    <a href="/dashboard/orders" class="nav-link" data-route="orders">
+      <span class="ico">⛟</span> Pedidos
+    </a>
+    <a href="/dashboard/pipeline" class="nav-link" data-route="pipeline">
+      <span class="ico">⛟</span> Pipeline
+    </a>
+    <a href="/dashboard/inventory" class="nav-link" data-route="inventory">
+      <span class="ico">▤</span> Inventario
+    </a>
+    <a href="/dashboard/quotes" class="nav-link" data-route="quotes">
+      <span class="ico">⎙</span> Cotizaciones
     </a>
     <h4>Avanzado</h4>
     <a href="/dashboard/ai" class="nav-link" data-route="ai">

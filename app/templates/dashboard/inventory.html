@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+{% extends "base.html" %}
+{% block title %}Inventario — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 1280px;">
+  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div>
+      <h1 style="margin: 0;">Inventario</h1>
+      <p class="text-muted" style="margin: 4px 0 0;">Stock por sucursal con alertas de reposición y movimientos.</p>
+    </div>
+    <div class="flex" style="gap: 8px;">
+      <select id="branch-filter" class="form-input" style="width: 200px;">
+        <option value="">Todas las sucursales</option>
+      </select>
+      <select id="alert-filter" class="form-input" style="width: 200px;">
+        <option value="">Todos los productos</option>
+        <option value="low">Stock bajo</option>
+        <option value="out">Sin stock</option>
+        <option value="ok">Stock OK</option>
+      </select>
+      <input id="search-input" class="form-input" placeholder="Buscar producto…" style="width: 220px;">
+      <button class="btn" id="refresh-btn">Actualizar</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div id="kpis" class="flex" style="gap: 12px; margin-bottom: 20px; flex-wrap: wrap;"></div>
+
+  <div id="alert"></div>
+  <div id="inventory-list" class="card" style="padding: 0;">
+    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  </div>
+</section>
+
+<!-- Modal: ajustar stock -->
+<div id="stock-modal" class="modal" style="display:none;">
+  <div class="modal-card" style="max-width: 480px;">
+    <div class="modal-head">
+      <h3 id="stock-modal-title">Ajustar stock</h3>
+      <button class="btn btn-ghost btn-sm" id="stock-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="stock-context" class="text-muted" style="margin-top: 0;"></p>
+      <label class="form-field"><span>Nuevo stock *</span>
+        <input id="stock-new" type="number" min="0" class="form-input" value="0">
+      </label>
+      <label class="form-field" style="margin-top: 12px;"><span>Umbral de stock bajo</span>
+        <input id="stock-threshold" type="number" min="0" class="form-input" value="5">
+      </label>
+      <label class="form-field" style="margin-top: 12px;"><span>Motivo del ajuste</span>
+        <input id="stock-reason" class="form-input" placeholder="Reposición, merma, conteo físico…">
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="stock-modal-cancel">Cancelar</button>
+      <button class="btn" id="stock-modal-save">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.kpi-card { background: var(--bg-elev, #1a1d23); border-radius: 8px; padding: 14px 18px; min-width: 160px; }
+.kpi-card .label { font-size: 11px; color: var(--text-muted, #9ca3af); text-transform: uppercase; letter-spacing: .5px; }
+.kpi-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.kpi-card.alert .value { color: #f59e0b; }
+.kpi-card.danger .value { color: #ef4444; }
+.kpi-card.ok .value { color: #10b981; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); }
+.data-table th { font-size: 11px; text-transform: uppercase; color: var(--text-muted, #9ca3af); }
+.stock-pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.stock-pill.low { background: #f59e0b; color: #000; }
+.stock-pill.out { background: #ef4444; color: #fff; }
+.stock-pill.ok  { background: #064e3b; color: #6ee7b7; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-card { background: var(--bg-elev, #1a1d23); color: var(--text, #e5e7eb); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.5); max-height: 92vh; display: flex; flex-direction: column; }
+.modal-head { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 20px; overflow-y: auto; }
+.modal-foot { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); display: flex; justify-content: flex-end; gap: 8px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+</style>
+<script>
+let currentTenantId = null;
+let branches = [];
+let products = [];
+let stockByBranch = {}; // { productId: { branchId: { stock, low_stock_threshold } } }
+let editingContext = null;
+
+const $ = (id) => document.getElementById(id);
+
+async function getTenant() {
+  const ms = await WH.api.get("/api/v1/me/memberships");
+  if (!ms.length) throw new Error("No perteneces a ningún negocio.");
+  return ms[0].tenant_id;
+}
+
+async function loadBranches() {
+  const sel = $("branch-filter");
+  sel.innerHTML = '<option value="">Todas las sucursales</option>';
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/branches?page_size=200`);
+    branches = data.items || data || [];
+    branches.forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b.id; opt.textContent = b.name;
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+async function loadProductsAndStock() {
+  // productos
+  const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/products?page_size=200`);
+  products = data.items || data || [];
+  // stock por sucursal (todos los branch_products)
+  stockByBranch = {};
+  for (const b of branches) {
+    try {
+      const r = await WH.api.get(`/api/v1/tenants/${currentTenantId}/branches/${b.id}/products?page_size=200`);
+      const items = r.items || r || [];
+      for (const it of items) {
+        if (!stockByBranch[it.product_id]) stockByBranch[it.product_id] = {};
+        stockByBranch[it.product_id][b.id] = {
+          stock: it.stock,
+          low_stock_threshold: it.low_stock_threshold,
+          branch_product_id: it.id,
+        };
+      }
+    } catch (_) {}
+  }
+  render();
+}
+
+function getStockInfo(product, branchId) {
+  if (branchId && stockByBranch[product.id]?.[branchId]) {
+    const s = stockByBranch[product.id][branchId];
+    return { stock: s.stock, threshold: s.low_stock_threshold, hasOverride: true };
+  }
+  return { stock: product.stock ?? 0, threshold: 5, hasOverride: false };
+}
+
+function statusOf(stock, threshold) {
+  if (stock <= 0) return { key: "out", label: "Sin stock" };
+  if (stock <= threshold) return { key: "low", label: "Stock bajo" };
+  return { key: "ok", label: "OK" };
+}
+
+function render() {
+  const branchId = $("branch-filter").value;
+  const alertFilter = $("alert-filter").value;
+  const search = $("search-input").value.toLowerCase();
+  // KPIs
+  let totalProducts = 0, lowCount = 0, outCount = 0, okCount = 0;
+  const rows = [];
+  for (const p of products) {
+    if (p.status && p.status !== "active" && p.status !== "ACTIVE") continue;
+    if (search && !p.name.toLowerCase().includes(search) && !(p.sku || "").toLowerCase().includes(search)) continue;
+    totalProducts++;
+    const info = getStockInfo(p, branchId);
+    const st = statusOf(info.stock, info.threshold);
+    if (st.key === "out") outCount++;
+    else if (st.key === "low") lowCount++;
+    else okCount++;
+    if (alertFilter && st.key !== alertFilter) continue;
+    rows.push({ p, info, st });
+  }
+  $("kpis").innerHTML = `
+    <div class="kpi-card"><div class="label">Productos activos</div><div class="value">${totalProducts}</div></div>
+    <div class="kpi-card ok"><div class="label">Stock OK</div><div class="value">${okCount}</div></div>
+    <div class="kpi-card alert"><div class="label">Stock bajo</div><div class="value">${lowCount}</div></div>
+    <div class="kpi-card danger"><div class="label">Sin stock</div><div class="value">${outCount}</div></div>
+    <div class="kpi-card"><div class="label">Sucursales</div><div class="value">${branches.length}</div></div>
+  `;
+  if (!rows.length) {
+    $("inventory-list").innerHTML = '<p class="text-muted text-center" style="padding:40px;">No hay productos que coincidan.</p>';
+    return;
+  }
+  const cols = branchId ? null : branches;
+  $("inventory-list").innerHTML = `
+    <div style="overflow-x: auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>SKU</th>
+          ${branchId ? "<th>Stock</th><th>Umbral</th><th>Estado</th>" :
+            branches.map(b => `<th>${b.name}</th>`).join("") + "<th>Stock total</th>"}
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(({p, info, st}) => {
+          let cells = "";
+          if (branchId) {
+            cells = `<td><strong>${info.stock}</strong></td><td>${info.threshold}</td>
+              <td><span class="stock-pill ${st.key}">${st.label}</span></td>`;
+          } else {
+            const branchCells = branches.map(b => {
+              const bi = getStockInfo(p, b.id);
+              const bs = statusOf(bi.stock, bi.threshold);
+              return `<td><span class="stock-pill ${bs.key}" title="${bs.label} · umbral ${bi.threshold}">${bi.stock}</span></td>`;
+            }).join("");
+            const total = branches.reduce((acc, b) => acc + getStockInfo(p, b.id).stock, 0);
+            cells = branchCells + `<td><strong>${total}</strong></td>`;
+          }
+          return `
+            <tr>
+              <td><strong>${p.name}</strong>${p.price_cents ? `<br><span class="text-muted" style="font-size:11px;">$${(p.price_cents/100).toLocaleString("es-CL")}</span>` : ""}</td>
+              <td><span class="text-muted" style="font-size:12px;">${p.sku || "—"}</span></td>
+              ${cells}
+              <td>
+                <button class="btn btn-sm" onclick="openAdjust('${p.id}', null)">+ Stock global</button>
+                ${!branchId && branches.length ? branches.map(b => `<button class="btn btn-sm btn-ghost" style="margin-left:4px;" onclick="openAdjust('${p.id}','${b.id}')" title="Ajustar en ${b.name}">${b.code || b.name.slice(0,3)}</button>`).join("") : ""}
+                ${branchId ? `<button class="btn btn-sm" style="margin-left:4px;" onclick="openAdjust('${p.id}','${branchId}')">Ajustar</button>` : ""}
+              </td>
+            </tr>
+          `;
+        }).join("")}
+      </tbody>
+    </table>
+    </div>
+  `;
+}
+
+async function openAdjust(productId, branchId) {
+  const p = products.find(x => x.id === productId);
+  if (!p) return;
+  const branch = branchId ? branches.find(b => b.id === branchId) : null;
+  const info = getStockInfo(p, branchId);
+  editingContext = { productId, branchId };
+  $("stock-modal-title").textContent = `Ajustar stock · ${p.name}`;
+  $("stock-context").textContent = branch
+    ? `Sucursal: ${branch.name}. Stock actual: ${info.stock}.`
+    : `Stock global. Stock actual: ${info.stock}.`;
+  $("stock-new").value = info.stock;
+  $("stock-threshold").value = info.threshold;
+  $("stock-reason").value = "";
+  $("stock-modal").style.display = "flex";
+}
+
+async function saveStock() {
+  const newStock = Math.max(0, +$("stock-new").value || 0);
+  const threshold = Math.max(0, +$("stock-threshold").value || 0);
+  const reason = $("stock-reason").value.trim();
+  const { productId, branchId } = editingContext;
+  try {
+    if (branchId) {
+      // upsert en branch_products
+      const info = stockByBranch[productId]?.[branchId];
+      if (info?.branch_product_id) {
+        await WH.api.patch(`/api/v1/tenants/${currentTenantId}/branch-products/${info.branch_product_id}`, {
+          stock: newStock, low_stock_threshold: threshold,
+        });
+      } else {
+        await WH.api.post(`/api/v1/tenants/${currentTenantId}/branches/${branchId}/products`, {
+          product_id: productId, stock: newStock, low_stock_threshold: threshold,
+        });
+      }
+    } else {
+      // ajustar stock global en product
+      await WH.api.patch(`/api/v1/tenants/${currentTenantId}/products/${productId}`, { stock: newStock });
+    }
+    $("stock-modal").style.display = "none";
+    $("alert").innerHTML = `<div class="alert alert-ok">Stock actualizado${reason ? ` (${reason})` : ""}.</div>`;
+    await loadProductsAndStock();
+  } catch (err) {
+    alert(err.message || err);
+  }
+}
+
+// ── Eventos ──
+$("branch-filter").addEventListener("change", render);
+$("alert-filter").addEventListener("change", render);
+let searchT = null;
+$("search-input").addEventListener("input", () => { clearTimeout(searchT); searchT = setTimeout(render, 250); });
+$("refresh-btn").addEventListener("click", loadProductsAndStock);
+$("stock-modal-close").addEventListener("click", () => $("stock-modal").style.display = "none");
+$("stock-modal-cancel").addEventListener("click", () => $("stock-modal").style.display = "none");
+$("stock-modal-save").addEventListener("click", saveStock);
+
+(async function init() {
+  try {
+    currentTenantId = await getTenant();
+    await loadBranches();
+    await loadProductsAndStock();
+  } catch (err) {
+    $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
+  }
+})();
+</script>
+{% endblock %}
