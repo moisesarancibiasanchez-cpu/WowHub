@@ -12,6 +12,12 @@
   #}
   {% if settings.ui_v2_enabled or request.query_params.get('ui') == 'v2' %}
   <link rel="stylesheet" href="/static/css/tokens-v2.css?v={{ settings.ui_v2_build_id }}">
+  {# ── UI v2 overrides (fase 2) ────────────────────────────
+     Corrige los 5 colores hardcodeados en app.css (topbar, hero, etc.)
+     y agrega componentes de Oportunidades / Daily Brief alineados con
+     la visión de user_input_files/oportunidades.pdf (Fase 3 del plan:
+     Opportunity Engine). Mismo feature flag que tokens-v2.css.        #}
+  <link rel="stylesheet" href="/static/css/v2-overrides.css?v={{ settings.ui_v2_build_id }}">
   {% endif %}
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236c5ce7'/%3E%3Ctext x='50' y='65' font-size='52' text-anchor='middle' fill='%23ffffff' font-family='sans-serif' font-weight='800'%3EW%3C/text%3E%3C/svg%3E">
   {% block head_extra %}{% endblock %}

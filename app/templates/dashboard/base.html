@@ -3,9 +3,15 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
-{# ── UI v2 skin se inyecta desde base.html (este template lo extiende).
-   No hace falta duplicar el <link> acá porque Jinja2 ya trae la versión
-   "ganadora" del head del padre. ── #}
+{# ── UI v2 skin (fase 1) + overrides (fase 2) se inyectan desde
+   base.html (este template lo extiende). Duplicamos los links acá
+   para garantizar el orden de cascada:
+     app.css → tokens-v2.css → v2-overrides.css → ai.css → <style>
+   Sin esta duplicación, ai.css se cargaría ANTES de v2-overrides
+   y los overrides perderían la batalla de especificidad en algunos
+   selectores (.topbar, .hero, etc.).  ── #}
+<link rel="stylesheet" href="/static/css/tokens-v2.css?v=v2-tokens-2026-08-22">
+<link rel="stylesheet" href="/static/css/v2-overrides.css?v=v2-tokens-2026-08-22">
 <style>
   /* Banner de impersonación — rojo, persistente, imposible de ignorar */
   #imp-banner {

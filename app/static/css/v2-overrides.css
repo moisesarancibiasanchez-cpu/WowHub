@@ -1,0 +1,332 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * WowHub UI v2 — Overrides de Fase 2
+ *
+ * Este archivo se carga SOLO cuando UI_V2_ENABLED=true (o ?ui=v2 en URL).
+ * Contiene dos tipos de reglas:
+ *
+ *   A) OVERRIDES de colores hardcodeados en app.css que NO se podían
+ *      sobrescribir solo con tokens-v2.css (porque usaban rgba() literales
+ *      en vez de var(--bg) / var(--fg)). 5 lugares identificados:
+ *        - .topbar            (app.css:8)   — fondo dark semi-transparente
+ *        - .brand-mark        (app.css:25)  — color de texto en gradiente
+ *        - .hero              (app.css:132) — radial purple glow
+ *        - .feat .icon        (app.css:154) — color de texto en gradiente
+ *        - .hero-portada::after (app.css:253) — overlay dark inferior
+ *
+ *   B) COMPONENTES PREPARADOS para la visión de "Oportunidades" descrita
+ *      en user_input_files/oportunidades.pdf (Fase 3 del plan: Opportunity
+ *      Engine). Estos estilos YA están listos — cuando el backend empiece
+ *      a generar el HTML de las oportunidades, los templates lo usarán
+ *      sin necesidad de tocar este CSS.
+ *      Componentes:
+ *        - .opp-card          card de oportunidad (estado: atenc/oport/inact)
+ *        - .opp-score         badge con OpportunityScore = Impact×Urg×Conf
+ *        - .opp-category      pill con las 6 categorías del PDF
+ *        - .daily-brief       bloque "WowHub Daily Brief" arriba del dash
+ *        - .opp-grid          grid responsive 1/2/3 columnas
+ *
+ *  No rompe el theme dark (v1) — solo activa si ui_v2_active()=true.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/* ════════════════════════════════════════════════════════════════
+   A) OVERRIDES — colores hardcodeados
+   ════════════════════════════════════════════════════════════════ */
+
+/* A.1 — .topbar (app.css:8)
+   En v1: rgba(11,13,18,0.85) (oscuro, blur).
+   En v2: blanco semi-transparente con blur → efecto glassmorphism claro. */
+.topbar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(26, 34, 58, 0.04);
+}
+
+/* A.2 — .brand-mark (app.css:25)
+   En v1: color #0b0d12 (casi negro) sobre gradiente violeta → contraste OK.
+   En v2: idem — el violeta sigue siendo violeta, el texto oscuro sigue
+   dando contraste. NO cambiamos. Pero añadimos una sombra más marcada
+   para que destaque sobre el fondo claro. */
+.brand-mark {
+  box-shadow: 0 4px 10px rgba(108, 92, 231, 0.25),
+              0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+}
+
+/* A.3 — .hero (app.css:132)
+   En v1: glow violeta suave arriba.
+   En v2: lo intensificamos un poco y lo bajamos — el fondo claro necesita
+   más saturación para que se note. */
+.hero {
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(108, 92, 231, 0.18) 0%,
+    transparent 55%
+  );
+}
+
+/* A.4 — .feat .icon (app.css:154)
+   En v1: #0b0d12 (texto oscuro sobre violeta) → contraste OK.
+   En v2: idem, no cambia. */
+
+/* A.5 — .hero-portada::after (app.css:253)
+   En v1: overlay oscuro inferior (efecto "fade to black" abajo del hero).
+   En v2: cambiamos a un overlay claro muy sutil — solo para suavizar el
+   borde inferior en pantallas claras, no oscurecer. */
+.hero-portada::after {
+  background: radial-gradient(
+    circle at 50% 100%,
+    rgba(245, 247, 251, 0.6) 0%,
+    transparent 60%
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
+   B) COMPONENTES DE OPORTUNIDADES (preparación — visión oportunidades.pdf)
+   ════════════════════════════════════════════════════════════════ */
+
+/* B.1 — Cards de oportunidad (.opp-card)
+   3 estados según el PDF:
+     - atenc  (rojo/naranja)   = "Atención" (problema detectado)
+     - oport  (verde)          = "Oportunidad" (mejora recomendada)
+     - inact  (gris/azul)      = "Cliente inactivo" (reactivación)
+   Estructura esperada del HTML (la inyectará el backend en Fase 3):
+   <article class="opp-card opp-card--atencion">
+     <header class="opp-card-head">
+       <span class="opp-category" data-cat="rentabilidad">Rentabilidad</span>
+       <span class="opp-score" title="Impacto×Urgencia×Confianza">87</span>
+     </header>
+     <h3 class="opp-card-title">Tu producto X está perdiendo rentabilidad</h3>
+     <p class="opp-card-body">El costo del insumo principal subió 18%...</p>
+     <footer class="opp-card-foot">
+       <button class="btn btn-sm">Ver producto</button>
+     </footer>
+   </article> */
+.opp-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 2px rgba(26, 34, 58, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+              border-color 0.15s ease;
+}
+.opp-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(26, 34, 58, 0.08);
+  border-color: var(--border-strong);
+}
+.opp-card--atencion { border-left-color: #ef4444; }
+.opp-card--oport   { border-left-color: #10b981; }
+.opp-card--inact   { border-left-color: #6b7280; }
+
+.opp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.opp-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+  color: var(--fg);
+}
+.opp-card-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  margin: 0;
+}
+.opp-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+/* B.2 — Score de prioridad (.opp-score)
+   OpportunityScore = Impacto × Urgencia × Confianza (rango típico 0–100).
+   3 bandas:
+     >= 70  → rojo      (alta prioridad, actuar ya)
+     40–69  → ámbar     (revisar pronto)
+     <  40  → gris      (baja prioridad) */
+.opp-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+}
+.opp-score[data-band="high"]   { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.opp-score[data-band="medium"] { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+.opp-score[data-band="low"]    { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+/* B.3 — Pill de categoría (.opp-category)
+   Las 6 categorías del PDF con su color asociado. */
+.opp-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #eef2ff;
+  color: #4338ca;
+}
+.opp-category[data-cat="rentabilidad"] { background: #fef3c7; color: #b45309; }
+.opp-category[data-cat="inventario"]   { background: #dbeafe; color: #1e40af; }
+.opp-category[data-cat="clientes"]     { background: #f3e8ff; color: #6b21a8; }
+.opp-category[data-cat="ventas"]       { background: #d1fae5; color: #065f46; }
+.opp-category[data-cat="marketing"]    { background: #fce7f3; color: #9d174d; }
+.opp-category[data-cat="operacion"]    { background: #e5e7eb; color: #374151; }
+
+/* B.4 — Grid responsive de oportunidades (.opp-grid) */
+.opp-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 700px) {
+  .opp-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1100px) {
+  .opp-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* B.5 — WowHub Daily Brief (.daily-brief)
+   Bloque destacado arriba del dashboard con el resumen del día.
+   Estructura esperada:
+   <section class="daily-brief">
+     <div class="daily-brief-greet">
+       <span class="daily-brief-emoji">👋</span>
+       <h2>Buenos días</h2>
+     </div>
+     <p class="daily-brief-text">Tu negocio hoy</p>
+     <ul class="daily-brief-stats">
+       <li><strong>Ventas</strong> $2.340.000</li>
+       <li><strong>Utilidad estimada</strong> $720.000</li>
+       <li><strong>Margen</strong> 30.8%</li>
+     </ul>
+     <p class="daily-brief-ai">WowHub detectó <b>4 oportunidades</b> para ti.</p>
+   </section> */
+.daily-brief {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(26, 34, 58, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+.daily-brief::before {
+  content: "";
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  background: radial-gradient(
+    circle,
+    rgba(108, 92, 231, 0.10) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+.daily-brief-greet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.daily-brief-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+.daily-brief h2 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.daily-brief-text {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin: 0 0 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.daily-brief-stats {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.daily-brief-stats li {
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.daily-brief-stats strong {
+  color: var(--fg);
+  font-weight: 700;
+  margin-right: 4px;
+}
+.daily-brief-ai {
+  font-size: 15px;
+  color: var(--fg);
+  margin: 0;
+  padding: 12px 14px;
+  background: rgba(108, 92, 231, 0.06);
+  border: 1px solid rgba(108, 92, 231, 0.15);
+  border-radius: 10px;
+  line-height: 1.4;
+}
+.daily-brief-ai b {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+/* B.6 — Botones de acción rápida del Daily Brief
+   Los 4 botones del PDF: [Mejorar rentabilidad] [Vender más]
+   [Recuperar clientes] [Revisar inventario] */
+.daily-brief-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.daily-brief-actions .btn {
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   C) PRINT/RESPONSIVE extras
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .daily-brief { padding: 18px 16px; border-radius: 12px; }
+  .daily-brief-stats { gap: 12px 18px; }
+  .daily-brief-stats li { font-size: 13px; }
+  .opp-card { padding: 14px; }
+}
