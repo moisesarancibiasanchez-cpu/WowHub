@@ -60,29 +60,8 @@ def _t(context: dict, key: str, default: str = "") -> str:
 
 templates.env.globals["_t"] = _t
 
-# ── UI v2 globals (Fase 1) ────────────────────────────
-# `ui_v2_active(context)`: bool leída de settings.ui_v2_enabled (env UI_V2_ENABLED).
-#   - False (default) → templates NO inyectan tokens-v2.css → app queda 100% dark.
-#   - True           → templates SIEMPRE inyectan tokens-v2.css al final del <head>.
-#   - Override por request: si la URL trae ?ui=v2, se activa para ese render.
-# `ui_v2_build_id()`:  string leída de settings.ui_v2_build_id (env UI_V2_BUILD_ID).
-#   Se usa como cache-bust de tokens-v2.css (cambialo cuando actualices el CSS).
-def _ui_v2_active(context: dict) -> bool:
-    """¿Cargar tokens-v2.css en este render?"""
-    request = context.get("request")
-    if request is not None and request.query_params.get("ui") == "v2":
-        return True
-    return bool(getattr(settings, "ui_v2_enabled", False))
-
-
-def _ui_v2_build_id() -> str:
-    return getattr(settings, "ui_v2_build_id", "v2-tokens-2026-08-22")
-
-
-templates.env.globals["ui_v2_active"] = _ui_v2_active
-templates.env.globals["ui_v2_build_id"] = _ui_v2_build_id
 # Exponer el objeto settings completo para que los templates puedan usar
-# `{{ settings.ui_v2_enabled }}` y `{{ settings.ui_v2_build_id }}` directamente.
+# `{{ settings.* }}` directamente.
 templates.env.globals["settings"] = settings
 
 
@@ -703,107 +682,6 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
         "public/404.html" if exc.status_code == 404 else "public/error.html",
         {"settings": settings, "detail": exc.detail, "status": exc.status_code},
         status_code=exc.status_code,
-    )
-
-
-# ── Diagnóstico UI v2 (solo devs) ──────────────────────
-@app.get("/diag/ui-v2", include_in_schema=False)
-def diag_ui_v2(request: Request):
-    """Diagnóstico de la Fase 1 de la migración dark → light.
-
-    Verifica:
-      - Estado del feature flag (env var).
-      - Existencia del archivo tokens-v2.css en disco.
-      - Resolución del link con cache-bust correcto.
-      - Override por query param ?ui=v2.
-
-    Devuelve JSON si Accept incluye 'application/json', HTML si no.
-    Útil pegarle desde el browser o desde curl.
-    """
-    tokens_v2_path = STATIC_DIR / "css" / "tokens-v2.css"
-    css_exists = tokens_v2_path.is_file()
-    css_size = tokens_v2_path.stat().st_size if css_exists else 0
-
-    # Lee primeras líneas (luego cortamos)
-    css_head = ""
-    if css_exists:
-        try:
-            with tokens_v2_path.open() as f:
-                css_head = "".join([next(f) for _ in range(5)])
-        except StopIteration:
-            pass
-
-    query_override = request.query_params.get("ui") == "v2"
-    would_load = bool(getattr(settings, "ui_v2_enabled", False) or query_override)
-
-    payload = {
-        "ui_v2_enabled_env": getattr(settings, "ui_v2_enabled", False),
-        "build_id": getattr(settings, "ui_v2_build_id", "n/a"),
-        "query_param_override": query_override,
-        "would_load_v2_now": would_load,
-        "tokens_v2_css": {
-            "exists": css_exists,
-            "size_bytes": css_size,
-            "path": str(tokens_v2_path),
-            "first_5_lines": css_head,
-        },
-        "templates": {
-            "base_html": "app/templates/base.html",
-            "dashboard_base_html": "app/templates/dashboard/base.html",
-        },
-        "rollout": {
-            "how_to_enable": "Set UI_V2_ENABLED=true en .env o Railway, restart.",
-            "rollback": "Set UI_V2_ENABLED=false + restart.",
-            "qa_override": "Append ?ui=v2 to any URL.",
-        },
-    }
-
-    if "application/json" in request.headers.get("accept", ""):
-        return JSONResponse(payload)
-
-    # HTML
-    rows = "".join(
-        f"<tr><td><b>{k}</b></td><td>{v}</td></tr>"
-        for k, v in payload.items() if not isinstance(v, dict)
-    )
-    css_info = payload["tokens_v2_css"]
-    return HTMLResponse(
-        f"""<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Diag UI v2 — WowHub</title>
-<style>
-body {{ font-family: ui-monospace, monospace; padding: 32px; background: #0b0d12; color: #e6e9ef; }}
-h1 {{ color: #6c5ce7; }}
-table {{ width:100%; border-collapse: collapse; margin: 16px 0; }}
-td, th {{ padding: 8px 12px; border: 1px solid #1f2532; text-align: left; }}
-.badge-ok {{ background: #064e3b; color: #6ee7b7; padding: 2px 8px; border-radius: 6px; }}
-.badge-bad {{ background: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 6px; }}
-pre {{ background:#11141b; padding:14px; border-radius:8px; overflow:auto; }}
-a {{ color: #6c5ce7; }}
-</style></head><body>
-<h1>Diagnóstico UI v2 — Fase 1</h1>
-<p>Feature flag: <span class="{'badge-ok' if payload['ui_v2_enabled_env'] else 'badge-bad'}">{"ACTIVO" if payload['ui_v2_enabled_env'] else "INACTIVO (default)"}</span>
-   &nbsp; Build ID: <code>{payload['build_id']}</code></p>
-<p>Override por query (?ui=v2): <span class="{'badge-ok' if payload['query_param_override'] else 'badge-bad'}">{'sí' if payload['query_param_override'] else 'no'}</span></p>
-<p><b>¿Cargaría tokens-v2.css ahora?</b> <span class="{'badge-ok' if payload['would_load_v2_now'] else 'badge-bad'}">{'SÍ' if payload['would_load_v2_now'] else 'NO'}</span></p>
-
-<h2>tokens-v2.css</h2>
-<table>
-<tr><th>Existe</th><td>{'✅ sí' if css_info['exists'] else '❌ NO'}</td></tr>
-<tr><th>Tamaño</th><td>{css_info['size_bytes']} bytes</td></tr>
-<tr><th>Ruta</th><td><code>{css_info['path']}</code></td></tr>
-<tr><th>Primeras 5 líneas</th><td><pre>{css_info['first_5_lines'] or '(vacío)'}</pre></td></tr>
-</table>
-
-<h2>Cómo usar</h2>
-<ul>
-<li><b>Verificar carga sin tocar nada:</b> abrí <code>http://&lt;tu-host&gt;/?ui=v2</code> — esa URL fuerza el override.</li>
-<li><b>Activar para todos (producción):</b> en Railway → Variables → <code>UI_V2_ENABLED=true</code> → redeploy.</li>
-<li><b>Rollback instantáneo:</b> <code>UI_V2_ENABLED=false</code> + restart. Ningún template queda modificado.</li>
-</ul>
-
-<hr>
-<p><a href="/">← Volver al inicio</a> · <a href="/diag/ui-v2?ui=v2">Forzar v2 en este diag</a></p>
-</body></html>"""
     )
 
 
