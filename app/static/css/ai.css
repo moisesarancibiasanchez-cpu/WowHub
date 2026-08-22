@@ -42,11 +42,14 @@
   font-size: 14px;
 }
 
-/* El body debe tener padding-right para que el contenido central no quede oculto */
+/* El main debe tener padding-right para que el contenido central no
+   quede oculto detrás del AI sidebar (que es `position: fixed`).
+   IMPORTANTE: NO agregar padding-right a .dash-layout.
+   El AI sidebar está fuera de .dash-layout (ver dashboard/base.html).
+   Si .dash-layout también recibe padding-right, se duplican los 360px
+   y el contenido central queda colapsado a 30-50px en pantallas
+   chicas. Solo necesitamos el padding en <main>. */
 body:has(.ai-sidebar) main {
-  padding-right: var(--ai-width);
-}
-body:has(.ai-sidebar) .dash-layout {
   padding-right: var(--ai-width);
 }
 
@@ -419,8 +422,7 @@ body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { displa
    ("Asistente Virtual") en la esquina inferior derecha. Al hacer clic,
    el panel se abre ocupando TODO el viewport (top + left = 0). */
 @media (max-width: 1100px) {
-  body:has(.ai-sidebar) main,
-  body:has(.ai-sidebar) .dash-layout {
+  body:has(.ai-sidebar) main {
     padding-right: 0;
   }
   .ai-sidebar {

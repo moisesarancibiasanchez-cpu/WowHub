@@ -102,10 +102,15 @@
       {% block dash_content %}{% endblock %}
     </div>
   </main>
-
-  <!-- ── Sidebar derecho: Asistente IA — SIEMPRE visible ────── -->
-  {% include "dashboard/_ai_panel.html" %}
 </div>
+{# ── Sidebar derecho: Asistente IA — SIEMPRE visible ────
+   IMPORTANTE: este include debe estar FUERA de .dash-layout.
+   El AI sidebar es `position: fixed`; si vive dentro del
+   flex container, el algoritmo flex le reserva 360px (igual
+   que si fuera un hijo real) y, sumado al `padding-right:360px`
+   en `main`, roba ~720px del contenido central. En pantallas
+   de 1024-1366px eso colapsa la columna central a 30-60px. ── #}
+{% include "dashboard/_ai_panel.html" %}
 {% endblock %}
 
 {% block scripts %}
