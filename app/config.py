@@ -130,6 +130,20 @@ class Settings(BaseSettings):
     upload_max_bytes: int = 5 * 1024 * 1024  # 5 MB
     upload_allowed_types: str = "image/jpeg,image/png,image/webp,application/pdf"
 
+    # ── UI v2 (migración dark → light) ─────────────────────
+    # Feature flag para activar el nuevo skin (tokens-v2.css).
+    # Default: False → app 100% dark, idéntico a v1.9.1-r8.
+    # Setear UI_V2_ENABLED=true en .env (o en Railway) para activar.
+    # Rollback instantáneo: poner en False + restart.
+    #
+    # v1.9.1-r8: fase 1 (skin swap). Próximas fases irán detrás del mismo
+    # flag, así un solo env var controla toda la migración.
+    ui_v2_enabled: bool = False
+    # Build ID dinámico para cache-bust de assets (CSS/JS).
+    # Cambiá este string (o setealo desde CI) cuando actualices tokens-v2.css
+    # para forzar recarga del navegador sin purgar caché.
+    ui_v2_build_id: str = "v2-tokens-2026-08-22"
+
     # Búsqueda
     search_max_results: int = 50
 

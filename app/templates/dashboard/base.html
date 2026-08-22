@@ -3,6 +3,9 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
+{# ── UI v2 skin se inyecta desde base.html (este template lo extiende).
+   No hace falta duplicar el <link> acá porque Jinja2 ya trae la versión
+   "ganadora" del head del padre. ── #}
 <style>
   /* Banner de impersonación — rojo, persistente, imposible de ignorar */
   #imp-banner {
