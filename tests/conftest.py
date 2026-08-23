@@ -89,6 +89,8 @@ def reset_db():
         ai,  # noqa
         # Automation Manager (Cap. 19.3)
         automation,  # noqa
+        # Costos (Fase 2 V8)
+        business_costs,  # noqa
     )
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

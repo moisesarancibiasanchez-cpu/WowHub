@@ -6,4 +6,5 @@ from app.api.v1 import (  # noqa: F401
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
     analytics, campaigns,
+    costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
 )

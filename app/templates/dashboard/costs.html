@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Costos — WowHub{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/costs.css?v=v8-2026-08-23">
+{% endblock %}
+
+{% block dash_content %}
+<div class="route-costs">
+  <header class="page-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+    <div>
+      <h1 style="margin:0 0 4px;font-size:22px">Costos</h1>
+      <p class="text-muted" style="margin:0;font-size:13px">
+        Configura tus costos fijos mensuales. La IA usa estos datos para calcular
+        el <b>costo hora real</b> de tu negocio y sugerir precios rentables.
+      </p>
+    </div>
+    <div class="cost-actions">
+      <button class="cost-btn ghost" id="costs-reload" type="button" title="Recargar">
+        <span aria-hidden="true">↻</span> Recargar
+      </button>
+      <button class="cost-btn primary" id="costs-edit" type="button">
+        <span aria-hidden="true">✎</span> Editar costos
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Hero "Tu hora vale $X" ─────────────────────────── -->
+  <section class="cost-hour-hero" id="costs-hero" aria-live="polite">
+    <div class="left">
+      <h3>Tu hora vale</h3>
+      <div class="price" id="costs-hero-price">—</div>
+    </div>
+    <div class="right">
+      <b id="costs-hero-hourly-rate">$0 / hora</b>
+      <span id="costs-hero-breakdown">Cargando…</span>
+    </div>
+    <span class="version" id="costs-hero-version" hidden>v1</span>
+  </section>
+
+  <!-- ── 3 cards resumen (Personal / Básicos / Otros) ───── -->
+  <section class="costs-summary" id="costs-summary" aria-label="Resumen por categoría">
+    <article class="cost-card personal">
+      <div class="cost-card-icon" aria-hidden="true">👤</div>
+      <div class="cost-card-title">Personal</div>
+      <div class="cost-card-total" id="costs-card-personal">—</div>
+      <div class="cost-card-detail" id="costs-card-personal-detail">—</div>
+    </article>
+
+    <article class="cost-card basics">
+      <div class="cost-card-icon" aria-hidden="true">💡</div>
+      <div class="cost-card-title">Gastos básicos</div>
+      <div class="cost-card-total" id="costs-card-basics">—</div>
+      <div class="cost-card-detail" id="costs-card-basics-detail">—</div>
+    </article>
+
+    <article class="cost-card others">
+      <div class="cost-card-icon" aria-hidden="true">📦</div>
+      <div class="cost-card-title">Otros fijos</div>
+      <div class="cost-card-total" id="costs-card-others">—</div>
+      <div class="cost-card-detail" id="costs-card-others-detail">—</div>
+    </article>
+  </section>
+
+  <!-- ── Total / Margen / Métricas auxiliares ────────────── -->
+  <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+    <div class="cost-card" style="padding:14px 16px">
+      <div class="cost-card-title">Costo fijo mensual</div>
+      <div class="cost-card-total" id="costs-card-total">—</div>
+      <div class="cost-card-tag" id="costs-card-total-tag">Suma de los anteriores</div>
+    </div>
+    <div class="cost-card" style="padding:14px 16px">
+      <div class="cost-card-title">Horas productivas/mes</div>
+      <div class="cost-card-total" id="costs-card-hours">—</div>
+      <div class="cost-card-tag">Denominador del costo hora</div>
+    </div>
+    <div class="cost-card" style="padding:14px 16px">
+      <div class="cost-card-title">Margen objetivo</div>
+      <div class="cost-card-total" id="costs-card-margin">—</div>
+      <div class="cost-card-tag">Para precio sugerido</div>
+    </div>
+  </section>
+
+  <!-- ── Modal de edición (oculto por default) ──────────── -->
+  <div class="cost-modal" id="costs-modal" role="dialog" aria-modal="true" aria-labelledby="costs-modal-title">
+    <div class="cost-modal-card">
+      <div class="cost-modal-head">
+        <div>
+          <h2 id="costs-modal-title">Configuración profesional de costos</h2>
+          <p>Esta estructura es la base del precio sugerido por IA. Los datos
+          cruciales deben completarse; los no aplicables pueden excluirse.</p>
+        </div>
+        <button class="cost-modal-close" id="costs-modal-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <div class="cost-modal-body" id="costs-modal-body">
+        <!-- Secciones colapsables generadas por JS a partir de fields-meta -->
+        <div style="text-align:center;padding:30px;color:var(--fg-muted)">Cargando campos…</div>
+      </div>
+      <div class="cost-modal-foot">
+        <span style="font-size:12px;color:var(--fg-muted)" id="costs-modal-foot-info">
+          💡 Los cambios se guardan al hacer clic en "Guardar".
+        </span>
+        <div style="display:flex;gap:8px">
+          <button class="cost-btn ghost" id="costs-modal-cancel" type="button">Cancelar</button>
+          <button class="cost-btn primary" id="costs-modal-save" type="button">
+            <span aria-hidden="true">✓</span> Guardar costos
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script src="/static/js/costs.js?v=v8-2026-08-23"></script>
+{% endblock %}

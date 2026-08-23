@@ -24,6 +24,7 @@ from app.api.v1 import (
     automation,  # Automation Manager™ (Cap. 19.3)
     opportunities,  # Opportunity Engine (Fase 3 del plan, ver oportunidades.pdf)
     quotes,  # Cotizaciones (Quotes) — Gestión interna
+    costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
 )
 from app.models.user import UserRole
 from app.config import settings
@@ -165,6 +166,8 @@ app.include_router(opportunities.router, prefix="/api/v1")
 # Cotizaciones (Quotes) — owner + público
 app.include_router(quotes.router, prefix="/api/v1")
 app.include_router(quotes.public_router, prefix="/api/v1")
+# Costos (BusinessCosts) — fuente de verdad de costo_hora y precio sugerido
+app.include_router(costs.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -481,6 +484,17 @@ def dashboard_inventory(request: Request):
     return templates.TemplateResponse(
         request, "dashboard/inventory.html",
         {"settings": settings, "body_class": "route-inventory"},
+    )
+
+
+# ── Costos (UI owner) — Fase 2 V8 ──────────────────────────
+@app.get("/dashboard/costs", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_costs(request: Request):
+    """Panel del dueño: configuración de costos fijos mensuales + cálculo de
+    costo/hora. Es la fuente de verdad para el motor de precios sugerido."""
+    return templates.TemplateResponse(
+        request, "dashboard/costs.html",
+        {"settings": settings, "body_class": "route-costs"},
     )
 
 

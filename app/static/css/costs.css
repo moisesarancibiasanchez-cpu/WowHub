@@ -1,0 +1,423 @@
+/* =============================================================
+ * Costos (Fase 2 V8) — Estilos del módulo de configuración
+ * de costos fijos mensuales.
+ *
+ *  - 3 cards resumen en la parte superior (Personal / Básicos / Otros)
+ *  - Panel "Tu hora vale $X" destacado
+ *  - Modal con 14 campos (3 secciones colapsables)
+ *  - Cálculo en vivo al editar
+ *  - "No aplica" por campo
+ *  - Animaciones suaves, responsive, a11y
+ * ============================================================= */
+
+/* ── Resumen de tarjetas ─────────────────────────────────── */
+.costs-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.cost-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.cost-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--accent-2);
+}
+.cost-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  margin-bottom: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.cost-card.personal .cost-card-icon { background: #fff0e8; color: #e26a3b; }
+.cost-card.basics .cost-card-icon { background: #e6f0fc; color: #1f5fb0; }
+.cost-card.others .cost-card-icon { background: #e8f8f1; color: #11865d; }
+.cost-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cost-card-total {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.cost-card-detail {
+  font-size: 12px;
+  color: var(--fg-muted);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.cost-card-detail b { color: var(--fg); font-weight: 600; }
+.cost-card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.cost-card-tag.warn {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+}
+
+/* ── Hero "Tu hora vale $X" ─────────────────────────────── */
+.cost-hour-hero {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-ai);
+}
+.cost-hour-hero .left h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cost-hour-hero .price {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.cost-hour-hero .right {
+  text-align: right;
+  font-size: 13px;
+  opacity: 0.92;
+  line-height: 1.5;
+}
+.cost-hour-hero .right b { display: block; font-size: 16px; opacity: 1; }
+.cost-hour-hero .version {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+  background: rgba(255,255,255,0.18);
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Acciones del header ────────────────────────────────── */
+.cost-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Modal de edición ───────────────────────────────────── */
+.cost-modal {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+  animation: cost-fade-in .18s ease;
+}
+.cost-modal.open { display: flex; }
+.cost-modal-card {
+  background: var(--bg-elev);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 880px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: cost-slide-up .25s ease;
+}
+.cost-modal-head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cost-modal-head h2 { margin: 0 0 4px; font-size: 18px; }
+.cost-modal-head p { margin: 0; color: var(--fg-muted); font-size: 13px; }
+.cost-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+.cost-modal-foot {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-elev-2);
+  flex-wrap: wrap;
+}
+.cost-modal-close {
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background .15s;
+}
+.cost-modal-close:hover { background: var(--bg-elev-2); color: var(--fg); }
+
+/* ── Secciones colapsables ──────────────────────────────── */
+.cost-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.cost-section-head {
+  padding: 12px 16px;
+  background: var(--bg-elev-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background .15s;
+}
+.cost-section-head:hover { background: var(--bg-elev-3); }
+.cost-section-head .arrow {
+  transition: transform .2s ease;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.cost-section.open .cost-section-head .arrow { transform: rotate(90deg); }
+.cost-section-body {
+  display: none;
+  padding: 16px;
+}
+.cost-section.open .cost-section-body { display: block; animation: cost-fade-in .15s ease; }
+
+/* ── Form grid (2 columnas) ─────────────────────────────── */
+.cost-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.cost-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cost-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cost-field label .req { color: var(--err); }
+.cost-field input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 14px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  transition: border-color .15s, background .15s;
+}
+.cost-field input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elev);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.cost-field input[type="number"]:disabled {
+  background: var(--bg-elev-3);
+  color: var(--fg-muted);
+  cursor: not-allowed;
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.cost-field .na-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+.cost-field .na-row input { margin: 0; }
+
+/* ── Live summary en el modal ───────────────────────────── */
+.cost-live-summary {
+  background: linear-gradient(135deg, var(--accent-soft) 0%, var(--bg-elev-2) 100%);
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 16px 0 4px;
+}
+.cost-live-summary .line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--fg);
+}
+.cost-live-summary .line strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.cost-live-summary .line.headline {
+  border-top: 1px dashed var(--accent-2);
+  margin-top: 6px;
+  padding-top: 10px;
+}
+.cost-live-summary .line.headline strong {
+  font-size: 22px;
+  color: var(--accent);
+  font-weight: 800;
+}
+.cost-live-summary .note {
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* ── Empty state (cuando no hay config) ─────────────────── */
+.cost-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--fg-muted);
+}
+.cost-empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.cost-empty h3 { margin: 0 0 8px; color: var(--fg); }
+
+/* ── Botones (estilo WowHub) ────────────────────────────── */
+.cost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--fg);
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+  font-family: inherit;
+}
+.cost-btn:hover { border-color: var(--accent); color: var(--accent); }
+.cost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cost-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fg-on-accent);
+}
+.cost-btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--fg-on-accent);
+}
+.cost-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.cost-btn.ghost:hover { background: var(--bg-elev-2); }
+
+/* ── Toast feedback ─────────────────────────────────────── */
+.cost-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-elev);
+  border: 1px solid var(--ok);
+  border-left: 4px solid var(--ok);
+  color: var(--fg);
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 80;
+  font-size: 13px;
+  font-weight: 500;
+  animation: cost-toast-in .2s ease;
+  max-width: 360px;
+}
+.cost-toast.error { border-color: var(--err); border-left-color: var(--err); }
+
+/* ── Animaciones ────────────────────────────────────────── */
+@keyframes cost-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cost-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cost-toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .cost-hour-hero { padding: 16px 18px; }
+  .cost-hour-hero .price { font-size: 28px; }
+  .cost-hour-hero .right { text-align: left; width: 100%; }
+  .cost-modal { padding: 0; }
+  .cost-modal-card { max-height: 100vh; border-radius: 0; }
+  .cost-form-grid { grid-template-columns: 1fr; }
+}
+
+/* ── a11y: focus visible ───────────────────────────────── */
+.cost-btn:focus-visible,
+.cost-modal-close:focus-visible,
+.cost-section-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
