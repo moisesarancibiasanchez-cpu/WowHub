@@ -62,6 +62,7 @@ def init_db() -> None:
         loyalty_pass,  # noqa
         automation,  # Automation Manager (Cap. 19.3)
         business_costs,  # Costos fijos + cálculo de costo_hora (Fase 2 V8)
+        insumo,  # V8 P0.1: Insumos + Recetas (BOM)
     )
     Base.metadata.create_all(bind=engine)
     # ── Migración puntual: cashier_pin VARCHAR(8) → VARCHAR(64) ──
@@ -95,3 +96,11 @@ def init_db() -> None:
             log.info("Auto-heal V8: %s columna(s) agregada(s)", added)
     except Exception as e:
         log.warning("Auto-heal V8 no aplicado: %s", e)
+    # ── Auto-heal V8 P0: nuevos modelos (insumos/recetas) + customers.segmento
+    try:
+        from scripts.migrate_v8_p0_columns import ensure_v8_p0_objects
+        added_p0 = ensure_v8_p0_objects()
+        if added_p0:
+            log.info("Auto-heal V8 P0: %s objeto(s) agregado(s)", added_p0)
+    except Exception as e:
+        log.warning("Auto-heal V8 P0 no aplicado: %s", e)

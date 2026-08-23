@@ -110,6 +110,42 @@ def transition_order(
     return _to_out(o)
 
 
+@router.get("/today-summary")
+def orders_today_summary(
+    tenant_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Resumen de ventas del día en curso (P1.6 — Dashboard hero card).
+
+    Devuelve el total facturado hoy y la cantidad de pedidos. Solo
+    cuenta pedidos que NO están cancelados (status != 'canceled').
+    Es una agregación ligera: una sola query SQL con SUM/COUNT.
+    """
+    from datetime import datetime, time, timezone
+    from sqlalchemy import func as _func, select as _select
+    now = datetime.now(timezone.utc)
+    start_of_day = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    # Pedidos del día excluyendo cancelados
+    q = (
+        _select(
+            _func.coalesce(_func.sum(Order.total_cents), 0).label("total_cents"),
+            _func.count(Order.id).label("orders_count"),
+        )
+        .where(
+            Order.tenant_id == str(tenant_id),
+            Order.created_at >= start_of_day,
+            Order.status != OrderStatus.CANCELED,
+        )
+    )
+    row = db.execute(q).one()
+    return {
+        "date": now.date().isoformat(),
+        "total_cents": int(row.total_cents or 0),
+        "orders_count": int(row.orders_count or 0),
+    }
+
+
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 def cancel_order(
     tenant_id: UUID,

@@ -7,4 +7,5 @@ from app.api.v1 import (  # noqa: F401
     branch_products, search,
     analytics, campaigns,
     costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
+    insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 )

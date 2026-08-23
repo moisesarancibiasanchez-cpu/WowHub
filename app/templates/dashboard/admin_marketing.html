@@ -12,6 +12,28 @@
   </div>
 </div>
 
+<!-- ── 3 idea cards: campañas pre-armadas que auto-rellenan el form ── -->
+<div class="grid grid-3 mt-3" id="idea-cards">
+  <button class="idea-card" data-idea="winback" type="button">
+    <div class="idea-emoji">😴</div>
+    <div class="idea-title">Reactivar inactivos</div>
+    <div class="idea-desc">WhatsApp cálido para clientes que no compran hace 60+ días. Cupón 15% off para tentar el regreso.</div>
+    <div class="idea-meta"><span class="badge">whatsapp</span><span class="badge">winback</span></div>
+  </button>
+  <button class="idea-card" data-idea="vip" type="button">
+    <div class="idea-emoji">⭐</div>
+    <div class="idea-title">Consentir VIPs</div>
+    <div class="idea-desc">Email exclusivo a tus mejores clientes. Acceso anticipado a un nuevo producto + descuento sorpresa.</div>
+    <div class="idea-meta"><span class="badge">email</span><span class="badge">vip</span></div>
+  </button>
+  <button class="idea-card" data-idea="promo" type="button">
+    <div class="idea-emoji">🔥</div>
+    <div class="idea-title">Promo relámpago</div>
+    <div class="idea-desc">Instagram post con urgencia. 24 horas de descuento hot. Ideal para liquidar stock o mover el viernes.</div>
+    <div class="idea-meta"><span class="badge">instagram</span><span class="badge">urgente</span></div>
+  </button>
+</div>
+
 <!-- Formulario -->
 <div class="card mt-3">
   <form id="marketing-form" autocomplete="off">
@@ -165,7 +187,30 @@
 <style>
   .badge-ai { background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  /* Idea cards */
+  .idea-card {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.06) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+    color: inherit;
+    font-family: inherit;
+  }
+  .idea-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.18);
+    border-color: rgba(139, 92, 246, 0.55);
+  }
+  .idea-card .idea-emoji { font-size: 32px; line-height: 1; margin-bottom: 8px; }
+  .idea-card .idea-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+  .idea-card .idea-desc { font-size: 12px; color: var(--muted, #888); line-height: 1.5; margin-bottom: 10px; }
+  .idea-card .idea-meta { display: flex; gap: 4px; flex-wrap: wrap; }
+  .idea-card .idea-meta .badge { font-size: 10px; padding: 2px 8px; }
   .variant-card { background: var(--bg-2, #131a2e); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; }
   .variant-card .v-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
   .variant-card .v-num { font-weight: 700; color: #8b5cf6; font-size: 14px; }
@@ -175,6 +220,17 @@
   .variant-card .v-tag { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
   .variant-card .v-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .variant-card .v-actions .btn { font-size: 12px; padding: 5px 10px; }
+  .variant-card .v-image-prompt {
+    margin-top: 8px; padding: 10px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #a7f3d0;
+    font-family: ui-monospace, "SF Mono", monospace;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
   .alert-warn { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
   .form-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted, #888); }
   details.form-extra { background: var(--bg, #0b1220); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
@@ -195,7 +251,7 @@
   .text-muted { color: var(--muted, #888); }
   .text-danger { color: #ef4444; font-size: 13px; }
   .hidden { display: none; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: rgba(255,255,255,0.08); }
   h1 { margin: 0 0 4px; font-size: 24px; }
   .sub { color: var(--muted, #888); margin: 0; font-size: 14px; }
 </style>
@@ -324,7 +380,9 @@
             <button class="btn btn-ghost" data-act="copy">📋 Copiar</button>
             <button class="btn btn-ghost" data-act="copy_tags">🏷️ Copiar hashtags</button>
             <button class="btn btn-ghost" data-act="copy_all">📄 Copiar todo</button>
+            <button class="btn btn-ghost" data-act="image_prompt">🎨 Prompt de imagen</button>
           </div>
+          <div class="v-image-prompt hidden" data-role="image_prompt_box"></div>
         </div>
       `;
     }).join("");
@@ -335,8 +393,12 @@
       const variant = variants.find(v => v.index === idx);
       if (!variant) return;
       card.querySelectorAll("button[data-act]").forEach(btn => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
           const act = btn.dataset.act;
+          if (act === "image_prompt") {
+            await generateImagePrompt(card, variant, btn);
+            return;
+          }
           let text = "";
           if (act === "copy") text = variant.content;
           if (act === "copy_tags") text = (variant.hashtags || []).join(" ");
@@ -401,6 +463,111 @@
   // ── Init ───────────────────────────────────────────────
   document.getElementById("marketing-form").addEventListener("submit", onSubmit);
   document.getElementById("m_reset_btn").addEventListener("click", onReset);
+
+  // ── Idea cards: click → rellena el form con una receta pre-armada ──
+  const IDEAS = {
+    winback: {
+      intent: "whatsapp_broadcast",
+      tone: "friendly",
+      audience: "inactive",
+      topic: "Te extrañamos. Vuelve con 15% off esta semana",
+      keywords: "vuelve, te extrañamos, descuento, 15% off, cupón",
+      promo: "15% de descuento válido por 7 días. Cupón: VUELVE15",
+      cta: "Reactivar mi cuenta",
+      emojis: true,
+      hashtags: false,
+    },
+    vip: {
+      intent: "email_body",
+      tone: "luxury",
+      audience: "vip",
+      topic: "Acceso anticipado exclusivo para VIPs: nuevo producto antes que nadie",
+      keywords: "VIP, exclusivo, anticipado, early access, nuevo",
+      cta: "Reservar el mío",
+      emojis: false,
+      hashtags: false,
+    },
+    promo: {
+      intent: "instagram_post",
+      tone: "urgent",
+      audience: "all",
+      topic: "Promo relámpago 24 horas: descuento hot para mover el stock",
+      keywords: "24 horas, relámpago, descuento, último día, ya",
+      promo: "Solo 24 horas. Hasta 40% off. Agotar stock.",
+      cta: "Comprar ahora",
+      emojis: true,
+      hashtags: true,
+    },
+  };
+  document.querySelectorAll(".idea-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const key = card.dataset.idea;
+      const idea = IDEAS[key];
+      if (!idea) return;
+      $("m_intent").value = idea.intent;
+      $("m_tone").value = idea.tone;
+      $("m_audience").value = idea.audience;
+      $("m_topic").value = idea.topic;
+      $("m_keywords").value = idea.keywords || "";
+      $("m_promo").value = idea.promo || "";
+      $("m_cta").value = idea.cta || "";
+      $("m_emojis").checked = !!idea.emojis;
+      $("m_hashtags").checked = !!idea.hashtags;
+      // Scroll suave al form + highlight
+      document.getElementById("marketing-form").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("m_topic").focus();
+      $("m_topic").select();
+      showError(""); clearError();
+    });
+  });
+
+  // ── Generador de prompt de imagen (a partir del copy de la variante) ──
+  async function generateImagePrompt(card, variant, btn){
+    const box = card.querySelector("[data-role=image_prompt_box]");
+    if (box && !box.classList.contains("hidden")) {
+      // Toggle: si ya está visible, lo cerramos.
+      box.classList.add("hidden");
+      btn.textContent = "🎨 Prompt de imagen";
+      return;
+    }
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = "Generando…";
+    try {
+      // Construimos un prompt rico: copy + audiencia + canal → prompt visual.
+      const intent = $("m_intent").value;
+      const audience = $("m_audience").value;
+      const topic = $("m_topic").value.trim();
+      const r = await WH.api.post("/api/v1/ai/marketing/image-prompt", {
+        copy: variant.content,
+        intent: intent,
+        audience: audience,
+        topic: topic,
+      });
+      const prompt = r.prompt || "(sin prompt)";
+      box.textContent = prompt + "\n\n— copy to use with Midjourney / DALL·E / Flux —";
+      box.classList.remove("hidden");
+      btn.textContent = "🎨 Ver prompt";
+    } catch(e) {
+      // Fallback local si el endpoint no existe: construimos un prompt
+      // razonable a partir del copy (no rompe la UX).
+      const intent = $("m_intent").value;
+      const audience = $("m_audience").value;
+      const fallback =
+        "Cinematic photo for " + (intent || "social media") + ", " +
+        "target audience: " + (audience || "general") + ". " +
+        "Mood: warm, premium, modern. " +
+        "Subject inspired by: " + (variant.content || "the brand").slice(0, 220) + ". " +
+        "Lighting: soft golden hour. Composition: rule of thirds. " +
+        "Style: editorial photography, shallow depth of field. " +
+        "No text overlay. Aspect ratio 1:1.";
+      box.textContent = fallback + "\n\n— prompt fallback (endpoint no disponible) —";
+      box.classList.remove("hidden");
+      btn.textContent = "🎨 Ver prompt";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   paintStatus();
 })();
 </script>

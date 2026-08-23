@@ -418,6 +418,61 @@ class MarketingResponse(BaseModel):
     )
 
 
+# ── Image Prompt (Marketing Studio — auxiliar) ─────────────────────
+# Endpoint: POST /api/v1/ai/marketing/image-prompt
+# Genera un prompt descriptivo de imagen para acompañar el copy de
+# marketing. Útil para crear creatividades en Midjourney/DALL-E/
+# Stable Diffusion. NO genera la imagen: solo el prompt textual.
+
+class ImagePromptRequest(BaseModel):
+    """Body de POST /api/v1/ai/marketing/image-prompt.
+
+    El usuario pasa el copy ya generado y le pedimos al LLM que
+    proponga una imagen para acompañarlo. Si el LLM no está disponible,
+    el servicio devuelve un prompt construido localmente (fallback).
+    """
+    copy: str = Field(
+        ..., min_length=10, max_length=2000,
+        description="Copy de marketing ya generado (la variante visualizada).",
+    )
+    intent: MarketingIntent = Field(
+        default=MarketingIntent.INSTAGRAM_POST,
+        description="Canal/formato del copy (afecta aspect ratio sugerido).",
+    )
+    tone: MarketingTone = Field(
+        default=MarketingTone.FRIENDLY,
+        description="Tono del copy (afecta el estilo visual del prompt).",
+    )
+    audience: MarketingAudience = Field(
+        default=MarketingAudience.ALL,
+        description="Audiencia objetivo (afecta el sujeto visual).",
+    )
+    extra_notes: Optional[str] = Field(
+        default=None, max_length=400,
+        description="Indicaciones adicionales (ej. 'usar mi producto X').",
+    )
+
+
+class ImagePromptResponse(BaseModel):
+    """Respuesta de POST /api/v1/ai/marketing/image-prompt."""
+    prompt: str = Field(
+        ...,
+        description="Prompt descriptivo de la imagen (en inglés, listo para Midjourney/DALL-E).",
+    )
+    aspect_ratio: str = Field(
+        "1:1",
+        description="Aspect ratio sugerido para el canal (ej. '1:1', '9:16', '16:9').",
+    )
+    style: str = Field(
+        "photorealistic",
+        description="Estilo visual sugerido (photorealistic, illustration, flat, etc.).",
+    )
+    fallback: bool = Field(
+        False,
+        description="True si se construyó localmente (LLM no disponible).",
+    )
+
+
 # ── Growth Coach (WowHub AI Core™ — Cap. 19.2) ────────────────────
 # Análisis proactivo de la "Memoria de Negocio" (ventas, inventario,
 # clientes, promociones, reservas) que devuelve insights accionables.

@@ -32,6 +32,7 @@ from app.models.user import User
 from app.schemas.ai import (
     ChatRequest, ChatResponse, ConversationCreate, ConversationListOut,
     ConversationOut, GrowthAnalysisRequest, GrowthAnalysisResponse,
+    ImagePromptRequest, ImagePromptResponse,
     MarketingRequest, MarketingResponse, MessageListOut, MessageOut,
 )
 from app.security import decode_token
@@ -474,6 +475,139 @@ async def post_marketing_generate(
     studio = MarketingStudio()
     response = await studio.generate(payload, tenant_ctx)
     return response
+
+
+# ── Image Prompt (auxiliar de Marketing Studio) ───────────────────
+# POST /api/v1/ai/marketing/image-prompt
+# Genera un prompt descriptivo de imagen para acompañar el copy.
+# Pensado para que el botón "🎨 Prompt de imagen" del admin_marketing
+# llene un prompt listo para Midjourney/DALL-E/Stable Diffusion.
+# Si el LLM no está disponible, devuelve un prompt construido
+# localmente desde el copy (fallback determinístico).
+
+_ASPECT_BY_INTENT = {
+    "instagram_post": "1:1",
+    "instagram_story": "9:16",
+    "instagram_reel": "9:16",
+    "facebook_post": "1:1",
+    "whatsapp_broadcast": "1:1",
+    "whatsapp_status": "9:16",
+    "email_subject": "16:9",
+    "email_body": "16:9",
+    "sms": "1:1",
+    "product_description": "1:1",
+    "promotion_headline": "16:9",
+    "promotion_body": "16:9",
+    "general": "1:1",
+}
+
+_STYLE_BY_TONE = {
+    "friendly": "warm natural light, candid photography",
+    "professional": "clean studio lighting, corporate photography",
+    "urgent": "bold contrast, dramatic lighting, vibrant colors",
+    "playful": "colorful illustration, flat design, fun",
+    "luxury": "moody lighting, gold accents, premium product photography",
+    "casual": "lifestyle photography, natural environment, authentic",
+    "inspirational": "cinematic, golden hour, aspirational scene",
+}
+
+
+def _fallback_image_prompt(payload: ImagePromptRequest) -> ImagePromptResponse:
+    """Construye un prompt básico a partir del copy cuando el LLM no está.
+
+    No es perfecto, pero garantiza que el botón siempre devuelva algo
+    útil (no un 500). La idea: extraer sustantivos clave del copy y
+    combinarlos con el estilo/aspect ratio del canal.
+    """
+    import re
+    # Quitar hashtags y URLs
+    clean = re.sub(r"#\w+", "", payload.copy)
+    clean = re.sub(r"https?://\S+", "", clean)
+    # Tomar las primeras 8 palabras "significativas" (largas)
+    words = [w for w in re.findall(r"\b[A-Za-zÀ-ÿ]{4,}\b", clean)][:8]
+    subject = ", ".join(words) if words else "a small business scene"
+    style = _STYLE_BY_TONE.get(payload.tone.value, "natural photography")
+    aspect = _ASPECT_BY_INTENT.get(payload.intent.value, "1:1")
+    notes = f" {payload.extra_notes.strip()}" if payload.extra_notes else ""
+    prompt = (
+        f"{subject},{notes} -- {style}, "
+        f"high quality, social media ready, {aspect} aspect ratio"
+    ).strip()
+    return ImagePromptResponse(
+        prompt=prompt, aspect_ratio=aspect,
+        style=payload.tone.value, fallback=True,
+    )
+
+
+@router.post("/marketing/image-prompt", response_model=ImagePromptResponse)
+async def post_marketing_image_prompt(
+    payload: ImagePromptRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ImagePromptResponse:
+    """Genera un prompt de imagen para acompañar el copy de marketing.
+
+    Estrategia:
+    1. Si el LLM está disponible → prompt enriquecido por el modelo.
+    2. Si no → fallback determinístico con keywords del copy.
+
+    No consume rate limit porque es una operación de UI auxiliar
+    (no genera contenido pesado). Esto evita que el botón "Prompt
+    de imagen" reste cuota al usuario si juega con varias variantes.
+    """
+    aspect = _ASPECT_BY_INTENT.get(payload.intent.value, "1:1")
+    style = _STYLE_BY_TONE.get(payload.tone.value, "natural photography")
+
+    # 1) Intentar con el LLM
+    try:
+        from app.services.llm_client import LLMClient
+        llm = LLMClient()
+        sys_prompt = (
+            "Eres un director de arte experto en crear prompts para modelos "
+            "de generacion de imagen (Midjourney, DALL-E, Stable Diffusion). "
+            "Responde SIEMPRE en JSON estricto con la forma "
+            '{"prompt": "...", "style": "..."}. El prompt debe ser en INGLES, '
+            "tener 30-80 palabras, describir sujeto, ambiente, iluminacion y "
+            "composicion. No incluyas hashtags ni URLs."
+        )
+        user_prompt = (
+            f"Copy de marketing:\n{payload.copy}\n\n"
+            f"Canal: {payload.intent.value}\n"
+            f"Tono: {payload.tone.value}\n"
+            f"Audiencia: {payload.audience.value}\n"
+            f"Estilo visual sugerido: {style}\n"
+            f"Aspect ratio: {aspect}\n"
+            + (f"Notas: {payload.extra_notes}\n" if payload.extra_notes else "")
+            + "\nGenera el prompt en JSON."
+        )
+        raw = await llm.chat(
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=300,
+            json_mode=True,
+        )
+        import json as _json
+        try:
+            data = _json.loads(raw)
+            return ImagePromptResponse(
+                prompt=str(data.get("prompt", raw)).strip(),
+                aspect_ratio=aspect,
+                style=str(data.get("style", payload.tone.value)),
+                fallback=False,
+            )
+        except Exception:
+            # Si el LLM no devolvió JSON válido, usar el texto crudo
+            return ImagePromptResponse(
+                prompt=str(raw).strip()[:1000],
+                aspect_ratio=aspect, style=payload.tone.value, fallback=False,
+            )
+    except Exception:
+        # 2) Fallback determinístico
+        return _fallback_image_prompt(payload)
 
 
 # ── Growth Coach (Cap. 19.2) ───────────────────────────

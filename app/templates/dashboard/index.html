@@ -47,57 +47,97 @@
 
 </div>
 
-<div class="grid grid-3" id="kpi-row-1">
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Productos activos</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-products">—</div>
-    <a href="/dashboard/products" style="font-size: 13px;">Gestionar →</a>
+<!-- ════════════════════════════════════════════════════════════════
+     HERO CARDS — 4 KPIs grandes arriba (P1.6)
+     Visualización priorizada de los 4 indicadores críticos:
+     Ventas hoy, Utilidad/Margen, Clientes activos, Stock valorizado.
+     ════════════════════════════════════════════════════════════════ -->
+<div id="hero-cards" class="hero-grid">
+  <div class="hero-card hero-sales">
+    <div class="hero-head">
+      <span class="hero-icon" aria-hidden="true">💰</span>
+      <span>Ventas hoy</span>
+    </div>
+    <div class="hero-value" id="hero-sales-today">$0</div>
+    <div class="hero-sub" id="hero-orders-today">0 pedidos</div>
+    <div class="hero-foot"><a href="/dashboard/orders">Ver pedidos →</a></div>
   </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Promociones vigentes</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-promos">—</div>
-    <a href="/dashboard/promotions" style="font-size: 13px;">Gestionar →</a>
+  <div class="hero-card hero-profit">
+    <div class="hero-head">
+      <span class="hero-icon" aria-hidden="true">📈</span>
+      <span>Utilidad</span>
+    </div>
+    <div class="hero-value" id="hero-margin">—%</div>
+    <div class="hero-sub" id="hero-margin-sub">Margen estimado</div>
+    <div class="hero-foot"><a href="/dashboard/ai?context=rentabilidad">Mejorar rentabilidad →</a></div>
   </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">QRs generados</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-qrs">—</div>
-    <a href="/dashboard/qrs" style="font-size: 13px;">Gestionar →</a>
+  <div class="hero-card hero-cust">
+    <div class="hero-head">
+      <span class="hero-icon" aria-hidden="true">👥</span>
+      <span>Clientes activos</span>
+    </div>
+    <div class="hero-value" id="hero-customers">0</div>
+    <div class="hero-sub" id="hero-customers-sub">Últimos 90 días</div>
+    <div class="hero-foot"><a href="/dashboard/customers">Ver clientes →</a></div>
+  </div>
+  <div class="hero-card hero-stock">
+    <div class="hero-head">
+      <span class="hero-icon" aria-hidden="true">📦</span>
+      <span>Stock valorizado</span>
+    </div>
+    <div class="hero-value" id="hero-stock-value">$0</div>
+    <div class="hero-sub" id="hero-stock-sub">— insumos</div>
+    <div class="hero-foot"><a href="/dashboard/inventario">Revisar inventario →</a></div>
   </div>
 </div>
 
-<div class="grid grid-3 mt-3" id="kpi-row-2">
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Pedidos</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-orders">—</div>
-    <a href="/dashboard/orders" style="font-size: 13px;">Ver pedidos →</a>
-  </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Reservas activas</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-bookings">—</div>
-    <a href="/dashboard/bookings" style="font-size: 13px;">Ver reservas →</a>
-  </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Cotizaciones abiertas</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-quotes">—</div>
-    <a href="/dashboard/quotes" style="font-size: 13px;">Ver cotizaciones →</a>
-  </div>
-</div>
-
-<div class="grid grid-3 mt-3">
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Clientes</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-customers">—</div>
-    <a href="/dashboard/customers" style="font-size: 13px;">Ver clientes →</a>
-  </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Tarjetas de fidelidad</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px;" id="stat-loyalty">—</div>
-    <a href="/dashboard/loyalty" style="font-size: 13px;">Ver fidelización →</a>
-  </div>
-  <div class="card stat">
-    <div class="text-muted" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Stock bajo / Sin stock</div>
-    <div style="font-size: 32px; font-weight: 700; margin-top: 4px; color: #f59e0b;" id="stat-stock">—</div>
-    <a href="/dashboard/inventory" style="font-size: 13px;">Revisar inventario →</a>
+<!-- ════════════════════════════════════════════════════════════════
+     SECCIÓN SECUNDARIA — Otros KPIs (P1.6)
+     Métricas de soporte agrupadas en cards más compactas.
+     ════════════════════════════════════════════════════════════════ -->
+<div class="secondary-section">
+  <h2>Otros indicadores</h2>
+  <div class="secondary-grid">
+    <div class="secondary-card">
+      <div class="label">Productos activos</div>
+      <div class="value" id="stat-products">—</div>
+      <div class="foot"><a href="/dashboard/products" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">Promociones vigentes</div>
+      <div class="value" id="stat-promos">—</div>
+      <div class="foot"><a href="/dashboard/promotions" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">QRs generados</div>
+      <div class="value" id="stat-qrs">—</div>
+      <div class="foot"><a href="/dashboard/qrs" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">Pedidos (total)</div>
+      <div class="value" id="stat-orders">—</div>
+      <div class="foot"><a href="/dashboard/orders" style="color: var(--accent); text-decoration: none;">Ver pedidos →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">Reservas activas</div>
+      <div class="value" id="stat-bookings">—</div>
+      <div class="foot"><a href="/dashboard/bookings" style="color: var(--accent); text-decoration: none;">Ver reservas →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">Cotizaciones abiertas</div>
+      <div class="value" id="stat-quotes">—</div>
+      <div class="foot"><a href="/dashboard/quotes" style="color: var(--accent); text-decoration: none;">Ver cotizaciones →</a></div>
+    </div>
+    <div class="secondary-card">
+      <div class="label">Tarjetas de fidelidad</div>
+      <div class="value" id="stat-loyalty">—</div>
+      <div class="foot"><a href="/dashboard/loyalty" style="color: var(--accent); text-decoration: none;">Ver fidelización →</a></div>
+    </div>
+    <div class="secondary-card warn" id="card-stock">
+      <div class="label">Stock bajo / Sin stock</div>
+      <div class="value" id="stat-stock">—</div>
+      <div class="foot"><a href="/dashboard/inventario" style="color: var(--accent); text-decoration: none;">Revisar inventario →</a></div>
+    </div>
   </div>
 </div>
 
@@ -113,7 +153,7 @@
 <div class="card mt-4">
   <h2 class="card-title">Primeros pasos</h2>
   <ol style="margin: 12px 0 0 0; padding-left: 20px; line-height: 1.8;">
-    <li>Edita tu <a href="/dashboard/landing">landing</a> (colores, contacto, redes).</li>
+    <li>Edita tu <a href="/dashboard/landing">landing</a> o usa el <a href="/dashboard/mi-sitio-web">constructor visual</a> (colores, contacto, redes).</li>
     <li>Crea <a href="/dashboard/products">productos</a> y agrúpalos en categorías.</li>
     <li>Diseña <a href="/dashboard/promotions">promociones</a> (2x1, %, cupones).</li>
     <li>Genera <a href="/dashboard/qrs">QRs</a> para tus mesas, locales o productos.</li>
@@ -179,43 +219,83 @@
   $("open-public").href = url;
   $("public-url-help").textContent = "Comparte este link con tus clientes:";
 
+  // ── Carga paralela: hero cards + secondary cards + AI brief ──
   try {
-    // FIX dashboard "—": antes usábamos Promise.all → si 1 endpoint
-    // devolvía 404 (era el caso de /loyalty/passes), toda la lista
-    // quedaba sin pintar. Ahora cada KPI se actualiza de forma
-    // independiente con allSettled, y un fallo en uno no afecta a los demás.
     const results = await Promise.allSettled([
+      // Hero card 1: ventas hoy + pedidos hoy
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders/today-summary`),
+      // Hero card 2: margen (lo sacamos del brief de oportunidades)
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/opportunities/daily-brief`),
+      // Hero card 3: clientes activos (total)
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers?page_size=1`),
+      // Hero card 3b: clientes activos últimos 90 días
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/stats?active_days=90`),
+      // Hero card 4: stock valorizado
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/insumos/stats`),
+      // Secondary cards
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders?page_size=1`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/bookings/stats`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/quotes/stats`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers?page_size=1`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/loyalty/passes?page_size=1`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/analytics/inventory?category=low_stock`),
     ]);
 
     const unwrap = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
 
-    const p  = unwrap(0); // products
-    const pr = unwrap(1); // promotions
-    const q  = unwrap(2); // qrs
-    const o  = unwrap(3); // orders
-    const b  = unwrap(4); // bookings/stats
-    const qt = unwrap(5); // quotes/stats
-    const cu = unwrap(6); // customers
-    const lp = unwrap(7); // loyalty/passes
-    const st = unwrap(8); // analytics/inventory
+    // ── HERO 1: Ventas hoy ──
+    const todaySum = unwrap(0);
+    if (todaySum) {
+      $("hero-sales-today").textContent = fmtMoney(todaySum.total_cents || 0);
+      const orders = todaySum.orders_count || 0;
+      $("hero-orders-today").textContent = orders + (orders === 1 ? " pedido" : " pedidos");
+    }
+
+    // ── HERO 2: Utilidad (margen) ──
+    const brief = unwrap(1);
+    if (brief && brief.stats && brief.stats.margin_pct != null) {
+      const m = brief.stats.margin_pct;
+      $("hero-margin").textContent = Math.round(m) + "%";
+      $("hero-margin-sub").textContent = "Margen estimado (hoy)";
+    } else {
+      // fallback: el brief no devolvió margin. Mostrar "—".
+      $("hero-margin").textContent = "—%";
+      $("hero-margin-sub").textContent = "Configura costos para ver margen";
+    }
+
+    // ── HERO 3: Clientes activos ──
+    const custTotal = unwrap(2);
+    const custActive = unwrap(3);
+    const activeNum = custActive && typeof custActive.active_count === "number"
+      ? custActive.active_count
+      : (custTotal && typeof custTotal.total === "number" ? custTotal.total : 0);
+    $("hero-customers").textContent = activeNum;
+    $("hero-customers-sub").textContent = custActive
+      ? `Últimos ${custActive.active_days || 90} días`
+      : "Total registrados";
+
+    // ── HERO 4: Stock valorizado ──
+    const stockStats = unwrap(4);
+    if (stockStats) {
+      $("hero-stock-value").textContent = fmtMoney(stockStats.total_stock_value_cents || 0);
+      const total = stockStats.total_insumos || 0;
+      $("hero-stock-sub").textContent = total + (total === 1 ? " insumo" : " insumos");
+    }
+
+    // ── Secondary cards ──
+    const p  = unwrap(5);
+    const pr = unwrap(6);
+    const q  = unwrap(7);
+    const b  = unwrap(8);
+    const qt = unwrap(9);
+    const lp = unwrap(10);
+    const st = unwrap(11);
 
     $("stat-products").textContent = (p  && typeof p.total === "number") ? p.total : 0;
     $("stat-promos").textContent   = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
     $("stat-qrs").textContent      = Array.isArray(q)  ? q.length : 0;
-    $("stat-orders").textContent   = (o  && typeof o.total === "number") ? o.total : 0;
 
-    // FIX bookings shape: el endpoint /bookings/stats devuelve
-    // {pending, confirmed, …} a nivel raíz (no bajo by_status).
-    // Leemos ambos formatos para tolerar el actual y el histórico.
     if (b) {
       const pending   = (b.by_status && b.by_status.pending)   || b.pending   || 0;
       const confirmed = (b.by_status && b.by_status.confirmed) || b.confirmed || 0;
@@ -224,22 +304,35 @@
       $("stat-bookings").textContent = 0;
     }
 
-    // FIX quotes shape: /quotes/stats ya usa by_status ✓
     $("stat-quotes").textContent = qt
       ? ((qt.by_status.draft || 0) + (qt.by_status.sent || 0) + (qt.by_status.viewed || 0))
       : 0;
 
-    $("stat-customers").textContent = (cu && typeof cu.total === "number") ? cu.total : 0;
     $("stat-loyalty").textContent   = (lp && typeof lp.total === "number") ? lp.total : 0;
-    $("stat-stock").textContent     = (st && typeof st.count === "number") ? st.count : 0;
+
+    const stockLow = (st && typeof st.count === "number") ? st.count : 0;
+    $("stat-stock").textContent = stockLow;
+    // Si no hay alertas, mostramos la card en color neutral en vez de warn
+    const stockCard = $("card-stock");
+    if (stockCard) {
+      if (stockLow === 0) stockCard.classList.remove("warn");
+      else stockCard.classList.add("warn");
+    }
 
     // Si todos los KPIs quedaron en 0 por falta de datos, dejamos un
     // tooltip discreto para que el owner sepa que el sistema no está roto,
     // simplemente su tenant todavía no tiene actividad.
-    const allZero = ["stat-products","stat-promos","stat-qrs","stat-orders",
-                     "stat-bookings","stat-quotes","stat-customers",
-                     "stat-loyalty","stat-stock"]
-      .every(id => Number(document.getElementById(id).textContent || 0) === 0);
+    const allZero = ["hero-sales-today", "hero-customers", "hero-stock-value",
+                     "stat-products","stat-promos","stat-qrs","stat-orders",
+                     "stat-bookings","stat-quotes","stat-loyalty","stat-stock"]
+      .every(id => {
+        const el = document.getElementById(id);
+        if (!el) return true;
+        // Para textos que empiezan con $, comparar el number parseado
+        const t = (el.textContent || "").trim();
+        if (t.startsWith("$")) return parseInt(t.replace(/[^\d]/g, ""), 10) === 0;
+        return Number(t) === 0;
+      });
     if (allZero) {
       const help = document.getElementById("public-url-help");
       if (help) help.textContent = "Sin actividad todavía. Crea tu primer pedido o promoción para empezar a ver datos aquí.";
@@ -269,7 +362,7 @@ async function loadAiBrief(tenantId, user) {
 }
 
 function fmtMoney(cents) {
-  if (!cents && cents !== 0) return "—";
+  if (cents == null) return "—";
   return "$" + Math.round(cents / 100).toLocaleString("es-CL");
 }
 
@@ -289,6 +382,32 @@ function renderDailyBrief(brief, user) {
   set("brief-orders", stats.orders_today != null ? stats.orders_today : "—");
   set("brief-margin", stats.margin_pct != null ? stats.margin_pct + "%" : "—");
   set("brief-products", stats.products_active != null ? stats.products_active : "—");
+  // Sincronizar también los hero cards si el brief trae más info
+  if (stats.sales_today_cents != null) {
+    const heroSales = document.getElementById("hero-sales-today");
+    if (heroSales && (heroSales.textContent === "$0" || !heroSales.textContent.trim())) {
+      heroSales.textContent = fmtMoney(stats.sales_today_cents);
+    }
+  }
+  if (stats.orders_today != null) {
+    const heroOrders = document.getElementById("hero-orders-today");
+    if (heroOrders) {
+      const n = stats.orders_today;
+      heroOrders.textContent = n + (n === 1 ? " pedido" : " pedidos");
+    }
+  }
+  if (stats.margin_pct != null) {
+    const heroMargin = document.getElementById("hero-margin");
+    const heroMarginSub = document.getElementById("hero-margin-sub");
+    if (heroMargin) heroMargin.textContent = Math.round(stats.margin_pct) + "%";
+    if (heroMarginSub) heroMarginSub.textContent = "Margen estimado (hoy)";
+  }
+  if (stats.products_active != null) {
+    const statProducts = document.getElementById("stat-products");
+    if (statProducts && (statProducts.textContent === "—" || statProducts.textContent === "0")) {
+      statProducts.textContent = stats.products_active;
+    }
+  }
   // Mensaje IA
   const aiMsg = document.getElementById("brief-ai-message");
   if (aiMsg) {

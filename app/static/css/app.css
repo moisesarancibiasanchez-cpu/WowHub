@@ -299,6 +299,118 @@ html.no-ai-sidebar .dash-content,
 .kpi-card.accent  .value { color: var(--accent); }
 
 /* ═══════════════════════════════════════════════════════════
+   Hero cards (Dashboard principal — 4 KPIs grandes arriba)
+   Diferencian visualmente a los KPIs críticos del resto:
+   padding holgado, ícono con tinte, valor grande (32px+).
+   ═══════════════════════════════════════════════════════════ */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0 24px;
+}
+@media (max-width: 1100px) {
+  .hero-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
+.hero-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
+}
+.hero-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: .8;
+}
+.hero-card.hero-sales::before  { background: var(--ok); }
+.hero-card.hero-profit::before { background: var(--accent); }
+.hero-card.hero-cust::before   { background: #1f5fb0; }
+.hero-card.hero-stock::before  { background: var(--warn); }
+.hero-card .hero-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--fg-muted);
+  text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+}
+.hero-card .hero-icon {
+  font-size: 16px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--bg-elev-3);
+}
+.hero-card.hero-sales  .hero-icon { background: var(--ok-bg); color: var(--ok-ink); }
+.hero-card.hero-profit .hero-icon { background: var(--accent-soft); color: var(--accent); }
+.hero-card.hero-cust   .hero-icon { background: var(--info-bg); color: var(--info-ink); }
+.hero-card.hero-stock  .hero-icon { background: var(--warn-bg); color: var(--warn-ink); }
+.hero-card .hero-value {
+  font-size: 30px; font-weight: 800; letter-spacing: -.02em;
+  color: var(--fg); line-height: 1.1;
+}
+.hero-card .hero-sub {
+  font-size: 12px; color: var(--fg-muted); margin-top: 2px;
+}
+.hero-card .hero-foot {
+  margin-top: 8px; font-size: 13px;
+}
+.hero-card .hero-foot a { color: var(--accent); text-decoration: none; }
+.hero-card .hero-foot a:hover { text-decoration: underline; }
+
+/* ── Sección secundaria (KPI chicos) ─────────────────────── */
+.secondary-section {
+  margin: 28px 0 16px;
+}
+.secondary-section h2 {
+  margin: 0 0 12px;
+  font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  color: var(--fg-muted); text-transform: uppercase;
+}
+.secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .secondary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .secondary-grid { grid-template-columns: 1fr; }
+}
+.secondary-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.secondary-card .label {
+  font-size: 11px; color: var(--fg-muted);
+  text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+}
+.secondary-card .value {
+  font-size: 22px; font-weight: 700; color: var(--fg);
+}
+.secondary-card.warn .value { color: var(--warn); }
+.secondary-card.ok   .value { color: var(--ok); }
+.secondary-card .foot {
+  font-size: 12px; color: var(--accent); margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
    Form field (compartido por quotes.html, inventory.html)
    ═══════════════════════════════════════════════════════════ */
 .form-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }

@@ -1,0 +1,398 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Inventario · Insumos{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Inventario de Insumos</h1>
+    <p class="sub">Materias primas, stock, costos y recetas (BOM). Lo que <em>entra</em>, separado del stock-por-sucursal de productos terminados.</p>
+  </div>
+  <button class="btn btn-primary" id="new-btn">+ Nuevo insumo</button>
+</div>
+
+<!-- KPIs -->
+<div class="row mt-3" id="kpis" style="gap: 12px; flex-wrap: wrap;">
+  <div class="kpi-card" style="flex: 1 1 160px;">
+    <div class="label">Insumos activos</div>
+    <div class="value" id="kpi-total">—</div>
+  </div>
+  <div class="kpi-card" style="flex: 1 1 160px;">
+    <div class="label">Valor stock (CLP)</div>
+    <div class="value" id="kpi-value">—</div>
+  </div>
+  <div class="kpi-card" style="flex: 1 1 160px; background: var(--warn-soft);">
+    <div class="label">Stock bajo</div>
+    <div class="value" id="kpi-low" style="color: var(--warn);">—</div>
+  </div>
+  <div class="kpi-card" style="flex: 1 1 160px; background: var(--err-soft);">
+    <div class="label">Sin stock</div>
+    <div class="value" id="kpi-out" style="color: var(--err);">—</div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mt-3" style="gap: 8px; flex-wrap: wrap;">
+  <input class="form-input" id="search" placeholder="Buscar por nombre o SKU..." style="max-width: 360px;">
+  <select class="form-input" id="filter-low" style="max-width: 200px;">
+    <option value="">Todos</option>
+    <option value="1">⚠️ Solo stock bajo</option>
+    <option value="0">✓ Sin alertas</option>
+  </select>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrap mt-3">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Nombre</th>
+        <th>Unidad</th>
+        <th>Stock</th>
+        <th>Disponible</th>
+        <th>Min</th>
+        <th>Costo unit.</th>
+        <th>Valor</th>
+        <th>Estado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal crear/editar insumo -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal" style="max-width: 720px;">
+    <div class="modal-header">
+      <h3 id="modal-title">Nuevo insumo</h3>
+      <button class="btn btn-ghost" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="insumo-form" autocomplete="off">
+        <input type="hidden" id="i_id">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_sku">SKU <span class="req">*</span></label>
+            <input class="form-input" id="i_sku" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_unit">Unidad</label>
+            <input class="form-input" id="i_unit" value="unidad" placeholder="kg, lt, m, unidad...">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="i_name">Nombre <span class="req">*</span></label>
+          <input class="form-input" id="i_name" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="i_description">Descripción</label>
+          <textarea class="form-textarea" id="i_description" rows="2"></textarea>
+        </div>
+
+        <h4 style="margin: 16px 0 8px; font-size: 14px; color: var(--text-2);">Stock y alertas</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_stock">Stock actual</label>
+            <input class="form-input" type="number" id="i_stock" min="0" step="0.01" value="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_reserved">Reservado</label>
+            <input class="form-input" type="number" id="i_reserved" min="0" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_min_stock">Stock mínimo (alerta)</label>
+            <input class="form-input" type="number" id="i_min_stock" min="0" step="0.01" placeholder="opcional">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_reorder_point">Punto de reorden</label>
+            <input class="form-input" type="number" id="i_reorder_point" min="0" step="0.01" placeholder="opcional">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_reorder_lead">Lead time (días)</label>
+            <input class="form-input" type="number" id="i_reorder_lead" min="0" step="1" placeholder="opcional">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_waste_pct">Merma %</label>
+            <input class="form-input" type="number" id="i_waste_pct" min="0" max="100" step="0.1" value="0">
+          </div>
+        </div>
+
+        <h4 style="margin: 16px 0 8px; font-size: 14px; color: var(--text-2);">Costos (en centavos CLP)</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_last_cost">Último costo</label>
+            <input class="form-input" type="number" id="i_last_cost" min="0" step="1" value="0">
+            <span class="form-help">En centavos. 1 CLP = 100 centavos.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_avg_cost">Costo promedio</label>
+            <input class="form-input" type="number" id="i_avg_cost" min="0" step="1" value="0" readonly>
+            <span class="form-help">Se actualiza solo al cambiar último costo.</span>
+          </div>
+        </div>
+
+        <h4 style="margin: 16px 0 8px; font-size: 14px; color: var(--text-2);">Logística</h4>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_supplier">Proveedor</label>
+            <input class="form-input" id="i_supplier">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_location">Ubicación</label>
+            <input class="form-input" id="i_location" placeholder="bodega, estantería...">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_lot">Lote</label>
+            <input class="form-input" id="i_lot">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="i_expires">Vencimiento</label>
+            <input class="form-input" type="date" id="i_expires">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="i_image">Imagen URL</label>
+            <input class="form-input" id="i_image" placeholder="https://...">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="i_tags">Tags (separadas por coma)</label>
+          <input class="form-input" id="i_tags" placeholder="harina, orgánico, local">
+        </div>
+
+        <h4 style="margin: 16px 0 8px; font-size: 14px; color: var(--text-2);">N/A · No aplica</h4>
+        <div class="row" style="gap: 12px; flex-wrap: wrap;">
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="stock"> Stock</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="costo"> Costo</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="receta"> Receta</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="vencimiento"> Vencimiento</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="lote"> Lote</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="proveedor"> Proveedor</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="ubicacion"> Ubicación</label>
+          <label class="row" style="gap: 6px;"><input type="checkbox" class="i_na" value="alerta"> Alerta stock</label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel">Cancelar</button>
+      <button class="btn btn-primary" id="modal-save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Recetas (BOM) por producto -->
+<div class="modal-overlay hidden" id="recetas-modal">
+  <div class="modal" style="max-width: 720px;">
+    <div class="modal-header">
+      <h3>Receta (BOM) · <span id="rc-product-name">—</span></h3>
+      <button class="btn btn-ghost" id="rc-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="card" style="padding: 12px; background: var(--accent-soft); margin-bottom: 12px;">
+        <div class="row-between">
+          <div><strong>Costo total receta:</strong> <span id="rc-total">—</span></div>
+          <div><strong>Líneas:</strong> <span id="rc-count">0</span></div>
+        </div>
+      </div>
+      <div id="rc-list" class="text-muted" style="padding: 20px;">Selecciona un producto desde Productos para ver/editar su receta.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+let tenant = WH.Auth.tenant();
+const tbody = document.getElementById("tbody");
+let allInsumos = [];
+
+function fmtCLP(c) {
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format((c || 0) / 100);
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function nNum(v, d=2) {
+  const n = parseFloat(v);
+  return isNaN(n) ? (d === 0 ? "0" : "0.00") : (d === 0 ? String(Math.round(n)) : n.toFixed(d));
+}
+
+async function loadStats() {
+  try {
+    const s = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/insumos/stats`);
+    document.getElementById("kpi-total").textContent = `${s.active_insumos} / ${s.total_insumos}`;
+    document.getElementById("kpi-value").textContent = fmtCLP(s.total_stock_value_cents);
+    document.getElementById("kpi-low").textContent = s.low_stock_count;
+    document.getElementById("kpi-out").textContent = s.out_of_stock_count;
+  } catch (e) {
+    console.error("stats", e);
+  }
+}
+
+async function load() {
+  const search = document.getElementById("search").value;
+  const low = document.getElementById("filter-low").value;
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  if (low === "1") qs.set("low_stock", "true");
+  if (low === "0") qs.set("low_stock", "false");
+  qs.set("page_size", "200");
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/insumos?${qs}`);
+    allInsumos = data.items;
+    if (data.items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="icon">📦</div>No hay insumos${search ? ' que coincidan con la búsqueda' : ''}. Agrega el primero.</div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.items.map(i => {
+      const lowBadge = i.low_stock_alert
+        ? '<span class="badge badge-warn" title="Stock bajo">⚠️</span>'
+        : '<span class="badge badge-ok" title="OK">✓</span>';
+      const inactive = !i.is_active ? ' <span class="badge badge-muted">inactivo</span>' : '';
+      const naTags = (i.is_na || []).map(x => `<span class="badge badge-muted" title="N/A: ${esc(x)}" style="font-size:10px; margin-right:2px;">${esc(x)}</span>`).join("");
+      return `
+      <tr>
+        <td><code>${esc(i.sku)}</code></td>
+        <td><strong>${esc(i.name)}</strong>${i.description ? `<br><small class="text-dim">${esc(i.description)}</small>` : ''}${naTags ? `<br>${naTags}` : ''}</td>
+        <td>${esc(i.unit)}</td>
+        <td>${nNum(i.stock)}</td>
+        <td>${nNum(i.available)}</td>
+        <td>${i.min_stock != null ? nNum(i.min_stock) : '<span class="text-dim">—</span>'}</td>
+        <td>${fmtCLP(i.avg_cost_cents)}</td>
+        <td>${fmtCLP(i.stock_value_cents)}</td>
+        <td>${lowBadge}${inactive}</td>
+        <td class="text-right" style="white-space:nowrap;">
+          <button class="btn btn-sm btn-ghost" data-action="edit" title="Editar">✏️</button>
+          <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--err);" title="Eliminar">🗑</button>
+        </td>
+      </tr>`;
+    }).join("");
+    tbody.querySelectorAll("[data-action=edit]").forEach((b, i) => b.addEventListener("click", () => openEdit(allInsumos[i])));
+    tbody.querySelectorAll("[data-action=del]").forEach((b, i) => b.addEventListener("click", async () => {
+      const x = allInsumos[i];
+      if (!confirm(`¿Eliminar insumo "${x.name}"? Esta acción no se puede deshacer.`)) return;
+      try {
+        await WH.api.del(`/api/v1/tenants/${tenant.tenant_id}/insumos/${x.id}`);
+        WH.Toast.show("Insumo eliminado");
+        load();
+        loadStats();
+      } catch (err) { WH.Toast.show(err.message, "error"); }
+    }));
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 30px; color: var(--err);">Error: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function openEdit(x) {
+  document.getElementById("modal-title").textContent = "Editar insumo";
+  document.getElementById("i_id").value = x.id;
+  document.getElementById("i_sku").value = x.sku || "";
+  document.getElementById("i_unit").value = x.unit || "unidad";
+  document.getElementById("i_name").value = x.name || "";
+  document.getElementById("i_description").value = x.description || "";
+  document.getElementById("i_stock").value = nNum(x.stock);
+  document.getElementById("i_reserved").value = nNum(x.reserved);
+  document.getElementById("i_min_stock").value = x.min_stock != null ? nNum(x.min_stock) : "";
+  document.getElementById("i_reorder_point").value = x.reorder_point != null ? nNum(x.reorder_point) : "";
+  document.getElementById("i_reorder_lead").value = x.reorder_lead_time_days != null ? x.reorder_lead_time_days : "";
+  document.getElementById("i_waste_pct").value = nNum(x.waste_pct, 1);
+  document.getElementById("i_last_cost").value = x.last_cost_cents || 0;
+  document.getElementById("i_avg_cost").value = x.avg_cost_cents || 0;
+  document.getElementById("i_supplier").value = x.supplier || "";
+  document.getElementById("i_location").value = x.location || "";
+  document.getElementById("i_lot").value = x.lot || "";
+  document.getElementById("i_expires").value = (x.expires_at || "").split("T")[0] || "";
+  document.getElementById("i_image").value = x.image_url || "";
+  document.getElementById("i_tags").value = (x.tags || []).join(", ");
+  const na = new Set(x.is_na || []);
+  document.querySelectorAll(".i_na").forEach(cb => cb.checked = na.has(cb.value));
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+function openNew() {
+  document.getElementById("modal-title").textContent = "Nuevo insumo";
+  document.getElementById("insumo-form").reset();
+  document.getElementById("i_id").value = "";
+  document.getElementById("i_unit").value = "unidad";
+  document.getElementById("i_stock").value = "0";
+  document.getElementById("i_reserved").value = "0";
+  document.getElementById("i_waste_pct").value = "0";
+  document.getElementById("i_last_cost").value = "0";
+  document.getElementById("i_avg_cost").value = "0";
+  document.querySelectorAll(".i_na").forEach(cb => cb.checked = false);
+  document.getElementById("modal").classList.remove("hidden");
+}
+
+document.getElementById("new-btn").addEventListener("click", openNew);
+document.getElementById("modal-close").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("modal-cancel").addEventListener("click", () => document.getElementById("modal").classList.add("hidden"));
+document.getElementById("rc-close").addEventListener("click", () => document.getElementById("recetas-modal").classList.add("hidden"));
+
+document.getElementById("modal-save").addEventListener("click", async () => {
+  const id = document.getElementById("i_id").value;
+  const tags = document.getElementById("i_tags").value
+    .split(",").map(s => s.trim()).filter(Boolean);
+  const is_na = Array.from(document.querySelectorAll(".i_na:checked")).map(cb => cb.value);
+  const body = {
+    sku: document.getElementById("i_sku").value.trim(),
+    name: document.getElementById("i_name").value.trim(),
+    description: document.getElementById("i_description").value.trim() || null,
+    unit: document.getElementById("i_unit").value.trim() || "unidad",
+    stock: parseFloat(document.getElementById("i_stock").value || 0),
+    reserved: parseFloat(document.getElementById("i_reserved").value || 0),
+    min_stock: document.getElementById("i_min_stock").value ? parseFloat(document.getElementById("i_min_stock").value) : null,
+    reorder_point: document.getElementById("i_reorder_point").value ? parseFloat(document.getElementById("i_reorder_point").value) : null,
+    reorder_lead_time_days: document.getElementById("i_reorder_lead").value ? parseInt(document.getElementById("i_reorder_lead").value) : null,
+    waste_pct: parseFloat(document.getElementById("i_waste_pct").value || 0),
+    last_cost_cents: parseInt(document.getElementById("i_last_cost").value || 0),
+    supplier: document.getElementById("i_supplier").value.trim() || null,
+    location: document.getElementById("i_location").value.trim() || null,
+    lot: document.getElementById("i_lot").value.trim() || null,
+    expires_at: document.getElementById("i_expires").value || null,
+    image_url: document.getElementById("i_image").value.trim() || null,
+    tags,
+    is_na,
+    is_active: true,
+  };
+  if (!body.sku || !body.name) {
+    WH.Toast.show("SKU y Nombre son obligatorios", "error");
+    return;
+  }
+  try {
+    if (id) {
+      await WH.api.patch(`/api/v1/tenants/${tenant.tenant_id}/insumos/${id}`, body);
+      WH.Toast.show("Insumo actualizado");
+    } else {
+      await WH.api.post(`/api/v1/tenants/${tenant.tenant_id}/insumos`, body);
+      WH.Toast.show("Insumo creado");
+    }
+    document.getElementById("modal").classList.add("hidden");
+    load();
+    loadStats();
+  } catch (err) { WH.Toast.show(err.message, "error"); }
+});
+
+let to;
+document.getElementById("search").addEventListener("input", () => { clearTimeout(to); to = setTimeout(load, 300); });
+document.getElementById("filter-low").addEventListener("change", load);
+
+(async function init() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+    return;
+  }
+  await Promise.all([load(), loadStats()]);
+})();
+</script>
+{% endblock %}

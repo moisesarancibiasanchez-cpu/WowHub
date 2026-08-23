@@ -1,0 +1,392 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Mi sitio web{% endblock %}
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Mi sitio web</h1>
+    <p class="sub">Edita la portada de tu negocio y previsualiza en vivo. Los cambios se guardan por sección.</p>
+  </div>
+  <div class="row" style="gap: 8px;">
+    <a class="btn" id="public-link" target="_blank" rel="noopener">Abrir público ↗</a>
+    <button class="btn btn-primary" id="save-all">💾 Guardar todo</button>
+  </div>
+</div>
+
+<div class="row mt-3" style="gap: 0; align-items: stretch; min-height: 600px;">
+  <!-- ── LEFT: Editor con tabs ───────────────────────────── -->
+  <div style="flex: 1 1 480px; max-width: 560px; min-width: 0;">
+    <div class="tabs" role="tablist" style="display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px;">
+      <button class="tab active" data-tab="hero" role="tab">Hero</button>
+      <button class="tab" data-tab="brand" role="tab">Marca</button>
+      <button class="tab" data-tab="contact" role="tab">Contacto</button>
+      <button class="tab" data-tab="sections" role="tab">Secciones</button>
+      <button class="tab" data-tab="seo" role="tab">SEO</button>
+    </div>
+
+    <!-- HERO -->
+    <section class="tab-panel active" data-panel="hero">
+      <div class="card">
+        <h2 class="card-title">Hero — Lo primero que se ve</h2>
+        <div class="form-group">
+          <label class="form-label">Título principal</label>
+          <input class="form-input" id="hero_title" maxlength="200" placeholder="Bienvenido a Mi Negocio">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subtítulo</label>
+          <textarea class="form-textarea" id="hero_subtitle" maxlength="400" rows="2"
+            placeholder="Una línea que explica qué haces."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Imagen del hero (URL)</label>
+          <input class="form-input" id="hero_image_url" placeholder="https://...">
+          <span class="form-help">Recomendado: 1920×900 px. Vacío = usar logo.</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Texto del botón</label>
+            <input class="form-input" id="hero_cta_text" maxlength="60" placeholder="Ver catálogo">
+          </div>
+          <div class="form-group">
+            <label class="form-label">URL del botón (opcional)</label>
+            <input class="form-input" id="hero_cta_url" placeholder="/catalogo">
+          </div>
+        </div>
+        <button class="btn btn-primary mt-2" data-save="hero">Guardar Hero</button>
+      </div>
+    </section>
+
+    <!-- BRAND -->
+    <section class="tab-panel" data-panel="brand" hidden>
+      <div class="card">
+        <h2 class="card-title">Marca — Colores y logo</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Color principal</label>
+            <div class="row" style="gap: 8px;">
+              <input class="form-input" type="color" id="brand_color" style="width: 56px; padding: 0;">
+              <input class="form-input" id="brand_color_hex" maxlength="9" placeholder="#7c5cff" style="flex: 1;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color acento</label>
+            <div class="row" style="gap: 8px;">
+              <input class="form-input" type="color" id="accent_color" style="width: 56px; padding: 0;">
+              <input class="form-input" id="accent_color_hex" maxlength="9" placeholder="#00d4a8" style="flex: 1;">
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Logo (URL)</label>
+          <input class="form-input" id="logo_url" placeholder="https://...">
+          <span class="form-help">PNG con fondo transparente recomendado.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Favicon (URL)</label>
+          <input class="form-input" id="favicon_url" placeholder="https://...">
+        </div>
+        <button class="btn btn-primary mt-2" data-save="brand">Guardar Marca</button>
+      </div>
+    </section>
+
+    <!-- CONTACT -->
+    <section class="tab-panel" data-panel="contact" hidden>
+      <div class="card">
+        <h2 class="card-title">Contacto y redes</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">WhatsApp</label>
+            <input class="form-input" id="contact_whatsapp" placeholder="+56 9 ...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Teléfono</label>
+            <input class="form-input" id="contact_phone">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="contact_email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dirección</label>
+          <input class="form-input" id="contact_address">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Instagram</label>
+            <input class="form-input" id="social_instagram" placeholder="@tu_cuenta">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Facebook</label>
+            <input class="form-input" id="social_facebook" placeholder="fb.com/tu_pagina">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">TikTok</label>
+          <input class="form-input" id="social_tiktok" placeholder="@tu_cuenta">
+        </div>
+        <button class="btn btn-primary mt-2" data-save="contact">Guardar Contacto</button>
+      </div>
+    </section>
+
+    <!-- SECTIONS -->
+    <section class="tab-panel" data-panel="sections" hidden>
+      <div class="card">
+        <h2 class="card-title">Secciones — Qué mostrar</h2>
+        <p class="text-muted" style="font-size: 13px;">Activa o desactiva bloques en tu landing pública.</p>
+        <label class="row" style="gap: 8px; padding: 8px 0;">
+          <input type="checkbox" id="show_categories"> Categorías
+        </label>
+        <label class="row" style="gap: 8px; padding: 8px 0;">
+          <input type="checkbox" id="show_featured_products"> Productos destacados
+        </label>
+        <label class="row" style="gap: 8px; padding: 8px 0;">
+          <input type="checkbox" id="show_promotions"> Promociones activas
+        </label>
+        <label class="row" style="gap: 8px; padding: 8px 0;">
+          <input type="checkbox" id="show_branches"> Sucursales
+        </label>
+        <label class="row" style="gap: 8px; padding: 8px 0;">
+          <input type="checkbox" id="show_contact"> Bloque de contacto
+        </label>
+        <button class="btn btn-primary mt-2" data-save="sections">Guardar Secciones</button>
+      </div>
+    </section>
+
+    <!-- SEO -->
+    <section class="tab-panel" data-panel="seo" hidden>
+      <div class="card">
+        <h2 class="card-title">SEO — Cómo apareces en Google</h2>
+        <div class="form-group">
+          <label class="form-label">Título (≤ 60 chars)</label>
+          <input class="form-input" id="seo_title" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descripción (≤ 160 chars)</label>
+          <textarea class="form-textarea" id="seo_description" maxlength="400" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Imagen Open Graph (URL)</label>
+          <input class="form-input" id="seo_image_url" placeholder="https://...">
+        </div>
+        <button class="btn btn-primary mt-2" data-save="seo">Guardar SEO</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── RIGHT: Live preview iframe ──────────────────────── -->
+  <div style="flex: 1 1 480px; min-width: 0; padding-left: 16px;">
+    <div class="card" style="padding: 0; height: 100%; display: flex; flex-direction: column;">
+      <div class="row-between" style="padding: 12px 14px; border-bottom: 1px solid var(--line);">
+        <strong>Vista previa</strong>
+        <div class="row" style="gap: 4px;">
+          <button class="btn btn-sm" data-device="mobile" title="Mobile">📱</button>
+          <button class="btn btn-sm" data-device="tablet" title="Tablet">📱</button>
+          <button class="btn btn-sm active" data-device="desktop" title="Desktop">🖥️</button>
+        </div>
+      </div>
+      <div id="preview-wrap" style="flex: 1; background: #1a1f2e; padding: 12px; overflow: hidden;">
+        <iframe id="preview-iframe"
+                style="width: 100%; height: 100%; border: 0; background: white; border-radius: 6px; transition: width .2s;"
+                sandbox="allow-same-origin allow-scripts"></iframe>
+      </div>
+      <div class="row" style="gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line);">
+        <small class="text-dim">Tip: edita a la izquierda y presiona "Guardar" para ver el cambio aquí.</small>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block dash_scripts %}
+<script>
+let tenant = WH.Auth.tenant();
+let currentSlug = null;
+let saveTimer = null;
+
+const $ = (id) => document.getElementById(id);
+
+async function load() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    WH.Toast.show("No hay un negocio activo", "error");
+    return;
+  }
+  // Resolver slug
+  try {
+    const t = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}`);
+    currentSlug = t.slug;
+    $("public-link").href = `/u/${currentSlug}`;
+  } catch (e) {
+    console.warn("No se pudo obtener slug", e);
+  }
+  // Cargar config actual
+  try {
+    const cfg = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/landing`);
+    fillForm(cfg);
+    refreshPreview();
+  } catch (err) {
+    WH.Toast.show("Error al cargar: " + err.message, "error");
+  }
+}
+
+function fillForm(c) {
+  $("hero_title").value = c.hero_title || "";
+  $("hero_subtitle").value = c.hero_subtitle || "";
+  $("hero_image_url").value = c.hero_image_url || "";
+  $("hero_cta_text").value = c.hero_cta_text || "Ver catálogo";
+  $("hero_cta_url").value = c.hero_cta_url || "";
+  $("brand_color").value = c.brand_color || "#7c5cff";
+  $("brand_color_hex").value = c.brand_color || "#7c5cff";
+  $("accent_color").value = c.accent_color || "#00d4a8";
+  $("accent_color_hex").value = c.accent_color || "#00d4a8";
+  $("logo_url").value = c.logo_url || "";
+  $("favicon_url").value = c.favicon_url || "";
+  $("contact_whatsapp").value = c.contact_whatsapp || "";
+  $("contact_phone").value = c.contact_phone || "";
+  $("contact_email").value = c.contact_email || "";
+  $("contact_address").value = c.contact_address || "";
+  $("social_instagram").value = c.social_instagram || "";
+  $("social_facebook").value = c.social_facebook || "";
+  $("social_tiktok").value = c.social_tiktok || "";
+  $("show_categories").checked = c.show_categories !== false;
+  $("show_featured_products").checked = c.show_featured_products !== false;
+  $("show_promotions").checked = c.show_promotions !== false;
+  $("show_branches").checked = c.show_branches !== false;
+  $("show_contact").checked = c.show_contact !== false;
+  $("seo_title").value = c.seo_title || "";
+  $("seo_description").value = c.seo_description || "";
+  $("seo_image_url").value = c.seo_image_url || "";
+}
+
+function getPayload(section) {
+  const m = {
+    hero: () => ({
+      hero_title: $("hero_title").value || null,
+      hero_subtitle: $("hero_subtitle").value || null,
+      hero_image_url: $("hero_image_url").value || null,
+      hero_cta_text: $("hero_cta_text").value || "Ver catálogo",
+      hero_cta_url: $("hero_cta_url").value || null,
+    }),
+    brand: () => ({
+      brand_color: $("brand_color_hex").value || "#7c5cff",
+      accent_color: $("accent_color_hex").value || "#00d4a8",
+      logo_url: $("logo_url").value || null,
+      favicon_url: $("favicon_url").value || null,
+    }),
+    contact: () => ({
+      contact_whatsapp: $("contact_whatsapp").value || null,
+      contact_phone: $("contact_phone").value || null,
+      contact_email: $("contact_email").value || null,
+      contact_address: $("contact_address").value || null,
+      social_instagram: $("social_instagram").value || null,
+      social_facebook: $("social_facebook").value || null,
+      social_tiktok: $("social_tiktok").value || null,
+    }),
+    sections: () => ({
+      show_categories: $("show_categories").checked,
+      show_featured_products: $("show_featured_products").checked,
+      show_promotions: $("show_promotions").checked,
+      show_branches: $("show_branches").checked,
+      show_contact: $("show_contact").checked,
+    }),
+    seo: () => ({
+      seo_title: $("seo_title").value || null,
+      seo_description: $("seo_description").value || null,
+      seo_image_url: $("seo_image_url").value || null,
+    }),
+  };
+  return m[section] ? m[section]() : {};
+}
+
+async function saveSection(section) {
+  try {
+    const body = getPayload(section);
+    const cfg = await WH.api.patch(`/api/v1/tenants/${tenant.tenant_id}/landing`, body);
+    fillForm(cfg);
+    refreshPreview();
+    WH.Toast.show(`${section.charAt(0).toUpperCase() + section.slice(1)} guardado ✓`);
+  } catch (err) {
+    WH.Toast.show("Error: " + err.message, "error");
+  }
+}
+
+async function saveAll() {
+  const sections = ["hero", "brand", "contact", "sections", "seo"];
+  for (const s of sections) {
+    await saveSection(s);
+  }
+}
+
+let previewDebounce = null;
+function refreshPreview() {
+  if (!currentSlug) return;
+  clearTimeout(previewDebounce);
+  previewDebounce = setTimeout(() => {
+    const url = `/u/${currentSlug}?t=${Date.now()}`;
+    $("preview-iframe").src = url;
+  }, 400);
+}
+
+// Tabs
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => { p.hidden = true; p.classList.remove("active"); });
+    tab.classList.add("active");
+    const name = tab.dataset.tab;
+    const panel = document.querySelector(`.tab-panel[data-panel="${name}"]`);
+    if (panel) { panel.hidden = false; panel.classList.add("active"); }
+  });
+});
+
+// Save per section
+document.querySelectorAll("[data-save]").forEach(btn => {
+  btn.addEventListener("click", () => saveSection(btn.dataset.save));
+});
+$("save-all").addEventListener("click", saveAll);
+
+// Color sync: <input type="color"> ↔ hex text input
+function bindColor(colorId, hexId) {
+  $(colorId).addEventListener("input", () => { $(hexId).value = $(colorId).value; });
+  $(hexId).addEventListener("input", () => {
+    const v = $(hexId).value.trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(v)) {
+      try { $(colorId).value = v.length === 4
+        ? "#" + v.slice(1).split("").map(c => c + c).join("")
+        : v; } catch (_) {}
+    }
+  });
+}
+bindColor("brand_color", "brand_color_hex");
+bindColor("accent_color", "accent_color_hex");
+
+// Device switcher
+const widths = { mobile: 375, tablet: 768, desktop: 1280 };
+document.querySelectorAll("[data-device]").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("[data-device]").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    const w = widths[b.dataset.device] || 1280;
+    const wrap = $("preview-wrap");
+    const maxW = wrap.clientWidth - 24;
+    const target = Math.min(w, maxW);
+    $("preview-iframe").style.width = target + "px";
+    $("preview-iframe").style.margin = "0 auto";
+    $("preview-iframe").style.display = "block";
+  });
+});
+
+// Auto-save on blur (debounced) for hero / brand / contact fields
+["hero_title", "hero_subtitle", "hero_cta_text", "brand_color_hex", "accent_color_hex"].forEach(id => {
+  $(id).addEventListener("blur", () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveSection("hero"), 1200);
+  });
+});
+
+(async function init() { await load(); })();
+</script>
+{% endblock %}

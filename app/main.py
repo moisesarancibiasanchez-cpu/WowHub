@@ -26,6 +26,7 @@ from app.api.v1 import (
     quotes,  # Cotizaciones (Quotes) — Gestión interna
     costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
     notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
+    insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 )
 from app.models.user import UserRole
 from app.config import settings
@@ -171,6 +172,8 @@ app.include_router(quotes.public_router, prefix="/api/v1")
 app.include_router(costs.router, prefix="/api/v1")
 # Notifications (Fase 5) — bell badge del dashboard (summary + lista)
 app.include_router(notifications.router, prefix="/api/v1")
+# V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
+app.include_router(insumos.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -523,6 +526,33 @@ def dashboard_inventory(request: Request):
     )
 
 
+# ── Insumos + Recetas (BOM) (UI owner) — V8 P0.1 ───────────
+@app.get("/dashboard/inventario", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_inventario(request: Request):
+    """Panel del dueño: inventario de Insumos (materia prima) + Recetas (BOM).
+    Complementa /dashboard/inventory (stock por sucursal) con la vista de
+    "lo que entra" (harina, azúcar, tela, etc) y el cálculo de costo real
+    de cada producto a partir de su receta.
+    """
+    return templates.TemplateResponse(
+        request, "dashboard/admin_inventario.html",
+        {"settings": settings, "body_class": "route-inventario"},
+    )
+
+
+# ── Mi sitio web (constructor con preview) — V8 P0.2 ─────────
+@app.get("/dashboard/mi-sitio-web", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_mi_sitio_web(request: Request):
+    """Constructor de la página pública con form + preview en vivo.
+    Reemplaza al editor anterior (/dashboard/landing) con tabs por sección
+    y un iframe que muestra la landing pública renderizada en tiempo real.
+    """
+    return templates.TemplateResponse(
+        request, "dashboard/admin_mi_sitio_web.html",
+        {"settings": settings, "body_class": "route-mi-sitio-web"},
+    )
+
+
 # ── Costos (UI owner) — Fase 2 V8 ──────────────────────────
 @app.get("/dashboard/costs", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_costs(request: Request):
@@ -546,14 +576,13 @@ def dashboard_notifications(request: Request):
     )
 
 
-# ── Pipeline de Pedidos (UI owner) ─────────────────────────
-@app.get("/dashboard/pipeline", response_class=HTMLResponse, include_in_schema=False)
+# ── Pipeline de Pedidos (UI owner) — DEPRECATED ────────────
+# El Kanban ahora vive en /dashboard/orders. Esta ruta se mantiene como
+# alias 301 para no romper links antiguos.
+@app.get("/dashboard/pipeline", include_in_schema=False)
 def dashboard_pipeline(request: Request):
-    """Panel del dueño: Kanban de pedidos por estado (PENDING → DELIVERED)."""
-    return templates.TemplateResponse(
-        request, "dashboard/pipeline.html",
-        {"settings": settings, "body_class": "route-pipeline"},
-    )
+    """DEPRECATED: redirige al Kanban en /dashboard/orders."""
+    return RedirectResponse(url="/dashboard/orders", status_code=301)
 
 
 # ── Páginas públicas por tenant ──────────────────────────

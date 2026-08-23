@@ -27,3 +27,8 @@ class Customer(BaseModel, TenantMixin):
     tags: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     accepts_marketing: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Segmento manual (opcional). Si es NULL, el sistema calcula uno automático
+    # según puntos y last_order_at. Valores sugeridos: "nuevo", "regular",
+    # "vip", "inactivo", "recurrente". Default "nuevo" cuando recién se crea.
+    segmento: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
