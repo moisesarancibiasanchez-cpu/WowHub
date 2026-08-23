@@ -111,6 +111,51 @@
       window.WH.api.getAsync = window.WH.api.get;
     }
 
+    // ── (c-bis) Override api._parse para que el Error SIEMPRE lleve
+    //     el HTTP status, statusText y URL, incluso cuando el backend
+    //     devuelve un body sin `detail` y un `res.statusText` vacío.
+    //
+    // BUG: app.js:67 hace
+    //   const detail = (data && data.detail) || res.statusText;
+    //   throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    // Si ambos son "", el Error("") se propaga con mensaje vacío
+    // → "Error desconocido" / "(sin mensaje del servidor)" en la UI,
+    //   ocultando la causa real (404, 401, 500, 502 de proxy, etc.).
+    //
+    // FIX: envolver _parse y, si lanza, re-lanzar con un mensaje
+    // enriquecido: "HTTP <status> <statusText> — <orig> (<url>)".
+    // Adjuntamos también status/statusText/url como propiedades del Error
+    // para que la UI las pueda leer.
+    if (typeof window.WH.api._parse === "function") {
+      const originalParse = window.WH.api._parse.bind(window.WH.api);
+      window.WH.api._parse = async function compatParse(res) {
+        try {
+          return await originalParse(res);
+        } catch (e) {
+          const status = res && typeof res.status === "number" ? res.status : "?";
+          const statusText = res && res.statusText ? String(res.statusText) : "";
+          const url = res && res.url ? String(res.url) : "";
+          const origMsg =
+            e && e.message && String(e.message).trim()
+              ? String(e.message)
+              : "(sin mensaje del servidor)";
+          const composed =
+            `HTTP ${status}` +
+            (statusText ? " " + statusText : "") +
+            " — " + origMsg +
+            (url ? " (" + url + ")" : "");
+          const newErr = new Error(composed);
+          newErr.status = status;
+          newErr.statusText = statusText;
+          newErr.url = url;
+          newErr.originalMessage = origMsg;
+          newErr.cause = e;
+          if (e && e.stack) newErr.stack = e.stack;
+          throw newErr;
+        }
+      };
+    }
+
     // ── (d) Override WH.Auth.logout para limpiar cookie de forma estricta ──
     // BUG: el handler original llama a /api/v1/auth/logout que hace
     // `response.delete_cookie(key, path="/)` sin replicar los atributos
