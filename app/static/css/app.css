@@ -206,14 +206,19 @@
   background: var(--bg);
 }
 .dash-content {
-  /* El contenido central debe llenar TODO el espacio disponible
-     entre el sidebar izquierdo y el AI sidebar (que ya recibe
-     su padding-right en <main>). Antes se limitaba a
-     max-width: 1280px y margin: 0 auto, lo que dejaba franjas
-     de 200-400px en blanco en pantallas grandes. */
+  /* Centrar el contenido principal con un ancho máximo razonable.
+     Antes: width:100% + max-width:100% → el contenido se pegaba
+     a la izquierda y, en pantallas grandes, el último elemento
+     (kanban / KPIs / tablas) quedaba con ~360px de espacio
+     muerto a la derecha antes del AI sidebar.
+     Ahora: max-width:1280px + margin:0 auto → en pantallas
+     grandes el contenido se centra y el espacio vacío se
+     distribuye simétrico a izquierda y derecha; en pantallas
+     chicas (≤1280px) ocupa el 100% del main. */
   width: 100%;
-  max-width: 100%;
-  margin: 0;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* Banner de impersonación */
