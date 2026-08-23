@@ -264,6 +264,11 @@
   border-radius: var(--radius);
   padding: 14px 18px;
   min-width: 140px;
+  /* FIX layout: para que la fila de KPIs (que vive en un contenedor
+     flex-wrap: wrap) aproveche todo el ancho disponible en lugar de
+     quedar agrupada a la izquierda. flex: 1 1 140px reparte el ancho,
+     con min-width como base. */
+  flex: 1 1 140px;
   box-shadow: var(--shadow-sm);
 }
 .kpi-card .label {
@@ -315,9 +320,17 @@
   overflow-x: auto;
   padding-bottom: 12px;
   min-height: 60vh;
+  width: 100%;
 }
 .kanban-col {
-  flex: 0 0 280px;
+  /* FIX layout: antes flex: 0 0 280px → columnas de ancho fijo,
+     quedaban 3-4 dentro del viewport y el resto (≈360px) se veía
+     como espacio vacío entre la última columna y el panel IA.
+     Ahora flex: 1 1 0 reparte el ancho disponible entre todas las
+     columnas; min-width: 240px garantiza legibilidad; si la pantalla
+     es muy chica (6×240+60 = 1500px) entra overflow-x: auto del padre. */
+  flex: 1 1 0;
+  min-width: 240px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
