@@ -220,23 +220,19 @@
   .preview-card .tier-badge.vip   { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
   .preview-card .tier-badge.black { background: linear-gradient(135deg, #0a0a0a, #262626); border-color: #ffd700; color: #ffd700; }
 
-  /* Stamps grid (5x2) — ancho fijo para mantenerlos pequeños y no romper la proporción credit-card */
+  /* Stamps grid (5x2) — ancho fijo para mantenerlos pequeños y no romper la proporción credit-card.
+     NO usamos grid-template-rows a propósito: si forzamos filas a 1fr, las celdas se hacen
+     más altas que anchas y el aspect-ratio: 1 del slot no se puede mantener → óvalos. */
   .preview-card .stamps-grid {
     width: 100%; max-width: 240px; margin: 4px auto 2px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     gap: 4px 4px;
-    flex: 1 1 auto;
-    min-height: 0;
-    align-content: center;
-    justify-content: center;
   }
   .preview-card .stamp-slot {
     aspect-ratio: 1; border-radius: 50%; position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; max-width: 100%; max-height: 100%;
-    place-self: center;
+    width: 100%;
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     cursor: pointer;
   }
