@@ -60,6 +60,11 @@ storage/
 *.db
 local_data/
 
+# Temp / validation scripts (not part of the codebase)
+tmp_validation/
+tmp/
+.cache/
+
 # Node / frontend
 node_modules/
 .pnpm-store/

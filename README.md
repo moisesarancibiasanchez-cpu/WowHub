@@ -1,6 +1,6 @@
 # WowHub — Prototipo Python
 
-Plataforma SaaS modular para PyMEs en LATAM. **v0.3.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks, **Cotizaciones**, **Pipeline Kanban**, **Inventario**.
+Plataforma SaaS modular para PyMEs en LATAM. **v0.4.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks, **Cotizaciones**, **Pipeline Kanban**, **Inventario**, **Costos V8 (Fase 2)**, **Notificaciones (Fase 4)**.
 
 Construido con **FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Jinja2 + JS vanilla**.
 
@@ -296,6 +296,118 @@ python scripts/fix_upload_urls.py --dry-run
 python scripts/fix_upload_urls.py
 ```
 
+## 💰 Costos V8 (Fase 2) — pricing con margen objetivo
+
+Módulo de estructura de costos fijos mensuales por tenant. Es la **fuente de verdad** para `costo_hora` y, en consecuencia, para el costo real de los productos y las sugerencias de precio.
+
+**Fórmulas:**
+
+```
+total_fijo_mensual  = Σ campos monetarios (no NA)
+costo_hora          = total_fijo_mensual / horas_productivas
+costo_real          = costo_insumos + (tiempo_min / 60) * costo_hora
+precio_sugerido     = costo_real / (1 - margen_objetivo/100)
+margen              = (precio - costo_real) / precio * 100
+```
+
+**14 campos en 4 secciones:**
+
+| Sección | Campos |
+|---------|--------|
+| **Personal** | `owner_salary_cents`, `workers_salary_cents` |
+| **Operación** | `productive_hours_per_month`, `target_margin_pct` |
+| **Básicos** | `rent_cents`, `electricity_cents`, `water_cents`, `gas_cents` |
+| **Otros** | `software_cents`, `advertising_cents`, `payment_commission_cents`, `packaging_cents`, `maintenance_cents`, `depreciation_cents`, `waste_pct` |
+
+**Endpoints:**
+
+```http
+GET   /api/v1/tenants/{tid}/costs                      # breakdown actual
+PUT   /api/v1/tenants/{tid}/costs                      # actualizar (recalcula cost_hour)
+POST  /api/v1/tenants/{tid}/costs/pricing-suggestion   # preview de precio
+```
+
+**Health checks por producto** (derivados de Costos V8):
+
+| Health | Significado |
+|--------|-------------|
+| `healthy` | margen >= target |
+| `warning` | margen >= 50% del target |
+| `danger` | margen < 50% del target |
+| `unknown` | sin Costos configurados |
+
+**Producto expone** (`ProductListItem`): `pricing_health`, `current_margin_pct`, `suggested_price_cents`, `cost_real_cents`, `cost_hour_used_cents`. La celda "Salud" de la tabla de productos muestra uno de: `Saludable`, `Margen bajo`, `Subir precio`, `Margen crítico`, `—`.
+
+**Pantalla:** `/dashboard/costs` (template `costs.html`, 3 secciones colapsables + botón "No aplica" por campo).
+
+**Versionado:** `BusinessCosts.version == 1` indica defaults (nunca editado). Las reglas de notifications disparan la alerta N7 hasta que el owner edite la primera vez.
+
+## 🔔 Notificaciones (Fase 4) — event-based generator
+
+Motor de notificaciones accionables que el dashboard consumirá en Fase 6 (bell badge + dropdown + página filtrable). Hoy **el backend está 100% listo**: la UI solo debe consumir el endpoint y renderizar.
+
+**Diferencia clave con `OpportunityEngine`:**
+
+| | `OpportunityEngine` | `NotificationsEngine` |
+|---|---|---|
+| Concepto | Ideas / tendencias | Hechos / alertas |
+| Severidades | `atencion`, `oport`, `inact` | `info`, `warning`, `critical` |
+| Orden | por `score` (0-100) | por severidad (critical primero) |
+| Cantidad | muchas (top-N) | pocas y curadas |
+| Acción | recomendación | botón directo |
+
+**Reglas MVP:**
+
+| ID | Categoría | Severidad | Detecta |
+|----|-----------|-----------|---------|
+| N1 | pricing | critical | Margen crítico (health="danger") |
+| N2 | pricing | warning | Margen bajo (health="warning") |
+| N3 | pricing | warning | Precio actual < sugerido en ≥ 10% |
+| N4 | inventory | critical | Sin stock (stock=0, track_inventory) |
+| N5 | inventory | warning | Stock bajo (stock ≤ threshold) |
+| N6 | orders | warning | Pedido PENDING > 24h |
+| N7 | costs | info | Costos sin configurar (BusinessCosts.version=1) |
+| N8 | costs | warning | Costo_hora > 15.000 CLP/h |
+| N9 | system | info | Bienvenida (tenant < 24h) |
+
+**Uso backend (Fase 6):**
+
+```python
+from app.services.notifications import NotificationsEngine
+
+engine = NotificationsEngine(db, tenant_id)
+summary = engine.summary()              # → para el badge del header
+items = engine.detect_all(limit=20)     # → para el dropdown
+```
+
+**Output JSON (cada notificación):**
+
+```json
+{
+  "id": "notif_a3f8b2c1d4e5f678",
+  "severity": "critical",
+  "category": "pricing",
+  "title": "'Café Latte' tiene margen crítico",
+  "body": "Estás ganando 12.0% (objetivo: 30%). ...",
+  "action_label": "Subir precio",
+  "action_url": "/dashboard/products/{id}#pricing",
+  "entity_type": "product",
+  "entity_id": "<uuid>",
+  "detected_at": "2026-08-23T12:34:56+00:00",
+  "metric": {"current_margin_pct": 12.0, "suggested_price_cents": 5500, ...}
+}
+```
+
+**IDs estables:** SHA1 de `(regla, entity_id)`, prefijado `notif_`. Permite caching en el front y evita parpadeos al recargar.
+
+**Thresholds configurables** (single source of truth en `THRESHOLDS`):
+- `low_stock_default`: 5
+- `high_cost_hour_cents`: 15.000 (CLP/h)
+- `pending_order_hours`: 24
+- `pricing_gap_pct`: 10
+
+**Tests:** `tests/test_notifications.py` (27 tests cubriendo constantes, reglas individuales, orden por severidad, aislamiento entre tenants, JSON-serialización).
+
 ## 🧪 Tests
 
 ```bash
@@ -307,7 +419,7 @@ pytest tests/e2e/test_loyalty_flow.py         # Playwright E2E (requiere server 
 pytest --cov=app                              # con cobertura
 ```
 
-Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoints públicos, loyalty, AI (circuit breaker, orquestador con fallback, strip de `<think>…</think>`), y un flujo E2E con Playwright.
+Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoints públicos, loyalty, AI (circuit breaker, orquestador con fallback, strip de `<think>…</think>`), **Costos V8 (pricing suggestion, health)**, **Notifications (9 reglas, summary, by_category/severity, aislamiento entre tenants)**, deprecation regressions y un flujo E2E con Playwright.
 
 ## 🔐 Seguridad
 
@@ -324,9 +436,38 @@ Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoint
   - Storage aislado por `tenant_id` en disco (un tenant nunca lee otro).
   - Las URLs se sirven vía `StaticFiles` con `check_dir=False` (no listable).
 
-## 🧭 Próximos pasos (post-MVP)
+## 🧭 Roadmap
 
-- [x] Migrar a Alembic (ya hay carpeta `alembic/`)
+### ✅ v0.2.0 — MVP completo
+- [x] 27 routers API, 25 modelos ORM, 23 servicios, dashboard + landing pública
+- [x] Auth JWT + bcrypt + blacklist, multi-tenant, rate limit, audit, CORS
+- [x] AI Assistant con circuit breaker + fallback determinístico
+- [x] Uploads JPG/PNG ≤ 3MB con `PIL.Image.verify()` anti-fake
+- [x] Loyalty Pass con QR rotativo + anti-fraude (`device_fp` + `cashier_pin`)
+- [x] 611 tests + 13 tests de regresión de deprecations (0 warnings del proyecto)
+
+### ✅ v0.3.0 — Costos V8 + refactors
+- [x] **Fase 2 V8 — Costos**: 14 campos, `costo_hora`, `costo_real`, `precio_sugerido`, health (healthy/warning/danger/unknown)
+- [x] **Fase 3 — Opportunities**: `OpportunityEngine` con 6 reglas (R1-R6)
+- [x] Modal refactor (JS, `WH.Modal` + `WH.Confirm`)
+- [x] Análisis integral + bug fixes de deprecations (Pydantic v2, Starlette ≥0.40, Python 3.12, pytest 8)
+
+### ✅ v0.4.0 — Notifications (Fase 4) **← estamos acá**
+- [x] **`NotificationsEngine`** (`app/services/notifications.py`) con 9 reglas (N1-N9)
+- [x] `THRESHOLDS` configurables (single source of truth)
+- [x] IDs estables (SHA1) para caching en front
+- [x] 27 tests (`tests/test_notifications.py`)
+- [x] Diccionario V8 (`docs/V8_DICTIONARY.md`) — mapa completo pantalla × entidad × endpoint × seed
+
+### 🔜 v0.5.0 — Fase 6 UI (próximo)
+- [ ] Bell badge en `base.html` (consume `NotificationsEngine.summary()`)
+- [ ] Dropdown de notificaciones en el header (consume `detect_all(limit=20)`)
+- [ ] Página `/dashboard/notifications` con filtros por categoría/severidad
+- [ ] Marcar como leída / dismiss (nuevo modelo `NotificationDismiss` opcional)
+- [ ] Web Push API para notificaciones críticas (browser-level)
+
+### 🔜 v0.6.0 — Post-MVP
+- [x] Migrar a Alembic (carpeta `alembic/` ya existe)
 - [ ] PostgreSQL + Row-Level Security policies
 - [ ] 2FA TOTP para owners
 - [ ] Storage S3/R2 para imágenes (placeholder ya en `UploadService`)
@@ -335,12 +476,19 @@ Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoint
 - [ ] Cola de eventos (Celery + Redis) para webhooks y emails transaccionales
 - [ ] Más integraciones (WhatsApp Business, MercadoPago producción)
 - [ ] i18n UI (ya soporta `country`, `locale`, `currency` por tenant en data)
+- [ ] Growth Coach agent con notificaciones (Fase 7)
 
 ## 📚 Documentación
 
 La documentación para clientes, equipo y reportes de avance vive en la carpeta
 [`docs/`](docs/). Encontrarás:
 
+- 🗂️ **[Diccionario V8](docs/V8_DICTIONARY.md)** — pantalla × entidad × endpoint × seed.
+  Mapa de toda la app: para cada URL del dashboard, qué template, qué entidad ORM, qué
+  endpoint API, qué regla de `NotificationsEngine` la alimenta, y qué dato de seed la puebla.
+  **Es el documento de referencia entre fases** (Fase 4 → 5 → 6 → …).
+- 📄 **[Análisis Integral](docs/ANALYSIS.md)** — auditoría estática + funcional del repo
+  (puntos fuertes, débiles, bugs corregidos, roadmap v0.2.1/v0.3.0/v0.4.0).
 - 📄 **[Informe de Integración del Asistente Virtual](docs/INFORME_INTEGRACION_IA.md)** —
   qué se entregó en la fase IA ↔ módulos de negocio, beneficios y roadmap.
 - 📄 **[Informe del Sistema de Fidelización (Loyalty Pass)](docs/INFORME_FIDELIZACION.md)** —
