@@ -206,17 +206,17 @@
   background: var(--bg);
 }
 .dash-content {
-  /* Centrar el contenido principal con un ancho máximo razonable.
-     Antes: width:100% + max-width:100% → el contenido se pegaba
-     a la izquierda y, en pantallas grandes, el último elemento
-     (kanban / KPIs / tablas) quedaba con ~360px de espacio
-     muerto a la derecha antes del AI sidebar.
-     Ahora: max-width:1280px + margin:0 auto → en pantallas
-     grandes el contenido se centra y el espacio vacío se
-     distribuye simétrico a izquierda y derecha; en pantallas
-     chicas (≤1280px) ocupa el 100% del main. */
+  /* Centrar el contenido principal con un ancho máximo que
+     haga VISIBLE la distribución simétrica del espacio.
+     Historia:
+     - v1: max-width:1280px (casi igual al espacio disponible
+       en 1920px → solo ~6px por lado, invisible).
+     - v2: max-width:960px → en 1920px quedan ~166px a cada
+       lado, distribuyendo los ~360px de espacio vacío del
+       AI sidebar simétricamente a izquierda y derecha.
+     En pantallas chicas (≤960px) ocupa el 100% del main. */
   width: 100%;
-  max-width: 1280px;
+  max-width: 960px;
   margin: 0 auto;
   box-sizing: border-box;
 }
