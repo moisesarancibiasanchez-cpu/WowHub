@@ -282,6 +282,18 @@ def dashboard_ai(request: Request):
     return templates.TemplateResponse(request, "dashboard/ai.html", {"settings": settings})
 
 
+@app.get("/dashboard/marketing", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_marketing_studio(request: Request):
+    """Marketing Studio (Fase 7): UI dedicada para generar copy de marketing
+    contextual al tenant. Usa POST /api/v1/ai/marketing/generate y muestra
+    las variantes generadas con copy-to-clipboard.
+    """
+    return templates.TemplateResponse(
+        request, "dashboard/admin_marketing.html",
+        {"settings": settings, "body_class": "route-marketing"},
+    )
+
+
 @app.get("/admin/ai", response_class=HTMLResponse, include_in_schema=False)
 def admin_ai_page(request: Request):
     """Dashboard admin del AI Core: logs, métricas, trazas, circuit.
@@ -427,7 +439,8 @@ def dashboard_bookings(request: Request):
     )
 
 
-@app.get("/u/{slug}/reservar", response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/u/{slug}/reservar", methods=["GET", "HEAD"],
+               response_class=HTMLResponse, include_in_schema=False)
 def public_booking_page(slug: str, request: Request):
     """Landing público: el cliente elige horario y reserva sin login."""
     from app.models.tenant import Tenant
@@ -549,13 +562,16 @@ def public_loyalty_page(slug: str, request: Request):
     from app.services.loyalty_pass_service import get_active_campaign_by_slug
     with SessionLocal() as db:
         campaign = get_active_campaign_by_slug(db, slug)
-    if not campaign:
-        return templates.TemplateResponse(
-            request, "public/404.html",
-            {"settings": settings, "slug": slug, "detail": "Sin campaña activa"},
-            status_code=404,
-        )
-    tenant_name = campaign.tenant.name if campaign.tenant else slug
+        if not campaign:
+            return templates.TemplateResponse(
+                request, "public/404.html",
+                {"settings": settings, "slug": slug, "detail": "Sin campaña activa"},
+                status_code=404,
+            )
+        # Resolver tenant por tenant_id (no hay relationship en el modelo)
+        from app.models.tenant import Tenant
+        tenant = db.get(Tenant, campaign.tenant_id)
+        tenant_name = (tenant.display_name or tenant.legal_name or tenant.slug) if tenant else slug
     return templates.TemplateResponse(
         request, "public/loyalty.html",
         {
@@ -572,6 +588,17 @@ def public_loyalty_page(slug: str, request: Request):
             },
         },
     )
+
+
+# ── Alias canónico: /u/{slug}/tarjeta → /loyalty/{slug} ─────
+# Para consistencia con el resto de URLs públicas (/u/{slug},
+# /u/{slug}/catalogo, /u/{slug}/reservar), /u/{slug}/tarjeta es
+# la ruta preferida. /loyalty/{slug} se mantiene por retro-compat.
+# Soporta GET (navegador) y HEAD (probe de capability en landing).
+@app.api_route("/u/{slug}/tarjeta", methods=["GET", "HEAD"],
+               response_class=HTMLResponse, include_in_schema=False)
+def public_loyalty_alias(slug: str, request: Request):
+    return public_loyalty_page(slug, request)
 
 
 # ── Páginas legales (términos, privacidad, cookies) ─────

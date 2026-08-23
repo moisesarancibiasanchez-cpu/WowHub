@@ -75,6 +75,29 @@
     <h1 style="margin-bottom: 8px;">{{ tenant_name or slug }}</h1>
     <p class="text-muted" style="margin-bottom: 24px;">Únete al programa de fidelización y gana <strong>{{ campaign.reward_label }}</strong> cada <strong>{{ campaign.stamps_required }}</strong> visitas.</p>
     <button class="btn btn-primary" id="join-btn" style="font-size: 16px; padding: 14px 28px;">Quiero mi tarjeta</button>
+    <p class="text-muted" style="margin-top: 20px; font-size: 13px;">
+      ¿Ya tienes una? <a href="#" id="recover-link" style="color: var(--brand);">Recuperar mi tarjeta</a>
+    </p>
+  </div>
+
+  <!-- Stage 1b: recuperar pase existente (Fase 8) -->
+  <div id="stage-recover" class="register-form" style="display: none;">
+    <h2 style="margin-bottom: 4px;">Recuperar mi tarjeta</h2>
+    <p class="text-muted" style="margin-bottom: 16px;">Ingresa el email o teléfono con el que te registraste.</p>
+    <form id="recover-form">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" id="rec_email" maxlength="160">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teléfono</label>
+        <input class="form-input" type="tel" id="rec_phone" maxlength="40">
+      </div>
+      <button class="btn btn-primary" type="submit" style="width: 100%; font-size: 16px; padding: 14px;">Buscar mi tarjeta</button>
+      <p class="text-center" style="margin-top: 12px;">
+        <a href="#" id="recover-back-link" style="color: var(--muted); font-size: 13px;">← Volver</a>
+      </p>
+    </form>
   </div>
 
   <div id="stage-form" class="register-form" style="display: none;">
@@ -143,6 +166,49 @@
   $("join-btn").addEventListener("click", () => {
     $("stage-cta").style.display = "none";
     $("stage-form").style.display = "block";
+  });
+
+  // ── Recuperar pase existente (Fase 8) ───────────────────
+  $("recover-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    $("stage-cta").style.display = "none";
+    $("stage-recover").style.display = "block";
+  });
+  $("recover-back-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    $("stage-recover").style.display = "none";
+    $("stage-cta").style.display = "block";
+  });
+  $("recover-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = {
+      email: $("rec_email").value.trim() || null,
+      phone: $("rec_phone").value.trim() || null,
+    };
+    if (!body.email && !body.phone) {
+      toast("Ingresa al menos email o teléfono", true);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/v1/loyalty/c/${SLUG}/lookup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (r.status === 404) {
+        toast("No encontramos una tarjeta con esos datos. Prueba con otro o crea una nueva.", true);
+        return;
+      }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `Error ${r.status}`);
+      }
+      const data = await r.json();
+      toast("¡Tarjeta recuperada!");
+      renderCard(data);
+    } catch (err) {
+      toast(err.message, true);
+    }
   });
 
   $("register-form").addEventListener("submit", async (e) => {

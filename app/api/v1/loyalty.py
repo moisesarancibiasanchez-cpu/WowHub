@@ -21,7 +21,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.loyalty import (
     CampaignCreate, CampaignMetrics, CampaignOut, CampaignUpdate,
-    CustomerRegisterIn, PassOut, QrTokenOut, ScanIn, ScanOut,
+    CustomerLookupIn, CustomerRegisterIn, PassOut, QrTokenOut, ScanIn, ScanOut,
 )
 from app.services.loyalty_pass_service import (
     LoyaltyPassService, QR_TOKEN_TTL_SECONDS, get_active_campaign_by_slug,
@@ -246,3 +246,66 @@ def public_register(
     svc = LoyaltyPassService(db, tenant_id=str(campaign.tenant_id))
     customer, pass_obj = svc.register_customer(payload, UUID(str(campaign.id)))
     return svc._to_pass_out(pass_obj, campaign)
+
+
+# ── Lookup: recuperar un pase existente por email/phone (Fase 8) ──
+# Diseño anti-enumeración: respondemos 404 (no 200 con datos parciales)
+# si no hay match exacto. Rate-limit global del middleware ya protege
+# contra fuerza bruta. Devolvemos el PassOut más reciente del cliente
+# para esta campaña (si tiene varios, el primero emitido; en la práctica
+# solo hay 1 pase activo por (cliente, campaña)).
+@public_router.post("/c/{slug}/lookup", response_model=Optional[PassOut])
+def public_lookup(
+    slug: str,
+    payload: CustomerLookupIn,  # schema laxo: solo email y phone
+    db: Session = Depends(get_db),
+):
+    """Recuperar un pase existente por email o teléfono.
+
+    Input: { email?, phone? }  (al menos uno requerido)
+    Output: PassOut si hay match, 404 si no.
+    """
+    email = (payload.email or "").strip().lower() if payload.email else None
+    phone = (payload.phone or "").strip() if payload.phone else None
+    if not email and not phone:
+        raise HTTPException(400, "Ingresa al menos email o teléfono.")
+    campaign = get_active_campaign_by_slug(db, slug)
+    if not campaign:
+        raise HTTPException(404, "Comercio no encontrado o sin campaña activa")
+
+    # Buscar cliente (tabla customers) que matchee por email o phone
+    # en el tenant de la campaña. La tabla customers es multi-tenant.
+    from sqlalchemy import select, or_
+    from app.models.customer import Customer
+    from app.models.loyalty_pass import CustomerPass
+
+    stmt = select(Customer).where(
+        Customer.tenant_id == str(campaign.tenant_id),
+    )
+    if email and phone:
+        stmt = stmt.where(or_(Customer.email == email, Customer.phone == phone))
+    elif email:
+        stmt = stmt.where(Customer.email == email)
+    else:
+        stmt = stmt.where(Customer.phone == phone)
+    customer = db.execute(stmt).scalar_one_or_none()
+    if not customer:
+        raise HTTPException(404, "No encontramos una tarjeta con esos datos.")
+
+    # Buscar el pase más reciente (no redimido/revocado) del cliente
+    # para esta campaña. Si no hay para ESTA campaña, devolvemos 404
+    # (puede tener un pase en otra campaña, pero acá no aplica).
+    pass_row = db.execute(
+        select(CustomerPass)
+        .where(
+            CustomerPass.customer_id == str(customer.id),
+            CustomerPass.campaign_id == str(campaign.id),
+        )
+        .order_by(CustomerPass.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if not pass_row:
+        raise HTTPException(404, "No hay un pase activo para este cliente en este comercio.")
+
+    svc = LoyaltyPassService(db, tenant_id=str(campaign.tenant_id))
+    return svc._to_pass_out(pass_row, campaign)

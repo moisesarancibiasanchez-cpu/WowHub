@@ -32,6 +32,8 @@
     </div>
     <span class="spacer" style="flex:1;"></span>
     <a class="btn btn-sm" href="/u/{{ slug }}/catalogo">Ver catálogo</a>
+    <a class="btn btn-sm" href="/u/{{ slug }}/reservar" id="nav-bookings" style="display:none;">Reservar</a>
+    <a class="btn btn-sm" href="/u/{{ slug }}/tarjeta" id="nav-loyalty" style="display:none;">★ Mi tarjeta</a>
   </div>
 </header>
 
@@ -93,6 +95,17 @@ const slug = {{ slug | tojson }};
       fetch(`/api/v1/public/t/${slug}/categories`).then(r => r.ok ? r.json() : []),
       fetch(`/api/v1/public/t/${slug}/branches`).then(r => r.ok ? r.json() : []),
     ]);
+
+    // Detectar si el tenant tiene bookings y loyalty activos (Fase 8)
+    // Si el endpoint responde OK → tiene la feature → mostrar el link.
+    // Si responde 404/403/500 → no la tiene → mantener oculto.
+    Promise.all([
+      fetch(`/u/${slug}/reservar`, { method: "HEAD" }).then(r => r.ok).catch(() => false),
+      fetch(`/u/${slug}/tarjeta`, { method: "HEAD" }).then(r => r.ok).catch(() => false),
+    ]).then(([hasBookings, hasLoyalty]) => {
+      if (hasBookings) document.getElementById("nav-bookings").style.display = "";
+      if (hasLoyalty) document.getElementById("nav-loyalty").style.display = "";
+    });
 
     document.title = `${profile.display_name} — WowHub`;
     document.getElementById("brand-name").textContent = profile.display_name;

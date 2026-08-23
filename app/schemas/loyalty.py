@@ -170,6 +170,18 @@ class CustomerRegisterIn(BaseModel):
         return v
 
 
+# ── Customer lookup (Fase 8) ──────────────────────────────
+class CustomerLookupIn(BaseModel):
+    """Recuperación de pase existente por email o teléfono (Fase 8).
+
+    A diferencia de CustomerRegisterIn, NO requiere full_name ni
+    accepts_terms: el cliente ya existe. Solo necesitamos uno de los
+    dos campos de contacto.
+    """
+    email: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=40)
+
+
 # ── Scan (POS) ─────────────────────────────────────────────
 class ScanIn(BaseModel):
     """Lo que manda el escáner al backend.

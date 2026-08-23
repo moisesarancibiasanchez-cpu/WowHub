@@ -1,0 +1,408 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Marketing Studio (IA){% endblock %}
+{% block dash_content %}
+
+<div class="row-between">
+  <div>
+    <h1>Marketing Studio <span class="badge badge-ai">IA</span></h1>
+    <p class="sub">Genera copy de marketing contextual a tu negocio. Elige el canal, el tono y la audiencia. Obtén hasta 5 variantes para comparar y usar.</p>
+  </div>
+  <div>
+    <span id="ai-status-chip" class="badge text-muted" title="Estado del LLM">cargando…</span>
+  </div>
+</div>
+
+<!-- Formulario -->
+<div class="card mt-3">
+  <form id="marketing-form" autocomplete="off">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="m_intent">Canal / formato *</label>
+        <select class="form-input" id="m_intent" required>
+          <option value="instagram_post">Instagram · Post</option>
+          <option value="instagram_story">Instagram · Story</option>
+          <option value="instagram_reel">Instagram · Reel (guion)</option>
+          <option value="facebook_post">Facebook · Post</option>
+          <option value="whatsapp_broadcast">WhatsApp · Difusión</option>
+          <option value="whatsapp_status">WhatsApp · Estado</option>
+          <option value="email_subject">Email · Asunto</option>
+          <option value="email_body">Email · Cuerpo</option>
+          <option value="sms">SMS (≤160 chars)</option>
+          <option value="product_description">Catálogo · Descripción producto</option>
+          <option value="promotion_headline">Promoción · Titular</option>
+          <option value="promotion_body">Promoción · Cuerpo</option>
+          <option value="general" selected>General · Texto libre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="m_tone">Tono</label>
+        <select class="form-input" id="m_tone">
+          <option value="friendly" selected>Cercano / cálido</option>
+          <option value="professional">Profesional</option>
+          <option value="urgent">Con urgencia</option>
+          <option value="playful">Divertido</option>
+          <option value="luxury">Premium / exclusivo</option>
+          <option value="casual">Relajado / coloquial</option>
+          <option value="inspirational">Inspiracional</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="m_audience">Audiencia</label>
+        <select class="form-input" id="m_audience">
+          <option value="all" selected>Todos los clientes</option>
+          <option value="existing">Clientes actuales</option>
+          <option value="prospects">Potenciales</option>
+          <option value="vip">VIP</option>
+          <option value="inactive">Inactivos (winback)</option>
+          <option value="new">Clientes nuevos</option>
+          <option value="local">Local / del barrio</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="m_topic">Tema o idea central *</label>
+      <input class="form-input" id="m_topic" required minlength="3" maxlength="400"
+             placeholder="ej. Promoción 2x1 en café los viernes, hasta agotar stock">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="m_keywords">Palabras clave (separadas por coma)</label>
+        <input class="form-input" id="m_keywords" maxlength="200"
+               placeholder="ej. café, mañana, viernes, 2x1">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="m_language">Idioma</label>
+        <select class="form-input" id="m_language">
+          <option value="es" selected>Español</option>
+          <option value="en">Inglés</option>
+          <option value="pt">Portugués</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="m_variants">Nº de variantes</label>
+        <select class="form-input" id="m_variants">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+    </div>
+
+    <details class="form-extra">
+      <summary>Contexto del negocio (opcional)</summary>
+      <div class="form-row mt-2">
+        <div class="form-group">
+          <label class="form-label" for="m_business_name">Nombre del negocio</label>
+          <input class="form-input" id="m_business_name" maxlength="120">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="m_business_type">Tipo de negocio</label>
+          <input class="form-input" id="m_business_type" maxlength="120"
+                 placeholder="ej. cafetería, peluquería, tienda de ropa">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="m_city">Ciudad / barrio</label>
+          <input class="form-input" id="m_city" maxlength="80" placeholder="ej. Providencia, Santiago">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="m_price">Precio</label>
+          <input class="form-input" id="m_price" maxlength="60" placeholder="ej. $15.000 o 2x $20.000">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="m_cta">Call to action</label>
+          <input class="form-input" id="m_cta" maxlength="80" placeholder="ej. Reservá ahora">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="m_promo">Detalles de la promoción</label>
+        <input class="form-input" id="m_promo" maxlength="300"
+               placeholder="ej. 20% off, válido hasta el 30/11">
+      </div>
+    </details>
+
+    <div class="form-row">
+      <div class="form-group" style="display: flex; align-items: end; gap: 16px;">
+        <label class="form-check">
+          <input type="checkbox" id="m_emojis" checked> Emojis
+        </label>
+        <label class="form-check">
+          <input type="checkbox" id="m_hashtags"> Hashtags
+        </label>
+        <label class="form-check">
+          <input type="checkbox" id="m_short" checked> Limitar largo (canal)
+        </label>
+      </div>
+    </div>
+
+    <div id="form-error" class="text-danger hidden"></div>
+    <div class="row-between mt-2">
+      <button class="btn btn-ghost" type="button" id="m_reset_btn">Limpiar</button>
+      <button class="btn btn-primary" type="submit" id="m_generate_btn">✨ Generar copy</button>
+    </div>
+  </form>
+</div>
+
+<!-- Resultado -->
+<div id="m_result" class="mt-3" hidden>
+  <div class="row-between">
+    <h3 style="margin: 0;">Variantes generadas</h3>
+    <div>
+      <span class="badge text-muted" id="m_meta" title="Metadata de la generación">—</span>
+    </div>
+  </div>
+  <div id="m_fallback_warn" class="alert alert-warn mt-2" hidden>
+    <strong>Modo fallback activo.</strong> El LLM no está disponible en este momento, así que el copy es una plantilla. Sigue siendo usable, pero menos personalizado.
+  </div>
+  <div id="m_variants_grid" class="grid grid-2 mt-2"></div>
+</div>
+
+<style>
+  .badge-ai { background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+  .variant-card { background: var(--bg-2, #131a2e); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; }
+  .variant-card .v-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  .variant-card .v-num { font-weight: 700; color: #8b5cf6; font-size: 14px; }
+  .variant-card .v-len { font-size: 11px; color: var(--muted, #888); }
+  .variant-card .v-body { white-space: pre-wrap; font-size: 14px; line-height: 1.5; flex: 1; padding: 8px 0; word-break: break-word; }
+  .variant-card .v-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+  .variant-card .v-tag { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+  .variant-card .v-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .variant-card .v-actions .btn { font-size: 12px; padding: 5px 10px; }
+  .alert-warn { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+  .form-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted, #888); }
+  details.form-extra { background: var(--bg, #0b1220); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px; margin-top: 12px; }
+  details.form-extra summary { cursor: pointer; color: var(--muted, #888); font-size: 13px; padding: 4px 0; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .mt-2 { margin-top: 12px; } .mt-3 { margin-top: 16px; }
+  .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 12px; color: var(--muted, #888); }
+  .form-input { background: var(--bg, #0b1220); border: 1px solid rgba(255,255,255,0.12); color: inherit; padding: 8px 10px; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  .form-input:focus { outline: none; border-color: #8b5cf6; }
+  .card { background: var(--bg-2, #131a2e); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; }
+  .btn { display: inline-block; padding: 8px 14px; border-radius: 6px; border: 1px solid transparent; background: var(--bg-2, #1a1a2e); color: inherit; cursor: pointer; font-size: 13px; font-family: inherit; }
+  .btn-primary { background: #1A73E8; color: #fff; }
+  .btn-ghost { background: transparent; border-color: rgba(255,255,255,0.12); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .text-muted { color: var(--muted, #888); }
+  .text-danger { color: #ef4444; font-size: 13px; }
+  .hidden { display: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  .sub { color: var(--muted, #888); margin: 0; font-size: 14px; }
+</style>
+
+<script>
+(function(){
+  WH.Auth.requireLogin();
+
+  // ── Helpers ────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  function escapeHtml(s){
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  function escapeAttr(s){ return escapeHtml(s); }
+  function showError(msg){
+    const el = $("form-error");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function clearError(){
+    const el = $("form-error");
+    el.textContent = "";
+    el.classList.add("hidden");
+  }
+
+  // ── Estado del LLM (chip arriba) ───────────────────────
+  async function paintStatus(){
+    try {
+      const s = await WH.api.get("/api/v1/ai/status");
+      const chip = $("ai-status-chip");
+      if (!s.llm_enabled) {
+        chip.textContent = "LLM deshabilitado";
+        chip.style.color = "#9ca3af";
+      } else if (s.circuit_state && s.circuit_state.state === "open") {
+        chip.textContent = "LLM en circuit-open";
+        chip.style.color = "#f59e0b";
+      } else if (s.llm_enabled) {
+        chip.textContent = "LLM activo · " + (s.model || "—");
+        chip.style.color = "#10b981";
+      } else {
+        chip.textContent = "—";
+      }
+    } catch(e) { /* noop */ }
+  }
+
+  // ── Submit ─────────────────────────────────────────────
+  async function onSubmit(e){
+    e.preventDefault();
+    clearError();
+    const topic = $("m_topic").value.trim();
+    if (topic.length < 3) { showError("El tema debe tener al menos 3 caracteres."); return; }
+    const keywordsRaw = $("m_keywords").value.trim();
+    const keywords = keywordsRaw
+      ? keywordsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 12)
+      : null;
+
+    const payload = {
+      intent:    $("m_intent").value,
+      topic:     topic,
+      tone:      $("m_tone").value,
+      audience:  $("m_audience").value,
+      language:  $("m_language").value,
+      variants:  parseInt($("m_variants").value, 10),
+      include_emojis:   $("m_emojis").checked,
+      include_hashtags: $("m_hashtags").checked,
+      hashtag_count:    $("m_hashtags").checked ? 5 : 0,
+      keywords: keywords,
+      context: {
+        business_name: $("m_business_name").value.trim() || null,
+        business_type: $("m_business_type").value.trim() || null,
+        city:          $("m_city").value.trim() || null,
+        price:         $("m_price").value.trim() || null,
+        cta:           $("m_cta").value.trim() || null,
+        promotion_details: $("m_promo").value.trim() || null,
+      },
+    };
+    // Si "limitar largo" no está marcado, no mandamos max_length (la IA decide)
+    if (!$("m_short").checked) delete payload.max_length;
+
+    const btn = $("m_generate_btn");
+    btn.disabled = true; btn.textContent = "Generando…";
+    $("m_result").hidden = true;
+    try {
+      const r = await WH.api.post("/api/v1/ai/marketing/generate", payload);
+      renderResult(r);
+    } catch(e) {
+      showError(e.message || "Error al generar copy.");
+    } finally {
+      btn.disabled = false; btn.textContent = "✨ Generar copy";
+    }
+  }
+
+  // ── Render de variantes ───────────────────────────────
+  function renderResult(r){
+    $("m_result").hidden = false;
+    // Metadata
+    const meta = [];
+    if (r.model) meta.push(r.model);
+    if (typeof r.tokens_in === "number") meta.push(`in ${r.tokens_in}`);
+    if (typeof r.tokens_out === "number") meta.push(`out ${r.tokens_out}`);
+    if (r.latency_ms) meta.push(`${r.latency_ms}ms`);
+    $("m_meta").textContent = meta.join(" · ") || "—";
+    // Fallback
+    $("m_fallback_warn").hidden = !r.fallback;
+    // Variantes
+    const grid = $("m_variants_grid");
+    const variants = r.variants || [];
+    if (!variants.length) {
+      grid.innerHTML = '<div class="card text-muted">No se generaron variantes. Intenta reformular el tema.</div>';
+      return;
+    }
+    grid.innerHTML = variants.map(v => {
+      const tags = (v.hashtags || []).map(t => `<span class="v-tag">${escapeHtml(t)}</span>`).join("");
+      return `
+        <div class="variant-card" data-idx="${v.index}">
+          <div class="v-head">
+            <span class="v-num">Variante ${v.index}${v.index === (r.primary && r.primary.index) ? " · recomendada" : ""}</span>
+            <span class="v-len">${v.character_count || 0} chars</span>
+          </div>
+          <div class="v-body">${escapeHtml(v.content)}</div>
+          ${tags ? `<div class="v-tags">${tags}</div>` : ""}
+          <div class="v-actions">
+            <button class="btn btn-ghost" data-act="copy">📋 Copiar</button>
+            <button class="btn btn-ghost" data-act="copy_tags">🏷️ Copiar hashtags</button>
+            <button class="btn btn-ghost" data-act="copy_all">📄 Copiar todo</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // Listeners por card
+    grid.querySelectorAll(".variant-card").forEach(card => {
+      const idx = parseInt(card.dataset.idx, 10);
+      const variant = variants.find(v => v.index === idx);
+      if (!variant) return;
+      card.querySelectorAll("button[data-act]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const act = btn.dataset.act;
+          let text = "";
+          if (act === "copy") text = variant.content;
+          if (act === "copy_tags") text = (variant.hashtags || []).join(" ");
+          if (act === "copy_all") {
+            text = variant.content;
+            if ((variant.hashtags || []).length) {
+              text += "\n\n" + (variant.hashtags || []).join(" ");
+            }
+          }
+          copyToClipboard(text).then(ok => {
+            if (ok) {
+              const orig = btn.textContent;
+              btn.textContent = "✓ Copiado";
+              setTimeout(() => { btn.textContent = orig; }, 1400);
+            } else {
+              alert("No se pudo copiar al portapapeles. Cópialo manualmente:\n\n" + text);
+            }
+          });
+        });
+      });
+    });
+
+    // Scroll suave al resultado
+    $("m_result").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function copyToClipboard(text){
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      // Fallback legacy
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch(e) { return false; }
+  }
+
+  // ── Reset ──────────────────────────────────────────────
+  function onReset(){
+    if (!confirm("¿Limpiar el formulario?")) return;
+    $("marketing-form").reset();
+    $("m_variants").value = "3";
+    $("m_tone").value = "friendly";
+    $("m_audience").value = "all";
+    $("m_intent").value = "general";
+    $("m_language").value = "es";
+    $("m_emojis").checked = true;
+    $("m_hashtags").checked = false;
+    $("m_short").checked = true;
+    $("m_result").hidden = true;
+    clearError();
+  }
+
+  // ── Init ───────────────────────────────────────────────
+  document.getElementById("marketing-form").addEventListener("submit", onSubmit);
+  document.getElementById("m_reset_btn").addEventListener("click", onReset);
+  paintStatus();
+})();
+</script>
+
+{% endblock %}
