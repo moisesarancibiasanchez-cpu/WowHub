@@ -502,3 +502,110 @@ footer {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   WH.Modal — modal reutilizable (app.js)
+   Prefijo `wh-modal-*` para no chocar con los modales legacy
+   (.modal-overlay / .modal en tokens.css).
+   ═══════════════════════════════════════════════════════════ */
+.wh-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay, rgba(15, 17, 21, 0.6));
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 9100;
+  padding: 60px 16px;
+  overflow-y: auto;
+  animation: wh-modal-fade .18s ease;
+}
+.wh-modal-overlay.open { display: flex; }
+
+.wh-modal-dialog {
+  background: var(--bg-elev, #fff);
+  color: var(--fg, #111);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-lg, 14px);
+  width: min(640px, 100%);
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg, 0 20px 60px rgba(0, 0, 0, 0.35));
+  animation: wh-modal-slide .22s ease;
+  outline: none;
+}
+.wh-modal-dialog.wh-modal-lg { width: min(960px, 100%); }
+.wh-modal-dialog.wh-modal-xl { width: min(1180px, 100%); }
+
+.wh-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.wh-modal-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.wh-modal-x {
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted, #6b7280);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 8px;
+  transition: background .15s, color .15s;
+  font-family: inherit;
+}
+.wh-modal-x:hover { background: var(--bg-elev-2, #f3f4f6); color: var(--fg, #111); }
+.wh-modal-x:focus-visible { outline: 2px solid var(--accent, #7c5cff); outline-offset: 2px; }
+
+.wh-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  /* Evita que los form-groups se peguen demasiado en modales anchos */
+}
+.wh-modal-body .form-row + .form-row { margin-top: 12px; }
+
+.wh-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, #e5e7eb);
+  background: var(--bg-elev-2, #f9fafb);
+  flex-wrap: wrap;
+}
+
+@keyframes wh-modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wh-modal-slide {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 720px) {
+  .wh-modal-overlay { padding: 0; }
+  .wh-modal-dialog { max-height: 100vh; border-radius: 0; width: 100%; }
+  .wh-modal-dialog.wh-modal-lg,
+  .wh-modal-dialog.wh-modal-xl { width: 100%; }
+}
+
+/* Botón danger usado por WH.Confirm (rojo, accesible) */
+.btn.btn-danger {
+  background: var(--err, #dc2626);
+  border-color: var(--err, #dc2626);
+  color: #fff;
+}
+.btn.btn-danger:hover { background: color-mix(in srgb, var(--err, #dc2626) 85%, #000); }
+.btn.btn-danger:focus-visible { outline: 2px solid var(--err, #dc2626); outline-offset: 2px; }

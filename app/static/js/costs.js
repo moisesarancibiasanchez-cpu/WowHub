@@ -50,9 +50,13 @@
 
   async function fetchTenant() {
     const session = await WH.Auth.ensureSession();
+    // El campo en `current_tenant` es `tenant_id` (no `id`) — ver
+    // TokenStore.currentTenant() en app.js. Antes leíamos la propiedad
+    // equivocada y eso provocaba un "No hay tenant activo" en cuanto
+    // session.tenant era la copia hidratada del /auth/me/session.
     const t = session.tenant || WH.Auth.tenant();
-    if (!t || !t.id) throw new Error("No hay tenant activo");
-    _tenantId = t.id;
+    if (!t || !t.tenant_id) throw new Error("No hay tenant activo");
+    _tenantId = t.tenant_id;
   }
 
   async function api(path, options = {}) {
@@ -235,9 +239,9 @@
   }
 
   function escapeHtml(s) {
-    return String(s || "").replace(/[&<>"']/g, c => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
+    // Delegamos a la versión canónica de WH.escapeHtml para no mantener
+    // dos implementaciones (riesgo de divergencia + bug de XSS).
+    return window.WH && WH.escapeHtml ? WH.escapeHtml(s) : String(s == null ? "" : s);
   }
 
   // ── Live update (al escribir o toggle NA) ───────────────

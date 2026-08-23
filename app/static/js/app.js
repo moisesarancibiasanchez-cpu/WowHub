@@ -23,10 +23,11 @@ const api = {
     const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
     const tk = TokenStore.access();
     if (tk) headers.Authorization = `Bearer ${tk}`;
-    const tid = TokenStore.currentTenant()?.tenant_id;
-    if (tid && !path.includes("/auth/") && !path.startsWith("/api/v1/public/") && !path.startsWith("/api/v1/tenants") === false) {
-      // send tenant id for tenant-scoped endpoints
-    }
+    // Nota histórica: aquí hubo un bloque muerto con un bug de precedencia
+    // (`!path.startsWith(...) === false`). Las rutas tenant-scoped ya viajan
+    // en la URL (`/api/v1/tenants/{id}/...`), así que no hace falta enviar
+    // el tenant id como header. Si en el futuro se necesita, usar
+    // `headers["X-Tenant-Id"] = tid` y construirlo explícitamente.
     const res = await fetch(path, { ...opts, headers });
     if (res.status === 401 && !path.includes("/auth/")) {
       // intentar refresh
@@ -366,12 +367,20 @@ const Auth = {
   isLoggedIn() { return !!TokenStore.access(); },
   async logout() {
     TokenStore.clear();
+    this.resetSession();
     try { await fetch("/api/v1/auth/logout", { method: "POST" }); } catch (_) {}
     window.location.href = "/login";
   },
   user() { return TokenStore.get()?.user; },
   tenant() { return TokenStore.currentTenant(); },
   requireLogin() { if (!this.isLoggedIn()) { window.location.href = "/login?next=" + encodeURIComponent(location.pathname); } },
+
+  // Invalida la promesa cacheada de ensureSession. Llamar después de
+  // login/logout o cuando los datos del usuario cambian. Antes el cache
+  // sobrevivía al logout y devolvía el usuario viejo en re-hidrataciones.
+  resetSession() {
+    this._sessionPromise = null;
+  },
 
   // Devuelve {user, tenant, access_token} desde localStorage y, si falta
   // `current_tenant`, rehidrata desde el server con /api/v1/auth/me/session
@@ -417,6 +426,210 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString("es-CL", { year: "numeric", month: "short", day: "numeric" });
 }
 
+// ── Utilidades compartidas ─────────────────────────────────
+// `escapeHtml` es la versión segura para insertar texto en HTML. La
+// diferencia con `escapeAttr` (que escapa también `"` y `'`) es que esta
+// se usa dentro de innerHTML, donde no hay comillas que romper. Útil para
+// evitar XSS cuando pintamos datos del backend (nombres de producto, etc).
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>]/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+  }[m]));
+}
+
+// Debounce: la versión canónica. Antes había 3 copias (products.html,
+// costs.js, app.js) con bugs sutiles. Esta es la única.
+function debounce(fn, ms) {
+  let t = null;
+  return function debounced(...args) {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      t = null;
+      try { fn.apply(this, args); } catch (e) { console.error("[debounce]", e); }
+    }, ms);
+  };
+}
+
+// ── Modal reutilizable (WH.Modal) ──────────────────────────
+// Reemplaza el patrón "modal-overlay hidden / .modal-header / .modal-body"
+// inline en cada template. Ventajas:
+//   - Esc cierra
+//   - Click fuera cierra
+//   - Focus trap (Tab cicla dentro del modal)
+//   - Restaura el foco al elemento que abrió
+//   - Una sola instancia, sin re-acoplar listeners (fix del bug de
+//     products.html donde `openModal` apilaba `addEventListener` cada vez)
+//   - API: WH.Modal.open({title, body, footer, size, onClose}) → {close}
+const Modal = (function () {
+  let overlay = null;
+  let dialog = null;
+  let lastFocus = null;
+  let onCloseCb = null;
+  let onKeyHandler = null;
+
+  function ensureDom() {
+    if (overlay) return;
+    overlay = document.createElement("div");
+    overlay.className = "wh-modal-overlay";
+    overlay.setAttribute("role", "presentation");
+    overlay.addEventListener("mousedown", (e) => {
+      // Sólo cerrar si el click fue exactamente sobre el overlay,
+      // no sobre el dialog. Usamos mousedown para no cerrar cuando el
+      // usuario hace drag dentro del modal y suelta fuera.
+      if (e.target === overlay) close();
+    });
+    dialog = document.createElement("div");
+    dialog.className = "wh-modal-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+  }
+
+  function focusables() {
+    return Array.from(dialog.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]),' +
+      ' select:not([disabled]), textarea:not([disabled]),' +
+      ' [tabindex]:not([tabindex="-1"])'
+    )).filter((el) => el.offsetParent !== null);
+  }
+
+  function trapTab(e) {
+    if (e.key !== "Tab") return;
+    const items = focusables();
+    if (!items.length) {
+      e.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      last.focus();
+      e.preventDefault();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      first.focus();
+      e.preventDefault();
+    }
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    } else if (e.key === "Tab") {
+      trapTab(e);
+    }
+  }
+
+  function open(opts = {}) {
+    ensureDom();
+    const { title, body, footer, size, onClose } = opts;
+    lastFocus = document.activeElement;
+    onCloseCb = typeof onClose === "function" ? onClose : null;
+    dialog.className = "wh-modal-dialog" + (size ? " wh-modal-" + size : "");
+    dialog.innerHTML = "";
+    const head = document.createElement("header");
+    head.className = "wh-modal-head";
+    const h2 = document.createElement("h2");
+    h2.id = "wh-modal-title";
+    h2.textContent = title || "";
+    head.appendChild(h2);
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "wh-modal-x";
+    x.setAttribute("aria-label", "Cerrar");
+    x.textContent = "×";
+    x.addEventListener("click", () => close());
+    head.appendChild(x);
+    dialog.appendChild(head);
+    dialog.setAttribute("aria-labelledby", "wh-modal-title");
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "wh-modal-body";
+    if (body instanceof Node) bodyEl.appendChild(body);
+    else if (typeof body === "string") bodyEl.textContent = body;
+    dialog.appendChild(bodyEl);
+
+    if (footer) {
+      const footEl = document.createElement("footer");
+      footEl.className = "wh-modal-foot";
+      if (footer instanceof Node) footEl.appendChild(footer);
+      else if (typeof footer === "string") footEl.innerHTML = footer;
+      dialog.appendChild(footEl);
+    }
+
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+    onKeyHandler = onKey;
+    document.addEventListener("keydown", onKeyHandler);
+    // Foco inicial: el primer focusable, o el dialog como fallback.
+    setTimeout(() => {
+      const items = focusables();
+      const target = items[0] || dialog;
+      if (target && typeof target.focus === "function") target.focus();
+    }, 0);
+    return { close };
+  }
+
+  function close() {
+    if (!overlay || !overlay.classList.contains("open")) return;
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+    if (onKeyHandler) {
+      document.removeEventListener("keydown", onKeyHandler);
+      onKeyHandler = null;
+    }
+    const cb = onCloseCb;
+    onCloseCb = null;
+    dialog.innerHTML = "";
+    if (cb) {
+      try { cb(); } catch (e) { console.error("[Modal.onClose]", e); }
+    }
+    if (lastFocus && typeof lastFocus.focus === "function") {
+      try { lastFocus.focus(); } catch (_) {}
+    }
+  }
+
+  return { open, close };
+})();
+
+// ── Confirm accesible (WH.Confirm) ────────────────────────
+// Reemplaza al `confirm()` nativo. Devuelve Promise<boolean>.
+// - "danger: true" pinta el botón en rojo
+// - Esc y click en overlay resuelven `false`
+// - Tab/Shift-Tab quedan atrapados dentro del modal
+const Confirm = {
+  show({ title = "¿Confirmar?", body, danger = false, confirmText = "Confirmar", cancelText = "Cancelar" } = {}) {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const finish = (val) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(val);
+      };
+      const wrap = document.createElement("div");
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.textContent = body || "";
+      wrap.appendChild(p);
+      const footer = document.createElement("div");
+      footer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn btn-ghost";
+      cancel.textContent = cancelText;
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = danger ? "btn btn-danger" : "btn btn-primary";
+      ok.textContent = confirmText;
+      footer.append(cancel, ok);
+      const m = Modal.open({ title, body: wrap, footer, onClose: () => finish(false) });
+      cancel.addEventListener("click", () => { m.close(); finish(false); });
+      ok.addEventListener("click", () => { m.close(); finish(true); });
+    });
+  },
+};
+
 // Auto-refresh on focus
 let refreshInterval = null;
 function startAutoRefresh() {
@@ -428,4 +641,8 @@ function startAutoRefresh() {
 if (Auth.isLoggedIn()) startAutoRefresh();
 
 // Expose
-window.WH = { api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore, formatMoney, formatDate, startAutoRefresh };
+window.WH = {
+  api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore,
+  formatMoney, formatDate, startAutoRefresh,
+  escapeHtml, escapeAttr, debounce, Modal, Confirm,
+};

@@ -70,13 +70,16 @@ tests/test_auth.py
 tests/test_automation.py
 tests/test_bookings.py
 tests/test_costs.py
+tests/test_dashboard_modal_refactor.py
 tests/test_growth_coach.py
 tests/test_loyalty.py
 tests/test_marketing_studio.py
+tests/test_product_pricing.py
 tests/test_products.py
 tests/test_promotions.py
 tests/test_public.py
 tests/test_qr.py
+tests/test_seed_demo.py
 tests/test_tenant_dashboard_urls.py
 tests/test_tenants.py
 tests/test_tenants_me.py
