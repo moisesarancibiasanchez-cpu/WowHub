@@ -640,9 +640,52 @@ function startAutoRefresh() {
 }
 if (Auth.isLoggedIn()) startAutoRefresh();
 
+// ── Notifications helper (Fase 6) ───────────────────────────
+// Wrapper sobre la API de Fase 5:
+//   GET /api/v1/tenants/{tid}/notifications/summary → { total,
+//     by_severity, by_category, top_3, generated_at }
+//   GET /api/v1/tenants/{tid}/notifications?severity=&category=&limit=
+//     → { count, items, total_by_severity, total_by_category }
+//
+// Uso:
+//   await WH.Notifications.summary(tenantId)
+//   await WH.Notifications.list(tenantId, { severity: "critical" })
+//
+// `lastSummary()` devuelve el cache del último fetch del bell badge
+// (se actualiza cada 60s por el código de dashboard/base.html).
+const Notifications = {
+  async _tenantId() {
+    if (this.__cachedTid) return this.__cachedTid;
+    const ms = await api.get("/api/v1/me/memberships");
+    this.__cachedTid = ms.length ? ms[0].tenant_id : null;
+    return this.__cachedTid;
+  },
+  invalidateTenant() { this.__cachedTid = null; },
+  async summary(tenantId) {
+    const tid = tenantId || await this._tenantId();
+    if (!tid) return null;
+    return api.get("/api/v1/tenants/" + tid + "/notifications/summary");
+  },
+  async list(tenantId, params = {}) {
+    const tid = tenantId || await this._tenantId();
+    if (!tid) return { count: 0, items: [], total_by_severity: {}, total_by_category: {} };
+    const qs = new URLSearchParams();
+    if (params.severity) qs.set("severity", params.severity);
+    if (params.category) qs.set("category", params.category);
+    if (params.limit)    qs.set("limit", String(params.limit));
+    const url = "/api/v1/tenants/" + tid + "/notifications" +
+                (qs.toString() ? "?" + qs.toString() : "");
+    return api.get(url);
+  },
+  lastSummary() {
+    return (window.WH && window.WH.__lastNotifSummary) || null;
+  },
+};
+
 // Expose
 window.WH = {
   api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore,
   formatMoney, formatDate, startAutoRefresh,
   escapeHtml, escapeAttr, debounce, Modal, Confirm,
+  Notifications,
 };

@@ -214,6 +214,38 @@
 - **Servicio:** `BookingService`
 - **Seed:** —
 
+### 1.17 Notificaciones (Bell badge + Centro) — Fase 5/6
+- **URL:** `/dashboard/notifications`
+- **Template:** `app/templates/dashboard/notifications.html`
+- **Componentes UI:**
+  - **Bell badge** en `dashboard/base.html` (header): ícono SVG + 2 contadores (critical/warning) + dropdown con top 3
+  - **Sidebar link** "Notificaciones" en `dashboard/base.html` con badge inline (total)
+  - **Página** `/dashboard/notifications`: 4 KPI cards (total, critical, warning, info) + chips de filtro (severity/category) + lista con rail lateral de color
+- **Endpoints (Fase 5):**
+  - `GET /api/v1/tenants/{tid}/notifications/summary` → `{ total, by_severity, by_category, top_3, generated_at }` (para el bell)
+  - `GET /api/v1/tenants/{tid}/notifications?severity=&category=&limit=` → `{ count, items, total_by_severity, total_by_category }` (para la página)
+- **Entidades:** ninguna tabla nueva. Las notificaciones se **derivan** (compute-time) desde el estado actual de: `Product`, `BusinessCosts`, `Order`, `LandingConfig`, `Tenant.created_at`, `Booking`.
+- **Servicio:** `NotificationsEngine` (Fase 4, `app/services/notifications.py`) — 9 reglas N1-N9:
+  - N1 Pricing — producto con margen < 5% (`critical`)
+  - N2 Pricing — producto con margen < 15% (`warning`)
+  - N3 Inventory — producto con `stock <= low_stock_threshold` (`warning`)
+  - N4 Inventory — producto con `stock == 0` (`critical`)
+  - N5 Orders — pedido pendiente > 24h (`warning`)
+  - N6 Orders — nuevo pedido en las últimas 2h (`info`)
+  - N7 Costs — `BusinessCosts.version == 1` o sin configurar (`info`)
+  - N8 Landing — `LandingConfig` sin `hero_image_url` (`info`)
+  - N9 System — tenant recién creado (< 24h) (`info`, one-time)
+- **Severidades:** `info | warning | critical`
+- **Categorías:** `pricing | inventory | orders | costs | system`
+- **Schemas:** `NotificationOut`, `NotificationListOut`, `NotificationSummaryOut` (en `app/schemas/notifications.py`)
+- **JS Helper:** `WH.Notifications` en `app/static/js/app.js` (Fase 6):
+  - `summary(tenantId?)` → fetch del summary
+  - `list(tenantId?, params)` → fetch de la lista con filtros
+  - `lastSummary()` → cache del último fetch del bell
+- **Polling:** el bell hace `GET /summary` cada 60s (configurable).
+- **Aislamiento:** todos los endpoints usan `get_tenant_for_membership` → 403 si el user no es miembro del tenant.
+- **Seed:** — (las notificaciones se computan en runtime desde el estado actual del tenant).
+
 ---
 
 ## 2. Pantallas del Dashboard Admin

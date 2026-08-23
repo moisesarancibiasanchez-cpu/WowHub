@@ -25,6 +25,7 @@ from app.api.v1 import (
     opportunities,  # Opportunity Engine (Fase 3 del plan, ver oportunidades.pdf)
     quotes,  # Cotizaciones (Quotes) — Gestión interna
     costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
+    notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
 )
 from app.models.user import UserRole
 from app.config import settings
@@ -168,6 +169,8 @@ app.include_router(quotes.router, prefix="/api/v1")
 app.include_router(quotes.public_router, prefix="/api/v1")
 # Costos (BusinessCosts) — fuente de verdad de costo_hora y precio sugerido
 app.include_router(costs.router, prefix="/api/v1")
+# Notifications (Fase 5) — bell badge del dashboard (summary + lista)
+app.include_router(notifications.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -495,6 +498,18 @@ def dashboard_costs(request: Request):
     return templates.TemplateResponse(
         request, "dashboard/costs.html",
         {"settings": settings, "body_class": "route-costs"},
+    )
+
+
+# ── Notificaciones (UI owner) — Fase 6 ─────────────────────
+@app.get("/dashboard/notifications", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_notifications(request: Request):
+    """Centro de notificaciones: lista completa con filtros por severidad
+    y categoría. Alimentado por GET /api/v1/tenants/{tid}/notifications
+    (mismo motor que el bell badge del header)."""
+    return templates.TemplateResponse(
+        request, "dashboard/notifications.html",
+        {"settings": settings, "body_class": "route-notifications"},
     )
 
 

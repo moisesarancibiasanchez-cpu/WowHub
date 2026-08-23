@@ -1,0 +1,231 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Notificaciones{% endblock %}
+
+{% block dash_content %}
+<div class="row-between">
+  <div>
+    <h1>Notificaciones</h1>
+    <p class="sub">Alertas de tu negocio. Resuelve rápido: stock bajo, márgenes críticos, pedidos nuevos.</p>
+  </div>
+  <button class="btn" id="refresh-btn">Actualizar</button>
+</div>
+
+{# ── Resumen (KPI cards) ──────────────────────────────────── #}
+<div class="kpi-row mt-3" id="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">Total</div>
+    <div class="kpi-value" id="kpi-total">—</div>
+  </div>
+  <div class="kpi-card kpi-critical">
+    <div class="kpi-label">Críticas</div>
+    <div class="kpi-value" id="kpi-critical">0</div>
+  </div>
+  <div class="kpi-card kpi-warning">
+    <div class="kpi-label">Advertencias</div>
+    <div class="kpi-value" id="kpi-warning">0</div>
+  </div>
+  <div class="kpi-card kpi-info">
+    <div class="kpi-label">Informativas</div>
+    <div class="kpi-value" id="kpi-info">0</div>
+  </div>
+</div>
+
+{# ── Filtros ───────────────────────────────────────────────── #}
+<div class="filters-bar mt-3">
+  <div class="filter-group">
+    <label class="filter-label">Severidad</label>
+    <div class="chip-group" id="sev-chips">
+      <button class="chip active" data-sev="">Todas</button>
+      <button class="chip chip-critical" data-sev="critical">Críticas</button>
+      <button class="chip chip-warning" data-sev="warning">Advertencias</button>
+      <button class="chip chip-info" data-sev="info">Info</button>
+    </div>
+  </div>
+  <div class="filter-group">
+    <label class="filter-label">Categoría</label>
+    <div class="chip-group" id="cat-chips">
+      <button class="chip active" data-cat="">Todas</button>
+      <button class="chip" data-cat="pricing">Precios</button>
+      <button class="chip" data-cat="inventory">Inventario</button>
+      <button class="chip" data-cat="orders">Pedidos</button>
+      <button class="chip" data-cat="costs">Costos</button>
+      <button class="chip" data-cat="system">Sistema</button>
+    </div>
+  </div>
+</div>
+
+{# ── Lista ─────────────────────────────────────────────────── #}
+<div class="notif-list mt-3" id="notif-list">
+  <div class="card text-center text-muted" style="padding: 40px;">
+    Cargando notificaciones…
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  "use strict";
+
+  // ── Estado local ───────────────────────────────────────────
+  const state = {
+    tenantId: null,
+    severity: "",
+    category: "",
+    items: [],
+  };
+
+  // ── Helpers de severidad/categoría ────────────────────────
+  const SEV_LABEL = { critical: "Crítica", warning: "Advertencia", info: "Info" };
+  const CAT_LABEL = {
+    pricing:   "Precios",
+    inventory: "Inventario",
+    orders:    "Pedidos",
+    costs:     "Costos",
+    system:    "Sistema",
+  };
+
+  function fmtRelative(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60)        return "hace " + diff + "s";
+    if (diff < 3600)      return "hace " + Math.floor(diff / 60) + " min";
+    if (diff < 86400)     return "hace " + Math.floor(diff / 3600) + " h";
+    if (diff < 604800)    return "hace " + Math.floor(diff / 86400) + " d";
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function svgBell() {
+    return '<svg class="ico ico-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>' +
+      '<path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+  }
+
+  // ── Render: lista ─────────────────────────────────────────
+  function renderItems(items) {
+    const root = document.getElementById("notif-list");
+    if (!items.length) {
+      root.innerHTML =
+        '<div class="card text-center" style="padding: 60px 24px;">' +
+        '<div style="opacity:0.4; margin-bottom: 12px;">' + svgBell() + '</div>' +
+        '<h3 style="margin: 0 0 8px;">Sin notificaciones</h3>' +
+        '<p class="text-muted" style="margin: 0;">Todo en orden. Te avisaremos cuando algo requiera tu atención.</p>' +
+        '</div>';
+      return;
+    }
+    const html = items.map(function (n) {
+      const sev = String(n.severity || "info");
+      const cat = String(n.category || "system");
+      const url = n.action_url || "#";
+      const hasAction = n.action_label && url && url !== "#";
+      return (
+        '<article class="notif-item notif-' + escapeHtml(sev) + '" data-id="' + escapeHtml(n.id) + '">' +
+          '<div class="notif-rail"></div>' +
+          '<div class="notif-body">' +
+            '<header class="notif-head">' +
+              '<div class="notif-tags">' +
+                '<span class="notif-tag notif-tag-' + escapeHtml(sev) + '">' + escapeHtml(SEV_LABEL[sev] || sev) + '</span>' +
+                '<span class="notif-tag notif-tag-cat">' + escapeHtml(CAT_LABEL[cat] || cat) + '</span>' +
+              '</div>' +
+              '<time class="notif-time text-muted">' + escapeHtml(fmtRelative(n.detected_at)) + '</time>' +
+            '</header>' +
+            '<h3 class="notif-title">' + escapeHtml(n.title || "") + '</h3>' +
+            '<p class="notif-text">' + escapeHtml(n.body || "") + '</p>' +
+            (hasAction
+              ? '<a class="btn btn-sm btn-primary notif-cta" href="' + escapeHtml(url) + '">' + escapeHtml(n.action_label) + ' →</a>'
+              : '') +
+          '</div>' +
+        '</article>'
+      );
+    }).join("");
+    root.innerHTML = html;
+  }
+
+  function renderKpis(summary) {
+    document.getElementById("kpi-total").textContent    = summary.total ?? 0;
+    document.getElementById("kpi-critical").textContent = (summary.by_severity && summary.by_severity.critical) || 0;
+    document.getElementById("kpi-warning").textContent  = (summary.by_severity && summary.by_severity.warning) || 0;
+    document.getElementById("kpi-info").textContent     = (summary.by_severity && summary.by_severity.info) || 0;
+  }
+
+  // ── Carga ─────────────────────────────────────────────────
+  async function load() {
+    const root = document.getElementById("notif-list");
+    root.innerHTML = '<div class="card text-center text-muted" style="padding: 40px;">Cargando notificaciones…</div>';
+
+    const memberships = await WH.api.get("/api/v1/me/memberships");
+    if (!memberships.length) {
+      root.innerHTML = '<div class="card text-center text-muted" style="padding: 40px;">No perteneces a ningún tenant.</div>';
+      return;
+    }
+    state.tenantId = memberships[0].tenant_id;
+
+    // 1) Summary → KPIs (siempre, sin filtros)
+    try {
+      const summary = await WH.api.get(
+        "/api/v1/tenants/" + state.tenantId + "/notifications/summary"
+      );
+      renderKpis(summary);
+    } catch (e) {
+      console.warn("[notifications] summary failed:", e);
+    }
+
+    // 2) Lista con filtros
+    const params = new URLSearchParams();
+    if (state.severity) params.set("severity", state.severity);
+    if (state.category) params.set("category", state.category);
+    params.set("limit", "100");
+    const url = "/api/v1/tenants/" + state.tenantId + "/notifications?" + params.toString();
+
+    let body;
+    try {
+      body = await WH.api.get(url);
+    } catch (e) {
+      root.innerHTML = '<div class="card text-center" style="padding: 40px; color: var(--err);">Error al cargar notificaciones: ' + escapeHtml(e.message || e) + '</div>';
+      return;
+    }
+    state.items = body.items || [];
+    renderItems(state.items);
+  }
+
+  // ── Wire-up filtros ───────────────────────────────────────
+  function wireChips(containerId, key) {
+    const root = document.getElementById(containerId);
+    if (!root) return;
+    root.addEventListener("click", function (ev) {
+      const btn = ev.target.closest("button.chip");
+      if (!btn) return;
+      // sólo aplicar si el botón está en este grupo
+      const value = key === "severity" ? btn.dataset.sev : btn.dataset.cat;
+      // toggle visual
+      root.querySelectorAll("button.chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      state[key] = (value === undefined ? "" : value);
+      load();
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    WH.Auth.requireLogin();
+    wireChips("sev-chips", "severity");
+    wireChips("cat-chips", "category");
+    const refreshBtn = document.getElementById("refresh-btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", function () { load(); });
+    load();
+  });
+})();
+</script>
+{% endblock %}

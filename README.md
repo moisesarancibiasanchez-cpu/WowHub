@@ -152,6 +152,15 @@ GET    /api/v1/tenants/{tid}/ai/history
 # (admin) configurar modelo, system prompt, límites
 POST   /api/v1/admin/ai/config
 
+# ── Notifications (bell badge + centro) ──────
+#   Motor: NotificationsEngine (Fase 4) — 9 reglas N1..N9
+#   (pricing, inventory, orders, costs, system). Las notifs se
+#   DERIVAN en runtime desde el estado actual del tenant
+#   (sin tabla nueva). El bell del header hace polling cada 60s.
+GET    /api/v1/tenants/{tid}/notifications/summary     # → { total, by_severity, by_category, top_3 }
+GET    /api/v1/tenants/{tid}/notifications?severity=&category=&limit=
+                                                       # → { count, items, total_by_severity, total_by_category }
+
 # ── PÚBLICOS — sin auth ───────────────────────
 GET    /api/v1/public/t/{slug}/profile
 GET    /api/v1/public/t/{slug}/catalog

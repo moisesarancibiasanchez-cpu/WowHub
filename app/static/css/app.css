@@ -609,3 +609,310 @@ footer {
 }
 .btn.btn-danger:hover { background: color-mix(in srgb, var(--err, #dc2626) 85%, #000); }
 .btn.btn-danger:focus-visible { outline: 2px solid var(--err, #dc2626); outline-offset: 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   Bell badge + dropdown (Fase 6 — Notifications)
+   ═══════════════════════════════════════════════════════════ */
+.bell-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  padding: 0;
+}
+.bell-btn:hover {
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+.bell-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.bell-btn .ico-bell {
+  width: 18px;
+  height: 18px;
+}
+
+/* Stack de dos badges (critical + warning) en la esquina */
+.bell-badges {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+.bell-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  border: 2px solid var(--topbar-bg);
+  box-sizing: content-box;
+}
+.bell-badge-crit { background: var(--err, #e25353); }
+.bell-badge-warn { background: var(--warn, #e9a820); }
+
+/* Dropdown */
+.bell-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  overflow: hidden;
+  animation: wh-bell-drop .15s ease-out;
+}
+@keyframes wh-bell-drop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.bell-dd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  font-size: 14px;
+}
+.bell-dd-all {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.bell-dd-all:hover { text-decoration: underline; }
+
+.bell-dd-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+.bell-dd-item {
+  display: block;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider);
+  text-decoration: none;
+  color: inherit;
+  transition: background .12s;
+}
+.bell-dd-item:last-child { border-bottom: none; }
+.bell-dd-item:hover { background: var(--bg-elev-2); text-decoration: none; }
+.bell-dd-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.bell-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+.bell-dot-critical { background: var(--err, #e25353); }
+.bell-dot-warning  { background: var(--warn, #e9a820); }
+.bell-dot-info     { background: var(--info, #1f5fb0); }
+.bell-dd-text { flex: 1; min-width: 0; }
+.bell-dd-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+.bell-dd-body {
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bell-dd-time {
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+/* Nav badge (sidebar) */
+.nav-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--err, #e25353);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-left: auto;
+  line-height: 1;
+}
+.nav-badge[hidden] { display: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   /dashboard/notifications — chips de filtro + lista
+   ═══════════════════════════════════════════════════════════ */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.kpi-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.1;
+}
+.kpi-critical .kpi-value { color: var(--err, #e25353); }
+.kpi-warning  .kpi-value { color: var(--warn, #e9a820); }
+.kpi-info     .kpi-value { color: var(--info, #1f5fb0); }
+
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.filter-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 220px; }
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.chip:hover { background: var(--bg-elev-3); color: var(--fg); }
+.chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chip-critical.active { background: var(--err-bg, #ffebeb); border-color: var(--err, #e25353); color: var(--err-ink, #c83d3d); }
+.chip-warning.active  { background: var(--warn-bg, #fff6dd); border-color: var(--warn, #e9a820); color: var(--warn-ink, #a97405); }
+.chip-info.active     { background: var(--info-bg, #e6f0fc); border-color: var(--info, #1f5fb0); color: var(--info-ink, #1f5fb0); }
+
+/* Lista de notificaciones */
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.notif-item {
+  display: flex;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color .12s, box-shadow .12s;
+}
+.notif-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.notif-rail {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--fg-dim);
+}
+.notif-critical .notif-rail { background: var(--err, #e25353); }
+.notif-warning  .notif-rail { background: var(--warn, #e9a820); }
+.notif-info     .notif-rail { background: var(--info, #1f5fb0); }
+.notif-body { flex: 1; padding: 14px 16px; min-width: 0; }
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.notif-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.notif-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 4px;
+}
+.notif-tag-critical { background: var(--err-bg, #ffebeb); color: var(--err-ink, #c83d3d); }
+.notif-tag-warning  { background: var(--warn-bg, #fff6dd); color: var(--warn-ink, #a97405); }
+.notif-tag-info     { background: var(--info-bg, #e6f0fc); color: var(--info-ink, #1f5fb0); }
+.notif-tag-cat      { background: var(--bg-elev-3); color: var(--fg-muted); }
+.notif-time { font-size: 12px; white-space: nowrap; }
+.notif-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+}
+.notif-text {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+.notif-cta { font-size: 12.5px; }
+

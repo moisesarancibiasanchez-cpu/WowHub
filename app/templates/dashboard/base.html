@@ -26,6 +26,33 @@
   </a>
   <span class="spacer"></span>
   <span id="user-chip" class="text-muted" style="font-size: 13px;"></span>
+  {# ── Bell badge: contadores de notificaciones en el topbar ──
+     Carga lazy: el JS (WH.Notifications) hace GET al endpoint
+     /summary cada 60s y actualiza el badge + dropdown. ── #}
+  <div class="bell-wrap" id="bell-wrap">
+    <button class="bell-btn" id="bell-btn"
+            aria-label="Notificaciones"
+            aria-haspopup="true"
+            aria-expanded="false">
+      <svg class="ico ico-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="bell-badges">
+        <span class="bell-badge bell-badge-crit" id="bell-badge-crit" hidden>0</span>
+        <span class="bell-badge bell-badge-warn" id="bell-badge-warn" hidden>0</span>
+      </span>
+    </button>
+    <div class="bell-dropdown" id="bell-dropdown" role="menu" hidden>
+      <header class="bell-dd-head">
+        <strong>Notificaciones</strong>
+        <a href="/dashboard/notifications" class="bell-dd-all">Ver todas →</a>
+      </header>
+      <div class="bell-dd-list" id="bell-dd-list">
+        <p class="text-muted text-center" style="padding: 20px; margin: 0;">Cargando…</p>
+      </div>
+    </div>
+  </div>
   <a class="btn btn-ghost btn-sm" href="/" target="_blank">Ver sitio</a>
   <button class="btn btn-sm" id="logout-btn">Salir</button>
 </header>
@@ -38,6 +65,10 @@
     <h4>Negocio</h4>
     <a href="/dashboard" class="nav-link" data-route="dashboard">
       <span class="ico">⌂</span> Resumen
+    </a>
+    <a href="/dashboard/notifications" class="nav-link" data-route="notifications">
+      <span class="ico">🔔</span> Notificaciones
+      <span class="nav-badge" id="nav-badge-notif" hidden>0</span>
     </a>
     <a href="/dashboard/products" class="nav-link" data-route="products">
       <span class="ico">▦</span> Productos / Catálogo
@@ -118,11 +149,10 @@
 
 {% block scripts %}
 {{ super() }}
-<!-- FIX CRÍTICO: app.js provee window.WH (api, Auth, TokenStore) usado por
-     requireLogin() en la línea siguiente y por las páginas hijas del dashboard.
-     Sin esto, todas las páginas del dashboard fallaban con
-     "WH is not defined" al primer script. -->
-<script src="/static/js/app.js?v=login-fix-2026-08-16"></script>
+<!-- app.js lo carga base.html (padre) — NO duplicar acá, causa
+     SyntaxError por const redeclaration (TOKEN_KEY, TokenStore, Auth…).
+     El clic en "Salir" depende de que WH.Auth siga definido al ejecutar
+     el listener de línea siguiente. -->
 <script src="/static/js/ai.js?v=sidebar-v2"></script>
 <script>
 WH.Auth.requireLogin();
@@ -361,6 +391,134 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
   } catch (e) {
     console.warn("[role-guards]", e);
   }
+})();
+
+// ── Bell badge: actualiza contadores + dropdown cada 60s ──
+(function bellBadge() {
+  const btn   = document.getElementById("bell-btn");
+  const drop  = document.getElementById("bell-dropdown");
+  const list  = document.getElementById("bell-dd-list");
+  const bCrit = document.getElementById("bell-badge-crit");
+  const bWarn = document.getElementById("bell-badge-warn");
+  const navBd = document.getElementById("nav-badge-notif");
+  if (!btn || !drop || !list) return;
+
+  function setBadge(el, n) {
+    if (!el) return;
+    if (n > 0) {
+      el.textContent = n > 99 ? "99+" : String(n);
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+  function setNavBadge(n) {
+    if (!navBd) return;
+    if (n > 0) {
+      navBd.textContent = n > 99 ? "99+" : String(n);
+      navBd.hidden = false;
+    } else {
+      navBd.hidden = true;
+    }
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function fmtRel(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60)    return "hace " + diff + "s";
+    if (diff < 3600)  return "hace " + Math.floor(diff / 60) + " min";
+    if (diff < 86400) return "hace " + Math.floor(diff / 3600) + " h";
+    if (diff < 604800) return "hace " + Math.floor(diff / 86400) + " d";
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  }
+
+  function renderList(top3) {
+    if (!top3 || !top3.length) {
+      list.innerHTML =
+        '<p class="text-muted text-center" style="padding: 24px; margin: 0;">' +
+          'Sin notificaciones. Todo en orden.' +
+        '</p>';
+      return;
+    }
+    list.innerHTML = top3.map(function (n) {
+      const sev = String(n.severity || "info");
+      const hasUrl = n.action_url && n.action_url !== "#";
+      return (
+        '<a class="bell-dd-item bell-dd-' + escapeHtml(sev) + '"' +
+          (hasUrl ? ' href="' + escapeHtml(n.action_url) + '"' : ' href="/dashboard/notifications"') +
+          ' role="menuitem">' +
+          '<div class="bell-dd-row">' +
+            '<span class="bell-dot bell-dot-' + escapeHtml(sev) + '"></span>' +
+            '<div class="bell-dd-text">' +
+              '<div class="bell-dd-title">' + escapeHtml(n.title || "") + '</div>' +
+              '<div class="bell-dd-body">' + escapeHtml(n.body || "") + '</div>' +
+              '<div class="bell-dd-time">' + escapeHtml(fmtRel(n.detected_at)) + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</a>'
+      );
+    }).join("");
+  }
+
+  async function refresh() {
+    try {
+      const memberships = await WH.api.get("/api/v1/me/memberships");
+      if (!memberships.length) return;
+      const tid = memberships[0].tenant_id;
+      const data = await WH.api.get(
+        "/api/v1/tenants/" + tid + "/notifications/summary"
+      );
+      const bs = data.by_severity || {};
+      setBadge(bCrit, bs.critical || 0);
+      setBadge(bWarn, bs.warning || 0);
+      setNavBadge(data.total || 0);
+      renderList(data.top_3 || []);
+      // Publica en window.WH.Notifications para que otras pages
+      // (ej. /dashboard/notifications) puedan leer sin re-fetch.
+      window.WH = window.WH || {};
+      window.WH.__lastNotifSummary = data;
+    } catch (e) {
+      console.warn("[bell] refresh failed:", e);
+    }
+  }
+
+  function openDrop() {
+    drop.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  }
+  function closeDrop() {
+    drop.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  btn.addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    if (drop.hidden) openDrop(); else closeDrop();
+  });
+  document.addEventListener("click", function (ev) {
+    if (!drop.hidden) {
+      const wrap = document.getElementById("bell-wrap");
+      if (wrap && !wrap.contains(ev.target)) closeDrop();
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !drop.hidden) closeDrop();
+  });
+
+  refresh();
+  setInterval(refresh, 60_000);
 })();
 </script>
 {% block dash_scripts %}{% endblock %}
