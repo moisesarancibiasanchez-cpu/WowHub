@@ -240,6 +240,8 @@
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/quotes/stats`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/loyalty/passes?page_size=1`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/analytics/inventory?category=low_stock`),
+      // Pedidos (total) — para la card "Pedidos (total)" del secondary grid
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders?page_size=1`),
     ]);
 
     const unwrap = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
@@ -284,17 +286,19 @@
     }
 
     // ── Secondary cards ──
-    const p  = unwrap(5);
-    const pr = unwrap(6);
-    const q  = unwrap(7);
-    const b  = unwrap(8);
-    const qt = unwrap(9);
-    const lp = unwrap(10);
-    const st = unwrap(11);
+    const p   = unwrap(5);
+    const pr  = unwrap(6);
+    const q   = unwrap(7);
+    const b   = unwrap(8);
+    const qt  = unwrap(9);
+    const lp  = unwrap(10);
+    const st  = unwrap(11);
+    const od  = unwrap(12);
 
     $("stat-products").textContent = (p  && typeof p.total === "number") ? p.total : 0;
     $("stat-promos").textContent   = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
     $("stat-qrs").textContent      = Array.isArray(q)  ? q.length : 0;
+    $("stat-orders").textContent   = (od && typeof od.total === "number") ? od.total : 0;
 
     if (b) {
       const pending   = (b.by_status && b.by_status.pending)   || b.pending   || 0;

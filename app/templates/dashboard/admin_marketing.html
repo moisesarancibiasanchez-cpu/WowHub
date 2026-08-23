@@ -536,12 +536,14 @@
       // Construimos un prompt rico: copy + audiencia + canal → prompt visual.
       const intent = $("m_intent").value;
       const audience = $("m_audience").value;
+      const tone = $("m_tone").value;
       const topic = $("m_topic").value.trim();
       const r = await WH.api.post("/api/v1/ai/marketing/image-prompt", {
         copy: variant.content,
         intent: intent,
+        tone: tone,
         audience: audience,
-        topic: topic,
+        extra_notes: topic || undefined,
       });
       const prompt = r.prompt || "(sin prompt)";
       box.textContent = prompt + "\n\n— copy to use with Midjourney / DALL·E / Flux —";

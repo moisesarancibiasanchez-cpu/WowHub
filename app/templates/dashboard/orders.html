@@ -47,7 +47,7 @@ let orders = [];
 let currentFilter = { search: "", branch: "" };
 
 const $ = (id) => document.getElementById(id);
-const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })};
+const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`;
 
 // Estados del pipeline. El schema OrderStatus es lowercase (Pydantic v2
 // case-sensitive), por eso se mantienen las keys en minúsculas.
@@ -90,10 +90,10 @@ async function loadOrders() {
 function filteredOrders() {
   const s = currentFilter.search.toLowerCase();
   return orders.filter(o => {
-    if (currentFilter.branch && o.branch_id !== currentFilter.branch) return false;
+    if (currentFilter.branch && String(o.branch_id || "") !== String(currentFilter.branch)) return false;
     if (!s) return true;
     return (
-      (o.order_number || o.number || "").toLowerCase().includes(s) ||
+      (o.number || "").toLowerCase().includes(s) ||
       (o.customer_name || "").toLowerCase().includes(s) ||
       (o.customer_phone || "").toLowerCase().includes(s)
     );
@@ -140,7 +140,7 @@ function renderKanban() {
         <div class="kanban-cards">
           ${cards.map(o => `
             <div class="kanban-card" onclick="openOrder('${o.id}')">
-              <div class="order-num">${o.order_number || o.number || (o.id || "").slice(0,8)}</div>
+              <div class="order-num">#${o.number || (o.id || "").slice(0,8)}</div>
               <div class="customer">${o.customer_name || "—"}</div>
               <div class="total">${fmtMoney(o.total_cents)}</div>
               <div class="meta">${(o.items || []).length} items · ${new Date(o.created_at).toLocaleString("es-CL")}</div>
@@ -155,7 +155,7 @@ function renderKanban() {
 async function openOrder(id) {
   try {
     const o = await WH.api.get(`/api/v1/tenants/${currentTenantId}/orders/${id}`);
-    $("order-modal-title").textContent = `Pedido ${o.order_number || o.number || (o.id || "").slice(0,8)}`;
+    $("order-modal-title").textContent = `Pedido #${o.number || (o.id || "").slice(0,8)}`;
     $("order-modal-body").innerHTML = `
       <div class="flex" style="justify-content: space-between; align-items: start; margin-bottom: 12px;">
         <div>
@@ -208,7 +208,7 @@ async function openOrder(id) {
       };
       foot.appendChild(btn);
     }
-    if (o.status !== "CANCELED" && o.status !== "DELIVERED") {
+    if ((o.status || "").toLowerCase() !== "canceled" && (o.status || "").toLowerCase() !== "delivered") {
       const btnC = document.createElement("button");
       btnC.className = "btn btn-ghost";
       btnC.textContent = "Cancelar pedido";
