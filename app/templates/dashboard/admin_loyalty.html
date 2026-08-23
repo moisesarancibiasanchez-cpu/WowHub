@@ -72,20 +72,256 @@
   .slider-cell label { font-size: 12px; font-weight: 600; color: var(--muted, #6b7280); display: block; margin-bottom: 4px; }
   .slider-cell input[type=range] { width: 100%; }
 
-  /* ── Preview metallic card ──────────────────────────── */
-  .preview-wrap { display: flex; justify-content: center; margin: 14px 0 6px; }
-  .preview-card {
-    width: 100%; max-width: 360px; border-radius: 14px; padding: 18px 16px;
-    color: #fff;
+  /* ── Modal 2-col layout (form + sticky preview) ──────── */
+  .modal.loyalty-modal { max-width: 1080px; width: 95vw; }
+  .loyalty-modal .modal-body { padding: 0; }
+  .loyalty-modal-grid {
+    display: grid; grid-template-columns: 1fr 420px; gap: 0;
+    min-height: 60vh;
   }
-  .preview-card .pv-reward { font-size: 11px; opacity: 0.9; }
-  .preview-card .pv-name { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
-  .preview-card .pv-stamps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0; }
-  .preview-card .pv-stamp {
-    aspect-ratio: 1; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.55);
-    background: rgba(255,255,255,0.06); opacity: 0.6;
+  .loyalty-modal-form { padding: 22px 24px; overflow-y: auto; max-height: 80vh; }
+  .loyalty-modal-preview {
+    background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    padding: 22px 18px; overflow-y: auto; max-height: 80vh;
+    border-left: 1px solid rgba(255,255,255,0.08);
   }
-  .preview-card .pv-stamp.filled { background: rgba(255,255,255,0.92); opacity: 1; border-color: #fff; }
+  .loyalty-modal-preview .preview-title {
+    color: #cbd5e1; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; text-align: center; margin: 0 0 14px;
+  }
+  @media (max-width: 900px) {
+    .loyalty-modal-grid { grid-template-columns: 1fr; }
+    .loyalty-modal-preview { border-left: 0; border-top: 1px solid rgba(255,255,255,0.08); }
+    .loyalty-modal-form { max-height: none; }
+  }
+
+  /* ── Live preview: full card design (matches public/loyalty.html) ── */
+  .preview-stage {
+    perspective: 1200px;
+    display: flex; justify-content: center; align-items: center;
+    margin: 0 0 12px;
+  }
+  .preview-3d-wrap {
+    transition: transform 0.18s ease-out;
+    transform-style: preserve-3d;
+    will-change: transform;
+    width: 100%;
+  }
+  .preview-card.loyalty-card-preview {
+    width: 100%; max-width: 360px; min-height: 220px;
+    border-radius: 18px; padding: 14px 16px;
+    position: relative;
+    background: linear-gradient(
+      var(--metal-angle),
+      var(--metal-c1) 0%,
+      var(--metal-c2) 25%,
+      var(--metal-c3) 48%,
+      var(--metal-c4) 72%,
+      var(--metal-c5) 100%
+    );
+    box-shadow:
+      0 18px 40px -10px rgba(0, 0, 0, 0.55),
+      0 6px 14px -3px rgba(0, 0, 0, 0.35),
+      inset 0 1px 2px rgba(255, 255, 255, 0.55),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    display: flex; flex-direction: column; justify-content: space-between;
+    overflow: hidden; user-select: none; color: #0f172a;
+    font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+    margin: 0 auto;
+  }
+  /* Brushed metal striations + corner highlight (reuses ::before convention) */
+  .preview-card.loyalty-card-preview::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(
+        var(--metal-angle),
+        rgba(255, 255, 255, 0.04) 0px, rgba(255, 255, 255, 0.04) 1px,
+        rgba(0, 0, 0, 0.04) 1px, rgba(0, 0, 0, 0.04) 2px
+      ),
+      radial-gradient(ellipse at top left, rgba(255, 255, 255, 0.32) 0%, transparent 60%);
+    mix-blend-mode: overlay; pointer-events: none; border-radius: 17px; z-index: 1;
+  }
+  .preview-card .specular-sheen {
+    position: absolute; inset: -50%;
+    background: radial-gradient(
+      circle at var(--reflection-x) var(--reflection-y),
+      rgba(255, 255, 255, 0.65) 0%,
+      rgba(255, 255, 255, 0.20) 20%,
+      transparent 60%
+    );
+    pointer-events: none; opacity: var(--sheen-opacity);
+    mix-blend-mode: color-dodge; z-index: 2;
+    transition: opacity 0.3s ease;
+  }
+  .preview-card > * { position: relative; z-index: 3; }
+
+  /* Tech row: EMV chip + NFC */
+  .preview-card .card-tech-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 2px;
+  }
+  .preview-card .emv-chip {
+    width: 30px; height: 22px; border-radius: 4px;
+    background: linear-gradient(135deg, #d4af37 0%, #fff2a3 35%, #aa7c11 70%, #ffd700 100%);
+    border: 1px solid #7d5904;
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.7), 0 2px 5px rgba(0, 0, 0, 0.3);
+    position: relative; overflow: hidden;
+  }
+  .preview-card .emv-chip::after {
+    content: ''; position: absolute; inset: 3px;
+    border: 1px solid rgba(120, 80, 5, 0.5); border-radius: 2px;
+    background: repeating-linear-gradient(90deg, transparent, transparent 6px, rgba(120, 80, 5, 0.4) 6px, rgba(120, 80, 5, 0.4) 8px);
+  }
+  .preview-card .contactless-icon { width: 16px; height: 16px; opacity: 0.65; }
+
+  /* Card header: brand (izq) + título (der) */
+  .preview-card .card-header {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2px;
+  }
+  .preview-card .brand-identity { display: flex; align-items: center; gap: 8px; }
+  .preview-card .brand-logo-disc {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffffff 0%, #b0c9db 70%, #5a7d97 100%);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 6px rgba(0, 40, 80, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 15px; flex-shrink: 0;
+  }
+  .preview-card .brand-logo-disc span {
+    background: linear-gradient(135deg, #0077b6 40%, #ff7700 60%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.7));
+  }
+  .preview-card .brand-names-box { display: flex; flex-direction: column; min-width: 0; }
+  .preview-card .brand-name-main {
+    font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #023e8a;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 -1px 0 rgba(0, 0, 0, 0.08);
+    line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+  }
+  .preview-card .brand-tagline-main {
+    font-size: 7px; font-weight: 700; letter-spacing: 0.5px; color: #475569;
+    margin-top: 2px; text-transform: uppercase;
+  }
+  .preview-card .header-right { text-align: right; flex-shrink: 0; }
+  .preview-card .card-title-engraved {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.8px; color: #c95100;
+    text-transform: uppercase; text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9);
+    line-height: 1.1;
+  }
+  .preview-card .tier-badge {
+    display: inline-block; margin-top: 3px; padding: 2px 7px; border-radius: 12px;
+    font-size: 7px; font-weight: 800; letter-spacing: 0.7px;
+    background: linear-gradient(135deg, #475569, #1e293b); color: #f8fafc;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.2);
+    text-transform: uppercase;
+  }
+  .preview-card .tier-badge.elite { background: linear-gradient(135deg, #b91c1c, #7f1d1d); border-color: rgba(255, 200, 200, 0.4); }
+  .preview-card .tier-badge.vip   { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
+  .preview-card .tier-badge.black { background: linear-gradient(135deg, #0a0a0a, #262626); border-color: #ffd700; color: #ffd700; }
+
+  /* Stamps grid (5x2) */
+  .preview-card .stamps-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px 7px; margin: 8px 0 4px;
+  }
+  .preview-card .stamp-slot {
+    aspect-ratio: 1; border-radius: 50%; position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+  }
+  .preview-card .stamp-slot:hover { transform: scale(1.08) translateY(-1px); }
+  .preview-card .slot-idx {
+    position: absolute; top: -1px; left: -1px;
+    font-size: 6px; font-weight: 800; color: #475569;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+  .preview-card .stamp-slot.empty {
+    background: linear-gradient(145deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.30));
+    border: 1.5px dashed rgba(71, 85, 105, 0.5);
+    box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.20), inset -1px -1px 3px rgba(255, 255, 255, 0.7), 0 1px 1px rgba(255, 255, 255, 0.35);
+  }
+  .preview-card .stamp-slot.empty .slot-placeholder {
+    font-size: 8px; font-weight: 700; color: rgba(71, 85, 105, 0.45);
+  }
+  .preview-card .stamp-slot.stamped {
+    background: radial-gradient(circle at 35% 35%, #00b4d8 0%, #0077b6 60%, #023e8a 100%);
+    border: 2px solid #90e0ef;
+    box-shadow: 0 0 10px rgba(0, 180, 216, 0.65), 0 2px 5px rgba(0, 0, 0, 0.30), inset 0 1px 3px rgba(255, 255, 255, 0.6);
+    color: #ffffff; animation: stampPulse 0.4s ease-out;
+  }
+  @keyframes stampPulse {
+    0%   { transform: scale(0.6) rotate(-20deg); opacity: 0; }
+    70%  { transform: scale(1.18) rotate(5deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .preview-card .stamp-badge { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+  .preview-card .stamp-badge .main-w {
+    font-size: 11px; font-weight: 900; font-style: italic;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
+  }
+  .preview-card .stamp-badge .brand-tiny { font-size: 4px; font-weight: 800; letter-spacing: 0.3px; margin-top: 1px; }
+  .preview-card .stamp-badge .check-ico { font-size: 5px; margin-top: 1px; font-weight: 900; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+
+  /* Reward slot (10º) */
+  .preview-card .stamp-slot.reward-slot.empty {
+    border: 2px dashed #b8860b;
+    background: linear-gradient(145deg, rgba(245, 183, 0, 0.15), rgba(255, 255, 255, 0.5));
+    box-shadow: inset 1px 1px 3px rgba(184, 134, 11, 0.3), inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+  }
+  .preview-card .reward-slot .star-ico { font-size: 11px; color: #b8860b; filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8)); line-height: 1; }
+  .preview-card .reward-slot .reward-label { font-size: 4px; font-weight: 900; color: #7d5904; text-align: center; line-height: 1.1; text-transform: uppercase; margin-top: 1px; letter-spacing: 0.2px; }
+  .preview-card .stamp-slot.reward-slot.stamped {
+    background: radial-gradient(circle at 35% 35%, #ffb703 0%, #fb8500 50%, #d00000 100%);
+    border: 2px solid #ffe49e;
+    box-shadow: 0 0 14px rgba(251, 133, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+  .preview-card .stamp-slot.reward-slot.stamped .star-ico,
+  .preview-card .stamp-slot.reward-slot.stamped .reward-label {
+    color: #ffffff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+  }
+
+  /* Footer: reward desc + cardholder + serial + security */
+  .preview-card .card-footer { border-top: 1px solid rgba(71, 85, 105, 0.20); padding-top: 6px; }
+  .preview-card .reward-desc-box {
+    font-size: 7.5px; font-weight: 800; color: #1e293b; text-align: center;
+    line-height: 1.2; text-transform: uppercase;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+  .preview-card .reward-desc-box span { color: #0077b6; font-weight: 900; }
+  .preview-card .card-bottom-row {
+    display: flex; justify-content: space-between; align-items: flex-end; margin-top: 4px; gap: 8px;
+  }
+  .preview-card .cardholder-group { display: flex; flex-direction: column; min-width: 0; }
+  .preview-card .field-caption { font-size: 5.5px; font-weight: 800; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; }
+  .preview-card .field-val-embossed {
+    font-size: 10px; font-weight: 800; color: #0f172a; letter-spacing: 0.7px; font-style: italic;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.18);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .preview-card .card-number-embossed {
+    font-family: 'Share Tech Mono', monospace; font-size: 9px; font-weight: 700;
+    letter-spacing: 1.2px; color: #1e293b;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.18);
+    white-space: nowrap;
+  }
+  .preview-card .security-notice {
+    font-size: 5px; color: #64748b; text-align: center; margin-top: 3px;
+    font-weight: 600; letter-spacing: 0.2px;
+  }
+
+  /* Preview controls row */
+  .preview-controls {
+    display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; flex-wrap: wrap;
+  }
+  .preview-controls .btn {
+    font-size: 11px; padding: 5px 10px; font-weight: 700;
+    background: rgba(255, 255, 255, 0.08); color: #f1f5f9; border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .preview-controls .btn:hover { background: rgba(255, 255, 255, 0.15); }
+  .preview-controls .btn.active { background: #1A73E8; color: #fff; border-color: #1A73E8; }
+  .preview-hint {
+    color: #94a3b8; font-size: 10px; text-align: center; margin: 6px 0 0;
+  }
 
   /* ── Mini metallic card for grid ────────────────────── */
   .mini-metal {
@@ -124,14 +360,17 @@
 
 <!-- Modal: crear/editar campaña -->
 <div class="modal-overlay hidden" id="modal">
-  <div class="modal">
+  <div class="modal loyalty-modal">
     <div class="modal-header">
       <h3 id="modal-title">Nueva campaña</h3>
       <button class="btn btn-ghost" id="modal-close">✕</button>
     </div>
     <div class="modal-body">
-      <form id="campaign-form">
-        <input type="hidden" id="c_id">
+      <div class="loyalty-modal-grid">
+        <!-- ── Columna izquierda: formulario ── -->
+        <div class="loyalty-modal-form">
+          <form id="campaign-form">
+            <input type="hidden" id="c_id">
         <div class="form-group">
           <label class="form-label">Nombre interno *</label>
           <input class="form-input" id="c_name" required maxlength="120" placeholder="ej. Tarjeta de Cafetería">
@@ -177,14 +416,6 @@
               <input type="range" id="c_sheen_opacity" min="0" max="100" value="45" step="5">
             </div>
           </div>
-          <div class="preview-wrap">
-            <div class="preview-card metallic-card" id="metal-preview">
-              <span class="specular-sheen"></span>
-              <div class="pv-reward">Programa de fidelidad</div>
-              <div class="pv-name" id="pv-name">Tu recompensa</div>
-              <div class="pv-stamps" id="pv-stamps"></div>
-            </div>
-          </div>
         </div>
 
         <div class="form-group">
@@ -213,7 +444,75 @@
           <button class="btn btn-ghost" type="button" id="cancel-btn">Cancelar</button>
           <button class="btn btn-primary" type="submit" id="save-btn">Guardar</button>
         </div>
-      </form>
+          </form>
+        </div>
+        <!-- ── Columna derecha: preview en vivo ── -->
+        <div class="loyalty-modal-preview">
+          <h4 class="preview-title">Vista previa en vivo</h4>
+          <div class="preview-stage">
+            <div class="preview-3d-wrap" id="preview-3d-wrap">
+              <div class="preview-card loyalty-card-preview metallic-card" id="metal-preview" data-tilt>
+                <span class="specular-sheen"></span>
+
+                <!-- EMV chip + NFC -->
+                <div class="card-tech-row">
+                  <div class="emv-chip" aria-label="Chip EMV"></div>
+                  <svg class="contactless-icon" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M8.5 16.5a5 5 0 0 1 0-9"/>
+                    <path d="M12 19a8.5 8.5 0 0 0 0-14"/>
+                    <path d="M15.5 21.5a12 12 0 0 0 0-19"/>
+                  </svg>
+                </div>
+
+                <!-- Header: brand identity + título grabado + tier -->
+                <div class="card-header">
+                  <div class="brand-identity">
+                    <div class="brand-logo-disc"><span>W</span></div>
+                    <div class="brand-names-box">
+                      <div class="brand-name-main" id="pv-brand-name">Tu Negocio</div>
+                      <div class="brand-tagline-main" id="pv-tagline">Acumula experiencias WOW</div>
+                    </div>
+                  </div>
+                  <div class="header-right">
+                    <div class="card-title-engraved">Tarjeta de Fidelización</div>
+                    <span class="tier-badge" id="pv-tier-badge">Community</span>
+                  </div>
+                </div>
+
+                <!-- Stamps grid (5x2, último = reward) -->
+                <div class="stamps-grid" id="pv-stamps"></div>
+
+                <!-- Footer -->
+                <div class="card-footer">
+                  <div class="reward-desc-box" id="pv-reward-desc">
+                    ¡Completa tu tarjeta y recibe <span id="pv-reward-label">tu recompensa</span>!
+                  </div>
+                  <div class="card-bottom-row">
+                    <div class="cardholder-group">
+                      <span class="field-caption">Titular de la tarjeta</span>
+                      <span class="field-val-embossed" id="pv-cardholder">Cliente de ejemplo</span>
+                    </div>
+                    <div class="card-number-embossed" id="pv-card-num">•••• ••34 ••56</div>
+                  </div>
+                  <div class="security-notice">
+                    Válido en <span id="pv-security-tenant">tu negocio</span> · No transferible · WowHub
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controles de simulación -->
+          <div class="preview-controls">
+            <button type="button" class="btn" data-sim-stamps="0">Vacía</button>
+            <button type="button" class="btn" data-sim-stamps="3">3 / 9</button>
+            <button type="button" class="btn" data-sim-stamps="6">6 / 9</button>
+            <button type="button" class="btn" data-sim-stamps="9">9 / 9</button>
+            <button type="button" class="btn" data-sim-stamps="10">10 / 10 ✦</button>
+          </div>
+          <p class="preview-hint">Mueve el mouse sobre la tarjeta para ver el efecto 3D · haz clic en los sellos para simular la experiencia del cliente</p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -585,21 +884,81 @@ function clearActivePreset() {
   document.querySelectorAll("#presets-grid .preset-btn").forEach(b => b.classList.remove("active"));
 }
 
+// ── V2: Live preview state ─────────────────────────────────
+let previewStampsFilled = 0; // cuántos sellos están "pintados" en el preview (estado de simulación)
+
+// Tier badge en base a la cantidad de sellos
+function tierFor(filled) {
+  if (filled >= 5) return { label: "Black",   cls: "black" };
+  if (filled >= 3) return { label: "VIP",     cls: "vip" };
+  if (filled >= 1) return { label: "Elite",   cls: "elite" };
+  return             { label: "Community", cls: "community" };
+}
+
+// Formato tipo "•••• ••34 ••56" — lo derivamos de un hash del nombre del negocio
+function previewSerial(name) {
+  const seed = String(name || "wowhub").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const hex = ((seed * 2654435761) >>> 0).toString(16).toUpperCase().padStart(8, "0");
+  const tail = hex.slice(-8);
+  return "•••• " + tail.slice(0, 4) + " " + tail.slice(4, 8);
+}
+
 function renderPreviewStamps() {
-  const total = parseInt(($("c_stamps_required") || {}).value || 6, 10);
   const cont = $("pv-stamps");
   if (!cont) return;
+  const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
+  const totalSlots = 10;          // grilla 5x2 fija
+  const rewardIdx = totalSlots - 1; // slot 9 (10º) = recompensa
+  const rewardUnlocked = previewStampsFilled >= total;
+  const filled = previewStampsFilled;
+
   cont.innerHTML = "";
-  for (let i = 0; i < total; i++) {
-    const d = document.createElement("div");
-    d.className = "pv-stamp";
-    cont.appendChild(d);
+  for (let i = 0; i < totalSlots; i++) {
+    const slot = document.createElement("div");
+    const isReward = (i === rewardIdx);
+    if (isReward) {
+      const isStamped = rewardUnlocked;
+      slot.className = "stamp-slot reward-slot " + (isStamped ? "stamped" : "empty");
+      slot.innerHTML =
+        '<span class="slot-idx">' + (i + 1) + '</span>' +
+        '<div class="star-ico">★</div>' +
+        '<div class="reward-label">' + (isStamped ? "¡Canjear!" : "Premio") + '</div>';
+    } else {
+      const slotNumber = i + 1; // 1..9
+      const isStamped = slotNumber <= filled;
+      slot.className = "stamp-slot " + (isStamped ? "stamped" : "empty");
+      if (isStamped) {
+        slot.innerHTML =
+          '<span class="slot-idx">' + slotNumber + '</span>' +
+          '<div class="stamp-badge">' +
+            '<span class="main-w">W</span>' +
+            '<span class="brand-tiny">wowhub</span>' +
+            '<span class="check-ico">✓</span>' +
+          '</div>';
+      } else {
+        slot.innerHTML =
+          '<span class="slot-idx">' + slotNumber + '</span>' +
+          '<span class="slot-placeholder">✦</span>';
+      }
+    }
+    // data-slot-index 1-based para el click handler (1..9 = sello normal, 10 = reward)
+    slot.dataset.slotIndex = (i + 1).toString();
+    cont.appendChild(slot);
+  }
+
+  // Tier badge dinámico
+  const tier = tierFor(filled);
+  const badge = $("pv-tier-badge");
+  if (badge) {
+    badge.textContent = tier.label;
+    badge.className = "tier-badge " + tier.cls;
   }
 }
 
 function updatePreview() {
   const card = $("metal-preview");
   if (!card) return;
+  // CSS variables del degradado metálico
   card.style.setProperty("--metal-c1", $("c_metal_c1").value);
   card.style.setProperty("--metal-c2", $("c_metal_c2").value);
   card.style.setProperty("--metal-c3", $("c_metal_c3").value);
@@ -608,11 +967,98 @@ function updatePreview() {
   card.style.setProperty("--metal-angle", $("c_metal_angle").value + "deg");
   card.style.setProperty("--sheen-opacity", ($("c_sheen_opacity").value / 100).toString());
   card.style.color = $("c_text_color").value;
-  $("pv-name").textContent = $("c_reward_label").value || "Tu recompensa";
+
+  // Brand identity (del nombre interno)
+  const name = ($("c_name") || {}).value || "Tu Negocio";
+  const brandEl = $("pv-brand-name");
+  if (brandEl) brandEl.textContent = name;
+  const tenantEl = $("pv-security-tenant");
+  if (tenantEl) tenantEl.textContent = name;
+
+  // Recompensa
+  const reward = ($("c_reward_label") || {}).value || "tu recompensa";
+  const rewardLblEl = $("pv-reward-label");
+  if (rewardLblEl) rewardLblEl.textContent = reward;
+
+  // Serial derivado del nombre
+  const serialEl = $("pv-card-num");
+  if (serialEl) serialEl.textContent = previewSerial(name);
+
+  // Repintar stamps
   renderPreviewStamps();
+  // Actualizar botones de simulación activos
+  document.querySelectorAll(".preview-controls .btn").forEach(b => b.classList.remove("active"));
 }
 
-// ── Wire up controls: pickers, sliders, stamps_required ──
+// ── 3D tilt + specular sheen en el preview ─────────────────
+function attachPreviewTilt() {
+  const card = document.querySelector("#metal-preview");
+  const wrap = $("preview-3d-wrap");
+  if (!card || !wrap) return;
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  let raf = 0;
+  function onMove(e) {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const r = card.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const cx = r.width / 2, cy = r.height / 2;
+      const rotateX = ((y - cy) / cy) * -8;   // ±8° X (más sutil que la pública)
+      const rotateY = ((x - cx) / cx) * 10;   // ±10° Y
+      wrap.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      card.style.setProperty("--reflection-x", ((x / r.width) * 100) + "%");
+      card.style.setProperty("--reflection-y", ((y / r.height) * 100) + "%");
+    });
+  }
+  function onLeave() {
+    wrap.style.transform = "rotateX(0deg) rotateY(0deg)";
+    card.style.setProperty("--reflection-x", "50%");
+    card.style.setProperty("--reflection-y", "50%");
+  }
+  card.addEventListener("mousemove", onMove);
+  card.addEventListener("mouseleave", onLeave);
+}
+
+// ── Click en los sellos: simular progreso del cliente ──────
+function bindStampClicks() {
+  const cont = $("pv-stamps");
+  if (!cont) return;
+  cont.addEventListener("click", (e) => {
+    const slot = e.target.closest(".stamp-slot");
+    if (!slot) return;
+    const idx = parseInt(slot.dataset.slotIndex || "0", 10);
+    if (!idx) return;
+    const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
+    const totalSlots = 10;
+    const rewardIdx = totalSlots; // 10 (1-based)
+    if (idx === rewardIdx) {
+      // Click en reward: toggle unlocked
+      previewStampsFilled = (previewStampsFilled >= total) ? (total - 1) : 99;
+    } else {
+      // Click en sello normal: set filled a ese índice
+      previewStampsFilled = (previewStampsFilled === idx) ? (idx - 1) : idx;
+    }
+    renderPreviewStamps();
+    // Marcar botón de simulación correspondiente
+    document.querySelectorAll(".preview-controls .btn").forEach(b => b.classList.remove("active"));
+  });
+}
+
+// ── Botones de simulación rápida (Vacía / 3 / 6 / 9 / 10) ─
+function bindSimControls() {
+  document.querySelectorAll(".preview-controls .btn[data-sim-stamps]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const n = parseInt(btn.dataset.simStamps || "0", 10);
+      previewStampsFilled = n;
+      document.querySelectorAll(".preview-controls .btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderPreviewStamps();
+    });
+  });
+}
+
+// ── Wire up controls: pickers, sliders, stamps_required, name ──
 ["c_metal_c1", "c_metal_c2", "c_metal_c3", "c_metal_c4", "c_metal_c5", "c_text_color"].forEach(id => {
   const el = $(id);
   if (el) el.addEventListener("input", () => { updatePreview(); clearActivePreset(); });
@@ -633,11 +1079,16 @@ if (sheenInput) {
   });
 }
 const stampsInput = $("c_stamps_required");
-if (stampsInput) stampsInput.addEventListener("input", renderPreviewStamps);
+if (stampsInput) stampsInput.addEventListener("input", updatePreview);
 const rewardInput = $("c_reward_label");
-if (rewardInput) rewardInput.addEventListener("input", () => { $("pv-name").textContent = rewardInput.value || "Tu recompensa"; });
+if (rewardInput) rewardInput.addEventListener("input", updatePreview);
+const nameInput = $("c_name");
+if (nameInput) nameInput.addEventListener("input", updatePreview);
 
 renderPresets();
+attachPreviewTilt();
+bindStampClicks();
+bindSimControls();
 
 $("new-campaign-btn").addEventListener("click", openNewModal);
 $("modal-close").addEventListener("click", () => $("modal").classList.add("hidden"));
