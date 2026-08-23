@@ -278,8 +278,28 @@ def dashboard_webhooks(request: Request):
 
 @app.get("/dashboard/ai", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_ai(request: Request):
-    """Chat con el asistente IA de WowHub."""
-    return templates.TemplateResponse(request, "dashboard/ai.html", {"settings": settings})
+    """Chat con el asistente IA de WowHub.
+
+    FIX bug reportado: "Conversar con la IA → no envía a ninguna
+    page funcional, queda todo en blanco".
+
+    El problema: la página /dashboard/ai extendía dashboard/base.html,
+    que SIEMPRE incluye _ai_panel.html. La dash_content de ai.html
+    también era un ai-sidebar → había DOS paneles AI en la misma
+    vista, y el main quedaba visualmente vacío.
+
+    Solución:
+      1) Esta ruta pasa `hide_ai_panel=True` para que base.html NO
+         incluya el panel derecho (porque la página ES el chat).
+      2) ai.html renderiza el chat como contenido principal.
+      3) ai.js lee `?context=opportunities` y auto-envía el primer
+         mensaje del usuario con contexto de oportunidades.
+    """
+    context = request.query_params.get("context", "").strip()
+    return templates.TemplateResponse(
+        request, "dashboard/ai.html",
+        {"settings": settings, "hide_ai_panel": True, "ai_context": context},
+    )
 
 
 @app.get("/dashboard/marketing", response_class=HTMLResponse, include_in_schema=False)

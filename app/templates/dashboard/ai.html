@@ -2,140 +2,108 @@
 {% block title %}Asistente IA · WowHub{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
+<style>
+  /* ═══ FIX: /dashboard/ai standalone ═══════════════════════════════
+     En esta ruta la página ES el chat de IA. base.html ya no
+     incluye el panel fijo (hide_ai_panel=True), por lo que el
+     contenido principal debe verse como una pantalla completa
+     de conversación y NO como un sidebar flotante. */
+  body.route-ai .dash-side { display: none; }
+  body.route-ai .dash-content { padding: 0; }
+  body.route-ai .ai-sidebar {
+    position: static;
+    width: 100%;
+    height: calc(100vh - 64px); /* topbar */
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body.route-ai .ai-fab { display: none !important; }
+  body.route-ai main { padding: 0; }
+  /* Ajustes del banner de impersonación para esta página */
+  body.route-ai { padding-top: 0; }
+</style>
 {% endblock %}
+
+{# El main.html define body_class vía Jinja (base.html no lo usa). Lo
+   añadimos a mano con un script inline que se ejecuta lo antes posible. #}
 {% block dash_content %}
-<!--
-  Estructura del nuevo Asistente IA como SIDEBAR DERECHO fijo:
-  - Sidebar izquierdo (menú de navegación) — siempre visible
-  - Contenido central (página actual del dashboard) — siempre visible
-  - Sidebar derecho (Asistente IA) — siempre visible
-  - Composer (barra de escritura) — siempre fijo abajo del sidebar derecho
+{# FIX: el chat vive ahora en el main content. Reutilizamos el partial
+   que ya alimenta el panel derecho para no duplicar HTML ni JS. base.html
+   ya NO incluye el partial (hide_ai_panel=True), así que el chat aparece
+   una sola vez. #}
+{% include "dashboard/_ai_panel.html" %}
 
-  Esto reemplaza la página /dashboard/ai de página completa por un
-  panel persistente disponible en CUALQUIER página del dashboard.
--->
-
-<aside class="ai-sidebar" id="ai-sidebar">
-  <div class="ai-sidebar-head">
-    <div class="ai-head-title">
-      <span class="ai-avatar">🤖</span>
-      <div>
-        <h2 class="ai-title">Asistente IA</h2>
-        <p class="ai-sub" id="ai-current-sub">Tu copiloto de marketing y promociones.</p>
-      </div>
-    </div>
-    <button class="ai-icon-btn" id="ai-new-chat" title="Nueva conversación" aria-label="Nueva conversación">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
-  </div>
-
-  <div class="ai-agents" id="ai-agents">
-    <button class="ai-agent-chip" data-agent="marketing" title="Marketing">
-      <span aria-hidden="true">🎨</span><span>Marketing</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="growth" title="Crecimiento">
-      <span aria-hidden="true">📈</span><span>Crecimiento</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="automation" title="Tareas">
-      <span aria-hidden="true">✉️</span><span>Tareas</span>
-    </button>
-    <button class="ai-agent-chip" data-agent="marketplace" title="Catálogo">
-      <span aria-hidden="true">🛒</span><span>Catálogo</span>
-    </button>
-  </div>
-
-  <!-- Sugerencias rápidas (se ocultan tras el primer mensaje) -->
-  <div class="ai-suggestions" id="ai-suggestions">
-    <button class="ai-suggest" data-prompt="Quiero crear una promoción. ¿Qué me recomiendas?">
-      <span class="ai-suggest-ico">🎉</span>
-      <span>Crear una promoción</span>
-    </button>
-    <button class="ai-suggest" data-prompt="¿Cómo van mis ventas este mes? Dame 2 ideas simples para vender más.">
-      <span class="ai-suggest-ico">📈</span>
-      <span>Revisar mis ventas</span>
-    </button>
-    <button class="ai-suggest" data-prompt="¿Qué producto tiene baja rotación? Quiero hacerlo rotar.">
-      <span class="ai-suggest-ico">🔄</span>
-      <span>Productos que no se venden</span>
-    </button>
-    <button class="ai-suggest" data-prompt="Quiero escribir un aviso para Instagram. ¿Me ayudas?">
-      <span class="ai-suggest-ico">📱</span>
-      <span>Aviso para redes</span>
-    </button>
-  </div>
-
-  <!-- Conversación (scroll) -->
-  <div class="ai-thread" id="ai-thread" aria-live="polite">
-    <div class="ai-welcome" id="ai-welcome">
-      <div class="ai-welcome-icon">👋</div>
-      <h2 id="ai-current-agent">Asistente de Marketing</h2>
-      <p>Cuéntame qué necesitas. Te respondo corto y claro.</p>
-    </div>
-  </div>
-
-  <!-- Composer (fijo abajo) -->
-  <form class="ai-composer" id="ai-composer" autocomplete="off">
-    <div class="ai-composer-row">
-      <button type="button" class="ai-attach-btn" id="ai-attach-btn" title="Adjuntar imagen (opcional)">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-      </button>
-      <input type="file" id="ai-attach-input" accept="image/*" hidden>
-      <textarea
-        id="ai-input"
-        placeholder="Pregúntame algo…"
-        rows="1"
-        maxlength="2000"
-        aria-label="Mensaje para el asistente"></textarea>
-      <button class="ai-send-btn" id="ai-send" type="submit" title="Enviar" aria-label="Enviar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-      </button>
-    </div>
-    <div class="ai-composer-meta">
-      <span id="ai-attach-name" class="ai-attach-name" hidden></span>
-      <span class="ai-usage" id="ai-usage">—</span>
-      <span class="ai-hint">Enter envía · Shift+Enter nueva línea</span>
-    </div>
-  </form>
-</aside>
-
-<!-- Templates para mensajes -->
-<template id="tpl-msg-user">
-  <div class="ai-msg ai-msg-user">
-    <div class="ai-msg-bubble"></div>
-  </div>
-</template>
-<template id="tpl-msg-assistant">
-  <div class="ai-msg ai-msg-assistant">
-    <div class="ai-msg-bubble"></div>
-  </div>
-</template>
-<template id="tpl-msg-promo-card">
-  <div class="ai-promo-card">
-    <div class="ai-promo-card-title"></div>
-    <div class="ai-promo-card-meta"></div>
-    <div class="ai-promo-card-why"></div>
-    <button class="btn btn-primary btn-sm ai-promo-pick">Elegir esta opción</button>
-  </div>
-</template>
-<template id="tpl-msg-design-prompt">
-  <div class="ai-design-prompt">
-    <div class="ai-design-prompt-title">🎨 Prompt de diseño (copia y pega)</div>
-    <pre class="ai-design-prompt-body"></pre>
-    <button class="btn btn-sm ai-copy-prompt">Copiar prompt</button>
-  </div>
-</template>
-<template id="tpl-msg-image-upload">
-  <div class="ai-upload-cta">
-    <div class="ai-upload-cta-title">📸 Sube la imagen de tu producto</div>
-    <p class="ai-upload-cta-text">Así la IA la une a la promoción. Acepta JPG, PNG o WebP.</p>
-    <label class="btn btn-primary btn-sm">
-      Subir imagen
-      <input type="file" accept="image/*" hidden class="ai-upload-cta-input">
-    </label>
-  </div>
-</template>
+{# Banner contextual — sólo aparece si la URL trae ?context=… #}
+{% if ai_context %}
+<div class="ai-context-banner" id="ai-context-banner"
+     data-context="{{ ai_context|e }}"
+     style="
+       display:flex; align-items:center; gap:10px;
+       padding:10px 16px; margin:0;
+       background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+       border-bottom: 1px solid #f59e0b;
+       font-size: 13px; color: #92400e;
+     ">
+  <span aria-hidden="true">💡</span>
+  <span><strong>Contexto:</strong> te trajimos aquí desde tu panel de oportunidades. ¿Quieres que conversemos sobre cada una?</span>
+  <button type="button" id="ai-context-dismiss"
+          style="margin-left:auto; background:transparent; border:0; cursor:pointer; font-size:18px; color:#92400e;"
+          aria-label="Cerrar">×</button>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/ai.js?v=d6bccff"></script>
+{{ super() }}
+<script src="/static/js/ai.js?v=standalone-v1"></script>
+<script>
+  /* Marca el body para que apliquen los overrides de CSS */
+  document.body.classList.add("route-ai");
+
+  /* FIX: ?context=opportunities → auto-envía un mensaje inicial
+     con contexto de oportunidades detectadas en el panel principal. */
+  (function autoContext() {
+    const banner = document.getElementById("ai-context-banner");
+    if (!banner) return;
+    const ctx = banner.dataset.context || "";
+    const dismiss = document.getElementById("ai-context-dismiss");
+    if (dismiss) {
+      dismiss.addEventListener("click", () => banner.remove());
+    }
+
+    const initial = {
+      opportunities:
+        "Acabo de ver mi panel de oportunidades. ¿Puedes explicarme cada una y proponerme un plan de acción concreto para esta semana?",
+      growth:
+        "Quiero crecer. ¿Qué me recomiendas hacer este mes para vender más con lo que ya tengo?",
+      retention:
+        "Tengo clientes que no me compran hace tiempo. ¿Qué campaña me sugieres para recuperarlos?",
+    }[ctx] || "Hola, ¿en qué me puedes ayudar hoy?";
+
+    /* Espera a que la IA esté lista (input presente) y dispara el envío */
+    function trySend(attempts = 0) {
+      const input = document.getElementById("ai-input");
+      const composer = document.getElementById("ai-composer");
+      if (!input || !composer) {
+        if (attempts < 30) return setTimeout(() => trySend(attempts + 1), 100);
+        return;
+      }
+      input.value = initial;
+      // Enviamos el formulario
+      try {
+        composer.requestSubmit
+          ? composer.requestSubmit()
+          : composer.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      } catch (_) {
+        composer.submit();
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => setTimeout(trySend, 200));
+    } else {
+      setTimeout(trySend, 200);
+    }
+  })();
+</script>
 {% endblock %}
