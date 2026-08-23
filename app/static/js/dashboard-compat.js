@@ -110,6 +110,52 @@
     if (window.WH && window.WH.api) {
       window.WH.api.getAsync = window.WH.api.get;
     }
+
+    // ── (d) Override WH.Auth.logout para limpiar cookie de forma estricta ──
+    // BUG: el handler original llama a /api/v1/auth/logout que hace
+    // `response.delete_cookie(key, path="/)` sin replicar los atributos
+    // `secure`/`samesite`/`httponly` con que se seteó originalmente. En
+    // producción HTTPS el browser NO matchea la cookie → no se borra.
+    //
+    // FIX: llamar al nuevo endpoint compat /api/v1/auth/logout-strict que
+    // setea la cookie con max_age=0 + los MISMOS atributos del set original
+    // (forzando al browser a pisarla y expirarla). Los timers en background
+    // (bell badge, auto-refresh, etc.) se auto-curan: en su próximo tick
+    // reciben 401 y api.request() ya redirige a /login.
+    if (window.WH && window.WH.Auth && typeof window.WH.Auth.logout === "function") {
+      const originalLogout = window.WH.Auth.logout.bind(window.WH.Auth);
+      window.WH.Auth.logout = async function compatLogout() {
+        // 1) Reset session cache para que ensureSession no devuelva el
+        //    usuario viejo en una re-hidratación.
+        try { this.resetSession(); } catch (_) {}
+
+        // 2) Llamar al endpoint strict (pisa la cookie con mismos attrs)
+        //    Si falla, fallback al endpoint original.
+        try {
+          await fetch("/api/v1/auth/logout-strict", {
+            method: "POST",
+            credentials: "same-origin",
+          });
+        } catch (e) {
+          console.warn("[dashboard-compat] logout-strict failed, falling back:", e);
+          try { await originalLogout(); return; } catch (_) {}
+        }
+
+        // 3) Limpiar localStorage (igual que TokenStore.clear)
+        try {
+          if (window.WH.TokenStore && window.WH.TokenStore.clear) {
+            window.WH.TokenStore.clear();
+          } else {
+            localStorage.removeItem("wowhub.tokens");
+            localStorage.removeItem("wowhub.currentTenant");
+          }
+        } catch (_) {}
+
+        // 4) Redirect
+        window.location.href = "/login";
+      };
+    }
+
     console.info("[dashboard-compat] active");
   });
 })();

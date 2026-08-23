@@ -22,9 +22,10 @@ USO:
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.tenant import Tenant, TenantMembership
@@ -62,3 +63,46 @@ def get_my_memberships(
             }
         )
     return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /auth/logout-strict
+# ─────────────────────────────────────────────────────────────────────────────
+# BUG original:
+#   El router `app/api/v1/auth.py::_clear_access_cookie` solo pasa `path="/"`
+#   a `response.delete_cookie`, mientras que `_set_access_cookie` setea la
+#   cookie con `httponly=True, secure=<prod>, samesite="lax", path="/"`.
+#   En producción (HTTPS) el browser trata esos dos cookies como DISTINTOS
+#   (distinto `secure`/`samesite`) y por tanto NO se borra la cookie original
+#   al hacer logout → el usuario sigue "logueado" en el page-guard del server
+#   aunque el JS ya haya limpiado localStorage.
+#
+# FIX (capa compat, sin tocar `auth.py`):
+#   Sobrescribimos la cookie con valor vacío, max_age=0, y los MISMOS
+#   atributos que usó `_set_access_cookie`. Eso fuerza al browser a
+#   matchear el cookie original y expirarlo inmediatamente.
+#
+#   El cliente (dashboard-compat.js) monkey-patchea `WH.Auth.logout` para
+#   llamar a este endpoint antes del redirect.
+ACCESS_COOKIE_NAME = "wowhub_access_token"
+
+
+@compat_router.post("/auth/logout-strict", include_in_schema=False)
+def logout_strict(response: Response) -> dict:
+    """Logout estricto: limpia la cookie de acceso forzando sus atributos.
+
+    Equivalente a `_set_access_cookie("", max_age=0, ...)` — pisa la cookie
+    previa con el mismo `secure`/`samesite`/`httponly`/`path` para que el
+    browser la matchee y la expire.
+    """
+    response.set_cookie(
+        key=ACCESS_COOKIE_NAME,
+        value="",
+        max_age=0,
+        expires=0,
+        httponly=True,
+        secure=bool(settings.app_env == "production"),
+        samesite="lax",
+        path="/",
+    )
+    return {"ok": True}

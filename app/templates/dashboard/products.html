@@ -310,16 +310,43 @@
     if (status) qs.set("status", status);
     if (order_by) qs.set("order_by", order_by);
     qs.set("page_size", "100");
+
+    // ── Validación defensiva: si no hay tenant activo, mostrar mensaje claro
+    if (!tenant || !tenant.tenant_id) {
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+      return;
+    }
+
     let data;
     try {
       data = await api.get(`/api/v1/tenants/${tenant.tenant_id}/products?${qs}`);
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Error cargando: ${escapeHtml(e.message || "")}</td></tr>`;
+      console.error("[products] load failed:", e);
+      const msg = (e && e.message) ? e.message : "Error desconocido al cargar productos";
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 30px;">
+        <div style="color: var(--accent-err); font-weight: 600; margin-bottom: 8px;">Error cargando productos</div>
+        <div class="text-muted" style="font-size: 13px; margin-bottom: 12px;">${escapeHtml(msg)}</div>
+        <button class="btn btn-sm" data-action="retry">Reintentar</button>
+      </td></tr>`;
+      const retryBtn = tbody.querySelector("button[data-action=retry]");
+      if (retryBtn) retryBtn.addEventListener("click", () => load());
       return;
     }
 
     const healthFilter = document.getElementById("health-filter").value;
-    let items = data.items;
+    // ── Defensive: data puede ser array (vía compat shim) u objeto paginado
+    let items;
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data && Array.isArray(data.items)) {
+      items = data.items;
+    } else {
+      console.error("[products] unexpected data shape:", data);
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Respuesta inesperada del servidor. <button class="btn btn-sm" data-action="retry">Reintentar</button></td></tr>`;
+      const retryBtn = tbody.querySelector("button[data-action=retry]");
+      if (retryBtn) retryBtn.addEventListener("click", () => load());
+      return;
+    }
     if (healthFilter) items = items.filter(p => (p.health || "unknown") === healthFilter);
 
     if (items.length === 0) {
@@ -329,33 +356,41 @@
     // XSS: todos los campos que vienen del backend se escapan antes de
     // pintarse. Antes se inyectaban con ${p.name} directo → XSS si el
     // nombre contenía <script> o un atributo HTML malicioso.
-    tbody.innerHTML = items.map(p => `
-      <tr data-id="${escapeHtml(p.id)}">
-        <td>${p.image_url
-            ? `<img src="${escapeHtml(p.image_url)}" alt="" loading="lazy" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover;">`
-            : '<div style="width:44px;height:44px;background:var(--bg-elev-2);border-radius:6px;display:grid;place-items:center;color:var(--fg-dim);">∅</div>'}</td>
-        <td>
-          <div style="font-weight: 600;">${escapeHtml(p.name)}${p.is_featured ? ' <span class="badge badge-accent">★</span>' : ''}</div>
-          <div class="text-muted" style="font-size: 12px;"><code>${escapeHtml(p.sku)}</code> · ${escapeHtml(p.short_description || '')}</div>
-        </td>
-        <td>${p.cost_real_cents > 0 ? fmt(p.cost_real_cents) : '<span class="text-dim">—</span>'}</td>
-        <td>
-          <strong>${fmt(p.price_cents)}</strong>
-          ${p.on_sale ? `<br><span class="text-dim" style="text-decoration: line-through; font-size: 12px;">${fmt(p.compare_at_cents)}</span> <span class="badge badge-err">-${p.discount_pct}%</span>` : ''}
-        </td>
-        <td>${p.current_margin_pct !== null && p.current_margin_pct !== undefined
-            ? `<span style="color: ${p.current_margin_pct >= (p.target_margin_pct||30) ? 'var(--ok)' : p.current_margin_pct < 0 ? 'var(--accent-err)' : 'var(--fg-dim)'};">${p.current_margin_pct.toFixed(1)}%</span>`
-            : '<span class="text-dim">—</span>'}</td>
-        <td>${Number(p.stock) || 0}</td>
-        <td>${fmtMin(p.production_time_min)}</td>
-        <td>${healthBadge(p)}</td>
-        <td>${statusBadge(p.status)}</td>
-        <td class="text-right">
-          <button class="btn btn-sm" data-action="edit">Editar</button>
-          <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button>
-        </td>
-      </tr>
-    `).join("");
+    // ── Defensive render: si un producto tiene campos faltantes, no rompe toda la tabla
+    tbody.innerHTML = items.map(p => {
+      try {
+        return `
+          <tr data-id="${escapeHtml(p.id || '')}">
+            <td>${p.image_url
+                ? `<img src="${escapeHtml(p.image_url)}" alt="" loading="lazy" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover;">`
+                : '<div style="width:44px;height:44px;background:var(--bg-elev-2);border-radius:6px;display:grid;place-items:center;color:var(--fg-dim);">∅</div>'}</td>
+            <td>
+              <div style="font-weight: 600;">${escapeHtml(p.name || '(sin nombre)')}${p.is_featured ? ' <span class="badge badge-accent">★</span>' : ''}</div>
+              <div class="text-muted" style="font-size: 12px;"><code>${escapeHtml(p.sku || '')}</code> · ${escapeHtml(p.short_description || '')}</div>
+            </td>
+            <td>${(p.cost_real_cents || 0) > 0 ? fmt(p.cost_real_cents) : '<span class="text-dim">—</span>'}</td>
+            <td>
+              <strong>${fmt(p.price_cents || 0)}</strong>
+              ${p.on_sale ? `<br><span class="text-dim" style="text-decoration: line-through; font-size: 12px;">${fmt(p.compare_at_cents || 0)}</span> <span class="badge badge-err">-${p.discount_pct || 0}%</span>` : ''}
+            </td>
+            <td>${p.current_margin_pct !== null && p.current_margin_pct !== undefined
+                ? `<span style="color: ${p.current_margin_pct >= (p.target_margin_pct||30) ? 'var(--ok)' : p.current_margin_pct < 0 ? 'var(--accent-err)' : 'var(--fg-dim)'};">${Number(p.current_margin_pct).toFixed(1)}%</span>`
+                : '<span class="text-dim">—</span>'}</td>
+            <td>${Number(p.stock) || 0}</td>
+            <td>${fmtMin(p.production_time_min)}</td>
+            <td>${healthBadge(p)}</td>
+            <td>${statusBadge(p.status)}</td>
+            <td class="text-right">
+              <button class="btn btn-sm" data-action="edit">Editar</button>
+              <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button>
+            </td>
+          </tr>
+        `;
+      } catch (rowErr) {
+        console.error("[products] row render failed:", rowErr, p);
+        return `<tr><td colspan="10" class="text-dim">Error mostrando producto ${escapeHtml(p?.id || '')}</td></tr>`;
+      }
+    }).join("");
     tbody.querySelectorAll("button[data-action=edit]").forEach(b => b.addEventListener("click", onEdit));
     tbody.querySelectorAll("button[data-action=del]").forEach(b => b.addEventListener("click", onDelete));
   }
