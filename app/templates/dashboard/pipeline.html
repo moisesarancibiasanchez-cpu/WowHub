@@ -198,7 +198,13 @@ async function openOrder(id) {
       btn.textContent = `→ ${col.nextLabel}`;
       btn.onclick = async () => {
         try {
-          await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${o.id}/transition`, { to_status: col.next.toUpperCase() });
+          // El schema OrderTransition espera {new_status, notes?}, no {to_status}.
+          // OrderStatus es un str-enum con valores LOWERCASE (Pydantic v2 es
+          // case-sensitive), por lo que NO se aplica .toUpperCase().
+          await WH.api.post(
+            `/api/v1/tenants/${currentTenantId}/orders/${o.id}/transition`,
+            { new_status: col.next }
+          );
           $("order-modal").style.display = "none";
           loadOrders();
         } catch (err) { alert(err.message || err); }
@@ -212,7 +218,10 @@ async function openOrder(id) {
       btnC.onclick = async () => {
         if (!confirm("¿Cancelar este pedido?")) return;
         try {
-          await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${o.id}/cancel`, { reason: "Cancelado desde pipeline" });
+          // /cancel acepta 'reason' como query param (no body).
+          await WH.api.post(
+            `/api/v1/tenants/${currentTenantId}/orders/${o.id}/cancel?reason=${encodeURIComponent("Cancelado desde pipeline")}`
+          );
           $("order-modal").style.display = "none";
           loadOrders();
         } catch (err) { alert(err.message || err); }

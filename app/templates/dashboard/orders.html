@@ -8,12 +8,12 @@
     <div>
       <select id="status-filter" class="form-input" style="display: inline-block; width: auto;">
         <option value="">Todos los estados</option>
-        <option value="PENDING">Pendientes</option>
-        <option value="CONFIRMED">Confirmados</option>
-        <option value="PREPARING">Preparando</option>
-        <option value="READY">Listos</option>
-        <option value="DELIVERED">Entregados</option>
-        <option value="CANCELED">Cancelados</option>
+        <option value="pending">Pendientes</option>
+        <option value="confirmed">Confirmados</option>
+        <option value="preparing">Preparando</option>
+        <option value="ready">Listos</option>
+        <option value="delivered">Entregados</option>
+        <option value="canceled">Cancelados</option>
       </select>
       <button class="btn" id="refresh-btn">Actualizar</button>
     </div>
@@ -41,50 +41,72 @@ async function loadOrders() {
   currentTenantId = memberships[0].tenant_id;
   const params = new URLSearchParams();
   if (status) params.set("status", status);
+  params.set("page_size", "100");
   const url = `/api/v1/tenants/${currentTenantId}/orders?${params.toString()}`;
-  const orders = await WH.api.get(url);
+  // La API devuelve Page[OrderListItem] = {items, total, page, ...},
+  // no un array plano. Extraemos .items con fallback defensivo.
+  const data = await WH.api.get(url);
+  const orders = Array.isArray(data) ? data : (data?.items || data?.data || []);
   if (!orders.length) {
     document.getElementById("orders-list").innerHTML =
       '<p class="text-muted text-center" style="padding:40px;">No hay pedidos.</p>';
     return;
   }
-  const rows = orders.map(o => `
+  // OrderListItem NO incluye items ni customer_phone en la lista
+  // (solo en el detalle /orders/{id}). Usamos los campos que sí
+  // expone: number, customer_name, customer_email, item_count.
+  const rows = orders.map(o => {
+    const num = o.number || o.order_number || (o.id || "").slice(0, 8);
+    const contact = o.customer_email || o.customer_phone || "";
+    const itemsLabel = o.item_count != null
+      ? `${o.item_count} ${o.item_count === 1 ? "ítem" : "ítems"}`
+      : "";
+    return `
     <div class="card mb-2" style="padding: 16px;">
       <div class="flex" style="justify-content: space-between; align-items: start;">
         <div>
-          <strong>${o.order_number}</strong> · ${o.customer_name} · ${o.customer_phone}
+          <strong>${num}</strong> · ${o.customer_name || "—"}${contact ? " · " + contact : ""}
           <br><span class="text-dim" style="font-size: 12px;">${new Date(o.created_at).toLocaleString()}</span>
         </div>
         <div>
           <span class="badge">${o.status}</span>
-          <strong>$${(o.total_cents/100).toFixed(2)}</strong>
+          <strong>$${((o.total_cents || 0) / 100).toFixed(2)}</strong>
         </div>
       </div>
-      <div class="mt-2">
-        ${(o.items || []).map(i => `${i.quantity}× ${i.product_name}`).join(", ")}
+      <div class="mt-2 text-muted" style="font-size: 13px;">
+        ${itemsLabel}${o.source ? " · fuente: " + o.source : ""}
       </div>
       <div class="mt-2 flex" style="gap: 8px;">
         ${nextTransitions(o.status).map(s =>
           `<button class="btn btn-sm" onclick="transition('${o.id}','${s}')">${s}</button>`).join("")}
         <button class="btn btn-sm" onclick="cancelOrder('${o.id}')">Cancelar</button>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   document.getElementById("orders-list").innerHTML = rows;
 }
 
 function nextTransitions(status) {
+  // OrderStatus es un str-enum con valores LOWERCASE
+  // (Pydantic v2 es case-sensitive). Devolvemos los siguientes
+  // estados en minúsculas para que el backend los acepte.
   const map = {
-    PENDING: ["CONFIRMED"],
-    CONFIRMED: ["PREPARING"],
-    PREPARING: ["READY"],
-    READY: ["DELIVERED"],
+    pending: ["confirmed"],
+    confirmed: ["preparing"],
+    preparing: ["ready"],
+    ready: ["delivered"],
   };
   return map[status] || [];
 }
 
 async function transition(orderId, toStatus) {
   try {
-    await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${orderId}/transition`, { to_status: toStatus });
+    // El schema OrderTransition espera {new_status, notes?},
+    // no {to_status}.
+    await WH.api.post(
+      `/api/v1/tenants/${currentTenantId}/orders/${orderId}/transition`,
+      { new_status: toStatus }
+    );
     loadOrders();
   } catch (err) {
     document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;
@@ -94,7 +116,10 @@ async function transition(orderId, toStatus) {
 async function cancelOrder(orderId) {
   if (!confirm("¿Cancelar este pedido?")) return;
   try {
-    await WH.api.post(`/api/v1/tenants/${currentTenantId}/orders/${orderId}/cancel`, { reason: "Cancelado desde panel" });
+    // /cancel acepta 'reason' como query param (no body).
+    await WH.api.post(
+      `/api/v1/tenants/${currentTenantId}/orders/${orderId}/cancel?reason=${encodeURIComponent("Cancelado desde panel")}`
+    );
     loadOrders();
   } catch (err) {
     document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message}</div>`;

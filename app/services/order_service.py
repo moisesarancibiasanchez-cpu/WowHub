@@ -234,7 +234,11 @@ class OrderService:
             raise ConflictError(f"No se puede cancelar un pedido {order.status.value}")
         # Devolver stock
         for oi in order.items:
-            p = self.db.get(Product, UUID(oi.product_id))
+            # GUID type devuelve UUID (no str) en process_result_value;
+            # UUID(UUID(...)) falla porque internamente llama
+            # `hex.replace(...)`. Aceptamos ambos.
+            pid = oi.product_id if isinstance(oi.product_id, UUID) else UUID(oi.product_id)
+            p = self.db.get(Product, pid)
             if p and p.track_inventory:
                 p.stock += oi.quantity
                 if p.status.value == "out_of_stock" and p.stock > 0:
