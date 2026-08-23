@@ -40,7 +40,10 @@ echo "▶ Sembrando datos demo (si DB vacía)..."
 python -m app.seed || echo "⚠ seed falló (continúa igualmente)"
 
 echo "▶ Arrancando uvicorn..."
-exec uvicorn app.main:app \
+# Usar app.main_compat en vez de app.main para cargar el compat router
+# (incluye /api/v1/me/memberships, /api/v1/auth/logout-strict, etc.).
+# main_compat importa main y le agrega el router compat sin tocar el resto.
+exec uvicorn app.main_compat:app \
     --host 0.0.0.0 \
     --port "${PORT:-8000}" \
     --workers 2 \

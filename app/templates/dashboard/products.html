@@ -321,15 +321,43 @@
     try {
       data = await api.get(`/api/v1/tenants/${tenant.tenant_id}/products?${qs}`);
     } catch (e) {
+      // ── Diagnóstico detallado: api.get rechaza con Error(message) donde
+      //    message viene de `data.detail || res.statusText`. Si ambos son
+      //    vacíos (ej: 401 con WWW-Authenticate, 500 sin body, CORS
+      //    preflight fallido, respuesta bloqueada por extensión), el
+      //    usuario ve "Error desconocido" sin pistas. Mostramos el detalle
+      //    completo + URL para que pueda reportar el bug.
       console.error("[products] load failed:", e);
-      const msg = (e && e.message) ? e.message : "Error desconocido al cargar productos";
+      const url = `/api/v1/tenants/${tenant.tenant_id}/products?${qs}`;
+      const msg = (e && e.message) ? String(e.message) : "(sin mensaje del servidor)";
+      const errPayload = JSON.stringify({
+        message: msg,
+        stack: (e && e.stack) ? String(e.stack).split("\n").slice(0, 3).join(" | ") : null,
+        url,
+        tenantId: tenant.tenant_id,
+        ts: new Date().toISOString(),
+      }, null, 2);
       tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 30px;">
         <div style="color: var(--accent-err); font-weight: 600; margin-bottom: 8px;">Error cargando productos</div>
         <div class="text-muted" style="font-size: 13px; margin-bottom: 12px;">${escapeHtml(msg)}</div>
-        <button class="btn btn-sm" data-action="retry">Reintentar</button>
+        <details style="text-align:left; max-width:600px; margin:0 auto 12px; font-size:12px; color:var(--fg-dim);">
+          <summary style="cursor:pointer; color:var(--accent-err);">🔍 Detalles técnicos (click para expandir)</summary>
+          <pre style="background:var(--bg-elev-2); padding:8px; border-radius:4px; margin-top:6px; overflow-x:auto;">${escapeHtml(errPayload)}</pre>
+        </details>
+        <button class="btn btn-sm" data-action="retry" style="margin-right:6px;">Reintentar</button>
+        <button class="btn btn-sm btn-ghost" data-action="copy-err">Copiar error</button>
       </td></tr>`;
       const retryBtn = tbody.querySelector("button[data-action=retry]");
       if (retryBtn) retryBtn.addEventListener("click", () => load());
+      const copyBtn = tbody.querySelector("button[data-action=copy-err]");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(errPayload).then(
+            () => Toast.show("Error copiado al portapapeles", "success"),
+            () => Toast.show("No se pudo copiar", "error"),
+          );
+        });
+      }
       return;
     }
 
