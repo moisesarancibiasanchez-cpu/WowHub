@@ -220,21 +220,26 @@
   .preview-card .tier-badge.vip   { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
   .preview-card .tier-badge.black { background: linear-gradient(135deg, #0a0a0a, #262626); border-color: #ffd700; color: #ffd700; }
 
-  /* Stamps grid (5x2) — ancho capado con min(100%, 240px) para que
-     Chrome NO ignore el max-width. Aspect-ratio en la CELDA, no en el grid,
-     así el círculo sale del ancho de columna (cuadrado perfecto).
-     Sin grid-template-rows explícito: con 10 hijos ÷ 5 columnas el grid
-     crea 2 filas auto del mismo alto (porque cada celda es cuadrada). */
+  /* Stamps grid (5x2) — TRIPLE-SEGURO idéntico al de public/loyalty.html
+     para que las celdas sean SIEMPRE cuadradas sin importar el contenido
+     (slot vacío con ✦ vs slot stamped con badge W+wowhub+✓ vs reward con ★).
+     Sin el grid-template-rows + aspect-ratio en el GRID, la fila se estira
+     a la celda más alta y los slots vacíos se ven como óvalos alargados. */
   .preview-card .stamps-grid {
     width: min(100%, 240px);
     margin: 4px auto 2px;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    aspect-ratio: 18 / 7;            /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
     gap: 4px 4px;
   }
   .preview-card .stamp-slot {
     width: 100%;
-    aspect-ratio: 1;                /* ← GARANTIZA círculo perfecto */
+    height: 100%;
+    aspect-ratio: 1;                /* respaldo: si algo estira, sigue cuadrado */
+    max-width: 100%;
+    max-height: 100%;
     border-radius: 50%;
     position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -516,11 +521,11 @@
 
           <!-- Controles de simulación -->
           <div class="preview-controls">
-            <button type="button" class="btn" data-sim-stamps="0">Vacía</button>
-            <button type="button" class="btn" data-sim-stamps="3">3 / 9</button>
-            <button type="button" class="btn" data-sim-stamps="6">6 / 9</button>
-            <button type="button" class="btn" data-sim-stamps="9">9 / 9</button>
-            <button type="button" class="btn" data-sim-stamps="10">10 / 10 ✦</button>
+            <button type="button" class="btn" data-sim-stamps="3"><span data-sim-label>3</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
+            <button type="button" class="btn" data-sim-stamps="6"><span data-sim-label>6</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
+            <button type="button" class="btn" data-sim-stamps="8"><span data-sim-label>8</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
+            <button type="button" class="btn" data-sim-stamps="9"><span data-sim-label>9</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
+            <button type="button" class="btn" data-sim-stamps="10"><span data-sim-label>10</span> <span data-sim-sep>/</span> <span data-sim-total>10</span> ✦</button>
           </div>
           <p class="preview-hint">Mueve el mouse sobre la tarjeta para ver el efecto 3D · haz clic en los sellos para simular la experiencia del cliente</p>
         </div>
@@ -998,8 +1003,34 @@ function updatePreview() {
 
   // Repintar stamps
   renderPreviewStamps();
+  // Actualizar labels dinámicos de los botones de simulación
+  updateSimLabels();
   // Actualizar botones de simulación activos
   document.querySelectorAll(".preview-controls .btn").forEach(b => b.classList.remove("active"));
+}
+
+// Actualiza el denominador de los botones de simulación según stamps_required.
+// El último botón (10 sellos) siempre muestra "/10 ✦" porque es la grilla completa.
+function updateSimLabels() {
+  const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
+  // Denominador = stamps_required (los sellos que necesita el cliente)
+  // Para el botón "10 sellos" dejamos "/10" como representación de grilla completa.
+  document.querySelectorAll(".preview-controls .btn[data-sim-stamps]").forEach(btn => {
+    const n = parseInt(btn.dataset.simStamps || "0", 10);
+    const totalEl = btn.querySelector("[data-sim-total]");
+    if (totalEl) {
+      totalEl.textContent = (n >= 10) ? "10" : total.toString();
+    }
+    // Si el botón pide más sellos que los requeridos, lo deshabilitamos
+    // (ej: stamps_required=6 → el botón "8" no aplica, lo ocultamos)
+    if (n > total && n < 10) {
+      btn.style.display = "none";
+    } else if (n === total) {
+      btn.style.display = "";  // siempre visible: es el "completa la tarjeta"
+    } else {
+      btn.style.display = "";
+    }
+  });
 }
 
 // ── 3D tilt + specular sheen en el preview ─────────────────
