@@ -83,6 +83,65 @@ def get_booking_stats(
     return svc.stats()
 
 
+# ── Toggle web-booking (P2 #3) ────────────────────────────
+class WebBookingToggle(BaseModel):
+    enabled: bool = Field(..., description="True para permitir reservas desde el sitio público")
+
+
+@router.get("/web-booking")
+def get_web_booking(
+    tenant_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Lee el estado actual del toggle de web-booking del tenant.
+
+    El estado se guarda en `tenant.settings["web_booking_enabled"]`.
+    Default: True (siempre activo para no romper tenants existentes).
+    """
+    from app.models.tenant import Tenant
+    tenant = db.get(Tenant, tenant_id)
+    if not tenant:
+        raise NotFoundError("Tenant")
+    settings = tenant.settings or {}
+    enabled = bool(settings.get("web_booking_enabled", True))
+    return {
+        "tenant_id": str(tenant.id),
+        "web_booking_enabled": enabled,
+        "public_url": f"/u/{tenant.slug}#reservar" if enabled else None,
+    }
+
+
+@router.post("/web-booking")
+def set_web_booking(
+    tenant_id: UUID,
+    payload: WebBookingToggle,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Activa o desactiva las reservas online (P2 #3).
+
+    Cuando está desactivado, el sitio público NO muestra el botón
+    "Reservar" y el endpoint público POST /bookings devuelve 403.
+    El estado se persiste en `tenant.settings["web_booking_enabled"]`.
+    """
+    from app.models.tenant import Tenant
+    tenant = db.get(Tenant, tenant_id)
+    if not tenant:
+        raise NotFoundError("Tenant")
+    settings = dict(tenant.settings or {})
+    settings["web_booking_enabled"] = bool(payload.enabled)
+    tenant.settings = settings
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+    return {
+        "tenant_id": str(tenant.id),
+        "web_booking_enabled": bool(payload.enabled),
+        "public_url": f"/u/{tenant.slug}#reservar" if payload.enabled else None,
+    }
+
+
 # ── Availability ────────────────────────────────────────
 @router.post("/availability", response_model=AvailabilityResponse)
 def check_availability(
@@ -203,6 +262,26 @@ def _resolve_tenant_by_slug(slug: str, db: Session) -> Tenant:
     return t
 
 
+@public_router.get("/t/{slug}/status")
+def public_booking_status(
+    slug: str,
+    db: Session = Depends(get_db),
+):
+    """Indica al sitio público si las reservas online están activas.
+
+    Usado por /u/{slug} para mostrar u ocultar el botón "Reservar".
+    No expone datos sensibles; sólo el flag `enabled` y la URL de
+    contacto como fallback.
+    """
+    t = _resolve_tenant_by_slug(slug, db)
+    enabled = bool((t.settings or {}).get("web_booking_enabled", True))
+    return {
+        "slug": slug,
+        "web_booking_enabled": enabled,
+        "contact_url": f"/u/{slug}#contacto",
+    }
+
+
 @public_router.post("/t/{slug}/public-check")
 def public_check_availability(
     slug: str,
@@ -211,6 +290,9 @@ def public_check_availability(
 ):
     """Consulta slots disponibles para que el cliente elija cuándo reservar."""
     t = _resolve_tenant_by_slug(slug, db)
+    if not (t.settings or {}).get("web_booking_enabled", True):
+        from app.core.errors import ForbiddenError
+        raise ForbiddenError("Las reservas online están desactivadas para este negocio.")
     svc = BookingService(db, str(t.id))
     return svc.get_availability(payload)
 
@@ -252,6 +334,9 @@ def public_create_booking(
     """Crea una reserva pública. El cliente debe aceptar términos.
     Devuelve datos enmascarados (sin staff, sin precio)."""
     t = _resolve_tenant_by_slug(slug, db)
+    if not (t.settings or {}).get("web_booking_enabled", True):
+        from app.core.errors import ForbiddenError
+        raise ForbiddenError("Las reservas online están desactivadas para este negocio.")
     svc = BookingService(db, str(t.id))
     b = svc.create(payload, send_confirmation=True)
     branch_name = None

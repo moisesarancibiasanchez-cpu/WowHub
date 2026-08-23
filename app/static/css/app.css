@@ -763,8 +763,8 @@ footer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   background: transparent;
   border: 1px solid var(--border);
@@ -783,15 +783,31 @@ footer {
   outline-offset: 2px;
 }
 .bell-btn .ico-bell {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+/* Resaltar el botón cuando hay notificaciones críticas pendientes */
+.bell-btn.has-crit {
+  color: var(--err, #e25353);
+  border-color: color-mix(in srgb, var(--err, #e25353) 35%, var(--border));
+  background: color-mix(in srgb, var(--err-bg, #ffebeb) 60%, transparent);
+  animation: bell-attention 1.6s ease-in-out infinite;
+}
+.bell-btn.has-warn:not(.has-crit) {
+  color: var(--warn-ink, #a97405);
+  border-color: color-mix(in srgb, var(--warn, #e9a820) 40%, var(--border));
+  background: color-mix(in srgb, var(--warn-bg, #fff6dd) 50%, transparent);
+}
+@keyframes bell-attention {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--err, #e25353) 60%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--err, #e25353) 0%, transparent); }
 }
 
 /* Stack de dos badges (critical + warning) en la esquina */
 .bell-badges {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -6px;
+  right: -6px;
   display: flex;
   gap: 2px;
   pointer-events: none;
@@ -799,21 +815,31 @@ footer {
 .bell-badge {
   display: inline-grid;
   place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  font-size: 10.5px;
-  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
   color: #fff;
   line-height: 1;
   border: 2px solid var(--topbar-bg);
   box-sizing: content-box;
+  letter-spacing: 0.2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
 }
 .bell-badge-crit { background: var(--err, #e25353); }
-.bell-badge-warn { background: var(--warn, #e9a820); }
+.bell-badge-warn { background: var(--warn, #e9a820); color: #1f1300; }
+.bell-badge-crit:not([hidden]) { animation: bell-pulse 2s ease-in-out infinite; }
+@keyframes bell-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
 
-/* Dropdown */
+/* Dropdown — DEBE quedar por encima de TODO el contenido del
+   dashboard: topbar (30), AI sidebar fijo (40), wh-modal-overlay
+   (9100). 9300 garantiza que la campanita y su lista viva sobre
+   cualquier modal abierto. */
 .bell-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -824,7 +850,7 @@ footer {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
-  z-index: 40;
+  z-index: 9300;
   overflow: hidden;
   animation: wh-bell-drop .15s ease-out;
 }
@@ -1054,4 +1080,89 @@ footer {
   line-height: 1.5;
 }
 .notif-cta { font-size: 12.5px; }
+
+/* ═══════════════════════════════════════════════════════════
+   Activity feed (P2 #2 — Dashboard)
+   Lista de eventos recientes: pedidos, clientes, reservas…
+   ═══════════════════════════════════════════════════════════ */
+.activity-feed {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.activity-item {
+  border-bottom: 1px solid var(--divider, rgba(15, 23, 42, 0.08));
+}
+.activity-item:last-child { border-bottom: 0; }
+.activity-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  text-decoration: none;
+  color: inherit;
+  transition: background .12s;
+  border-radius: 8px;
+}
+.activity-link:hover { background: var(--bg-elev-2); text-decoration: none; }
+.activity-icon {
+  width: 36px; height: 36px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--bg-elev-3, #f0efff);
+  border-radius: 10px;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.activity-body {
+  flex: 1;
+  min-width: 0;
+}
+.activity-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-sub {
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-time {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.activity-empty {
+  list-style: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Sales chart (P2 #1 — Dashboard)
+   El SVG se inyecta dinámicamente en /dashboard; esta clase
+   sólo aporta tipografía y separadores del bloque.
+   ═══════════════════════════════════════════════════════════ */
+#sales-chart-card .card-title { color: var(--fg); }
+#sales-chart-card svg {
+  font-family: var(--font-sans);
+  overflow: visible;
+}
+#sales-chart-axis span {
+  flex: 1;
+  text-align: center;
+}
+#sales-chart-axis span:first-child { text-align: left; }
+#sales-chart-axis span:last-child { text-align: right; }
 

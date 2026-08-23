@@ -150,6 +150,47 @@
   <code id="public-url" style="font-size: 14px;"></code>
 </div>
 
+<!-- ════════════════════════════════════════════════════════════════
+     P2 #1 — Chart de ventas 7 días (línea simple con SVG nativo)
+     P2 #2 — Feed de actividad reciente (timeline)
+     ════════════════════════════════════════════════════════════════ -->
+<div class="card mt-4" id="sales-chart-card">
+  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div>
+      <h2 class="card-title" style="margin:0;">Ventas — últimos 7 días</h2>
+      <p class="text-muted" style="margin: 4px 0 0; font-size: 12.5px;">
+        <span id="sales-7d-total">—</span> en total ·
+        <span id="sales-7d-orders">—</span> pedidos ·
+        <span id="sales-7d-avg">—</span> promedio/día
+      </p>
+    </div>
+    <a class="btn btn-sm" href="/dashboard/orders">Ver pedidos →</a>
+  </div>
+  <div id="sales-chart-wrap" style="padding: 12px 4px 0;">
+    <div id="sales-chart" style="width:100%; height: 180px; position: relative;">
+      <p class="text-muted text-center" style="margin: 60px 0;">Cargando serie de ventas…</p>
+    </div>
+    <div id="sales-chart-axis" style="display:flex; justify-content:space-between; font-size:11px; color:var(--fg-muted); padding: 4px 8px 0;"></div>
+  </div>
+</div>
+
+<div class="card mt-4" id="activity-feed-card">
+  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div>
+      <h2 class="card-title" style="margin:0;">Actividad reciente</h2>
+      <p class="text-muted" style="margin: 4px 0 0; font-size: 12.5px;">
+        Últimos movimientos de tu negocio
+      </p>
+    </div>
+    <button class="btn btn-sm" id="activity-refresh" type="button" aria-label="Refrescar actividad">↻ Refrescar</button>
+  </div>
+  <ul class="activity-feed" id="activity-feed" style="list-style:none; margin: 8px 0 0; padding: 0;">
+    <li class="activity-empty">
+      <p class="text-muted text-center" style="margin: 16px 0;">Cargando actividad…</p>
+    </li>
+  </ul>
+</div>
+
 <div class="card mt-4">
   <h2 class="card-title">Primeros pasos</h2>
   <ol style="margin: 12px 0 0 0; padding-left: 20px; line-height: 1.8;">
@@ -347,7 +388,169 @@
 
   // 5) Cargar Daily Brief + Oportunidades (Fase 3 — oportunidades.pdf)
   await loadAiBrief(tenant.tenant_id, user);
+
+  // 6) P2 #1 — Chart de ventas 7 días
+  loadSalesChart(tenant.tenant_id);
+
+  // 7) P2 #2 — Feed de actividad reciente
+  loadActivityFeed(tenant.tenant_id);
 })();
+
+// ──────────────────────────────────────────────────────────────
+// P2 #1 — Chart SVG de ventas 7 días
+// ──────────────────────────────────────────────────────────────
+async function loadSalesChart(tenantId) {
+  const chartEl = document.getElementById("sales-chart");
+  const axisEl = document.getElementById("sales-chart-axis");
+  const totEl = document.getElementById("sales-7d-total");
+  const ordEl = document.getElementById("sales-7d-orders");
+  const avgEl = document.getElementById("sales-7d-avg");
+  if (!chartEl) return;
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/sales-7d`);
+    renderSalesChart(chartEl, axisEl, data);
+    if (totEl) totEl.textContent = fmtMoney(data.total_cents || 0);
+    if (ordEl) ordEl.textContent = (data.orders_count || 0) + " pedidos";
+    if (avgEl) avgEl.textContent = fmtMoney(data.avg_per_day_cents || 0) + "/día";
+  } catch (err) {
+    console.warn("sales-7d failed:", err);
+    chartEl.innerHTML = `<p class="text-muted text-center" style="margin: 60px 0;">No se pudo cargar la serie de ventas.</p>`;
+  }
+}
+
+function renderSalesChart(chartEl, axisEl, data) {
+  const series = (data && data.series) || [];
+  if (series.length === 0) {
+    chartEl.innerHTML = `<p class="text-muted text-center" style="margin: 60px 0;">Sin ventas en los últimos 7 días.</p>`;
+    return;
+  }
+  const W = chartEl.clientWidth || 600;
+  const H = 180;
+  const padL = 36, padR = 12, padT = 14, padB = 18;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const maxCents = Math.max(1, ...series.map(s => s.total_cents || 0));
+  const yTicks = 4;
+  // ── Eje Y (4 líneas horizontales) ──
+  let yAxisSvg = "";
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padT + (innerH / yTicks) * i;
+    const val = Math.round((maxCents * (1 - i / yTicks)) / 100);
+    yAxisSvg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border, #e8ecf3)" stroke-dasharray="2 3" />`;
+    yAxisSvg += `<text x="${padL - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--fg-muted, #73809a)">$${val.toLocaleString("es-CL")}</text>`;
+  }
+  // ── Línea + área + puntos ──
+  const stepX = innerW / Math.max(1, series.length - 1);
+  const points = series.map((s, i) => {
+    const x = padL + stepX * i;
+    const y = padT + innerH - (innerH * (s.total_cents || 0) / maxCents);
+    return { x, y, ...s };
+  });
+  // path línea
+  const linePath = points.map((p, i) => (i === 0 ? "M" : "L") + p.x + "," + p.y).join(" ");
+  // path área
+  const areaPath = `M${points[0].x},${padT + innerH} ` +
+                   points.map(p => `L${p.x},${p.y}`).join(" ") +
+                   ` L${points[points.length - 1].x},${padT + innerH} Z`;
+  // puntos
+  const dots = points.map(p => `
+    <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--ok, #16a673)" stroke="var(--bg-elev, #fff)" stroke-width="2">
+      <title>${p.date}: ${fmtMoney(p.total_cents)} · ${p.orders_count || 0} pedidos</title>
+    </circle>
+  `).join("");
+  chartEl.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;">
+      <defs>
+        <linearGradient id="sales-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--ok, #16a673)" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="var(--ok, #16a673)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${yAxisSvg}
+      <path d="${areaPath}" fill="url(#sales-grad)" />
+      <path d="${linePath}" fill="none" stroke="var(--ok, #16a673)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      ${dots}
+    </svg>
+  `;
+  // eje X: abreviatura del día (Lun, Mar, etc.)
+  if (axisEl) {
+    const fmtDay = (iso) => {
+      const d = new Date(iso + "T00:00:00");
+      return ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d.getDay()] || "";
+    };
+    axisEl.innerHTML = series.map(s => `<span>${fmtDay(s.date)}</span>`).join("");
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// P2 #2 — Feed de actividad reciente
+// ──────────────────────────────────────────────────────────────
+async function loadActivityFeed(tenantId) {
+  const list = document.getElementById("activity-feed");
+  if (!list) return;
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=15`);
+    renderActivityFeed(list, data.events || []);
+  } catch (err) {
+    console.warn("activity feed failed:", err);
+    list.innerHTML = `<li class="activity-empty"><p class="text-muted text-center" style="margin: 16px 0;">No se pudo cargar la actividad.</p></li>`;
+  }
+
+  const refresh = document.getElementById("activity-refresh");
+  if (refresh) {
+    refresh.addEventListener("click", async () => {
+      refresh.disabled = true;
+      const original = refresh.textContent;
+      refresh.textContent = "Actualizando…";
+      try {
+        const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=15`);
+        renderActivityFeed(list, data.events || []);
+      } catch (e) {
+        WH.Toast && WH.Toast.show("No se pudo refrescar", "error");
+      }
+      refresh.disabled = false;
+      refresh.textContent = original;
+    });
+  }
+}
+
+function renderActivityFeed(list, events) {
+  if (!events || events.length === 0) {
+    list.innerHTML = `<li class="activity-empty">
+      <p class="text-muted text-center" style="margin: 16px 0;">Sin actividad reciente. Cuando haya pedidos, clientes o reservas nuevas, aparecerán aquí.</p>
+    </li>`;
+    return;
+  }
+  list.innerHTML = events.map(ev => {
+    const when = relTime(ev.occurred_at);
+    const icon = escapeHtml(ev.icon || "•");
+    const title = escapeHtml(ev.title || "");
+    const subtitle = escapeHtml(ev.subtitle || "");
+    const url = escapeAttr(ev.action_url || "#");
+    return `<li class="activity-item">
+      <a class="activity-link" href="${url}">
+        <span class="activity-icon" aria-hidden="true">${icon}</span>
+        <div class="activity-body">
+          <div class="activity-title">${title}</div>
+          ${subtitle ? `<div class="activity-sub">${subtitle}</div>` : ""}
+        </div>
+        <span class="activity-time">${when}</span>
+      </a>
+    </li>`;
+  }).join("");
+}
+
+function relTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60)    return "ahora";
+  if (diff < 3600)  return "hace " + Math.floor(diff / 60) + " min";
+  if (diff < 86400) return "hace " + Math.floor(diff / 3600) + " h";
+  if (diff < 604800) return "hace " + Math.floor(diff / 86400) + " d";
+  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+}
 
 // ──────────────────────────────────────────────────────────────
 //  AI Brief + Oportunidades (Fase 3 del plan de oportunidades.pdf)

@@ -21,6 +21,28 @@
   <div class="card"><div class="kpi-label">Ingresos completados</div><div class="kpi" id="kpi-revenue">—</div></div>
 </div>
 
+<!-- P2 #3 — Toggle de reservas online (web-booking) -->
+<div class="card mt-3" id="web-booking-card">
+  <div class="row-between" style="align-items: center; gap: 12px;">
+    <div style="min-width: 0;">
+      <h3 style="margin: 0 0 4px;">Reservas online</h3>
+      <p class="text-muted" style="margin: 0; font-size: 13px;">
+        Permite que tus clientes agenden directamente desde tu página pública.
+        <span id="web-booking-status" class="badge" style="margin-left: 6px;">…</span>
+      </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+      <a class="btn btn-ghost" id="web-booking-link" target="_blank" rel="noopener" style="display: none;">
+        Ver página →
+      </a>
+      <label class="switch" title="Activar/desactivar reservas online">
+        <input type="checkbox" id="web-booking-toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+</div>
+
 <!-- Filtros -->
 <div class="card mt-3">
   <div class="form-row">
@@ -398,10 +420,75 @@
   document.getElementById('booking-form').addEventListener('submit', submitForm);
   document.getElementById('filter-btn').addEventListener('click', loadBookings);
 
+  // ── P2 #3 — Toggle web-booking ─────────────────────────
+  const wbToggle  = document.getElementById('web-booking-toggle');
+  const wbStatus  = document.getElementById('web-booking-status');
+  const wbLink    = document.getElementById('web-booking-link');
+  function setWbUI(enabled, publicUrl) {
+    wbToggle.checked = !!enabled;
+    wbStatus.textContent = enabled ? 'Activo' : 'Pausado';
+    wbStatus.className = 'badge ' + (enabled ? 'badge-ok' : 'badge-warn');
+    if (enabled && publicUrl) {
+      const origin = location.origin;
+      wbLink.href = origin + publicUrl;
+      wbLink.style.display = '';
+    } else {
+      wbLink.style.display = 'none';
+    }
+  }
+  async function loadWebBooking() {
+    const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+    if (!tid) return;
+    try {
+      const r = await fetch(`/api/v1/tenants/${tid}/bookings/web-booking`, { headers: authHeaders() });
+      if (handle401(r)) return;
+      if (!r.ok) throw new Error('status ' + r.status);
+      const data = await r.json();
+      setWbUI(data.web_booking_enabled, data.public_url);
+    } catch (e) {
+      wbStatus.textContent = '—';
+      wbStatus.className = 'badge';
+    }
+  }
+  wbToggle.addEventListener('change', async () => {
+    const tid = (_tenant && _tenant.id) || localStorage.getItem('wowhub_tid');
+    if (!tid) { wbToggle.checked = false; return; }
+    const wanted = wbToggle.checked;
+    wbToggle.disabled = true;
+    try {
+      const r = await fetch(`/api/v1/tenants/${tid}/bookings/web-booking`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ enabled: wanted }),
+      });
+      if (handle401(r)) return;
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        alert('Error: ' + (e.detail || r.status));
+        wbToggle.checked = !wanted; // revertir
+        return;
+      }
+      const data = await r.json();
+      setWbUI(data.web_booking_enabled, data.public_url);
+      if (window.WH && window.WH.Toast) {
+        window.WH.Toast.show(
+          data.web_booking_enabled ? 'Reservas online activadas' : 'Reservas online pausadas',
+          data.web_booking_enabled ? 'success' : 'info'
+        );
+      }
+    } catch (e) {
+      wbToggle.checked = !wanted; // revertir
+      alert('Error de red');
+    } finally {
+      wbToggle.disabled = false;
+    }
+  });
+
   (async () => {
     await loadContext();
     await loadStats();
     await loadBookings();
+    await loadWebBooking();
   })();
 })();
 </script>
@@ -412,6 +499,8 @@
   .kpi { font-size: 28px; font-weight: 700; }
   .kpi-label { font-size: 12px; color: var(--muted, #888); text-transform: uppercase; letter-spacing: 0.05em; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+  .badge-ok   { background: #d4f7e1; color: #0a6b3a; }
+  .badge-warn { background: #fde6c1; color: #8a5500; }
   .table { width: 100%; border-collapse: collapse; }
   .table th, .table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
   .table th { color: var(--muted, #888); font-weight: 500; }
@@ -423,6 +512,26 @@
   .btn-primary { background: var(--brand, #1A73E8); color: #fff; }
   .btn-ghost { background: transparent; border-color: rgba(255,255,255,0.12); }
   .hidden { display: none; }
+  /* ── Switch (toggle iOS-style) ──────────────────────── */
+  .switch { position: relative; display: inline-block; width: 46px; height: 26px; cursor: pointer; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0;
+    background: var(--muted, #4a5160); border-radius: 26px;
+    transition: background .2s;
+  }
+  .slider::before {
+    content: ""; position: absolute;
+    height: 20px; width: 20px;
+    left: 3px; top: 3px;
+    background: #fff; border-radius: 50%;
+    transition: transform .2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  }
+  .switch input:checked + .slider { background: var(--brand, #1A73E8); }
+  .switch input:checked + .slider::before { transform: translateX(20px); }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--brand, #1A73E8); outline-offset: 2px; }
+  .switch input:disabled + .slider { opacity: 0.6; cursor: not-allowed; }
 </style>
 
 {% endblock %}

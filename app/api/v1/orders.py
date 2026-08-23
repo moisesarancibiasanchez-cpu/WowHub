@@ -146,6 +146,67 @@ def orders_today_summary(
     }
 
 
+@router.get("/sales-7d")
+def orders_sales_7d(
+    tenant_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Resumen de ventas de los últimos 7 días (P2 #1 — chart Dashboard).
+
+    Devuelve una serie diaria `series: [{date, total_cents, orders_count}]`
+    para los últimos 7 días (incluyendo hoy). Los días sin pedidos
+    aparecen con `total_cents=0` y `orders_count=0` para mantener la
+    serie continua y lista para graficar.
+    """
+    from datetime import datetime, time, timedelta, timezone
+    from sqlalchemy import func as _func, select as _select
+    now = datetime.now(timezone.utc)
+    today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    start_window = today_start - timedelta(days=6)  # 7 días contando hoy
+    # Agrupar por día con date_trunc (compatible con PostgreSQL y SQLite)
+    q = (
+        _select(
+            _func.date(Order.created_at).label("d"),
+            _func.coalesce(_func.sum(Order.total_cents), 0).label("total_cents"),
+            _func.count(Order.id).label("orders_count"),
+        )
+        .where(
+            Order.tenant_id == str(tenant_id),
+            Order.created_at >= start_window,
+            Order.status != OrderStatus.CANCELED,
+        )
+        .group_by("d")
+        .order_by("d")
+    )
+    rows = db.execute(q).all()
+    by_day = {str(r.d): r for r in rows}
+    series = []
+    total_period = 0
+    total_orders = 0
+    for i in range(7):
+        d = (start_window + timedelta(days=i)).date()
+        r = by_day.get(d.isoformat())
+        cents = int(r.total_cents or 0) if r else 0
+        oc = int(r.orders_count or 0) if r else 0
+        total_period += cents
+        total_orders += oc
+        series.append({
+            "date": d.isoformat(),
+            "total_cents": cents,
+            "orders_count": oc,
+        })
+    return {
+        "window_days": 7,
+        "from": start_window.date().isoformat(),
+        "to": now.date().isoformat(),
+        "total_cents": total_period,
+        "orders_count": total_orders,
+        "avg_per_day_cents": total_period // 7,
+        "series": series,
+    }
+
+
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 def cancel_order(
     tenant_id: UUID,

@@ -435,6 +435,15 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
       el.hidden = true;
     }
   }
+  function syncBtnStates() {
+    // Aplica has-crit / has-warn al bell-btn según contadores
+    // para resaltar el botón con borde y pulso de atención.
+    if (!btn) return;
+    const critN = bCrit && !bCrit.hidden ? parseInt(bCrit.textContent || "0", 10) : 0;
+    const warnN = bWarn && !bWarn.hidden ? parseInt(bWarn.textContent || "0", 10) : 0;
+    btn.classList.toggle("has-crit", critN > 0);
+    btn.classList.toggle("has-warn", warnN > 0 && critN === 0);
+  }
   function setNavBadge(n) {
     if (!navBd) return;
     if (n > 0) {
@@ -507,6 +516,7 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
       setBadge(bCrit, bs.critical || 0);
       setBadge(bWarn, bs.warning || 0);
       setNavBadge(data.total || 0);
+      syncBtnStates();
       renderList(data.top_3 || []);
       // Publica en window.WH.Notifications para que otras pages
       // (ej. /dashboard/notifications) puedan leer sin re-fetch.

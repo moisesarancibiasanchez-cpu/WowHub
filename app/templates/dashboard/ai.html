@@ -3,24 +3,23 @@
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
 <style>
-  /* ═══ FIX: /dashboard/ai standalone ═══════════════════════════════
-     En esta ruta la página ES el chat de IA. base.html ya no
-     incluye el panel fijo (hide_ai_panel=True), por lo que el
-     contenido principal debe verse como una pantalla completa
-     de conversación y NO como un sidebar flotante. */
-  body.route-ai .dash-side { display: none; }
-  body.route-ai .dash-content { padding: 0; }
+  /* ═══ /dashboard/ai standalone ═══════════════════════════════════
+     El sidebar izquierdo debe permanecer SIEMPRE visible (requisito
+     de UX). El contenido principal muestra el chat a pantalla
+     completa; el panel AI fijo y el FAB se ocultan para evitar
+     duplicación visual. */
+  body.route-ai .dash-side { display: block; }
+  body.route-ai .dash-main { padding: 0; }
+  body.route-ai .dash-content { padding: 0; height: calc(100vh - 64px); }
   body.route-ai .ai-sidebar {
     position: static;
     width: 100%;
-    height: calc(100vh - 64px); /* topbar */
+    height: 100%;
     border-left: 0;
     border-radius: 0;
     box-shadow: none;
   }
   body.route-ai .ai-fab { display: none !important; }
-  body.route-ai main { padding: 0; }
-  /* Ajustes del banner de impersonación para esta página */
   body.route-ai { padding-top: 0; }
 </style>
 {% endblock %}
