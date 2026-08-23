@@ -180,7 +180,11 @@
   $("public-url-help").textContent = "Comparte este link con tus clientes:";
 
   try {
-    const [p, pr, q, o, b, qt, cu, lp, st] = await Promise.all([
+    // FIX dashboard "—": antes usábamos Promise.all → si 1 endpoint
+    // devolvía 404 (era el caso de /loyalty/passes), toda la lista
+    // quedaba sin pintar. Ahora cada KPI se actualiza de forma
+    // independiente con allSettled, y un fallo en uno no afecta a los demás.
+    const results = await Promise.allSettled([
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
@@ -191,15 +195,55 @@
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/loyalty/passes?page_size=1`),
       WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/analytics/inventory?category=low_stock`),
     ]);
-    $("stat-products").textContent = (p && typeof p.total === "number") ? p.total : 0;
-    $("stat-promos").textContent = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
-    $("stat-qrs").textContent = Array.isArray(q) ? q.length : 0;
-    $("stat-orders").textContent = (o && typeof o.total === "number") ? o.total : 0;
-    $("stat-bookings").textContent = (b && b.by_status) ? (b.by_status.pending || 0) + (b.by_status.confirmed || 0) : 0;
-    $("stat-quotes").textContent = qt ? ((qt.by_status.draft || 0) + (qt.by_status.sent || 0) + (qt.by_status.viewed || 0)) : 0;
+
+    const unwrap = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
+
+    const p  = unwrap(0); // products
+    const pr = unwrap(1); // promotions
+    const q  = unwrap(2); // qrs
+    const o  = unwrap(3); // orders
+    const b  = unwrap(4); // bookings/stats
+    const qt = unwrap(5); // quotes/stats
+    const cu = unwrap(6); // customers
+    const lp = unwrap(7); // loyalty/passes
+    const st = unwrap(8); // analytics/inventory
+
+    $("stat-products").textContent = (p  && typeof p.total === "number") ? p.total : 0;
+    $("stat-promos").textContent   = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
+    $("stat-qrs").textContent      = Array.isArray(q)  ? q.length : 0;
+    $("stat-orders").textContent   = (o  && typeof o.total === "number") ? o.total : 0;
+
+    // FIX bookings shape: el endpoint /bookings/stats devuelve
+    // {pending, confirmed, …} a nivel raíz (no bajo by_status).
+    // Leemos ambos formatos para tolerar el actual y el histórico.
+    if (b) {
+      const pending   = (b.by_status && b.by_status.pending)   || b.pending   || 0;
+      const confirmed = (b.by_status && b.by_status.confirmed) || b.confirmed || 0;
+      $("stat-bookings").textContent = pending + confirmed;
+    } else {
+      $("stat-bookings").textContent = 0;
+    }
+
+    // FIX quotes shape: /quotes/stats ya usa by_status ✓
+    $("stat-quotes").textContent = qt
+      ? ((qt.by_status.draft || 0) + (qt.by_status.sent || 0) + (qt.by_status.viewed || 0))
+      : 0;
+
     $("stat-customers").textContent = (cu && typeof cu.total === "number") ? cu.total : 0;
-    $("stat-loyalty").textContent = (lp && typeof lp.total === "number") ? lp.total : 0;
-    $("stat-stock").textContent = (st && typeof st.count === "number") ? st.count : 0;
+    $("stat-loyalty").textContent   = (lp && typeof lp.total === "number") ? lp.total : 0;
+    $("stat-stock").textContent     = (st && typeof st.count === "number") ? st.count : 0;
+
+    // Si todos los KPIs quedaron en 0 por falta de datos, dejamos un
+    // tooltip discreto para que el owner sepa que el sistema no está roto,
+    // simplemente su tenant todavía no tiene actividad.
+    const allZero = ["stat-products","stat-promos","stat-qrs","stat-orders",
+                     "stat-bookings","stat-quotes","stat-customers",
+                     "stat-loyalty","stat-stock"]
+      .every(id => Number(document.getElementById(id).textContent || 0) === 0);
+    if (allZero) {
+      const help = document.getElementById("public-url-help");
+      if (help) help.textContent = "Sin actividad todavía. Crea tu primer pedido o promoción para empezar a ver datos aquí.";
+    }
   } catch (err) {
     console.warn("Stats err", err);
   }

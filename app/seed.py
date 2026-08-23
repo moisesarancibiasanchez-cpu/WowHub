@@ -9,6 +9,7 @@ Uso:
     python -m app.seed --reset    # borra todo y recrea
 """
 import sys
+import secrets
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
@@ -18,6 +19,9 @@ from app.models import (
     User, Tenant, TenantMembership, Branch, Category, Product,
     Customer, Promotion, QrCode, LandingConfig,
     Order, OrderItem, OrderStatus, BranchProduct,
+)
+from app.models.loyalty_pass import (
+    LoyaltyCampaign, CustomerPass, PassSource, PassStatus,
 )
 from app.models.tenant import Industry, TenantPlan, TenantStatus
 from app.models.user import UserRole
@@ -293,6 +297,113 @@ def seed():
                 city="Las Condes", total_orders=2, total_spent_cents=6300, points=63,
             ))
             print("✓ 2 clientes demo")
+
+        # ════════════════════════════════════════════════════════
+        # FIDELIZACIÓN — Campaña de lealtad + pases demo
+        # ════════════════════════════════════════════════════════
+        # FIX dashboard KPI "Tarjetas de fidelidad" (estaba en 0):
+        # sembramos 1 campaña activa y 3 pases para Café Norte
+        # (2 active + 1 redeemed) y 1 para BiciFix. Así el KPI
+        # muestra datos reales y el módulo de fidelidad queda usable.
+        if cafe:
+            camp = db.query(LoyaltyCampaign).filter(
+                LoyaltyCampaign.tenant_id == str(cafe.id),
+            ).first()
+            if not camp:
+                camp = LoyaltyCampaign(
+                    tenant_id=str(cafe.id),
+                    name="Café Norte — Tarjeta Cliente",
+                    reward_label="Café gratis al juntar 10 sellos",
+                    stamps_required=10,
+                    primary_color="#3E2723",
+                    accent_color="#FFB300",
+                    is_active=True,
+                )
+                db.add(camp)
+                db.flush()  # para tener camp.id
+                print(f"✓ Campaña de fidelidad: {camp.name}")
+            # Pases
+            existing_passes = db.query(CustomerPass).filter(
+                CustomerPass.tenant_id == str(cafe.id),
+            ).count()
+            if existing_passes == 0:
+                customers = db.query(Customer).filter(
+                    Customer.tenant_id == str(cafe.id),
+                ).all()
+                if customers and camp:
+                    for idx, (cust, stamps, status) in enumerate(zip(
+                        customers,
+                        [4, 7, 12],
+                        [PassStatus.ACTIVE, PassStatus.ACTIVE, PassStatus.REDEEMED],
+                    )):
+                        serial = f"WH-CAFE-{idx+1:04d}-{secrets.token_hex(4).upper()}"
+                        db.add(CustomerPass(
+                            tenant_id=str(cafe.id),
+                            campaign_id=str(camp.id),
+                            customer_id=str(cust.id),
+                            serial_number=serial,
+                            source=PassSource.WEB.value,
+                            status=status.value,
+                            stamps_current=stamps,
+                            qr_payload=f"wh.pass.demo.{serial}",
+                        ))
+                    db.flush()
+                    print(f"✓ {len(customers)} pases demo para Café Norte")
+
+        # BiciFix loyalty: la variable bicifix aún no fue asignada en este
+        # punto (se carga más abajo, junto a las órdenes), por eso hacemos
+        # una consulta local idempotente.
+        _bicifix = db.query(Tenant).filter(Tenant.slug == "bicifix").first()
+        if _bicifix:
+            camp_bf = db.query(LoyaltyCampaign).filter(
+                LoyaltyCampaign.tenant_id == str(_bicifix.id),
+            ).first()
+            if not camp_bf:
+                camp_bf = LoyaltyCampaign(
+                    tenant_id=str(_bicifix.id),
+                    name="BiciFix — Repuesto al 50%",
+                    reward_label="50% de descuento en tu próximo repuesto",
+                    stamps_required=8,
+                    primary_color="#1565C0",
+                    accent_color="#FFC107",
+                    is_active=True,
+                )
+                db.add(camp_bf)
+                db.flush()
+                print(f"✓ Campaña de fidelidad: {camp_bf.name}")
+            existing_passes_bf = db.query(CustomerPass).filter(
+                CustomerPass.tenant_id == str(_bicifix.id),
+            ).count()
+            if existing_passes_bf == 0:
+                # Para BiciFix creamos un cliente ad-hoc si no hay
+                bf_cust = db.query(Customer).filter(
+                    Customer.tenant_id == str(_bicifix.id),
+                ).first()
+                if not bf_cust:
+                    bf_cust = Customer(
+                        tenant_id=str(_bicifix.id),
+                        full_name="Pedro Rojas",
+                        email="pedro@example.com",
+                        phone="+56 9 5555 6666",
+                        city="Maipú",
+                        total_orders=1, total_spent_cents=18900, points=189,
+                    )
+                    db.add(bf_cust)
+                    db.flush()
+                if camp_bf:
+                    serial_bf = f"WH-BICI-0001-{secrets.token_hex(4).upper()}"
+                    db.add(CustomerPass(
+                        tenant_id=str(_bicifix.id),
+                        campaign_id=str(camp_bf.id),
+                        customer_id=str(bf_cust.id),
+                        serial_number=serial_bf,
+                        status=PassStatus.ACTIVE.value,
+                        source=PassSource.WEB.value,
+                        stamps_current=3,
+                        qr_payload=f"wh.pass.demo.{serial_bf}",
+                    ))
+                    db.flush()
+                    print("✓ 1 pase demo para BiciFix")
 
         # ════════════════════════════════════════════════════════
         # GESTIÓN INTERNA — Pedidos (lista) + Pipeline (Kanban)

@@ -146,6 +146,68 @@ def get_campaign_metrics(
     )
 
 
+# ── Passes (pases/tarjetas de clientes) ───────────────────
+# FIX dashboard KPI: el dashboard llama a /loyalty/passes para contar
+# tarjetas de fidelidad. Antes devolvía 404 → Promise.all fallaba y
+# todos los KPIs quedaban en "—". Ahora lista los CustomerPass del
+# tenant con la misma forma que el resto del dashboard ({items, total,
+# page, page_size, total_pages}).
+@owner_router.get("/passes")
+def list_passes(
+    tenant_id: UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="Filtrar por estado (active, redeemed, expired, …)"),
+    campaign_id: Optional[UUID] = Query(None),
+    user: User = Depends(get_current_user),
+    membership=Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import select, func, and_
+
+    from app.models.loyalty_pass import CustomerPass
+
+    where = [CustomerPass.tenant_id == str(tenant_id)]
+    if status:
+        where.append(CustomerPass.status == status)
+    if campaign_id:
+        where.append(CustomerPass.campaign_id == str(campaign_id))
+
+    total = db.execute(
+        select(func.count(CustomerPass.id)).where(*where)
+    ).scalar_one()
+
+    items_q = (
+        select(CustomerPass)
+        .where(*where)
+        .order_by(CustomerPass.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    items = db.execute(items_q).scalars().all()
+
+    def _ser(p: CustomerPass) -> dict:
+        return {
+            "id": str(p.id),
+            "tenant_id": str(p.tenant_id),
+            "campaign_id": str(p.campaign_id),
+            "customer_id": str(p.customer_id),
+            "status": p.status,
+            "source": getattr(p, "source", None),
+            "stamps_count": getattr(p, "stamps_count", 0),
+            "created_at": p.created_at.isoformat() if getattr(p, "created_at", None) else None,
+        }
+
+    total_pages = (total + page_size - 1) // page_size if total else 0
+    return {
+        "items": [_ser(p) for p in items],
+        "total": int(total),
+        "page": page,
+        "page_size": page_size,
+        "total_pages": int(total_pages),
+    }
+
+
 # ── QR Token (mostrador) ───────────────────────────────────
 @owner_router.post("/campaigns/{campaign_id}/qr-token", response_model=QrTokenOut)
 def issue_qr_token(
