@@ -1,4 +1,10 @@
-"""Product endpoints."""
+"""Product endpoints.
+
+Fase 3 (V8): el listado y el detalle ahora incluyen los derivados
+de pricing (costo real, margen, salud). Hay además un endpoint
+``GET /products/{id}/pricing`` que devuelve el breakdown completo
+para alimentar la calculadora del modal de edición.
+"""
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -59,6 +65,23 @@ def get_product(
     p = svc.get(tenant.id, product_id)
     if increment_view:
         svc.increment_view(p)
+    return svc.to_out(p)
+
+
+@router.get("/{product_id}/pricing", response_model=ProductOut)
+def get_product_pricing(
+    product_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """Devuelve el producto con todos los derivados de pricing (Fase 3).
+
+    Útil para la calculadora del modal: la UI puede pedirla cada vez
+    que el usuario cambia `cost_cents`, `production_time_min` o
+    `price_cents` y mostrar el resultado en vivo.
+    """
+    svc = ProductService(db)
+    p = svc.get(tenant.id, product_id)
     return svc.to_out(p)
 
 

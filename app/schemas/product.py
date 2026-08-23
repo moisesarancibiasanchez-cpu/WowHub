@@ -1,11 +1,19 @@
-"""Schemas de Product."""
+"""Schemas de Product.
+
+Fase 3 (V8) — se agrega ``production_time_min`` (minutos de mano de obra)
+y campos derivados en las respuestas: ``cost_real_cents``,
+``suggested_price_cents``, ``current_margin_pct`` y ``health``.
+"""
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.product import ProductStatus
+
+
+Health = Literal["healthy", "warning", "danger", "unknown"]
 
 
 class ProductBase(BaseModel):
@@ -18,6 +26,8 @@ class ProductBase(BaseModel):
     price_cents: int = Field(..., ge=0)
     compare_at_cents: Optional[int] = Field(None, ge=0)
     cost_cents: Optional[int] = Field(None, ge=0)
+    # Fase 3: minutos de mano de obra → entra al costo real.
+    production_time_min: int = Field(0, ge=0, le=24 * 60)
     track_inventory: bool = False
     stock: int = Field(0, ge=0)
     low_stock_threshold: int = Field(5, ge=0)
@@ -51,6 +61,8 @@ class ProductUpdate(BaseModel):
     price_cents: Optional[int] = Field(None, ge=0)
     compare_at_cents: Optional[int] = Field(None, ge=0)
     cost_cents: Optional[int] = Field(None, ge=0)
+    # Fase 3
+    production_time_min: Optional[int] = Field(None, ge=0, le=24 * 60)
     track_inventory: Optional[bool] = None
     stock: Optional[int] = Field(None, ge=0)
     low_stock_threshold: Optional[int] = Field(None, ge=0)
@@ -74,6 +86,15 @@ class ProductOut(ProductBase):
     # Helpers de presentación
     on_sale: bool = False
     discount_pct: Optional[int] = None
+    # Fase 3 — derivados (poblados por el service cuando hay BusinessCosts
+    # configurado). Si el tenant aún no configuró Costos, quedan en 0/None.
+    cost_real_cents: int = 0
+    suggested_price_cents: int = 0
+    current_margin_pct: Optional[float] = None
+    target_margin_pct: Optional[int] = None
+    cost_hour_used_cents: int = 0
+    health: Health = "unknown"
+    health_message: Optional[str] = None
 
 
 class ProductListItem(BaseModel):
@@ -96,3 +117,10 @@ class ProductListItem(BaseModel):
     track_inventory: bool
     on_sale: bool = False
     discount_pct: Optional[int] = None
+    # Fase 3 — derivados para la tabla del dashboard
+    production_time_min: int = 0
+    cost_real_cents: int = 0
+    current_margin_pct: Optional[float] = None
+    target_margin_pct: Optional[int] = None
+    health: Health = "unknown"
+    health_message: Optional[str] = None

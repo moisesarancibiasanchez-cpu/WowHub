@@ -4,7 +4,7 @@
 <div class="row-between">
   <div>
     <h1>Productos</h1>
-    <p class="sub">Tu catálogo. Edita precios, fotos y stock.</p>
+    <p class="sub">Tu catálogo. Edita precios, costos, tiempo de producción y stock.</p>
   </div>
   <button class="btn btn-primary" id="new-btn">+ Nuevo producto</button>
 </div>
@@ -25,30 +25,40 @@
     <option value="created">Más recientes</option>
     <option value="sold">Más vendidos</option>
   </select>
+  <select class="form-select" id="health-filter" style="max-width: 180px;" title="Filtrar por salud de pricing">
+    <option value="">Todas las saludes</option>
+    <option value="healthy">✓ Saludable</option>
+    <option value="warning">⚠ Margen bajo</option>
+    <option value="danger">❌ Margen crítico</option>
+    <option value="unknown">— Sin Costos</option>
+  </select>
 </div>
 
 <div class="table-wrap mt-3">
   <table class="table">
     <thead>
       <tr>
-        <th style="width: 70px;">Foto</th>
+        <th style="width: 60px;">Foto</th>
         <th>Producto</th>
-        <th>SKU</th>
-        <th>Precio</th>
-        <th>Stock</th>
-        <th>Estado</th>
-        <th></th>
+        <th style="width: 110px;">Costo real</th>
+        <th style="width: 110px;">Precio</th>
+        <th style="width: 90px;">Margen</th>
+        <th style="width: 70px;">Stock</th>
+        <th style="width: 80px;">Producción</th>
+        <th style="width: 130px;">Salud</th>
+        <th style="width: 90px;">Estado</th>
+        <th style="width: 140px;"></th>
       </tr>
     </thead>
     <tbody id="products-tbody">
-      <tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr>
+      <tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr>
     </tbody>
   </table>
 </div>
 
 <!-- Modal de edición -->
 <div class="modal-overlay hidden" id="modal">
-  <div class="modal">
+  <div class="modal" style="max-width: 720px;">
     <div class="modal-header">
       <h3 id="modal-title">Nuevo producto</h3>
       <button class="btn btn-ghost" id="modal-close">✕</button>
@@ -91,6 +101,58 @@
             <span class="form-help">Opcional. Muestra descuento.</span>
           </div>
         </div>
+
+        <!-- ─── Fase 3: bloque Costos + Producción + Calculadora ─── -->
+        <div class="form-section" style="background: var(--bg-elev-1); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 16px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:10px;">
+            <div>
+              <div class="form-label" style="font-weight:600;">Costos y tiempo de producción</div>
+              <div class="form-help">Se usa para calcular el costo real y sugerir un precio con tu margen objetivo.</div>
+            </div>
+            <a href="/dashboard/costos" target="_blank" class="form-help" style="text-decoration:underline;">Configurar Costos →</a>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Costo insumos (CLP)</label>
+              <input class="form-input" type="number" id="p_cost" min="0" step="1">
+              <span class="form-help">Materiales directos (café, leche, etc.).</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Producción (min)</label>
+              <input class="form-input" type="number" id="p_production_time" min="0" step="1" value="0">
+              <span class="form-help">Mano de obra. Se multiplica por tu costo/hora.</span>
+            </div>
+          </div>
+
+          <!-- Calculadora en vivo (Fase 3) -->
+          <div id="pricing-calc" style="margin-top: 12px; padding: 12px; background: var(--bg-elev-2); border-radius: 6px; font-size: 13px;">
+            <div class="row-between" style="margin-bottom:6px;">
+              <div><strong>Costo real</strong></div>
+              <div id="pc_cost_real" style="font-weight:600;">—</div>
+            </div>
+            <div class="row-between" style="margin-bottom:6px;">
+              <div><strong>Precio sugerido</strong></div>
+              <div id="pc_suggested" style="font-weight:600;">—</div>
+            </div>
+            <div class="row-between" style="margin-bottom:6px;">
+              <div><strong>Margen actual</strong></div>
+              <div id="pc_margin" style="font-weight:600;">—</div>
+            </div>
+            <div class="row-between" style="margin-bottom:6px;">
+              <div><strong>Costo/hora usado</strong></div>
+              <div id="pc_cost_hour" style="font-weight:600;">—</div>
+            </div>
+            <div class="row-between" style="align-items:center;">
+              <div><strong>Salud</strong></div>
+              <div id="pc_health">—</div>
+            </div>
+            <div id="pc_message" class="form-help" style="margin-top:8px;"></div>
+            <div class="row" style="gap:8px; margin-top: 10px;">
+              <button type="button" class="btn btn-sm" id="pc_apply_suggested" style="display:none;">Aplicar precio sugerido</button>
+            </div>
+          </div>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Stock</label>
@@ -136,7 +198,8 @@ let tenant = WH.Auth.tenant();
 const tbody = document.getElementById("products-tbody");
 let categories = [];
 
-function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(c / 100); }
+function fmt(c) { return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format((c || 0) / 100); }
+function fmtMin(m) { return (m > 0) ? `${m} min` : "—"; }
 
 function statusBadge(s) {
   const map = {
@@ -147,6 +210,22 @@ function statusBadge(s) {
   };
   const [cls, label] = map[s] || ["badge", s];
   return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function healthBadge(p) {
+  // p: { health, health_message, current_margin_pct }
+  if (!p || !p.health || p.health === "unknown") {
+    return `<span class="badge" title="Configura tus Costos para ver la salud de pricing">—</span>`;
+  }
+  const map = {
+    healthy: ["badge-success", "✓ Saludable"],
+    warning: ["badge-warn", "⚠ Margen bajo"],
+    danger:  ["badge-err",   "❌ Subir precio"],
+  };
+  const [cls, label] = map[p.health] || ["badge", p.health];
+  const margin = (p.current_margin_pct === null || p.current_margin_pct === undefined)
+    ? "" : ` (${p.current_margin_pct.toFixed(1)}%)`;
+  return `<span class="badge ${cls}" title="${p.health_message || ''}">${label}${margin}</span>`;
 }
 
 async function loadCategories() {
@@ -165,23 +244,34 @@ async function load() {
   if (order_by) qs.set("order_by", order_by);
   qs.set("page_size", "100");
   const data = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?${qs}`);
-  if (data.items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">📦</div>No hay productos. Crea el primero.</div></td></tr>`;
+
+  // Filtro local por salud (no se manda al backend porque es derivado)
+  const healthFilter = document.getElementById("health-filter").value;
+  let items = data.items;
+  if (healthFilter) items = items.filter(p => (p.health || "unknown") === healthFilter);
+
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="icon">📦</div>No hay productos. Crea el primero.</div></td></tr>`;
     return;
   }
-  tbody.innerHTML = data.items.map(p => `
+  tbody.innerHTML = items.map(p => `
     <tr data-id="${p.id}">
-      <td>${p.image_url ? `<img src="${p.image_url}" style="width: 50px; height: 50px; border-radius: 6px; object-fit: cover;">` : '<div style="width:50px;height:50px;background:var(--bg-elev-2);border-radius:6px;display:grid;place-items:center;color:var(--fg-dim);">∅</div>'}</td>
+      <td>${p.image_url ? `<img src="${p.image_url}" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover;">` : '<div style="width:44px;height:44px;background:var(--bg-elev-2);border-radius:6px;display:grid;place-items:center;color:var(--fg-dim);">∅</div>'}</td>
       <td>
         <div style="font-weight: 600;">${p.name}${p.is_featured ? ' <span class="badge badge-accent">★</span>' : ''}</div>
-        <div class="text-muted" style="font-size: 12px;">${p.short_description || ''}</div>
+        <div class="text-muted" style="font-size: 12px;"><code>${p.sku}</code> · ${p.short_description || ''}</div>
       </td>
-      <td><code>${p.sku}</code></td>
+      <td>${p.cost_real_cents > 0 ? fmt(p.cost_real_cents) : '<span class="text-dim">—</span>'}</td>
       <td>
         <strong>${fmt(p.price_cents)}</strong>
         ${p.on_sale ? `<br><span class="text-dim" style="text-decoration: line-through; font-size: 12px;">${fmt(p.compare_at_cents)}</span> <span class="badge badge-err">-${p.discount_pct}%</span>` : ''}
       </td>
+      <td>${p.current_margin_pct !== null && p.current_margin_pct !== undefined
+            ? `<span style="color: ${p.current_margin_pct >= (p.target_margin_pct||30) ? 'var(--ok)' : p.current_margin_pct < 0 ? 'var(--accent-err)' : 'var(--fg-dim)'};">${p.current_margin_pct.toFixed(1)}%</span>`
+            : '<span class="text-dim">—</span>'}</td>
       <td>${p.stock}</td>
+      <td>${fmtMin(p.production_time_min)}</td>
+      <td>${healthBadge(p)}</td>
       <td>${statusBadge(p.status)}</td>
       <td class="text-right">
         <button class="btn btn-sm" data-action="edit">Editar</button>
@@ -193,7 +283,12 @@ async function load() {
   tbody.querySelectorAll("button[data-action=del]").forEach(b => b.addEventListener("click", onDelete));
 }
 
+// ── Modal: abrir / cerrar / pintar / calculadora ──
+let currentProduct = null; // para que la calculadora en vivo pueda llamar a /pricing
+let pricingTimer = null;
+
 function openModal(p) {
+  currentProduct = p;
   document.getElementById("modal-title").textContent = p ? "Editar producto" : "Nuevo producto";
   document.getElementById("p_id").value = p?.id || "";
   document.getElementById("p_sku").value = p?.sku || "";
@@ -203,15 +298,92 @@ function openModal(p) {
   document.getElementById("p_description").value = p?.description || "";
   document.getElementById("p_price").value = p ? p.price_cents / 100 : "";
   document.getElementById("p_compare_at").value = p?.compare_at_cents ? p.compare_at_cents / 100 : "";
+  document.getElementById("p_cost").value = p?.cost_cents ? p.cost_cents / 100 : "";
+  document.getElementById("p_production_time").value = p?.production_time_min || 0;
   document.getElementById("p_stock").value = p?.stock || 0;
   document.getElementById("p_status").value = p?.status || "active";
   document.getElementById("p_image_url").value = p?.image_url || "";
-  // Refrescar el preview del ImagePicker con la URL existente
   if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("p_image_url", p?.image_url);
   document.getElementById("p_is_featureed").checked = !!p?.is_featured;
   document.getElementById("modal").classList.remove("hidden");
+  // Pintar pricing inicial
+  renderPricing(p);
+  // Listeners para la calculadora en vivo (sólo en edición)
+  if (p) {
+    ["p_cost", "p_production_time", "p_price"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("input", onPricingInput);
+    });
+  } else {
+    ["p_cost", "p_production_time", "p_price"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("input", onPricingInput);
+    });
+  }
 }
-function closeModal() { document.getElementById("modal").classList.add("hidden"); }
+
+function closeModal() {
+  document.getElementById("modal").classList.add("hidden");
+  currentProduct = null;
+}
+
+function onPricingInput() {
+  // Si ya existe el producto, usamos el endpoint /pricing (fiel al backend).
+  // Si es nuevo, hacemos un preview local con lo que haya en Costos del tenant.
+  clearTimeout(pricingTimer);
+  pricingTimer = setTimeout(refreshPricing, 300);
+}
+
+async function refreshPricing() {
+  if (!currentProduct) {
+    // Modo "nuevo producto": preview local leyendo BusinessCosts (no expone precios reales).
+    return renderPricing(null);
+  }
+  try {
+    const p = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products/${currentProduct.id}/pricing`);
+    renderPricing(p);
+  } catch (e) {
+    renderPricing(null);
+  }
+}
+
+function renderPricing(p) {
+  const $ = (id) => document.getElementById(id);
+  if (!p || !p.target_margin_pct) {
+    $("pc_cost_real").textContent = "—";
+    $("pc_suggested").textContent = "—";
+    $("pc_margin").textContent = "—";
+    $("pc_cost_hour").textContent = "—";
+    $("pc_health").innerHTML = `<span class="badge" title="Configura tus Costos en el módulo Costos para ver el cálculo">Sin Costos</span>`;
+    $("pc_message").textContent = "Configura tu estructura de costos para activar la calculadora.";
+    $("pc_apply_suggested").style.display = "none";
+    return;
+  }
+  $("pc_cost_real").textContent = fmt(p.cost_real_cents);
+  $("pc_suggested").textContent = fmt(p.suggested_price_cents);
+  $("pc_cost_hour").textContent = fmt(p.cost_hour_used_cents) + " /h";
+  const m = p.current_margin_pct;
+  if (m === null || m === undefined) {
+    $("pc_margin").textContent = "—";
+  } else {
+    const color = m >= p.target_margin_pct ? "var(--ok)" : m < 0 ? "var(--accent-err)" : "var(--fg-dim)";
+    $("pc_margin").innerHTML = `<span style="color:${color};">${m.toFixed(1)}%</span> <span class="text-dim" style="font-size:11px;">(obj. ${p.target_margin_pct}%)</span>`;
+  }
+  $("pc_health").innerHTML = healthBadge(p);
+  $("pc_message").textContent = p.health_message || "";
+  // Botón "Aplicar precio sugerido"
+  const btn = $("pc_apply_suggested");
+  if (p.suggested_price_cents > 0 && p.suggested_price_cents !== p.price_cents) {
+    btn.style.display = "";
+    btn.onclick = () => {
+      document.getElementById("p_price").value = p.suggested_price_cents / 100;
+      WH.Toast.show("Precio sugerido aplicado. Recuerda guardar.");
+      refreshPricing();
+    };
+  } else {
+    btn.style.display = "none";
+  }
+}
 
 async function onEdit(e) {
   const id = e.target.closest("tr").dataset.id;
@@ -239,6 +411,8 @@ document.getElementById("modal-save").addEventListener("click", async () => {
     description: document.getElementById("p_description").value || null,
     price_cents: Math.round(Number(document.getElementById("p_price").value) * 100),
     compare_at_cents: document.getElementById("p_compare_at").value ? Math.round(Number(document.getElementById("p_compare_at").value) * 100) : null,
+    cost_cents: document.getElementById("p_cost").value ? Math.round(Number(document.getElementById("p_cost").value) * 100) : null,
+    production_time_min: Number(document.getElementById("p_production_time").value || 0),
     stock: Number(document.getElementById("p_stock").value),
     status: document.getElementById("p_status").value,
     image_url: document.getElementById("p_image_url").value || null,
@@ -255,8 +429,9 @@ document.getElementById("modal-save").addEventListener("click", async () => {
   }
 });
 
-["search", "status-filter", "order-by"].forEach(id => {
+["search", "status-filter", "order-by", "health-filter"].forEach(id => {
   document.getElementById(id).addEventListener("input", debounce(load, 300));
+  document.getElementById(id).addEventListener("change", debounce(load, 300));
 });
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
@@ -266,10 +441,9 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
     if (s && s.tenant) tenant = s.tenant;
   }
   if (!tenant || !tenant.tenant_id) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
     return;
   }
-  // Montar todos los ImagePicker (productos, etc.) — idempotente
   if (window.WH && WH.ImagePicker) WH.ImagePicker.initAll();
   await loadCategories();
   await load();

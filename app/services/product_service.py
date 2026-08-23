@@ -1,4 +1,14 @@
-"""ProductService — CRUD de productos y helpers para listados públicos."""
+"""ProductService — CRUD de productos y helpers para listados públicos.
+
+Fase 3 (V8): las respuestas (`ProductOut`, `ProductListItem`) ahora
+incluyen los campos derivados de pricing:
+  - `cost_real_cents`        (insumos + mano de obra)
+  - `suggested_price_cents`  (precio sugerido por margen objetivo)
+  - `current_margin_pct`     (margen actual del precio cargado)
+  - `target_margin_pct`      (margen objetivo del tenant, opcional)
+  - `cost_hour_used_cents`   (costo_hora usado en el cálculo)
+  - `health` / `health_message` (healthy / warning / danger / unknown)
+"""
 from typing import Optional
 from uuid import UUID
 
@@ -9,6 +19,10 @@ from app.core.errors import ConflictError, NotFoundError
 from app.models.product import Product, ProductStatus
 from app.schemas.product import ProductCreate, ProductUpdate, ProductListItem
 from app.schemas.common import Page
+from app.services.product_pricing import (
+    ProductPricing,
+    compute_for_product,
+)
 
 
 def _to_uuid(v) -> Optional[UUID]:
@@ -21,6 +35,30 @@ def _to_uuid(v) -> Optional[UUID]:
 class ProductService:
     def __init__(self, db: Session):
         self.db = db
+
+    # ── Pricing context ────────────────────────────────────
+    def _pricing_for(self, tenant_id) -> tuple[int, Optional[int]]:
+        """Lee cost_hour + target_margin del tenant (1 query liviana).
+
+        Devuelve (0, None) si el tenant no tiene BusinessCosts aún.
+        """
+        from app.models.business_costs import BusinessCosts
+        bc = self.db.execute(
+            select(BusinessCosts).where(BusinessCosts.tenant_id == str(tenant_id))
+        ).scalar_one_or_none()
+        if not bc:
+            return 0, None
+        return int(bc.cost_hour_cents or 0), (
+            int(bc.target_margin_pct) if bc.target_margin_pct is not None else None
+        )
+
+    def _pricing(self, product: Product) -> ProductPricing:
+        cost_hour, target = self._pricing_for(product.tenant_id)
+        return compute_for_product(
+            product,
+            cost_hour_cents=cost_hour,
+            target_margin_pct=target,
+        )
 
     # ── Scoped (tenant) ────────────────────────────────
     def list(
@@ -69,7 +107,12 @@ class ProductService:
         q = q.offset(offset).limit(page_size)
 
         products = list(self.db.execute(q).scalars())
-        items = [self._to_list_item(p) for p in products]
+        # Fase 3: poblar derivados de pricing en el listado para que el
+        # dashboard muestre Costo real / Margen / Salud sin pedir el
+        # detalle de cada producto. N+1 aceptable en este listado (≤ 200
+        # filas por página y la query de BusinessCosts es 1 por fila, no
+        # por producto — ver `_pricing_for`).
+        items = [self.to_list_item_with_pricing(p) for p in products]
         return Page.build(items, total, page, page_size)
 
     def get(self, tenant_id: UUID, product_id: UUID) -> Product:
@@ -165,6 +208,7 @@ class ProductService:
             track_inventory=p.track_inventory,
             on_sale=on_sale,
             discount_pct=discount_pct,
+            production_time_min=int(p.production_time_min or 0),
         )
 
     def to_out(self, p: Product):
@@ -174,6 +218,10 @@ class ProductService:
         discount_pct = None
         if on_sale and p.compare_at_cents and p.compare_at_cents > 0:
             discount_pct = int(round((1 - p.price_cents / p.compare_at_cents) * 100))
+
+        # Fase 3: derivados de pricing (lee BusinessCosts del tenant).
+        pricing = self._pricing(p)
+
         return ProductOut(
             id=p.id,
             tenant_id=_to_uuid(p.tenant_id),
@@ -186,6 +234,7 @@ class ProductService:
             price_cents=p.price_cents,
             compare_at_cents=p.compare_at_cents,
             cost_cents=p.cost_cents,
+            production_time_min=int(p.production_time_min or 0),
             track_inventory=p.track_inventory,
             stock=p.stock,
             low_stock_threshold=p.low_stock_threshold,
@@ -201,4 +250,27 @@ class ProductService:
             updated_at=p.updated_at,
             on_sale=on_sale,
             discount_pct=discount_pct,
+            cost_real_cents=pricing.cost_real_cents,
+            suggested_price_cents=pricing.suggested_price_cents,
+            current_margin_pct=pricing.current_margin_pct,
+            target_margin_pct=pricing.target_margin_pct,
+            cost_hour_used_cents=pricing.cost_hour_used_cents,
+            health=pricing.health,
+            health_message=pricing.health_message,
         )
+
+    def to_list_item_with_pricing(self, p: Product) -> ProductListItem:
+        """Variante de _to_list_item que incluye los derivados Fase 3.
+
+        Usada en el listado del dashboard para que la tabla muestre
+        Costo real / Margen / Salud sin obligar al front a pedir el
+        detalle de cada producto.
+        """
+        item = self._to_list_item(p)
+        pricing = self._pricing(p)
+        item.cost_real_cents = pricing.cost_real_cents
+        item.current_margin_pct = pricing.current_margin_pct
+        item.target_margin_pct = pricing.target_margin_pct
+        item.health = pricing.health
+        item.health_message = pricing.health_message
+        return item

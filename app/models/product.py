@@ -39,6 +39,11 @@ class Product(BaseModel, TenantMixin):
     compare_at_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Fase 3 (V8) — tiempo de producción en minutos. Se usa junto a
+    # `BusinessCosts.cost_hour_cents` para calcular el costo real del
+    # producto (mano de obra) y sugerir un precio con margen objetivo.
+    production_time_min: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     # Inventario
     track_inventory: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

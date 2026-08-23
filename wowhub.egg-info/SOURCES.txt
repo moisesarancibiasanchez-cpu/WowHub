@@ -12,12 +12,12 @@ app/i18n/es.json
 app/i18n/pt.json
 app/static/css/ai.css
 app/static/css/app.css
+app/static/css/costs.css
 app/static/css/landing-pro.css
-app/static/css/tokens-v2.css
 app/static/css/tokens.css
-app/static/css/v2-overrides.css
 app/static/js/ai.js
 app/static/js/app.js
+app/static/js/costs.js
 app/templates/base.html
 app/templates/home.html
 app/templates/home_pro.html
@@ -32,6 +32,7 @@ app/templates/dashboard/admin_loyalty.html
 app/templates/dashboard/admin_scanner.html
 app/templates/dashboard/ai.html
 app/templates/dashboard/base.html
+app/templates/dashboard/costs.html
 app/templates/dashboard/customers.html
 app/templates/dashboard/index.html
 app/templates/dashboard/inventory.html
@@ -68,6 +69,7 @@ tests/test_analytics_campaigns.py
 tests/test_auth.py
 tests/test_automation.py
 tests/test_bookings.py
+tests/test_costs.py
 tests/test_growth_coach.py
 tests/test_loyalty.py
 tests/test_marketing_studio.py

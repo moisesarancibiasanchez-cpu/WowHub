@@ -230,40 +230,41 @@ def _get_or_create_categories(db: Session, tenant: Tenant) -> dict:
 
 # ─── Products ───────────────────────────────────────────────
 # price_cents está en centavos de CLP (1 CLP = 1 cent, sin decimales)
+# `production_time_min` (Fase 3 V8) es el tiempo de mano de obra en minutos.
 PRODUCTS = [
-    # (sku, slug, name, short, cat_slug, price_cents, compare_at, stock, featured, tags)
+    # (sku, slug, name, short, cat_slug, price_cents, compare_at, stock, featured, tags, production_time_min)
     ("CAF-001", "espresso", "Espresso",          "Shot de café 100% arábica, intenso y aromático.",
-     "cafes", 1800, None, 999, True,  ["clásico", "energía"]),
+     "cafes", 1800, None, 999, True,  ["clásico", "energía"], 2),
     ("CAF-002", "cappuccino", "Cappuccino",      "Espresso con leche texturizada y arte latte.",
-     "cafes", 3200, 3800, 999, True,  ["clásico", "leche"]),
+     "cafes", 3200, 3800, 999, True,  ["clásico", "leche"], 4),
     ("CAF-003", "latte",      "Latte",           "Espresso suave con leche cremosa.",
-     "cafes", 3200, None, 999, False, ["leche", "suave"]),
+     "cafes", 3200, None, 999, False, ["leche", "suave"], 4),
     ("CAF-004", "moka",       "Moka",            "Espresso, chocolate y leche batida.",
-     "cafes", 3500, None, 999, False, ["chocolate"]),
+     "cafes", 3500, None, 999, False, ["chocolate"], 5),
     ("CAF-005", "cold-brew",  "Cold Brew 500ml", "Café infusionado en frío 16h, suave y bajo en acidez.",
-     "cafes", 4200, 4800, 30, True,   ["frío", "vegano"]),
+     "cafes", 4200, 4800, 30, True,   ["frío", "vegano"], 1),
     ("BEB-001", "frappe-oreo", "Frappé de Oreo", "Café, helado, leche y Oreo triturado.",
-     "bebidas-frias", 4500, None, 25, True, ["frío", "dulce"]),
+     "bebidas-frias", 4500, None, 25, True, ["frío", "dulce"], 6),
     ("BEB-002", "limonada-jeng", "Limonada de Jengibre", "Limón, jengibre fresco y miel.",
-     "bebidas-frias", 2900, None, 40, False, ["vegano", "sin-cafeína"]),
+     "bebidas-frias", 2900, None, 40, False, ["vegano", "sin-cafeína"], 3),
     ("BEB-003", "te-matcha", "Matcha Latte Frío", "Matcha ceremonial con leche de almendras.",
-     "bebidas-frias", 3900, None, 20, True, ["matcha", "vegano"]),
+     "bebidas-frias", 3900, None, 20, True, ["matcha", "vegano"], 5),
     ("PAS-001", "croissant", "Croissant de mantequilla", "Hojaldre francés artesanal.",
-     "pasteleria", 2200, None, 18, True, ["artesanal"]),
+     "pasteleria", 2200, None, 18, True, ["artesanal"], 1),
     ("PAS-002", "torta-chocolate", "Torta de chocolate (porción)", "Bizcocho húmedo con ganache.",
-     "pasteleria", 3800, None, 12, True, ["sin-gluten-opcional"]),
+     "pasteleria", 3800, None, 12, True, ["sin-gluten-opcional"], 2),
     ("PAS-003", "muffin-arandanos", "Muffin de arándanos", "Esponjoso, con arándanos frescos.",
-     "pasteleria", 2500, None, 24, False, ["frutal"]),
+     "pasteleria", 2500, None, 24, False, ["frutal"], 1),
     ("SAN-001", "avocado-toast", "Avocado Toast", "Pan de masa madre, palta, huevo pochado y semillas.",
-     "sandwiches", 4900, 5500, 15, True, ["brunch", "vegano-opcional"]),
+     "sandwiches", 4900, 5500, 15, True, ["brunch", "vegano-opcional"], 8),
     ("SAN-002", "jamon-queso", "Sándwich de jamón y queso", "En pan ciabatta, al horno.",
-     "sandwiches", 3800, None, 20, False, ["clásico"]),
+     "sandwiches", 3800, None, 20, False, ["clásico"], 7),
 ]
 
 
 def _get_or_create_products(db: Session, tenant: Tenant, cats: dict) -> list:
     out = []
-    for sku, slug, name, short, cat_slug, price, compare, stock, featured, tags in PRODUCTS:
+    for sku, slug, name, short, cat_slug, price, compare, stock, featured, tags, prod_time in PRODUCTS:
         p = db.execute(
             select(Product).where(
                 Product.tenant_id == str(tenant.id),
@@ -271,6 +272,12 @@ def _get_or_create_products(db: Session, tenant: Tenant, cats: dict) -> list:
             )
         ).scalar_one_or_none()
         if p:
+            # Fase 3: si el producto existe pero no tiene production_time_min
+            # (seed antiguo), lo actualizamos in-place para que el dashboard
+            # muestre el cálculo. Idempotente.
+            if p.production_time_min in (None, 0) and prod_time:
+                p.production_time_min = int(prod_time)
+                db.flush()
             out.append(p)
             continue
         p = Product(
@@ -285,6 +292,8 @@ def _get_or_create_products(db: Session, tenant: Tenant, cats: dict) -> list:
             price_cents=price,
             compare_at_cents=compare,
             cost_cents=int(price * 0.35),
+            # Fase 3 (V8) — mano de obra para el cálculo de costo real.
+            production_time_min=int(prod_time or 0),
             track_inventory=True,
             stock=stock,
             low_stock_threshold=5,
