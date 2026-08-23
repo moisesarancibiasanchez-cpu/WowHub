@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class WebhookCreate(BaseModel):
@@ -20,6 +20,8 @@ class WebhookUpdate(BaseModel):
 
 
 class WebhookOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     tenant_id: UUID
     name: str
@@ -33,11 +35,10 @@ class WebhookOut(BaseModel):
     last_status_code: Optional[int] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class WebhookDeliveryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     webhook_id: str
     event: str
@@ -46,6 +47,3 @@ class WebhookDeliveryOut(BaseModel):
     error: Optional[str] = None
     attempts: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True

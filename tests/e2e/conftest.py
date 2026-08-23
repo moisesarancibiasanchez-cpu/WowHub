@@ -19,17 +19,45 @@ import uuid
 from typing import Any
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page, Playwright
 
-# Si pytest-playwright no está instalado, fallamos con un mensaje claro
-# (en lugar de un ImportError críptico).
+# ── Skip limpio si pytest-playwright no está instalado ──────────
+# El plugin ``pytest-playwright`` provee los fixtures ``page``, ``browser``,
+# ``playwright`` y ``browser_context_args`` que los tests e2e necesitan.
+# Si el plugin (o la lib ``playwright``) faltan, los tests e2e NO pueden
+# correr; en lugar de explotar con "fixture 'page' not found" durante la
+# collection, los marcamos como SKIP con un mensaje claro.
 try:
-    from playwright.sync_api import sync_playwright  # noqa: F401
-except ImportError as e:  # pragma: no cover
-    raise ImportError(
-        "E2E tests requieren playwright. Instalá con: "
-        "`pip install -e .[e2e] && playwright install chromium`"
-    ) from e
+    import playwright.sync_api  # noqa: F401
+    import pytest_playwright  # noqa: F401  (registra los fixtures)
+    _E2E_DEPS_AVAILABLE = True
+    _E2E_SKIP_REASON = None
+except ImportError as e:
+    _E2E_DEPS_AVAILABLE = False
+    _E2E_SKIP_REASON = (
+        "E2E tests requieren playwright + pytest-playwright. "
+        "Instalá con: `pip install -e .[e2e] && playwright install chromium`"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Si las deps e2e no están, marca todos los tests con marker ``e2e`` como skip."""
+    if _E2E_DEPS_AVAILABLE:
+        return
+    skip_marker = pytest.mark.skip(reason=_E2E_SKIP_REASON)
+    for item in items:
+        if "e2e" in item.keywords:
+            item.add_marker(skip_marker)
+
+
+# ── Imports opcionales del plugin (solo si está disponible) ─────
+if _E2E_DEPS_AVAILABLE:
+    from playwright.sync_api import (  # noqa: E402
+        Browser,
+        BrowserContext,
+        Page,
+        Playwright,
+        sync_playwright,
+    )
 
 
 # ── Helpers ─────────────────────────────────────────────────────

@@ -195,8 +195,13 @@ class TestCostsJsTenantFix:
 # Levantan app.js dentro de Node con un DOM mínimo (sin jsdom) y verifican
 # que las nuevas funciones exportadas se comportan correctamente.
 class TestAppJsRuntime:
+    # NOTE: pytest >=8 deprecates class-scoped fixtures defined as instance
+    # methods. Usamos @classmethod para fijar atributos en la CLASE, no en
+    # la instancia (que cambia en cada test). Ver:
+    # https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    @classmethod
     @pytest.fixture(scope="class")
-    def node_env(self, tmp_path_factory):
+    def node_env(cls, tmp_path_factory):
         """Crea un mini-DOM y un script Node que requiere app.js."""
         if shutil.which("node") is None:
             pytest.skip("Node no está disponible")

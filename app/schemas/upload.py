@@ -3,10 +3,12 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UploadOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     tenant_id: UUID
     filename: str
@@ -19,6 +21,3 @@ class UploadOut(BaseModel):
     entity_id: Optional[str] = None
     purpose: Optional[str] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True

@@ -2,7 +2,7 @@
 
 Contratos públicos de la API de IA. Versión 0.3.0.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 from uuid import UUID
 
@@ -580,7 +580,7 @@ class BusinessMemorySnapshot(BaseModel):
     tenant_slug: Optional[str] = None
     lookback_days: int
     generated_at: datetime = Field(
-        default_factory=lambda: __import__("datetime").datetime.utcnow(),
+        default_factory=lambda: datetime.now(timezone.utc),
     )
     # Cada sección es un dict libre para no atar el schema al formato
     # exacto del LLM o de los servicios de analytics. La idea es
@@ -639,7 +639,7 @@ class GrowthAnalysisResponse(BaseModel):
         description="Snapshot de los datos analizados (transparencia anti-alucinación).",
     )
     generated_at: datetime = Field(
-        default_factory=lambda: __import__("datetime").datetime.utcnow(),
+        default_factory=lambda: datetime.now(timezone.utc),
     )
     fallback: bool = Field(
         False,
