@@ -15,7 +15,9 @@ Crea un cliente demo "Cafetería El Rincón" (Santiago, Chile) con:
   - Tenant:  el-rincon
   - 1 branch, 4 categorías, 12 productos, 3 promociones, 5 clientes, 1 QR
 """
+import hashlib
 import logging
+import secrets
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -28,13 +30,23 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, init_db
+from app.models.booking import Booking, BookingStatus
 from app.models.branch import Branch
+from app.models.business_costs import BusinessCosts
 from app.models.category import Category
 from app.models.customer import Customer
 from app.models.landing import LandingConfig
+from app.models.loyalty_pass import (
+    CustomerPass,
+    LoyaltyCampaign,
+    PassSource,
+    PassStatus,
+)
+from app.models.order import Order, OrderItem, OrderStatus
 from app.models.product import Product, ProductStatus
 from app.models.promotion import DiscountType, Promotion, PromotionType
 from app.models.qr import QrCode, QrTarget
+from app.models.quote import Quote, QuoteItem, QuoteStatus
 from app.models.tenant import Industry, Tenant, TenantMembership, TenantPlan, TenantStatus
 from app.models.user import User, UserRole
 from app.security import hash_password
@@ -513,6 +525,551 @@ def _get_or_create_landing(db: Session, tenant: Tenant) -> LandingConfig:
     return lc
 
 
+# ─── BusinessCosts (Fase 2 V8) ────────────────────────────
+def _get_or_create_business_costs(db: Session, tenant: Tenant) -> BusinessCosts:
+    """Config de costos fijos mensuales para el tenant demo.
+
+    Datos realistas para una cafetería de especialidad en Santiago,
+    Chile. Todos los campos quedan seteados (sin "No aplica") para que
+    el módulo Costos muestre el cálculo completo desde el primer
+    ingreso del usuario.
+    """
+    bc = db.execute(
+        select(BusinessCosts).where(BusinessCosts.tenant_id == str(tenant.id))
+    ).scalar_one_or_none()
+    if bc:
+        log.info("✓ BusinessCosts ya existe")
+        return bc
+
+    bc = BusinessCosts(
+        id=uuid4(),
+        tenant_id=str(tenant.id),
+        # Personal
+        owner_salary_cents=1_200_000,      # Dueña María: $1.200.000 CLP/mes
+        workers_salary_cents=2_400_000,    # 2 baristas a $1.200.000 c/u
+        # Operación
+        productive_hours_per_month=160,    # 8h × 20 días hábiles
+        target_margin_pct=30,              # 30% de margen objetivo
+        # Básicos
+        rent_cents=650_000,                # Arriendo local centro
+        electricity_cents=180_000,         # Luz + equipos
+        water_cents=45_000,                # Agua
+        gas_cents=80_000,                  # Gas cafetera/espresso
+        # Otros fijos
+        software_cents=120_000,            # WowHub + POS + email
+        advertising_cents=150_000,         # IG Ads + Google
+        payment_commission_cents=80_000,   # Comisiones Webpay/Transbank
+        packaging_cents=90_000,            # Vasos, tapas, bolsas
+        maintenance_cents=60_000,          # Mantención cafetera
+        depreciation_cents=100_000,        # Depreciación equipos
+        # Merma
+        waste_pct=3,                       # 3% merma promedio café/leche
+        # Flags
+        is_na={},                          # todos los campos aplican
+        notes=(
+            "Configuración demo para Cafetería El Rincón. "
+            "Refleja costos operativos de un local de cafetería de "
+            "especialidad en el centro de Santiago (1 dueña + 2 baristas)."
+        ),
+    )
+    # Recalcular derivados (total_fixed_cents + cost_hour_cents)
+    bc.recompute_derived()
+    db.add(bc)
+    db.flush()
+    log.info(
+        "✓ BusinessCosts creado: total=$%s, costo_hora=$%s",
+        f"{bc.total_fixed_cents:,}".replace(",", "."),
+        f"{bc.cost_hour_cents:,}".replace(",", "."),
+    )
+    return bc
+
+
+# ─── Orders (Fase 4 — Kanban) ────────────────────────────
+def _get_or_create_orders(
+    db: Session, tenant: Tenant, products: list, customers: list, branch: Branch
+) -> list:
+    """Crea ~10 pedidos distribuidos en las 5 columnas del Kanban.
+
+    Estados: PENDING, CONFIRMED, PREPARING, READY, DELIVERED
+    (no incluimos CANCELED en el seed para mostrar flujo activo).
+    """
+    # Si ya hay pedidos para este tenant, no duplicar
+    existing = db.execute(
+        select(Order).where(Order.tenant_id == str(tenant.id))
+    ).scalars().all()
+    if existing:
+        log.info("✓ Orders ya existen (%d)", len(existing))
+        return existing
+
+    now = datetime.now(timezone.utc)
+    prods_by_sku = {p.sku: p for p in products}
+    out: list[Order] = []
+
+    # (status, minutos_atras, customer_idx, productos[(sku, qty)], notes)
+    # customer_idx = 0..4 → customers[0..4]; -1 = sin cliente (guest)
+    specs = [
+        # ── DELIVERED (ayer / hoy) ──
+        (
+            OrderStatus.DELIVERED,
+            -90,  # hace 1.5h
+            0,  # Camila
+            [("CAF-002", 1), ("PAS-001", 1)],
+            "Para llevar, sin azúcar por favor.",
+        ),
+        (
+            OrderStatus.DELIVERED,
+            -150,  # hace 2.5h
+            2,  # Fernanda
+            [("CAF-005", 1), ("SAN-001", 1)],
+            "Cliente VIP, saludo especial.",
+        ),
+        # ── READY (esperando retiro) ──
+        (
+            OrderStatus.READY,
+            -20,  # hace 20min
+            4,  # Valentina
+            [("CAF-003", 2), ("BEB-001", 1)],
+            "Pasará a retirar en 5 min.",
+        ),
+        # ── PREPARING (en cocina) ──
+        (
+            OrderStatus.PREPARING,
+            -8,  # hace 8min
+            1,  # Diego
+            [("SAN-002", 1), ("BEB-002", 1), ("PAS-002", 1)],
+            None,
+        ),
+        # ── CONFIRMED (esperando entrar a cocina) ──
+        (
+            OrderStatus.CONFIRMED,
+            -3,  # hace 3min
+            3,  # Matías
+            [("CAF-001", 1), ("PAS-003", 2)],
+            "Pagó con tarjeta.",
+        ),
+        # ── PENDING (recién llegados, sin confirmar) ──
+        (
+            OrderStatus.PENDING,
+            -1,  # hace 1min
+            -1,  # guest
+            [("CAF-004", 1), ("BEB-003", 1)],
+            "Cliente nuevo, primera compra.",
+        ),
+        (
+            OrderStatus.PENDING,
+            0,  # recién
+            -1,  # guest
+            [("CAF-002", 3)],
+            "Para 3 personas del local.",
+        ),
+    ]
+
+    for i, (status, minutes_ago, cust_idx, line_specs, notes) in enumerate(specs, start=1):
+        items: list[OrderItem] = []
+        subtotal = 0
+        for sku, qty in line_specs:
+            p = prods_by_sku.get(sku)
+            if not p:
+                continue
+            line_total = p.price_cents * qty
+            items.append(OrderItem(
+                product_id=str(p.id),
+                product_name=p.name,
+                product_sku=p.sku,
+                product_image=p.image_url,
+                quantity=qty,
+                unit_price_cents=p.price_cents,
+                total_cents=line_total,
+                options={},
+            ))
+            subtotal += line_total
+
+        if not items:
+            continue
+
+        cust = customers[cust_idx] if cust_idx >= 0 else None
+        number = f"ORD-DEMO-{now.strftime('%Y%m%d')}-{i:03d}"
+        created = now + timedelta(minutes=minutes_ago)
+
+        order = Order(
+            id=uuid4(),
+            tenant_id=str(tenant.id),
+            number=number,
+            status=status,
+            customer_id=str(cust.id) if cust else None,
+            branch_id=str(branch.id),
+            subtotal_cents=subtotal,
+            discount_cents=0,
+            shipping_cents=0,
+            tax_cents=0,
+            total_cents=subtotal,
+            currency=tenant.currency or "CLP",
+            customer_name=cust.full_name if cust else "Cliente Mostrador",
+            customer_phone=cust.phone if cust else None,
+            customer_email=cust.email if cust else None,
+            shipping_address=None,
+            notes=notes,
+            source="web" if cust else "pos",
+            qr_code_id=None,
+            items=items,
+            created_at=created,
+            updated_at=created,
+        )
+        # Seteamos created/updated explícitamente porque el seed
+        # se ejecuta fuera del flujo normal de la API.
+        order.created_at = created
+        order.updated_at = created
+        db.add(order)
+        out.append(order)
+
+    db.flush()
+    log.info("✓ Orders creadas (%d) — distribuidas en 5 columnas Kanban", len(out))
+    return out
+
+
+# ─── Quotes (Fase 5 — Cotizaciones con PDF) ───────────────
+def _get_or_create_quotes(
+    db: Session, tenant: Tenant, products: list, customers: list, branch: Branch
+) -> list:
+    """Crea cotizaciones de ejemplo en distintos estados.
+
+    Cubren el flujo: DRAFT (en edición), SENT (enviada al cliente),
+    VIEWED (cliente abrió el link público), ACCEPTED (cliente la aceptó).
+    No incluimos REJECTED/EXPIRED en el seed.
+    """
+    existing = db.execute(
+        select(Quote).where(Quote.tenant_id == str(tenant.id))
+    ).scalars().all()
+    if existing:
+        log.info("✓ Quotes ya existen (%d)", len(existing))
+        return existing
+
+    now = datetime.now(timezone.utc)
+    prods_by_sku = {p.sku: p for p in products}
+    out: list[Quote] = []
+
+    specs = [
+        # (status, title, customer_idx, productos, days_valid, notes)
+        (
+            QuoteStatus.DRAFT,
+            "Cotización — Servicio de café para evento corporativo",
+            -1,  # guest lead
+            [("CAF-001", 30), ("CAF-002", 30), ("PAS-001", 20)],
+            7,
+            "Evento para 60 personas en oficina. Esperando confirmación del cliente.",
+        ),
+        (
+            QuoteStatus.SENT,
+            "Cotización — Coffee break semanal",
+            0,  # Camila
+            [("CAF-002", 10), ("PAS-002", 10), ("BEB-002", 5)],
+            10,
+            "Cliente VIP. Enviar PDF y seguimiento por WhatsApp.",
+        ),
+        (
+            QuoteStatus.VIEWED,
+            "Cotización — Brunch dominical para grupo familiar",
+            2,  # Fernanda
+            [("SAN-001", 6), ("CAF-003", 6), ("BEB-003", 3)],
+            5,
+            "Cliente abrió el link 2 veces. Pendiente respuesta.",
+        ),
+        (
+            QuoteStatus.ACCEPTED,
+            "Cotización — Pedido mensual de pastelería",
+            4,  # Valentina
+            [("PAS-001", 30), ("PAS-003", 30), ("PAS-002", 15)],
+            14,
+            "Aceptada el viernes pasado. Lista para producción.",
+        ),
+    ]
+
+    for i, (status, title, cust_idx, line_specs, days_valid, notes) in enumerate(specs, start=1):
+        items: list[QuoteItem] = []
+        subtotal = 0
+        for sku, qty in line_specs:
+            p = prods_by_sku.get(sku)
+            if not p:
+                continue
+            line_total = p.price_cents * qty
+            items.append(QuoteItem(
+                product_id=str(p.id),
+                product_name=p.name,
+                product_sku=p.sku,
+                description=p.short_description,
+                quantity=qty,
+                unit_price_cents=p.price_cents,
+                discount_cents=0,
+                total_cents=line_total,
+            ))
+            subtotal += line_total
+
+        if not items:
+            continue
+
+        cust = customers[cust_idx] if cust_idx >= 0 else None
+        number = f"COT-DEMO-{now.strftime('%Y%m')}-{i:03d}"
+        public_token = f"qt_{secrets.token_urlsafe(16)}"
+        valid_until = now + timedelta(days=days_valid)
+
+        # Tiempos según estado
+        sent_at = now - timedelta(days=2) if status != QuoteStatus.DRAFT else None
+        viewed_at = now - timedelta(days=1) if status in (QuoteStatus.VIEWED, QuoteStatus.ACCEPTED) else None
+        accepted_at = now - timedelta(hours=8) if status == QuoteStatus.ACCEPTED else None
+
+        quote = Quote(
+            id=uuid4(),
+            tenant_id=str(tenant.id),
+            number=number,
+            title=title,
+            status=status,
+            customer_id=str(cust.id) if cust else None,
+            branch_id=str(branch.id),
+            recipient_name=cust.full_name if cust else "Empresa XYZ SpA",
+            recipient_email=cust.email if cust else "compras@xyz.cl",
+            recipient_phone=cust.phone if cust else "+56 2 2345 0000",
+            subtotal_cents=subtotal,
+            discount_cents=0,
+            tax_cents=0,
+            total_cents=subtotal,
+            currency=tenant.currency or "CLP",
+            notes=notes,
+            terms=(
+                "Precios en CLP, IVA incluido. "
+                "Vigencia: 7 días desde la fecha de emisión. "
+                "Pago: 50% adelantado, 50% contra entrega."
+            ),
+            valid_until=valid_until,
+            sent_at=sent_at,
+            viewed_at=viewed_at,
+            accepted_at=accepted_at,
+            rejected_at=None,
+            public_token=public_token,
+            converted_order_id=None,
+            extra={"source": "seed_demo"},
+            items=items,
+        )
+        db.add(quote)
+        out.append(quote)
+
+    db.flush()
+    log.info("✓ Quotes creadas (%d) — DRAFT/SENT/VIEWED/ACCEPTED", len(out))
+    return out
+
+
+# ─── Bookings (Fase 8 — Reservas web) ─────────────────────
+def _get_or_create_bookings(
+    db: Session, tenant: Tenant, products: list, customers: list, branch: Branch
+) -> list:
+    """Reservas de ejemplo (mix de pasadas, futuras confirmadas y futuras pendientes).
+
+    Como el tenant demo es GASTRO, simulamos reservas tipo "catación de café"
+    o "cata privada" usando un producto cualquiera como "servicio".
+    """
+    existing = db.execute(
+        select(Booking).where(Booking.tenant_id == str(tenant.id))
+    ).scalars().all()
+    if existing:
+        log.info("✓ Bookings ya existen (%d)", len(existing))
+        return existing
+
+    # Buscar un producto para usar como "servicio reservado"
+    servicio = next((p for p in products if "CAF" in p.sku or "torta" in (p.slug or "")), products[0])
+
+    now = datetime.now(timezone.utc)
+    out: list[Booking] = []
+
+    specs = [
+        # (status, days_offset, hour, duration_min, customer_idx, notes, staff)
+        (
+            BookingStatus.COMPLETED,
+            -7,                              # semana pasada
+            16,                              # hora
+            30,                              # minutos (¡ojo, NO 16,30 — eso es una tuple!)
+            60,                              # duración en minutos
+            2,                               # Fernanda (VIP)
+            "Cata privada de café de especialidad para 4 personas. Muy buena recepción.",
+            "María González",
+        ),
+        (
+            BookingStatus.CONFIRMED,
+            2,                               # pasado mañana
+            11,
+            0,
+            45,
+            0,                               # Camila
+            "Sesión de cata + brunch. Confirmada por WhatsApp.",
+            "Camila Soto (staff)",
+        ),
+        (
+            BookingStatus.PENDING,
+            5,                               # en 5 días
+            15,
+            0,
+            30,
+            4,                               # Valentina
+            "Consulta inicial para asesoría de barista en casa.",
+            None,
+        ),
+    ]
+
+    for i, (status, days_offset, hour, minute, duration, cust_idx, notes, staff) in enumerate(specs, start=1):
+        cust = customers[cust_idx] if cust_idx >= 0 else None
+        starts = (now + timedelta(days=days_offset)).replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+        ends = starts + timedelta(minutes=duration)
+
+        # Customer name fallback (Booking requiere name + phone NOT NULL)
+        cust_name = cust.full_name if cust else f"Lead Demo {i}"
+        cust_phone = cust.phone if cust else "+56 9 4000 0000"
+        cust_email = cust.email if cust else None
+
+        booking = Booking(
+            id=uuid4(),
+            tenant_id=str(tenant.id),
+            branch_id=str(branch.id),
+            customer_id=str(cust.id) if cust else None,
+            product_id=str(servicio.id),
+            status=status,
+            starts_at=starts,
+            ends_at=ends,
+            customer_name=cust_name,
+            customer_phone=cust_phone,
+            customer_email=cust_email,
+            price_cents=servicio.price_cents if status != BookingStatus.PENDING else 0,
+            currency=tenant.currency or "CLP",
+            notes=notes,
+            staff_name=staff,
+            extra={"source": "seed_demo"},
+            created_at=starts - timedelta(days=1),
+            updated_at=starts - timedelta(days=1),
+        )
+        db.add(booking)
+        out.append(booking)
+
+    db.flush()
+    log.info("✓ Bookings creados (%d) — COMPLETED/CONFIRMED/PENDING", len(out))
+    return out
+
+
+# ─── Loyalty (Fase 8 — Tarjetas de fidelidad) ────────────
+def _hash_pin(pin: str) -> str:
+    """SHA-256 hex digest (64 chars) — formato esperado por la columna cashier_pin."""
+    return hashlib.sha256(pin.encode("utf-8")).hexdigest()
+
+
+def _get_or_create_loyalty(
+    db: Session, tenant: Tenant, customers: list
+) -> tuple:
+    """Crea 1 campaña activa "6 cafés = 1 gratis" y passes para los clientes demo.
+
+    Distribuye sellos entre los 5 clientes para que el Kanban de fidelidad
+    muestre variedad:
+      - Camila (VIP):  5/6 (casi completa)
+      - Diego:         1/6 (nuevo)
+      - Fernanda (VIP): 6/6 REDEEMED (ya canjeó)
+      - Matías:        0/6 (apenas se inscribió)
+      - Valentina:     3/6 (a mitad de camino)
+    """
+    # 1) Campaña
+    campaign = db.execute(
+        select(LoyaltyCampaign).where(
+            LoyaltyCampaign.tenant_id == str(tenant.id),
+            LoyaltyCampaign.name == "6 cafés = 1 gratis",
+        )
+    ).scalar_one_or_none()
+    if not campaign:
+        campaign = LoyaltyCampaign(
+            id=uuid4(),
+            tenant_id=str(tenant.id),
+            name="6 cafés = 1 gratis",
+            reward_label="1 café espresso de regalo",
+            stamps_required=6,
+            primary_color="#7c5cff",
+            text_color="#FFFFFF",
+            accent_color="#00d4a8",
+            logo_url="https://picsum.photos/seed/el-rincon-logo/200/200",
+            strip_url="https://picsum.photos/seed/el-rincon-strip/600/200",
+            is_active=True,
+            starts_at=datetime.now(timezone.utc) - timedelta(days=30),
+            ends_at=None,
+            cashier_pin=_hash_pin("1234"),  # PIN demo para el garzón
+            pin_hint="1234",
+            total_passes=0,
+            total_stamps_issued=0,
+            total_rewards_redeemed=0,
+        )
+        db.add(campaign)
+        db.flush()
+        log.info("✓ LoyaltyCampaign creada: %s", campaign.name)
+    else:
+        log.info("✓ LoyaltyCampaign ya existe: %s", campaign.name)
+
+    # 2) Passes por cliente
+    out: list[CustomerPass] = []
+    # (customer_idx, stamps_current, status)
+    customer_stamps = [
+        (0, 5, PassStatus.ACTIVE),       # Camila: casi completa
+        (1, 1, PassStatus.ACTIVE),       # Diego: nuevo
+        (2, 6, PassStatus.REDEEMED),     # Fernanda: ya canjeó
+        (3, 0, PassStatus.ACTIVE),       # Matías: recién inscrito
+        (4, 3, PassStatus.ACTIVE),       # Valentina: a mitad de camino
+    ]
+    now = datetime.now(timezone.utc)
+    for cust_idx, stamps, status in customer_stamps:
+        cust = customers[cust_idx]
+        existing = db.execute(
+            select(CustomerPass).where(
+                CustomerPass.tenant_id == str(tenant.id),
+                CustomerPass.campaign_id == str(campaign.id),
+                CustomerPass.customer_id == str(cust.id),
+            )
+        ).scalar_one_or_none()
+        if existing:
+            out.append(existing)
+            continue
+
+        serial = f"ELR-{secrets.token_hex(6).upper()}"
+        qr_payload = f"wowhub://loyalty/{campaign.id}/{serial}"
+        last_stamp = now - timedelta(days=stamps) if stamps > 0 else None
+        installed_at = now - timedelta(days=max(stamps, 1) + 1)
+        redeemed_at = (
+            now - timedelta(days=2) if status == PassStatus.REDEEMED else None
+        )
+
+        cp = CustomerPass(
+            id=uuid4(),
+            tenant_id=str(tenant.id),
+            campaign_id=str(campaign.id),
+            customer_id=str(cust.id),
+            serial_number=serial,
+            source=PassSource.WEB.value,
+            status=status.value,
+            stamps_current=stamps,
+            rewards_earned=1 if status == PassStatus.REDEEMED else 0,
+            qr_payload=qr_payload,
+            installed_at=installed_at,
+            last_stamp_at=last_stamp,
+            redeemed_at=redeemed_at,
+            expires_at=None,
+        )
+        db.add(cp)
+        out.append(cp)
+
+    # 3) Métricas desnormalizadas de la campaña
+    campaign.total_passes = len(out)
+    campaign.total_stamps_issued = sum(c.stamps_current for c in out)
+    campaign.total_rewards_redeemed = sum(c.rewards_earned for c in out)
+
+    db.flush()
+    log.info(
+        "✓ CustomerPasses creados (%d) — 5/6, 1/6, 6/6 redeemed, 0/6, 3/6",
+        len(out),
+    )
+    return campaign, out
+
+
 # ─── Main ──────────────────────────────────────────────────
 def main() -> int:
     log.info("=" * 60)
@@ -531,9 +1088,38 @@ def main() -> int:
             cats = _get_or_create_categories(db, tenant)
             products = _get_or_create_products(db, tenant, cats)
             _get_or_create_promotions(db, tenant, products)
-            _get_or_create_customers(db, tenant)
+            customers = _get_or_create_customers(db, tenant)
             _get_or_create_qr(db, tenant, branch)
             _get_or_create_landing(db, tenant)
+
+            # ── V8: features nuevos ─────────────────────────
+            # Fase 2: Costos fijos + costo_hora
+            _get_or_create_business_costs(db, tenant)
+            # Fase 4: Pedidos (Kanban 5 columnas)
+            _get_or_create_orders(db, tenant, products, customers, branch)
+            # Fase 5: Cotizaciones (DRAFT/SENT/VIEWED/ACCEPTED)
+            _get_or_create_quotes(db, tenant, products, customers, branch)
+            # Fase 8: Bookings + Loyalty Pass
+            _get_or_create_bookings(db, tenant, products, customers, branch)
+            _get_or_create_loyalty(db, tenant, customers)
+
+            # Feature flags para features que vienen (Fases 3-7)
+            # Activamos todos en el tenant demo para que la UI
+            # muestre los nuevos módulos desde el primer login.
+            tenant.settings = {
+                **(tenant.settings or {}),
+                "demo": True,
+                "feature_costs_enabled": True,
+                "feature_pricing_suggestion_enabled": True,
+                "feature_kanban_enabled": True,
+                "feature_quotes_enabled": True,
+                "feature_notifications_enabled": True,
+                "feature_marketing_ai_enabled": True,
+                "feature_bookings_enabled": True,
+                "feature_loyalty_enabled": True,
+                "web_booking_enabled": True,
+                "show_costs_to_owner": True,
+            }
 
             db.commit()
             log.info("=" * 60)
@@ -543,8 +1129,18 @@ def main() -> int:
             log.info("  Email:    %s", DEMO_EMAIL)
             log.info("  Password: %s", DEMO_PASSWORD)
             log.info("  Tenant:   %s (%s)", DEMO_TENANT_DISPLAY, DEMO_TENANT_SLUG)
+            log.info("")
             log.info("Landing pública: /u/%s", DEMO_TENANT_SLUG)
             log.info("Catálogo:         /u/%s/catalogo", DEMO_TENANT_SLUG)
+            log.info("")
+            log.info("URLs del dashboard:")
+            log.info("  /dashboard                  → Home")
+            log.info("  /dashboard/costs            → Costos (Fase 2)")
+            log.info("  /dashboard/products         → Catálogo")
+            log.info("  /dashboard/orders           → Kanban Pedidos (Fase 4)")
+            log.info("  /dashboard/quotes           → Cotizaciones (Fase 5)")
+            log.info("  /dashboard/bookings         → Reservas (Fase 8)")
+            log.info("  /dashboard/loyalty          → Fidelidad (Fase 8)")
             return 0
         except Exception as e:
             db.rollback()
