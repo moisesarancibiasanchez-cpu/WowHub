@@ -84,3 +84,14 @@ def init_db() -> None:
                 log.info("Migración aplicada: cashier_pin → VARCHAR(64)")
     except Exception as e:
         log.warning("Migración cashier_pin no aplicada: %s", e)
+    # ── Auto-heal V8: asegura columnas agregadas después del create_all
+    # inicial (production_time_min y siguientes). Se ejecuta en cada
+    # arranque del lifespan para que Railway (que NO corre entrypoint.sh
+    # automáticamente) también reciba las migraciones. Es idempotente.
+    try:
+        from scripts.migrate_product_v8_columns import ensure_v8_columns
+        added = ensure_v8_columns()
+        if added:
+            log.info("Auto-heal V8: %s columna(s) agregada(s)", added)
+    except Exception as e:
+        log.warning("Auto-heal V8 no aplicado: %s", e)

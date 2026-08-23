@@ -36,6 +36,9 @@ print('✔ schema OK')
 echo "▶ Aplicando migraciones idempotentes (enum ai_agent_kind 'help')..."
 python -m scripts.migrate_ai_help_enum || echo "⚠ migrate_ai_help_enum falló (continúa igualmente)"
 
+echo "▶ Aplicando migraciones idempotentes (V8 columns: production_time_min)..."
+python -m scripts.migrate_product_v8_columns || echo "⚠ migrate_product_v8_columns falló (continúa igualmente)"
+
 echo "▶ Sembrando datos demo (si DB vacía)..."
 python -m app.seed || echo "⚠ seed falló (continúa igualmente)"
 
