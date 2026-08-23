@@ -214,11 +214,20 @@
      - v2: max-width:960px → en 1920px quedan ~166px a cada
        lado, distribuyendo los ~360px de espacio vacío del
        AI sidebar simétricamente a izquierda y derecha.
-     En pantallas chicas (≤960px) ocupa el 100% del main. */
+     En pantallas chicas (≤960px) ocupa el 100% del main.
+
+     MODO TEST (html.no-ai-sidebar): el AI sidebar está
+     oculto (?no_ai=1 en la URL), entonces el contenido
+     puede expandirse al 100% del main para confirmar si
+     el AI era el responsable del centrado/aprovechamiento. */
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
   box-sizing: border-box;
+}
+html.no-ai-sidebar .dash-content,
+.no-ai-sidebar .dash-content {
+  max-width: 100%;
 }
 
 /* Banner de impersonación */

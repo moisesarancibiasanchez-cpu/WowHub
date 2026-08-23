@@ -1,9 +1,21 @@
 {% extends "base.html" %}
+{# ── Test mode: ?no_ai=1 oculta el sidebar IA para diagnóstico ──
+   Sirve para confirmar si el panel de IA es el responsable de
+   problemas de layout (centrado, espacio vacío, etc). Úsalo en
+   cualquier URL del dashboard, ej: /dashboard/costs?no_ai=1 ── #}
+{% set no_ai = request.query_params.get("no_ai") == "1" %}
+{% set hide_ai_panel = hide_ai_panel or no_ai %}
 {% block title %}{% block dash_title %}Dashboard
 {% endblock %} — WowHub
 {% endblock %}
 
+{# ── Aplicar clase al <body> cuando no_ai=1 (el padre tiene
+   <body> sin clase, así que lo hacemos con un script inline
+   en head_extra para que corra antes del primer paint) ── #}
 {% block head_extra %}
+{% if no_ai %}
+<script>document.documentElement.classList.add("no-ai-sidebar");</script>
+{% endif %}
 <link rel="stylesheet" href="/static/css/ai.css">
 {# El sistema unificado vive en tokens.css + app.css (cargados por
    base.html). El banner de impersonación está ahora en app.css. ── #}
