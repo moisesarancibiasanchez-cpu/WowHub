@@ -108,8 +108,9 @@
     width: 100%;
   }
   .preview-card.loyalty-card-preview {
-    width: 100%; max-width: 360px; min-height: 220px;
-    border-radius: 18px; padding: 14px 16px;
+    width: 100%; max-width: 380px;
+    aspect-ratio: 1.586 / 1;             /* CR-80: 85.6mm × 53.98mm (tarjeta de crédito real) */
+    border-radius: 14px; padding: 9px 11px;
     position: relative;
     background: linear-gradient(
       var(--metal-angle),
@@ -158,34 +159,34 @@
 
   /* Tech row: EMV chip + NFC */
   .preview-card .card-tech-row {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 2px;
+    display: flex; align-items: center; gap: 6px; margin-bottom: 1px;
   }
   .preview-card .emv-chip {
-    width: 30px; height: 22px; border-radius: 4px;
+    width: 24px; height: 18px; border-radius: 3px;
     background: linear-gradient(135deg, #d4af37 0%, #fff2a3 35%, #aa7c11 70%, #ffd700 100%);
     border: 1px solid #7d5904;
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.7), 0 2px 5px rgba(0, 0, 0, 0.3);
     position: relative; overflow: hidden;
   }
   .preview-card .emv-chip::after {
-    content: ''; position: absolute; inset: 3px;
-    border: 1px solid rgba(120, 80, 5, 0.5); border-radius: 2px;
-    background: repeating-linear-gradient(90deg, transparent, transparent 6px, rgba(120, 80, 5, 0.4) 6px, rgba(120, 80, 5, 0.4) 8px);
+    content: ''; position: absolute; inset: 2px;
+    border: 1px solid rgba(120, 80, 5, 0.5); border-radius: 1.5px;
+    background: repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(120, 80, 5, 0.4) 4px, rgba(120, 80, 5, 0.4) 6px);
   }
-  .preview-card .contactless-icon { width: 16px; height: 16px; opacity: 0.65; }
+  .preview-card .contactless-icon { width: 13px; height: 13px; opacity: 0.65; }
 
   /* Card header: brand (izq) + título (der) */
   .preview-card .card-header {
-    display: flex; justify-content: space-between; align-items: flex-start; margin-top: 2px;
+    display: flex; justify-content: space-between; align-items: flex-start; margin-top: 1px;
   }
-  .preview-card .brand-identity { display: flex; align-items: center; gap: 8px; }
+  .preview-card .brand-identity { display: flex; align-items: center; gap: 6px; }
   .preview-card .brand-logo-disc {
-    width: 32px; height: 32px; border-radius: 50%;
+    width: 26px; height: 26px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #ffffff 0%, #b0c9db 70%, #5a7d97 100%);
-    border: 2px solid rgba(255, 255, 255, 0.9);
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
     box-shadow: 0 2px 6px rgba(0, 40, 80, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9), inset 0 -2px 4px rgba(0, 0, 0, 0.25);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 15px; flex-shrink: 0;
+    font-weight: 900; font-size: 12px; flex-shrink: 0;
   }
   .preview-card .brand-logo-disc span {
     background: linear-gradient(135deg, #0077b6 40%, #ff7700 60%);
@@ -194,23 +195,23 @@
   }
   .preview-card .brand-names-box { display: flex; flex-direction: column; min-width: 0; }
   .preview-card .brand-name-main {
-    font-size: 13px; font-weight: 900; letter-spacing: 1px; color: #023e8a;
+    font-size: 10px; font-weight: 900; letter-spacing: 0.7px; color: #023e8a;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 -1px 0 rgba(0, 0, 0, 0.08);
-    line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+    line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;
   }
   .preview-card .brand-tagline-main {
-    font-size: 7px; font-weight: 700; letter-spacing: 0.5px; color: #475569;
-    margin-top: 2px; text-transform: uppercase;
+    font-size: 5.5px; font-weight: 700; letter-spacing: 0.4px; color: #475569;
+    margin-top: 1px; text-transform: uppercase;
   }
   .preview-card .header-right { text-align: right; flex-shrink: 0; }
   .preview-card .card-title-engraved {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.8px; color: #c95100;
+    font-size: 7px; font-weight: 800; letter-spacing: 0.6px; color: #c95100;
     text-transform: uppercase; text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9);
     line-height: 1.1;
   }
   .preview-card .tier-badge {
-    display: inline-block; margin-top: 3px; padding: 2px 7px; border-radius: 12px;
-    font-size: 7px; font-weight: 800; letter-spacing: 0.7px;
+    display: inline-block; margin-top: 2px; padding: 1.5px 5px; border-radius: 10px;
+    font-size: 5.5px; font-weight: 800; letter-spacing: 0.5px;
     background: linear-gradient(135deg, #475569, #1e293b); color: #f8fafc;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.2);
     text-transform: uppercase;
@@ -219,9 +220,10 @@
   .preview-card .tier-badge.vip   { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
   .preview-card .tier-badge.black { background: linear-gradient(135deg, #0a0a0a, #262626); border-color: #ffd700; color: #ffd700; }
 
-  /* Stamps grid (5x2) */
+  /* Stamps grid (5x2) — ancho fijo para mantenerlos pequeños y no romper la proporción credit-card */
   .preview-card .stamps-grid {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px 7px; margin: 8px 0 4px;
+    width: 240px; margin: 4px auto 2px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px 4px;
   }
   .preview-card .stamp-slot {
     aspect-ratio: 1; border-radius: 50%; position: relative;
@@ -232,16 +234,16 @@
   .preview-card .stamp-slot:hover { transform: scale(1.08) translateY(-1px); }
   .preview-card .slot-idx {
     position: absolute; top: -1px; left: -1px;
-    font-size: 6px; font-weight: 800; color: #475569;
+    font-size: 4.5px; font-weight: 800; color: #475569;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
   }
   .preview-card .stamp-slot.empty {
     background: linear-gradient(145deg, rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.30));
-    border: 1.5px dashed rgba(71, 85, 105, 0.5);
+    border: 1.2px dashed rgba(71, 85, 105, 0.5);
     box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.20), inset -1px -1px 3px rgba(255, 255, 255, 0.7), 0 1px 1px rgba(255, 255, 255, 0.35);
   }
   .preview-card .stamp-slot.empty .slot-placeholder {
-    font-size: 8px; font-weight: 700; color: rgba(71, 85, 105, 0.45);
+    font-size: 6px; font-weight: 700; color: rgba(71, 85, 105, 0.45);
   }
   .preview-card .stamp-slot.stamped {
     background: radial-gradient(circle at 35% 35%, #00b4d8 0%, #0077b6 60%, #023e8a 100%);
@@ -256,20 +258,20 @@
   }
   .preview-card .stamp-badge { display: flex; flex-direction: column; align-items: center; line-height: 1; }
   .preview-card .stamp-badge .main-w {
-    font-size: 11px; font-weight: 900; font-style: italic;
+    font-size: 9px; font-weight: 900; font-style: italic;
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
   }
-  .preview-card .stamp-badge .brand-tiny { font-size: 4px; font-weight: 800; letter-spacing: 0.3px; margin-top: 1px; }
-  .preview-card .stamp-badge .check-ico { font-size: 5px; margin-top: 1px; font-weight: 900; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+  .preview-card .stamp-badge .brand-tiny { font-size: 3.5px; font-weight: 800; letter-spacing: 0.2px; margin-top: 0.5px; }
+  .preview-card .stamp-badge .check-ico { font-size: 4px; margin-top: 0.5px; font-weight: 900; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
 
   /* Reward slot (10º) */
   .preview-card .stamp-slot.reward-slot.empty {
-    border: 2px dashed #b8860b;
+    border: 1.5px dashed #b8860b;
     background: linear-gradient(145deg, rgba(245, 183, 0, 0.15), rgba(255, 255, 255, 0.5));
     box-shadow: inset 1px 1px 3px rgba(184, 134, 11, 0.3), inset -1px -1px 3px rgba(255, 255, 255, 0.9);
   }
-  .preview-card .reward-slot .star-ico { font-size: 11px; color: #b8860b; filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8)); line-height: 1; }
-  .preview-card .reward-slot .reward-label { font-size: 4px; font-weight: 900; color: #7d5904; text-align: center; line-height: 1.1; text-transform: uppercase; margin-top: 1px; letter-spacing: 0.2px; }
+  .preview-card .reward-slot .star-ico { font-size: 9px; color: #b8860b; filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8)); line-height: 1; }
+  .preview-card .reward-slot .reward-label { font-size: 3.5px; font-weight: 900; color: #7d5904; text-align: center; line-height: 1.1; text-transform: uppercase; margin-top: 0.5px; letter-spacing: 0.2px; }
   .preview-card .stamp-slot.reward-slot.stamped {
     background: radial-gradient(circle at 35% 35%, #ffb703 0%, #fb8500 50%, #d00000 100%);
     border: 2px solid #ffe49e;
@@ -281,31 +283,31 @@
   }
 
   /* Footer: reward desc + cardholder + serial + security */
-  .preview-card .card-footer { border-top: 1px solid rgba(71, 85, 105, 0.20); padding-top: 6px; }
+  .preview-card .card-footer { border-top: 1px solid rgba(71, 85, 105, 0.20); padding-top: 4px; }
   .preview-card .reward-desc-box {
-    font-size: 7.5px; font-weight: 800; color: #1e293b; text-align: center;
+    font-size: 6px; font-weight: 800; color: #1e293b; text-align: center;
     line-height: 1.2; text-transform: uppercase;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
   }
   .preview-card .reward-desc-box span { color: #0077b6; font-weight: 900; }
   .preview-card .card-bottom-row {
-    display: flex; justify-content: space-between; align-items: flex-end; margin-top: 4px; gap: 8px;
+    display: flex; justify-content: space-between; align-items: flex-end; margin-top: 3px; gap: 6px;
   }
   .preview-card .cardholder-group { display: flex; flex-direction: column; min-width: 0; }
-  .preview-card .field-caption { font-size: 5.5px; font-weight: 800; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; }
+  .preview-card .field-caption { font-size: 4.5px; font-weight: 800; color: #64748b; letter-spacing: 0.4px; text-transform: uppercase; }
   .preview-card .field-val-embossed {
-    font-size: 10px; font-weight: 800; color: #0f172a; letter-spacing: 0.7px; font-style: italic;
+    font-size: 8px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; font-style: italic;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.18);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .preview-card .card-number-embossed {
-    font-family: 'Share Tech Mono', monospace; font-size: 9px; font-weight: 700;
-    letter-spacing: 1.2px; color: #1e293b;
+    font-family: 'Share Tech Mono', monospace; font-size: 7px; font-weight: 700;
+    letter-spacing: 0.8px; color: #1e293b;
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 -1px 0 rgba(0, 0, 0, 0.18);
     white-space: nowrap;
   }
   .preview-card .security-notice {
-    font-size: 5px; color: #64748b; text-align: center; margin-top: 3px;
+    font-size: 4px; color: #64748b; text-align: center; margin-top: 2px;
     font-weight: 600; letter-spacing: 0.2px;
   }
 
