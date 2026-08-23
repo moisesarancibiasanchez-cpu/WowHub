@@ -235,11 +235,21 @@
   .tier-badge.vip       { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
 
   /* ── Stamps grid (5x2 fixed, último slot = recompensa) ─ */
+  /* Ancho máx responsivo para que los 10 sellos quepan SIN recortarse
+     en la proporción credit-card 1.586:1 (CR-80). El grid se centra
+     horizontalmente y respeta la altura disponible de la tarjeta. */
   .stamps-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px 10px;
-    margin: 8px 0 4px 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 5px 6px;
+    margin: 6px auto 3px;
+    width: 100%;
+    max-width: 360px;            /* evita que los círculos se hagan 107px cada uno y desborden vertical */
+    flex: 1 1 auto;
+    min-height: 0;               /* permite que la fila 2 se comprima si hace falta */
+    align-content: center;
+    justify-content: center;
   }
   .stamp-slot {
     aspect-ratio: 1;
@@ -249,6 +259,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    place-self: center;
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .stamp-slot:hover { transform: scale(1.06) translateY(-1px); }
@@ -462,7 +476,7 @@
   @media (max-width: 660px) {
     .loyalty-card { width: 100%; padding: 14px 18px; }
     .brand-name-main { font-size: 15px; }
-    .stamps-grid { gap: 6px 8px; }
+    .stamps-grid { gap: 5px 7px; max-width: 100%; }
   }
   @media (max-width: 420px) {
     .loyalty-card { padding: 12px 14px; }
@@ -471,7 +485,7 @@
     .brand-logo-disc { width: 36px; height: 36px; font-size: 16px; }
     .card-title-engraved { font-size: 10px; }
     .tier-badge { font-size: 7px; padding: 1.5px 6px; }
-    .stamps-grid { gap: 5px 6px; margin: 6px 0 3px 0; }
+    .stamps-grid { gap: 4px 5px; margin: 5px auto 2px; max-width: 100%; }
   }
 </style>
 {% endblock %}
@@ -726,7 +740,15 @@
     }
   });
 
+  // ── Preset por defecto: Titanium (mismo que admin) ────────
+  const TITANIUM_PRESET = {
+    c1: "#dbe2ec", c2: "#9ba9bc", c3: "#ffffff", c4: "#738295", c5: "#bac7d5",
+    angle: 135, sheen: 0.45,
+  };
+
   // ── Apply V2 metallic CSS variables from pass payload ───
+  // Si la campaña no tiene los 5 stops metálicos guardados, se usa Titanium
+  // como propuesta inicial visible (no un color sólido de primary_color).
   function applyMetallicTheme(pass) {
     const card = $("pass-card");
     const hasMetal = !!(pass.metal_c1 && pass.metal_c2 && pass.metal_c3 && pass.metal_c4 && pass.metal_c5);
@@ -737,15 +759,16 @@
       card.style.setProperty("--metal-c4", pass.metal_c4);
       card.style.setProperty("--metal-c5", pass.metal_c5);
     } else {
-      card.style.setProperty("--metal-c1", pass.primary_color);
-      card.style.setProperty("--metal-c2", pass.primary_color);
-      card.style.setProperty("--metal-c3", pass.primary_color);
-      card.style.setProperty("--metal-c4", pass.primary_color);
-      card.style.setProperty("--metal-c5", pass.primary_color);
-      card.style.setProperty("--fallback-bg", pass.primary_color);
+      // Fallback al preset Titanium (consistente con admin y CSS :root)
+      card.style.setProperty("--metal-c1", TITANIUM_PRESET.c1);
+      card.style.setProperty("--metal-c2", TITANIUM_PRESET.c2);
+      card.style.setProperty("--metal-c3", TITANIUM_PRESET.c3);
+      card.style.setProperty("--metal-c4", TITANIUM_PRESET.c4);
+      card.style.setProperty("--metal-c5", TITANIUM_PRESET.c5);
+      card.style.setProperty("--fallback-bg", pass.primary_color || TITANIUM_PRESET.c1);
     }
-    card.style.setProperty("--metal-angle", (pass.metal_angle || 135) + "deg");
-    card.style.setProperty("--sheen-opacity", String((pass.sheen_opacity ?? 45) / 100));
+    card.style.setProperty("--metal-angle", (pass.metal_angle || TITANIUM_PRESET.angle) + "deg");
+    card.style.setProperty("--sheen-opacity", String((pass.sheen_opacity != null ? pass.sheen_opacity / 100 : TITANIUM_PRESET.sheen)));
     // No sobreescribimos --card-text porque la tarjeta referencia usa siempre texto oscuro
   }
 
