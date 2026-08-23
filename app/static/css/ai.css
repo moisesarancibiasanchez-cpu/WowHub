@@ -814,3 +814,135 @@ body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { displa
     width: clamp(220px, 38vw, 280px);
   }
 }
+
+/* ============================================================
+ * AI context chips (v2)
+ * ------------------------------------------------------------
+ * Sistema de "contexto de fila" para el chat IA:
+ *  - Cualquier botón con `data-ai-context='{"type":...}'` en
+ *    el dashboard pre-carga contexto en el chat.
+ *  - El contexto se muestra como una píldora encima del composer
+ *    mientras esté activa.
+ *  - Al enviar el siguiente mensaje, el contexto se prepende al
+ *    texto en formato JSON dentro de un bloque [CONTEXTO: ...].
+ *  - Una ✕ en la píldora la descarta sin enviar.
+ * ============================================================ */
+
+/* ── Píldora de contexto (dentro del composer) ─────────── */
+.ai-context-pill {
+  display: none;  /* se muestra sólo cuando hay ctx activo */
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.18),
+    rgba(0, 212, 168, 0.10));
+  border: 1px solid rgba(124, 92, 255, 0.4);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ai-text);
+  line-height: 1.3;
+  animation: aiContextIn .25s ease;
+}
+.ai-context-pill.is-on { display: flex; }
+@keyframes aiContextIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ai-context-pill__ico {
+  flex: 0 0 16px;
+  display: grid; place-items: center;
+  color: var(--ai-accent);
+  font-size: 14px;
+  line-height: 1;
+}
+.ai-context-pill__ico svg { display: block; }
+.ai-context-pill__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-context-pill__label b {
+  color: var(--ai-text);
+  font-weight: 600;
+}
+.ai-context-pill__label span {
+  color: var(--ai-text-dim);
+  font-size: 11px;
+  margin-left: 4px;
+}
+.ai-context-pill__close {
+  flex: 0 0 22px;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.ai-context-pill__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ai-err);
+}
+
+/* ── Chip "AI" en fila de entidad ──────────────────────── */
+.ai-row-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.10),
+    rgba(0, 212, 168, 0.06));
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  color: var(--ai-accent, #7c5cff);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all .15s ease;
+  vertical-align: middle;
+  white-space: nowrap;
+  user-select: none;
+}
+.ai-row-chip:hover {
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.20),
+    rgba(0, 212, 168, 0.12));
+  border-color: rgba(124, 92, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(124, 92, 255, 0.25);
+}
+.ai-row-chip:active { transform: translateY(0); }
+.ai-row-chip:focus-visible {
+  outline: 2px solid var(--ai-accent, #7c5cff);
+  outline-offset: 2px;
+}
+.ai-row-chip.is-active {
+  background: linear-gradient(135deg, #7c5cff, #5a3df0);
+  color: #fff;
+  border-color: #7c5cff;
+}
+.ai-row-chip svg {
+  display: block;
+  width: 12px; height: 12px;
+}
+.ai-row-chip--sm { padding: 2px 6px; font-size: 10px; }
+.ai-row-chip--sm svg { width: 10px; height: 10px; }
+
+/* Variantes semánticas por tipo de entidad */
+.ai-row-chip--product { color: #f59e0b; border-color: rgba(245, 158, 11, 0.4); }
+.ai-row-chip--product:hover { background: rgba(245, 158, 11, 0.18); }
+.ai-row-chip--order   { color: #60a5fa; border-color: rgba(96, 165, 250, 0.4); }
+.ai-row-chip--order:hover { background: rgba(96, 165, 250, 0.18); }
+.ai-row-chip--customer{ color: #f472b6; border-color: rgba(244, 114, 182, 0.4); }
+.ai-row-chip--customer:hover { background: rgba(244, 114, 182, 0.18); }
+.ai-row-chip--booking { color: #34d399; border-color: rgba(52, 211, 153, 0.4); }
+.ai-row-chip--booking:hover { background: rgba(52, 211, 153, 0.18); }
+

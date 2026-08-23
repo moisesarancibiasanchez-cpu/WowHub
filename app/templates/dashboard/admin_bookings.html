@@ -332,6 +332,28 @@
                                 acts.push(`<button class="btn btn-sm btn-ghost"   data-action="cancel"   data-id="${b.id}">Cancelar</button>`);
     if (b.status === 'confirmed' || b.status === 'pending')
                                 acts.push(`<button class="btn btn-sm btn-ghost"   data-action="noshow"   data-id="${b.id}">No-show</button>`);
+    // AI context chip — pre-carga la reserva en el chat IA
+    const esc = (s) => String(s==null?"":s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    const aiCtx = {
+      type: "booking",
+      id: b.id,
+      name: "Reserva " + (b.customer_name || "—") + " · " + fmtDate(b.starts_at),
+      meta: [b.status, b.branch_id ? branchName(b.branch_id) : null, b.staff_name || null].filter(Boolean).join(" · "),
+      data: {
+        status: b.status, starts_at: b.starts_at, ends_at: b.ends_at,
+        customer_name: b.customer_name, customer_phone: b.customer_phone,
+        branch_id: b.branch_id, staff_name: b.staff_name,
+        price_cents: b.price_cents, currency: b.currency,
+      },
+    };
+    acts.push(
+      `<button class="ai-row-chip ai-row-chip--booking ai-row-chip--sm" type="button"` +
+      ` data-ai-context='${esc(JSON.stringify(aiCtx))}'` +
+      ` title="Preguntar a la IA sobre esta reserva">` +
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+      `<path d="M12 2L9 9l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/>` +
+      `</svg>AI</button>`
+    );
     return acts.join(' ');
   }
 

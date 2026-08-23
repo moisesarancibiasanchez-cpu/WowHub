@@ -6,23 +6,156 @@
 {% extends "base.html" %}
 {% block title %}Tarjeta de Fidelidad — {{ tenant_name or slug }}{% endblock %}
 {% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+  /* ── V2 metallic loyalty card ─────────────────────────── */
+  :root {
+    --metal-c1: #dbe2ec;
+    --metal-c2: #9ba9bc;
+    --metal-c3: #ffffff;
+    --metal-c4: #738295;
+    --metal-c5: #bac7d5;
+    --metal-angle: 135deg;
+    --sheen-opacity: 0.45;
+    --reflection-x: 50%;
+    --reflection-y: 50%;
+    --fallback-bg: #1A73E8;
+  }
+
   .pass-card {
+    --card-radius: 18px;
+    --card-pad: 24px 22px;
     max-width: 420px;
     margin: 24px auto;
-    border-radius: 18px;
-    padding: 24px 22px;
+    border-radius: var(--card-radius);
+    padding: var(--card-pad);
     color: #fff;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+    box-shadow:
+      0 18px 50px rgba(0,0,0,0.35),
+      0 4px 10px rgba(0,0,0,0.18),
+      inset 0 1px 0 rgba(255,255,255,0.10);
     position: relative;
     overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+    background:
+      linear-gradient(
+        var(--metal-angle),
+        var(--metal-c1) 0%,
+        var(--metal-c2) 25%,
+        var(--metal-c3) 48%,
+        var(--metal-c4) 72%,
+        var(--metal-c5) 100%
+      ),
+      var(--fallback-bg);
+    font-family: 'Montserrat', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
+  /* Brushed metal texture (thin striations) */
+  .pass-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        var(--metal-angle),
+        rgba(255,255,255,0.04) 0px,
+        rgba(255,255,255,0.04) 1px,
+        rgba(0,0,0,0.04) 1px,
+        rgba(0,0,0,0.04) 2px
+      ),
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.32) 0%, transparent 60%);
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 1;
+  }
+  /* Specular sheen (follows mouse via --reflection-x/y) */
+  .pass-card .specular-sheen {
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(
+      circle at var(--reflection-x) var(--reflection-y),
+      rgba(255,255,255, calc(var(--sheen-opacity) * 0.9)) 0%,
+      rgba(255,255,255, calc(var(--sheen-opacity) * 0.25)) 22%,
+      transparent 60%
+    );
+    mix-blend-mode: color-dodge;
+    pointer-events: none;
+    z-index: 2;
+    transition: background-position 200ms ease-out;
+  }
+  .pass-card > * { position: relative; z-index: 3; }
+
+  /* ── Header: brand + tier badge ───────────────────────── */
+  .pass-card .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 4px;
+  }
+  .pass-card .brand-mark {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 12px; opacity: 0.95;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .pass-card .brand-mark .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor; box-shadow: 0 0 0 2px rgba(255,255,255,0.4);
+  }
+  .tier-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(0,0,0,0.32);
+    border: 1px solid rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    backdrop-filter: blur(4px);
+  }
+  .tier-badge.community { background: rgba(0,0,0,0.30); }
+  .tier-badge.elite     { background: rgba(220,38,38,0.55); border-color: rgba(255,200,200,0.7); }
+  .tier-badge.black     { background: linear-gradient(135deg, #111 0%, #333 100%); border-color: #ffd700; color: #ffd700; }
+  .tier-badge.vip       { background: linear-gradient(135deg, #d97706 0%, #fbbf24 100%); border-color: #fff7d6; color: #1c1003; }
+
   .pass-card .reward {
     font-size: 14px; opacity: 0.9; margin-bottom: 4px;
   }
   .pass-card .reward-name {
-    font-size: 22px; font-weight: 800; margin-bottom: 18px;
+    font-size: 22px; font-weight: 800; margin-bottom: 14px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.18);
   }
+
+  /* ── EMV chip + NFC icon (pure CSS/SVG) ───────────────── */
+  .pass-card .chip-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .pass-card .emv-chip {
+    width: 42px; height: 32px; border-radius: 6px;
+    background:
+      linear-gradient(135deg, #f6d365 0%, #dba634 50%, #8a5d10 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(0,0,0,0.30),
+      inset 0 0 6px rgba(255,255,255,0.30),
+      0 1px 1px rgba(0,0,0,0.25);
+    position: relative;
+    overflow: hidden;
+  }
+  .pass-card .emv-chip::before,
+  .pass-card .emv-chip::after {
+    content: ''; position: absolute; background: rgba(0,0,0,0.35);
+  }
+  .pass-card .emv-chip::before {
+    left: 6px; right: 6px; top: 50%; height: 1px; transform: translateY(-0.5px);
+  }
+  .pass-card .emv-chip::after {
+    top: 6px; bottom: 6px; left: 50%; width: 1px; transform: translateX(-0.5px);
+  }
+  .pass-card .nfc-icon {
+    width: 22px; height: 22px; opacity: 0.85;
+  }
+  .pass-card .nfc-icon svg { width: 100%; height: 100%; }
+
+  /* ── Stamps grid ──────────────────────────────────────── */
   .pass-card .stamps {
     display: grid;
     grid-template-columns: repeat({{ campaign.stamps_required }}, 1fr);
@@ -36,17 +169,53 @@
     display: flex; align-items: center; justify-content: center;
     font-size: 18px; opacity: 0.55;
     background: rgba(255,255,255,0.06);
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 280ms;
+    position: relative;
+  }
+  .stamp.reward-slot {
+    border-color: rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.10);
+  }
+  .stamp.reward-slot .slot-num {
+    font-size: 10px; font-weight: 800; opacity: 0.7;
   }
   .stamp.filled {
     background: rgba(255,255,255,0.92);
     color: #111;
     opacity: 1;
     border-color: rgba(255,255,255,0.95);
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.20);
+    transform: scale(1.05);
+  }
+  @keyframes stampPulse {
+    0%   { transform: scale(0.5); opacity: 0; }
+    50%  { transform: scale(1.20); opacity: 1; }
+    100% { transform: scale(1.05); opacity: 1; }
+  }
+  .stamp.just-stamped {
+    animation: stampPulse 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   .pass-card .progress {
     text-align: center;
-    font-size: 13px; opacity: 0.85; margin-top: 4px;
+    font-size: 13px; opacity: 0.92; margin-top: 4px; font-weight: 600;
   }
+
+  /* ── Card number embossed ─────────────────────────────── */
+  .pass-card .card-number {
+    margin-top: 14px;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 15px; letter-spacing: 0.18em;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pass-card .card-number .label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.12em;
+    opacity: 0.75; text-transform: uppercase;
+  }
+  .pass-card .card-number .digits { color: #fff; }
+
+  /* ── QR zone ──────────────────────────────────────────── */
   .qr-zone {
     background: #fff;
     border-radius: 12px;
@@ -57,6 +226,21 @@
   }
   .qr-zone img { max-width: 220px; height: auto; }
   .qr-zone .label { font-size: 12px; color: #555; margin-top: 6px; }
+
+  /* ── Buttons row ──────────────────────────────────────── */
+  .pass-actions {
+    display: flex; justify-content: center; gap: 8px; margin-top: 14px; flex-wrap: wrap;
+  }
+  .pass-actions .btn {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px; font-weight: 700; padding: 8px 14px;
+  }
+  .pass-actions .btn-download {
+    background: rgba(255,255,255,0.95);
+    color: #111; border: 0;
+  }
+  .pass-actions .btn-download:hover { background: #fff; }
+
   .register-form { max-width: 420px; margin: 0 auto; }
   .toast {
     position: fixed; left: 50%; top: 24px; transform: translateX(-50%);
@@ -64,6 +248,11 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 9999; display: none;
   }
   .toast.show { display: block; }
+
+  @media (max-width: 480px) {
+    .pass-card { max-width: 96vw; padding: 20px 18px; }
+    .pass-card .emv-chip { width: 38px; height: 28px; }
+  }
 </style>
 {% endblock %}
 
@@ -133,15 +322,45 @@
   </div>
 
   <div id="stage-card" style="display: none;">
-    <div class="pass-card" id="pass-card">
+    <div class="pass-card" id="pass-card" data-tilt>
+      <span class="specular-sheen" id="specular-sheen"></span>
+      <div class="card-head">
+        <div class="brand-mark">
+          <span class="dot"></span>
+          <span>{{ tenant_name or slug }}</span>
+        </div>
+        <span class="tier-badge" id="tier-badge">Community</span>
+      </div>
       <div class="reward">Programa de fidelidad</div>
       <div class="reward-name" id="pass-reward"></div>
+
+      <div class="chip-row">
+        <div class="emv-chip" aria-label="Chip EMV"></div>
+        <div class="nfc-icon" aria-label="NFC contactless">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8c4 0 8 4 8 8"></path>
+            <path d="M6 12c2.5 0 5 2.5 5 5"></path>
+            <path d="M6 16c1 0 2 1 2 2"></path>
+            <circle cx="6" cy="20" r="0.8" fill="currentColor"></circle>
+          </svg>
+        </div>
+      </div>
+
       <div class="stamps" id="pass-stamps"></div>
       <div class="progress" id="pass-progress"></div>
+
+      <div class="card-number" id="pass-card-number">
+        <span class="label">N°</span>
+        <span class="digits" id="pass-serial-digits">•••• •••• ••••</span>
+      </div>
+
       <div class="qr-zone">
         <img id="pass-qr-img" alt="QR del pase">
         <div class="label">Muestra este QR en la tienda</div>
       </div>
+    </div>
+    <div class="pass-actions">
+      <button class="btn btn-download" id="dl-qr-btn" type="button">⬇ Descargar QR (PNG)</button>
     </div>
     <p class="text-center text-muted" style="margin-top: 16px; font-size: 13px;">
       Guarda esta página o captura el QR. Lo necesitarás cada vez que visites {{ tenant_name or slug }}.
@@ -162,6 +381,25 @@
     t.classList.add("show");
     setTimeout(() => t.classList.remove("show"), 3500);
   };
+
+  // ── Tier badge logic ───────────────────────────────────
+  // 0 stamps → Community, 1+ → Member, redeemed once → Elite,
+  // 3+ rewards earned → VIP, 5+ → Black
+  function tierFor(rewardsEarned) {
+    if (rewardsEarned >= 5) return { label: "Black", cls: "black" };
+    if (rewardsEarned >= 3) return { label: "VIP", cls: "vip" };
+    if (rewardsEarned >= 1) return { label: "Elite", cls: "elite" };
+    return { label: "Community", cls: "community" };
+  }
+
+  // ── Serial formatter: "wh:ab12:cd34:ef56" → "•••• ••34 ••56" ──
+  function formatSerial(s) {
+    if (!s) return "•••• •••• ••••";
+    const hex = s.replace(/[^a-f0-9]/gi, "").toUpperCase();
+    const tail = hex.slice(-8);
+    if (tail.length < 8) return "•••• " + tail;
+    return "•••• " + tail.slice(0, 4) + " " + tail.slice(4, 8);
+  }
 
   $("join-btn").addEventListener("click", () => {
     $("stage-cta").style.display = "none";
@@ -241,33 +479,146 @@
     }
   });
 
+  // ── Apply V2 metallic CSS variables from pass payload ───
+  function applyMetallicTheme(pass) {
+    const card = $("pass-card");
+    const hasMetal = !!(pass.metal_c1 && pass.metal_c2 && pass.metal_c3 && pass.metal_c4 && pass.metal_c5);
+    if (hasMetal) {
+      card.style.setProperty("--metal-c1", pass.metal_c1);
+      card.style.setProperty("--metal-c2", pass.metal_c2);
+      card.style.setProperty("--metal-c3", pass.metal_c3);
+      card.style.setProperty("--metal-c4", pass.metal_c4);
+      card.style.setProperty("--metal-c5", pass.metal_c5);
+    } else {
+      // Fallback a color plano si la campaña es previa a V2
+      card.style.setProperty("--metal-c1", pass.primary_color);
+      card.style.setProperty("--metal-c2", pass.primary_color);
+      card.style.setProperty("--metal-c3", pass.primary_color);
+      card.style.setProperty("--metal-c4", pass.primary_color);
+      card.style.setProperty("--metal-c5", pass.primary_color);
+      card.style.setProperty("--fallback-bg", pass.primary_color);
+    }
+    card.style.setProperty("--metal-angle", (pass.metal_angle || 135) + "deg");
+    card.style.setProperty("--sheen-opacity", String((pass.sheen_opacity ?? 45) / 100));
+    card.style.color = pass.text_color;
+  }
+
+  // ── Tier badge from rewards_earned ──────────────────────
+  function applyTierBadge(pass) {
+    const tier = tierFor(pass.rewards_earned || 0);
+    const badge = $("tier-badge");
+    badge.textContent = tier.label;
+    badge.className = "tier-badge " + tier.cls;
+  }
+
+  // ── Card number (serial number) ─────────────────────────
+  function applyCardNumber(pass) {
+    $("pass-serial-digits").textContent = formatSerial(pass.serial_number);
+  }
+
+  // ── 3D tilt + specular sheen tracking ───────────────────
+  function attachTilt() {
+    const card = document.querySelector("[data-tilt]");
+    if (!card) return;
+    const maxTilt = 8;
+    let raf = 0;
+    function onMove(e) {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const r = card.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width;
+        const py = (e.clientY - r.top) / r.height;
+        const rx = (0.5 - py) * maxTilt;
+        const ry = (px - 0.5) * maxTilt;
+        card.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg)`;
+        card.style.setProperty("--reflection-x", (px * 100) + "%");
+        card.style.setProperty("--reflection-y", (py * 100) + "%");
+      });
+    }
+    function onLeave() {
+      card.style.transform = "perspective(1000px) rotateX(0deg) rotateY(0deg)";
+      card.style.setProperty("--reflection-x", "50%");
+      card.style.setProperty("--reflection-y", "50%");
+    }
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      card.addEventListener("mousemove", onMove);
+      card.addEventListener("mouseleave", onLeave);
+    }
+  }
+
+  // ── Download QR as PNG ──────────────────────────────────
+  async function downloadQrAsPng() {
+    const img = $("pass-qr-img");
+    if (!img || !img.src) return;
+    try {
+      const blob = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = 600;
+          canvas.height = 600;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, 600, 600);
+          ctx.drawImage(image, 0, 0, 600, 600);
+          canvas.toBlob((b) => b ? resolve(b) : reject(new Error("toBlob devolvió null")), "image/png");
+        };
+        image.onerror = () => reject(new Error("No se pudo cargar el QR"));
+        image.src = img.src;
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const slugSafe = (SLUG || "pase").replace(/[^a-z0-9_-]/gi, "_");
+      a.href = url;
+      a.download = `wowhub-${slugSafe}-qr.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      toast("QR descargado");
+    } catch (err) {
+      window.open(img.src, "_blank");
+      toast("No se pudo generar PNG, abrimos el QR en una pestaña", true);
+    }
+  }
+
   function renderCard(pass) {
     $("stage-form").style.display = "none";
     $("stage-card").style.display = "block";
 
-    const card = $("pass-card");
-    card.style.background = pass.primary_color;
-    card.style.color = pass.text_color;
+    applyMetallicTheme(pass);
+    applyTierBadge(pass);
+    applyCardNumber(pass);
 
     $("pass-reward").textContent = pass.reward_label;
 
-    // Estampillas: las primeras N filled, el resto vacío
+    // Estampillas: las primeras N filled, la última (#total) es reward slot
     const stampsEl = $("pass-stamps");
     stampsEl.innerHTML = "";
-    const filled = pass.stamps_current;
+    const filled = pass.stamps_current || 0;
     const total = pass.stamps_required;
     for (let i = 0; i < total; i++) {
       const d = document.createElement("div");
-      d.className = "stamp" + (i < filled ? " filled" : "");
-      d.textContent = i < filled ? "★" : "";
+      const isRewardSlot = (i === total - 1);
+      if (isRewardSlot) {
+        d.className = "stamp reward-slot";
+        d.innerHTML = `<span class="slot-num">★</span>`;
+        d.title = pass.reward_label || "Recompensa";
+      } else {
+        d.className = "stamp" + (i < filled ? " filled" : "");
+        if (i < filled) d.textContent = "★";
+      }
       stampsEl.appendChild(d);
     }
-    $("pass-progress").textContent = `${filled} / ${total} sellos`;
+    $("pass-progress").textContent = `${filled} / ${total} sellos · ${pass.reward_label || "premio"}`;
 
-    // QR: lo generamos client-side a partir del payload
-    // (usamos una API pública: qrserver.com — se puede self-host más adelante)
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=2&data=${encodeURIComponent(pass.qr_payload)}`;
     $("pass-qr-img").src = qrUrl;
+
+    attachTilt();
+    const dlBtn = $("dl-qr-btn");
+    if (dlBtn) dlBtn.onclick = downloadQrAsPng;
   }
 })();
 </script>

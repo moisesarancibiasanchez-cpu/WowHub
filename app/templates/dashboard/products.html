@@ -409,6 +409,12 @@
             <td>${healthBadge(p)}</td>
             <td>${statusBadge(p.status)}</td>
             <td class="text-right">
+              <button class="ai-row-chip ai-row-chip--product" type="button"
+                      data-ai-context='${JSON.stringify({type:"product", id:p.id, name:p.name, meta:((p.sku?"SKU "+p.sku+" · ":"") + fmt(p.price_cents||0)), data:{price_cents:p.price_cents, stock:Number(p.stock)||0, status:p.status, sku:p.sku, margin:(p.current_margin_pct==null?null:Number(p.current_margin_pct))}}).replace(/'/g, "&#39;")}'
+                      title="Preguntar a la IA sobre este producto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L9 9l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/></svg>
+                AI
+              </button>
               <button class="btn btn-sm" data-action="edit">Editar</button>
               <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);">Eliminar</button>
             </td>

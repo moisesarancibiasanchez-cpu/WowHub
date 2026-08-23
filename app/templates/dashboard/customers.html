@@ -161,6 +161,12 @@ async function load() {
       <td>${fmt(c.total_spent_cents)}</td>
       <td>${c.points}</td>
       <td class="text-right" style="white-space:nowrap;">
+        <button class="ai-row-chip ai-row-chip--customer ai-row-chip--sm" type="button"
+                data-ai-context='${esc(JSON.stringify({type:"customer", id:c.id, name:c.full_name, meta:((SEG_BADGE[c.segmento_effective||"nuevo"]||{}).label||"Nuevo")+" · "+fmt(c.total_spent_cents||0)+" · "+c.total_orders+" pedidos", data:{segmento:c.segmento_effective||"nuevo", total_orders:c.total_orders, total_spent_cents:c.total_spent_cents, points:c.points, last_order_at:c.last_order_at, days_since_last_order:c.days_since_last_order}}))}'
+                title="Preguntar a la IA sobre este cliente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L9 9l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/></svg>
+          AI
+        </button>
         <button class="btn btn-sm btn-ghost" data-action="ins" title="Insights IA">🤖</button>
         <button class="btn btn-sm btn-ghost" data-action="del" style="color: var(--accent-err);" title="Eliminar">🗑</button>
       </td>

@@ -104,3 +104,11 @@ def init_db() -> None:
             log.info("Auto-heal V8 P0: %s objeto(s) agregado(s)", added_p0)
     except Exception as e:
         log.warning("Auto-heal V8 P0 no aplicado: %s", e)
+    # ── Auto-heal V2 metálico: 7 columnas nuevas en loyalty_campaigns
+    try:
+        from scripts.migrate_loyalty_metallic_v2 import ensure_metallic_columns
+        added_v2 = ensure_metallic_columns()
+        if added_v2:
+            log.info("Auto-heal V2 metálico: %s columna(s) agregada(s)", added_v2)
+    except Exception as e:
+        log.warning("Auto-heal V2 metálico no aplicado: %s", e)

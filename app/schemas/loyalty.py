@@ -44,6 +44,14 @@ class CampaignBase(BaseModel):
     logo_url: Optional[str] = Field(None, max_length=500)
     icon_url: Optional[str] = Field(None, max_length=500)
     strip_url: Optional[str] = Field(None, max_length=500)
+    # ── V2 metallic gradient (5 stops + angle + sheen) ──
+    metal_c1: Optional[str] = None
+    metal_c2: Optional[str] = None
+    metal_c3: Optional[str] = None
+    metal_c4: Optional[str] = None
+    metal_c5: Optional[str] = None
+    metal_angle: Optional[int] = Field(None, ge=0, le=360)
+    sheen_opacity: Optional[int] = Field(None, ge=0, le=100)
     is_active: bool = True
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
@@ -53,6 +61,11 @@ class CampaignBase(BaseModel):
     @field_validator("primary_color", "text_color", "accent_color")
     @classmethod
     def _check_color(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_hex_color(v)
+
+    @field_validator("metal_c1", "metal_c2", "metal_c3", "metal_c4", "metal_c5")
+    @classmethod
+    def _check_metal_color(cls, v: Optional[str]) -> Optional[str]:
         return _validate_hex_color(v)
 
 
@@ -71,6 +84,14 @@ class CampaignUpdate(BaseModel):
     logo_url: Optional[str] = Field(None, max_length=500)
     icon_url: Optional[str] = Field(None, max_length=500)
     strip_url: Optional[str] = Field(None, max_length=500)
+    # ── V2 metallic gradient (5 stops + angle + sheen) ──
+    metal_c1: Optional[str] = None
+    metal_c2: Optional[str] = None
+    metal_c3: Optional[str] = None
+    metal_c4: Optional[str] = None
+    metal_c5: Optional[str] = None
+    metal_angle: Optional[int] = Field(None, ge=0, le=360)
+    sheen_opacity: Optional[int] = Field(None, ge=0, le=100)
     is_active: Optional[bool] = None
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
@@ -86,6 +107,13 @@ class CampaignUpdate(BaseModel):
     @field_validator("primary_color", "text_color", "accent_color")
     @classmethod
     def _check_color(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return _validate_hex_color(v)
+
+    @field_validator("metal_c1", "metal_c2", "metal_c3", "metal_c4", "metal_c5")
+    @classmethod
+    def _check_metal_color(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
         return _validate_hex_color(v)
@@ -135,6 +163,15 @@ class PassOut(BaseModel):
     text_color: str
     logo_url: Optional[str] = None
     icon_url: Optional[str] = None
+    accent_color: Optional[str] = None
+    # ── V2 metallic gradient (5 stops + angle + sheen) ──
+    metal_c1: Optional[str] = None
+    metal_c2: Optional[str] = None
+    metal_c3: Optional[str] = None
+    metal_c4: Optional[str] = None
+    metal_c5: Optional[str] = None
+    metal_angle: Optional[int] = None
+    sheen_opacity: Optional[int] = None
     qr_payload: str       # JWT firmado (opaco al cliente pero necesario para su QR)
     last_stamp_at: Optional[datetime] = None
     installed_at: Optional[datetime] = None

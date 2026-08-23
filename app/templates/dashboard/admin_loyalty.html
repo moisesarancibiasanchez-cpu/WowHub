@@ -1,5 +1,113 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Fidelización{% endblock %}
+{% block dash_head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* ── V2 metallic theme (mismo CSS que public/loyalty.html) ── */
+  :root {
+    --metal-c1: #dbe2ec; --metal-c2: #9ba9bc; --metal-c3: #ffffff;
+    --metal-c4: #738295; --metal-c5: #bac7d5;
+    --metal-angle: 135deg; --sheen-opacity: 0.45;
+    --reflection-x: 50%; --reflection-y: 50%;
+  }
+  .metallic-card {
+    position: relative; overflow: hidden;
+    transform-style: preserve-3d; transition: transform 280ms;
+    background:
+      linear-gradient(var(--metal-angle),
+        var(--metal-c1) 0%, var(--metal-c2) 25%, var(--metal-c3) 48%,
+        var(--metal-c4) 72%, var(--metal-c5) 100%);
+    box-shadow:
+      0 18px 50px rgba(0,0,0,0.35),
+      0 4px 10px rgba(0,0,0,0.18),
+      inset 0 1px 0 rgba(255,255,255,0.10);
+    font-family: 'Montserrat', system-ui, sans-serif;
+  }
+  .metallic-card::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(var(--metal-angle),
+        rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px,
+        rgba(0,0,0,0.04) 1px, rgba(0,0,0,0.04) 2px),
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.32) 0%, transparent 60%);
+    mix-blend-mode: overlay; pointer-events: none;
+  }
+  .metallic-card .specular-sheen {
+    position: absolute; inset: -50%;
+    background: radial-gradient(circle at var(--reflection-x) var(--reflection-y),
+      rgba(255,255,255, calc(var(--sheen-opacity) * 0.9)) 0%,
+      rgba(255,255,255, calc(var(--sheen-opacity) * 0.25)) 22%, transparent 60%);
+    mix-blend-mode: color-dodge; pointer-events: none;
+  }
+  .metallic-card > * { position: relative; z-index: 1; }
+
+  /* ── Preset grid ─────────────────────────────────────── */
+  .presets {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+  }
+  .preset-btn {
+    cursor: pointer; border: 2px solid transparent;
+    border-radius: 10px; padding: 0;
+    aspect-ratio: 1.6/1;
+    transition: transform 180ms, border-color 180ms;
+    overflow: hidden;
+  }
+  .preset-btn:hover { transform: translateY(-2px); border-color: var(--brand, #1A73E8); }
+  .preset-btn.active { border-color: var(--brand, #1A73E8); box-shadow: 0 0 0 2px rgba(26,115,232,0.25); }
+  .preset-btn .label {
+    position: absolute; bottom: 4px; left: 6px; right: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.05em;
+    text-transform: uppercase; text-align: center;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .pickers {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px;
+  }
+  .picker-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .picker-cell input[type=color] { width: 100%; height: 36px; border: 1px solid var(--border, #e5e7eb); border-radius: 6px; padding: 2px; background: #fff; }
+  .picker-cell .pkr-lbl { font-size: 10px; font-weight: 700; color: var(--muted, #6b7280); }
+  .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .slider-cell label { font-size: 12px; font-weight: 600; color: var(--muted, #6b7280); display: block; margin-bottom: 4px; }
+  .slider-cell input[type=range] { width: 100%; }
+
+  /* ── Preview metallic card ──────────────────────────── */
+  .preview-wrap { display: flex; justify-content: center; margin: 14px 0 6px; }
+  .preview-card {
+    width: 100%; max-width: 360px; border-radius: 14px; padding: 18px 16px;
+    color: #fff;
+  }
+  .preview-card .pv-reward { font-size: 11px; opacity: 0.9; }
+  .preview-card .pv-name { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
+  .preview-card .pv-stamps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0; }
+  .preview-card .pv-stamp {
+    aspect-ratio: 1; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.06); opacity: 0.6;
+  }
+  .preview-card .pv-stamp.filled { background: rgba(255,255,255,0.92); opacity: 1; border-color: #fff; }
+
+  /* ── Mini metallic card for grid ────────────────────── */
+  .mini-metal {
+    height: 60px; border-radius: 8px; margin-bottom: 10px;
+    position: relative; overflow: hidden;
+  }
+  .mini-metal::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(var(--metal-angle),
+      rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px,
+      rgba(0,0,0,0.04) 1px, rgba(0,0,0,0.04) 2px);
+    mix-blend-mode: overlay;
+  }
+  .mini-metal::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 30%,
+      rgba(255,255,255, calc(var(--sheen-opacity) * 0.7)) 0%, transparent 60%);
+    mix-blend-mode: color-dodge;
+  }
+</style>
+{% endblock %}
+
 {% block dash_content %}
 
 <div class="row-between">
@@ -46,6 +154,39 @@
             <input class="form-input" type="color" id="c_text_color" value="#FFFFFF">
           </div>
         </div>
+
+        <!-- ── V2 metallic design ───────────────────────── -->
+        <div class="form-group">
+          <label class="form-label">Estilo metálico de la tarjeta</label>
+          <span class="form-help">Elige un preset o personaliza los 5 colores del degradado metálico.</span>
+          <div class="presets" id="presets-grid"></div>
+          <div class="pickers">
+            <div class="picker-cell"><input type="color" id="c_metal_c1" value="#dbe2ec"><span class="pkr-lbl">Stop 1</span></div>
+            <div class="picker-cell"><input type="color" id="c_metal_c2" value="#9ba9bc"><span class="pkr-lbl">Stop 2</span></div>
+            <div class="picker-cell"><input type="color" id="c_metal_c3" value="#ffffff"><span class="pkr-lbl">Stop 3</span></div>
+            <div class="picker-cell"><input type="color" id="c_metal_c4" value="#738295"><span class="pkr-lbl">Stop 4</span></div>
+            <div class="picker-cell"><input type="color" id="c_metal_c5" value="#bac7d5"><span class="pkr-lbl">Stop 5</span></div>
+          </div>
+          <div class="sliders">
+            <div class="slider-cell">
+              <label>Ángulo del degradado: <span id="c_metal_angle_val">135</span>°</label>
+              <input type="range" id="c_metal_angle" min="0" max="360" value="135" step="5">
+            </div>
+            <div class="slider-cell">
+              <label>Brillo del sheen: <span id="c_sheen_opacity_val">45</span>%</label>
+              <input type="range" id="c_sheen_opacity" min="0" max="100" value="45" step="5">
+            </div>
+          </div>
+          <div class="preview-wrap">
+            <div class="preview-card metallic-card" id="metal-preview">
+              <span class="specular-sheen"></span>
+              <div class="pv-reward">Programa de fidelidad</div>
+              <div class="pv-name" id="pv-name">Tu recompensa</div>
+              <div class="pv-stamps" id="pv-stamps"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Logo de la tarjeta (opcional)</label>
           <!-- ImagePicker compacto: sube JPG/PNG (max 3MB) y guarda la URL en #c_logo_url -->
@@ -96,7 +237,8 @@
       </p>
       <div class="row-between" style="margin-top: 20px;">
         <button class="btn btn-ghost" id="qr-print-btn">Imprimir</button>
-        <a class="btn btn-primary" id="qr-scanner-link" href="/dashboard/loyalty/scanner">Ir al escáner</a>
+        <button class="btn btn-primary" id="qr-dl-btn">⬇ Descargar PNG</button>
+        <a class="btn btn-ghost" id="qr-scanner-link" href="/dashboard/loyalty/scanner">Ir al escáner</a>
       </div>
     </div>
   </div>
@@ -131,8 +273,14 @@ async function loadCampaigns() {
       grid.innerHTML = `<div class="card text-center text-muted">Aún no tienes campañas. Crea la primera.</div>`;
       return;
     }
-    grid.innerHTML = items.map(c => `
-      <div class="card" data-id="${c.id}" style="border-top: 4px solid ${c.primary_color};">
+    grid.innerHTML = items.map(c => {
+      const hasMetal = !!(c.metal_c1 && c.metal_c2 && c.metal_c3);
+      const miniStyle = hasMetal
+        ? `--metal-c1:${c.metal_c1};--metal-c2:${c.metal_c2};--metal-c3:${c.metal_c3};--metal-c4:${c.metal_c4 || c.metal_c2};--metal-c5:${c.metal_c5 || c.metal_c2};--metal-angle:${(c.metal_angle || 135)}deg;--sheen-opacity:${(c.sheen_opacity ?? 45) / 100};background:linear-gradient(${(c.metal_angle || 135)}deg, ${c.metal_c1} 0%, ${c.metal_c2} 25%, ${c.metal_c3} 48%, ${c.metal_c4 || c.metal_c2} 72%, ${c.metal_c5 || c.metal_c2} 100%);`
+        : `background: linear-gradient(135deg, ${c.primary_color}, ${c.primary_color});`;
+      return `
+      <div class="card" data-id="${c.id}">
+        <div class="mini-metal" style="${miniStyle}"></div>
         <div class="row-between">
           <strong>${escapeHtml(c.name)}</strong>
           <span class="badge ${c.is_active ? 'badge-ok' : 'badge-muted'}">${c.is_active ? 'Activa' : 'Archivada'}</span>
@@ -148,7 +296,7 @@ async function loadCampaigns() {
           ${c.is_active ? `<button class="btn btn-sm btn-ghost" data-action="archive" data-id="${c.id}">Archivar</button>` : ''}
         </div>
       </div>
-    `).join("");
+    `;}).join("");
 
     grid.querySelectorAll("button[data-action]").forEach(btn => {
       btn.addEventListener("click", (e) => {
@@ -173,13 +321,18 @@ function openNewModal() {
   $("c_stamps_required").value = "6";
   $("c_primary_color").value = "#1A73E8";
   $("c_text_color").value = "#FFFFFF";
+  // Default metallic preset (Titanium)
+  applyPreset("titanium");
+  $("c_metal_angle").value = 135; $("c_metal_angle_val").textContent = "135";
+  $("c_sheen_opacity").value = 45; $("c_sheen_opacity_val").textContent = "45";
   $("c_logo_url").value = "";
-  // Limpiar el preview del picker
   if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("c_logo_url", "");
   $("c_cashier_pin").value = "";
   $("c_is_active").checked = true;
   $("modal-title").textContent = "Nueva campaña";
   $("modal").classList.remove("hidden");
+  renderPreviewStamps();
+  updatePreview();
 }
 
 function openEditModal(c) {
@@ -189,13 +342,34 @@ function openEditModal(c) {
   $("c_stamps_required").value = c.stamps_required;
   $("c_primary_color").value = c.primary_color;
   $("c_text_color").value = c.text_color;
+  // V2 metallic — si la campaña tiene stops, los cargamos
+  if (c.metal_c1 && c.metal_c2 && c.metal_c3) {
+    $("c_metal_c1").value = c.metal_c1;
+    $("c_metal_c2").value = c.metal_c2;
+    $("c_metal_c3").value = c.metal_c3;
+    $("c_metal_c4").value = c.metal_c4 || c.metal_c2;
+    $("c_metal_c5").value = c.metal_c5 || c.metal_c2;
+  } else {
+    // fallback: derivar de primary_color
+    $("c_metal_c1").value = c.primary_color;
+    $("c_metal_c2").value = c.primary_color;
+    $("c_metal_c3").value = c.primary_color;
+    $("c_metal_c4").value = c.primary_color;
+    $("c_metal_c5").value = c.primary_color;
+  }
+  $("c_metal_angle").value = c.metal_angle || 135;
+  $("c_metal_angle_val").textContent = (c.metal_angle || 135).toString();
+  $("c_sheen_opacity").value = c.sheen_opacity ?? 45;
+  $("c_sheen_opacity_val").textContent = (c.sheen_opacity ?? 45).toString();
   $("c_logo_url").value = c.logo_url || "";
-  // Refrescar el preview del ImagePicker con la URL existente
   if (window.WH && WH.ImagePicker) WH.ImagePicker.setValue("c_logo_url", c.logo_url);
   $("c_cashier_pin").value = "";  // no devolvemos el PIN por seguridad
   $("c_is_active").checked = c.is_active;
   $("modal-title").textContent = "Editar campaña";
   $("modal").classList.remove("hidden");
+  renderPreviewStamps();
+  updatePreview();
+  clearActivePreset();
 }
 
 async function saveCampaign(e) {
@@ -210,6 +384,14 @@ async function saveCampaign(e) {
     text_color: $("c_text_color").value,
     logo_url: $("c_logo_url").value.trim() || null,
     is_active: $("c_is_active").checked,
+    // V2 metallic gradient
+    metal_c1: $("c_metal_c1").value,
+    metal_c2: $("c_metal_c2").value,
+    metal_c3: $("c_metal_c3").value,
+    metal_c4: $("c_metal_c4").value,
+    metal_c5: $("c_metal_c5").value,
+    metal_angle: parseInt($("c_metal_angle").value, 10),
+    sheen_opacity: parseInt($("c_sheen_opacity").value, 10),
   };
   const pinVal = $("c_cashier_pin").value.trim();
   if (pinVal) body.cashier_pin = pinVal;
@@ -295,6 +477,42 @@ $("qr-print-btn").addEventListener("click", () => {
   w.print();
 });
 
+// ── Descargar QR como PNG (admin) ─────────────────────────
+$("qr-dl-btn").addEventListener("click", async () => {
+  const img = $("qr-img");
+  if (!img || !img.src) return;
+  try {
+    const blob = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 600; canvas.height = 600;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, 600, 600);
+        ctx.drawImage(image, 0, 0, 600, 600);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("toBlob null")), "image/png");
+      };
+      image.onerror = () => reject(new Error("No se pudo cargar el QR"));
+      image.src = img.src;
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const campId = ($("qr-modal").dataset.campaignId || "mostrador").slice(0, 8);
+    a.href = url;
+    a.download = `wowhub-qr-mostrador-${campId}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    WH.Toast.show("QR descargado", "success");
+  } catch (e) {
+    window.open(img.src, "_blank");
+    WH.Toast.show("No se pudo generar PNG, abrimos el QR en una pestaña", "info");
+  }
+});
+
 $("qr-modal-close").addEventListener("click", () => {
   $("qr-modal").classList.add("hidden");
   if (qrRefreshTimer) clearInterval(qrRefreshTimer);
@@ -305,7 +523,6 @@ async function showMetrics(c) {
   const session = await WH.Auth.ensureSession();
   try {
     const m = await WH.api.get(`/api/v1/tenants/${session.tenant.tenant_id}/loyalty/campaigns/${c.id}/metrics`);
-    // Reemplazamos el alert por un toast largo con info resumida
     WH.Toast.show(
       `Métricas ${c.name}: ${m.active_passes} pases · ${m.total_stamps_today} sellos hoy · ${(m.conversion_rate * 100).toFixed(1)}% conv.`,
       "info"
@@ -319,6 +536,108 @@ function escapeHtml(s) {
   if (s == null) return "";
   return String(s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
+
+// ── V2 metallic: 6 presets + 5 pickers + 2 sliders + preview ──
+const METALLIC_PRESETS = {
+  titanium:    { c1:"#dbe2ec", c2:"#9ba9bc", c3:"#ffffff", c4:"#738295", c5:"#bac7d5", angle: 135, sheen: 45, label: "Titanium" },
+  gold:        { c1:"#fae092", c2:"#c69224", c3:"#fff5c0", c4:"#8c600b", c5:"#e2b653", angle: 125, sheen: 60, label: "Gold" },
+  darksteel:   { c1:"#4a5568", c2:"#2d3748", c3:"#a0aec0", c4:"#1a202c", c5:"#2c3e50", angle: 145, sheen: 30, label: "Dark Steel" },
+  rosegold:    { c1:"#ffd6cc", c2:"#e58e80", c3:"#ffe9e0", c4:"#a8513f", c5:"#d99086", angle: 130, sheen: 55, label: "Rose Gold" },
+  royalmarine: { c1:"#3b82f6", c2:"#1e3a8a", c3:"#93c5fd", c4:"#0c1f4e", c5:"#1d4ed8", angle: 155, sheen: 50, label: "Royal" },
+  emerald:     { c1:"#a7f3d0", c2:"#10b981", c3:"#d1fae5", c4:"#065f46", c5:"#34d399", angle: 140, sheen: 50, label: "Emerald" },
+};
+
+function renderPresets() {
+  const grid = $("presets-grid");
+  grid.innerHTML = Object.entries(METALLIC_PRESETS).map(([key, p]) => {
+    const style = `--metal-c1:${p.c1};--metal-c2:${p.c2};--metal-c3:${p.c3};--metal-c4:${p.c4};--metal-c5:${p.c5};background:linear-gradient(${p.angle}deg, ${p.c1} 0%, ${p.c2} 25%, ${p.c3} 48%, ${p.c4} 72%, ${p.c5} 100%);position:relative;`;
+    return `<button type="button" class="preset-btn metallic-card" data-preset="${key}" style="${style}">
+      <span class="label">${p.label}</span>
+    </button>`;
+  }).join("");
+  grid.querySelectorAll(".preset-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.preset;
+      applyPreset(key);
+      updatePreview();
+      // marcar activo
+      grid.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+}
+
+function applyPreset(key) {
+  const p = METALLIC_PRESETS[key];
+  if (!p) return;
+  $("c_metal_c1").value = p.c1;
+  $("c_metal_c2").value = p.c2;
+  $("c_metal_c3").value = p.c3;
+  $("c_metal_c4").value = p.c4;
+  $("c_metal_c5").value = p.c5;
+  $("c_metal_angle").value = p.angle;
+  $("c_metal_angle_val").textContent = p.angle.toString();
+  $("c_sheen_opacity").value = p.sheen;
+  $("c_sheen_opacity_val").textContent = p.sheen.toString();
+}
+
+function clearActivePreset() {
+  document.querySelectorAll("#presets-grid .preset-btn").forEach(b => b.classList.remove("active"));
+}
+
+function renderPreviewStamps() {
+  const total = parseInt(($("c_stamps_required") || {}).value || 6, 10);
+  const cont = $("pv-stamps");
+  if (!cont) return;
+  cont.innerHTML = "";
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement("div");
+    d.className = "pv-stamp";
+    cont.appendChild(d);
+  }
+}
+
+function updatePreview() {
+  const card = $("metal-preview");
+  if (!card) return;
+  card.style.setProperty("--metal-c1", $("c_metal_c1").value);
+  card.style.setProperty("--metal-c2", $("c_metal_c2").value);
+  card.style.setProperty("--metal-c3", $("c_metal_c3").value);
+  card.style.setProperty("--metal-c4", $("c_metal_c4").value);
+  card.style.setProperty("--metal-c5", $("c_metal_c5").value);
+  card.style.setProperty("--metal-angle", $("c_metal_angle").value + "deg");
+  card.style.setProperty("--sheen-opacity", ($("c_sheen_opacity").value / 100).toString());
+  card.style.color = $("c_text_color").value;
+  $("pv-name").textContent = $("c_reward_label").value || "Tu recompensa";
+  renderPreviewStamps();
+}
+
+// ── Wire up controls: pickers, sliders, stamps_required ──
+["c_metal_c1", "c_metal_c2", "c_metal_c3", "c_metal_c4", "c_metal_c5", "c_text_color"].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener("input", () => { updatePreview(); clearActivePreset(); });
+});
+const angleInput = $("c_metal_angle");
+if (angleInput) {
+  angleInput.addEventListener("input", () => {
+    $("c_metal_angle_val").textContent = angleInput.value;
+    updatePreview();
+    clearActivePreset();
+  });
+}
+const sheenInput = $("c_sheen_opacity");
+if (sheenInput) {
+  sheenInput.addEventListener("input", () => {
+    $("c_sheen_opacity_val").textContent = sheenInput.value;
+    updatePreview();
+  });
+}
+const stampsInput = $("c_stamps_required");
+if (stampsInput) stampsInput.addEventListener("input", renderPreviewStamps);
+const rewardInput = $("c_reward_label");
+if (rewardInput) rewardInput.addEventListener("input", () => { $("pv-name").textContent = rewardInput.value || "Tu recompensa"; });
+
+renderPresets();
 
 $("new-campaign-btn").addEventListener("click", openNewModal);
 $("modal-close").addEventListener("click", () => $("modal").classList.add("hidden"));

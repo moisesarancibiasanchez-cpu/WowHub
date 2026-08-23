@@ -1,5 +1,206 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Escáner de Fidelización{% endblock %}
+
+{# ── V2 metallic aesthetic para .pass-mini (replica del look de la
+   tarjeta del cliente pero en versión mini para el scanner). ── #}
+{% block head_extra %}
+{{ super() }}
+<style>
+/* === .pass-mini — metallic V2 (preview post-scan) ============== */
+.pass-mini {
+  position: relative;
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: #fff;
+  min-height: 168px;
+  font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  isolation: isolate;
+  /* Defaults (fallback) — sobrescritos por JS con metal_c1..c5 */
+  --metal-c1: #E7ECF2;
+  --metal-c2: #B7C0CC;
+  --metal-c3: #FFFFFF;
+  --metal-c4: #8A95A4;
+  --metal-c5: #4B5563;
+  --metal-angle: 135;
+  --sheen-opacity: 35;
+  background: linear-gradient(
+    var(--metal-angle, 135deg),
+    var(--metal-c1) 0%,
+    var(--metal-c2) 25%,
+    var(--metal-c3) 50%,
+    var(--metal-c4) 75%,
+    var(--metal-c5) 100%
+  );
+  box-shadow:
+    0 10px 28px -8px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.pass-mini:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 32px -8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+.pass-mini__brushed,
+.pass-mini__sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.pass-mini__brushed {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0px,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.05) 0px,
+      rgba(0, 0, 0, 0.05) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  mix-blend-mode: overlay;
+  opacity: 0.7;
+}
+.pass-mini__sheen {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, calc(var(--sheen-opacity, 35) * 0.01)) 0%,
+    transparent 60%
+  );
+  mix-blend-mode: color-dodge;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.pass-mini:hover .pass-mini__sheen {
+  opacity: 1;
+}
+.pass-mini__top,
+.pass-mini__name,
+.stamps-mini,
+.pass-mini__bottom {
+  position: relative;
+  z-index: 1;
+}
+.pass-mini__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pass-mini__label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  font-weight: 600;
+}
+.pass-mini__tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.pass-mini__tier::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 4px currentColor;
+}
+.pass-mini__tier--community { color: #cbd5e1; }
+.pass-mini__tier--elite     { color: #fde68a; }
+.pass-mini__tier--vip       { color: #f9a8d4; }
+.pass-mini__tier--black     { color: #fff; }
+.pass-mini__name {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.stamps-mini {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-height: 24px;
+}
+.stamp-mini {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: transparent;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.stamp-mini.filled {
+  background: rgba(255, 255, 255, 0.95);
+  color: #111 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  animation: stampPulseMini 0.5s ease;
+}
+.stamp-mini.reward {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-color: rgba(255, 255, 255, 0.7);
+  color: #fff !important;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+}
+@keyframes stampPulseMini {
+  0%   { transform: scale(0.6); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.pass-mini__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 11px;
+  font-family: 'Share Tech Mono', ui-monospace, monospace;
+  letter-spacing: 0.05em;
+  opacity: 0.92;
+}
+.pass-mini__serial {
+  font-weight: 600;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+.pass-mini__progress {
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.04em;
+}
+</style>
+{% endblock %}
+
 {% block dash_content %}
 
 <div class="row-between">
@@ -44,11 +245,22 @@
       Esperando escaneo…
     </div>
     <div id="pass-preview" style="display: none;">
-      <div class="pass-mini" id="pass-mini" style="border-radius: 12px; padding: 16px; color: #fff;">
-        <div style="font-size: 12px; opacity: 0.85;" id="pm-reward-label"></div>
-        <div style="font-size: 14px; font-weight: 700; margin: 2px 0 10px;" id="pm-reward-name"></div>
-        <div class="stamps-mini" id="pm-stamps" style="display: flex; gap: 4px; flex-wrap: wrap;"></div>
-        <div style="font-size: 11px; margin-top: 6px; opacity: 0.9;" id="pm-progress"></div>
+      <div class="pass-mini" id="pass-mini">
+        <!-- Brushed metal texture overlay (V2) -->
+        <div class="pass-mini__brushed" aria-hidden="true"></div>
+        <!-- Specular sheen that tracks mouse on hover -->
+        <div class="pass-mini__sheen" id="pass-mini-sheen" aria-hidden="true"></div>
+        <!-- Top row: tier badge + reward label -->
+        <div class="pass-mini__top">
+          <span class="pass-mini__tier" id="pm-tier-badge">—</span>
+          <span class="pass-mini__label" id="pm-reward-label">Recompensa</span>
+        </div>
+        <div class="pass-mini__name" id="pm-reward-name">—</div>
+        <div class="stamps-mini" id="pm-stamps"></div>
+        <div class="pass-mini__bottom">
+          <span class="pass-mini__serial" id="pm-serial">••••</span>
+          <span class="pass-mini__progress" id="pm-progress">0 / 0</span>
+        </div>
       </div>
       <div class="row" style="margin-top: 16px; gap: 8px; flex-wrap: wrap;">
         <button class="btn btn-primary" id="next-scan-btn">Siguiente escaneo</button>
@@ -247,23 +459,90 @@ function renderSuccess(data) {
   $("scan-result").style.display = "none";
   $("pass-preview").style.display = "block";
   const mini = $("pass-mini");
-  mini.style.background = p.primary_color;
-  mini.style.color = p.text_color;
+
+  // ── V2 metallic theme ───────────────────────────────────
+  // Si la campaña tiene los 5 stops metálicos V2, los aplicamos
+  // como gradiente. Si no, fallback al color plano de la marca
+  // (comportamiento legacy para campañas creadas antes de V2).
+  const hasMetal = p.metal_c1 && p.metal_c2 && p.metal_c3 && p.metal_c4 && p.metal_c5;
+  if (hasMetal) {
+    mini.style.background = "";  // deja que el CSS gane
+    mini.style.setProperty("--metal-c1", p.metal_c1);
+    mini.style.setProperty("--metal-c2", p.metal_c2);
+    mini.style.setProperty("--metal-c3", p.metal_c3);
+    mini.style.setProperty("--metal-c4", p.metal_c4);
+    mini.style.setProperty("--metal-c5", p.metal_c5);
+    if (p.metal_angle != null)  mini.style.setProperty("--metal-angle",  p.metal_angle + "deg");
+    if (p.sheen_opacity != null) mini.style.setProperty("--sheen-opacity", String(p.sheen_opacity));
+  } else {
+    mini.style.background = p.primary_color;
+    mini.style.color = p.text_color;
+  }
+
+  // ── Tier badge (basado en rewards_earned) ───────────────
+  const earned = p.rewards_earned || 0;
+  const tier = earned >= 5 ? { name: "Black",   cls: "black" }
+              : earned >= 3 ? { name: "VIP",     cls: "vip" }
+              : earned >= 1 ? { name: "Elite",   cls: "elite" }
+              : { name: "Community", cls: "community" };
+  const tierEl = $("pm-tier-badge");
+  tierEl.textContent = tier.name;
+  tierEl.className = "pass-mini__tier pass-mini__tier--" + tier.cls;
+
+  // ── Reward label + nombre ───────────────────────────────
   $("pm-reward-label").textContent = "Recompensa";
-  $("pm-reward-name").textContent = p.reward_label;
+  $("pm-reward-name").textContent = p.reward_label || "—";
+
+  // ── Stamps (con slot de premio al final) ────────────────
   const stampsEl = $("pm-stamps");
   stampsEl.innerHTML = "";
   for (let i = 0; i < p.stamps_required; i++) {
     const d = document.createElement("div");
-    d.style.cssText = "width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;";
+    d.className = "stamp-mini";
     if (i < p.stamps_current) {
-      d.style.background = "rgba(255,255,255,0.95)";
-      d.style.color = "#111";
+      d.classList.add("filled");
       d.textContent = "★";
     }
     stampsEl.appendChild(d);
   }
+  // Slot de premio después de completar todos los sellos
+  if (p.stamps_current >= p.stamps_required) {
+    const r = document.createElement("div");
+    r.className = "stamp-mini reward";
+    r.textContent = "★";
+    r.title = "Recompensa desbloqueada";
+    stampsEl.appendChild(r);
+  }
+
+  // ── Serial embossed (formato tarjeta de crédito) ────────
+  const raw = String(p.serial_number || "");
+  // raw típico: "wh:ab12:cd34:ef56" — sacamos los 4 últimos hex groups
+  const parts = raw.split(":");
+  const tail = parts.slice(-2).map(s => s.toUpperCase()).join(" ");
+  $("pm-serial").textContent = "•••• " + (tail || raw.slice(-4).toUpperCase());
+
   $("pm-progress").textContent = `${p.stamps_current} / ${p.stamps_required} sellos`;
+
+  // ── Sheen sigue al mouse (mismo comportamiento que la
+  //    tarjeta grande, para coherencia visual) ─────────────
+  function onMove(e) {
+    const r = mini.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width)  * 100;
+    const y = ((e.clientY - r.top)  / r.height) * 100;
+    const sheen = $("pass-mini-sheen");
+    if (sheen) sheen.style.background =
+      `radial-gradient(circle at ${x}% ${y}%, ` +
+      `rgba(255,255,255,calc(var(--sheen-opacity,35) * 0.012)) 0%, ` +
+      `transparent 55%)`;
+  }
+  function onLeave() {
+    const sheen = $("pass-mini-sheen");
+    if (sheen) sheen.style.background = "";
+  }
+  mini.removeEventListener("mousemove", onMove);
+  mini.removeEventListener("mouseleave", onLeave);
+  mini.addEventListener("mousemove", onMove);
+  mini.addEventListener("mouseleave", onLeave);
 
   // Banner de recompensa
   if (data.reward_unlocked) {
@@ -290,6 +569,17 @@ $("next-scan-btn").addEventListener("click", () => {
   $("scan-result").innerHTML = "Esperando escaneo…";
   $("pass-preview").style.display = "none";
   $("cashier-pin").value = "";
+  // Reset metallic vars del mini para que el próximo scan arranque limpio
+  const mini = $("pass-mini");
+  if (mini) {
+    mini.style.background = "";
+    ["--metal-c1","--metal-c2","--metal-c3","--metal-c4","--metal-c5",
+     "--metal-angle","--sheen-opacity"].forEach(k => mini.style.removeProperty(k));
+  }
+  const tierEl = $("pm-tier-badge");
+  if (tierEl) { tierEl.textContent = "—"; tierEl.className = "pass-mini__tier"; }
+  const sheen = $("pass-mini-sheen");
+  if (sheen) sheen.style.background = "";
 });
 
 (async function init() {

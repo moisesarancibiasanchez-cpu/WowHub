@@ -138,14 +138,37 @@ function renderKanban() {
       <div class="kanban-col col-${col.key}">
         <h4>${col.label} <span class="count">${cards.length}</span></h4>
         <div class="kanban-cards">
-          ${cards.map(o => `
+          ${cards.map(o => {
+            const ctx = {
+              type: "order",
+              id: o.id,
+              name: "Pedido #" + (o.number || (o.id || "").slice(0,8)),
+              meta: (o.customer_name || "—") + " · " + fmtMoney(o.total_cents) + " · " + (o.status || "pending"),
+              data: {
+                number: o.number, status: o.status, total_cents: o.total_cents,
+                customer_name: o.customer_name, items_count: (o.items || []).length,
+                created_at: o.created_at, branch_id: o.branch_id,
+              },
+            };
+            const esc = (s) => String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+            return `
             <div class="kanban-card" onclick="openOrder('${o.id}')">
-              <div class="order-num">#${o.number || (o.id || "").slice(0,8)}</div>
-              <div class="customer">${o.customer_name || "—"}</div>
+              <div style="display:flex; justify-content:space-between; align-items:start; gap:6px;">
+                <div class="order-num">#${esc(o.number || (o.id || "").slice(0,8))}</div>
+                <button class="ai-row-chip ai-row-chip--order ai-row-chip--sm" type="button"
+                        data-ai-context='${esc(JSON.stringify(ctx))}'
+                        title="Preguntar a la IA sobre este pedido"
+                        onclick="event.stopPropagation();">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L9 9l-7 1 5 5-1 7 6-3 6 3-1-7 5-5-7-1z"/></svg>
+                  AI
+                </button>
+              </div>
+              <div class="customer">${esc(o.customer_name || "—")}</div>
               <div class="total">${fmtMoney(o.total_cents)}</div>
-              <div class="meta">${(o.items || []).length} items · ${new Date(o.created_at).toLocaleString("es-CL")}</div>
+              <div class="meta">${(o.items || []).length} items · ${esc(new Date(o.created_at).toLocaleString("es-CL"))}</div>
             </div>
-          `).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}
+          `;
+          }).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}
         </div>
       </div>
     `;

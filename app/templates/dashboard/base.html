@@ -177,6 +177,9 @@
      El clic en "Salir" depende de que WH.Auth siga definido al ejecutar
      el listener de línea siguiente. -->
 <script src="/static/js/ai.js?v=sidebar-v2"></script>
+{# ── AI context chips (v2): pre-carga contexto de fila al chat IA.
+   Carga DESPUÉS de ai.js porque lee $("ai-composer") al inicializar. ── #}
+<script src="/static/js/ai-context.js?v=v2"></script>
 <script>
 WH.Auth.requireLogin();
 (async function paintChip() {

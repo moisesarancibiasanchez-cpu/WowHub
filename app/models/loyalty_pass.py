@@ -68,6 +68,18 @@ class LoyaltyCampaign(BaseModel, TenantMixin):
     strip_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     accent_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
 
+    # ── V2 metallic gradient (5-color stops + angle + sheen) ──
+    # Cuando todos son NULL, el front hace fallback a primary_color plano.
+    # El preset por defecto (Titanium) en la UI setea los 5 stops y
+    # metal_angle=135, sheen_opacity=45.
+    metal_c1: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    metal_c2: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    metal_c3: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    metal_c4: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    metal_c5: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    metal_angle: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # grados 0-360
+    sheen_opacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 0-100
+
     # Operación
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
