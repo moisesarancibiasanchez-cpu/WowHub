@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{% block dash_title %}Dashboard{% endblock %} — WowHub{% endblock %}
+{% block title %}{% block dash_title %}Dashboard
+{% endblock %} — WowHub
+{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/static/css/ai.css">
@@ -136,7 +138,8 @@
   <!-- ── Contenido central ──────────────────────────────────── -->
   <main class="dash-main">
     <div class="dash-content">
-      {% block dash_content %}{% endblock %}
+      {% block dash_content %}
+{% endblock %}
     </div>
   </main>
 </div>
@@ -524,5 +527,7 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
   setInterval(refresh, 60_000);
 })();
 </script>
-{% block dash_scripts %}{% endblock %}
+{% block dash_scripts %}
+{% endblock %}
+  <script src="/static/js/dashboard-compat.js" defer></script>
 {% endblock %}
