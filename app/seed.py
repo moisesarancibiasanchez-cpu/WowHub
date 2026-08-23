@@ -1,20 +1,23 @@
 """Seed — datos demo para WowHub.
 
-Crea 2 tenants (Café Norte y BiciFix) con productos, categorías, promos, QRs
-y landing config. Idempotente: si ya existen, no duplica.
+Crea 2 tenants (Café Norte y BiciFix) con productos, categorías, promos, QRs,
+landing config, pedidos (Pedidos + Pipeline) e inventario por sucursal.
+Idempotente: si ya existen, no duplica.
 
 Uso:
     python -m app.seed            # crea demo
     python -m app.seed --reset    # borra todo y recrea
 """
 import sys
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from app.database import SessionLocal, init_db, engine
 from app.database import Base
 from app.models import (
     User, Tenant, TenantMembership, Branch, Category, Product,
-    Customer, Promotion, QrCode, LandingConfig, Order,
+    Customer, Promotion, QrCode, LandingConfig,
+    Order, OrderItem, OrderStatus, BranchProduct,
 )
 from app.models.tenant import Industry, TenantPlan, TenantStatus
 from app.models.user import UserRole
@@ -22,6 +25,40 @@ from app.models.product import ProductStatus
 from app.models.promotion import PromotionType, DiscountType
 from app.models.qr import QrTarget
 from app.security import hash_password
+
+
+# ── Helpers para construir pedidos demo ─────────────────────────────
+def _make_order(*, db, tenant_id, branch_id, number, status, source,
+                customer_name, customer_phone, customer_email,
+                customer_id=None, items, notes=None,
+                shipping_cents=0, discount_cents=0, tax_cents=0,
+                days_ago=0):
+    """Crea un Order + sus OrderItems (snapshots) con totales calculados."""
+    subtotal = sum(p["unit_price_cents"] * p["quantity"] for p in items)
+    total = subtotal + shipping_cents + tax_cents - discount_cents
+    created = datetime.now(timezone.utc) - timedelta(days=days_ago, hours=2)
+    order = Order(
+        tenant_id=tenant_id, branch_id=branch_id,
+        number=number, status=status, source=source,
+        customer_id=customer_id,
+        customer_name=customer_name, customer_phone=customer_phone,
+        customer_email=customer_email,
+        subtotal_cents=subtotal, discount_cents=discount_cents,
+        shipping_cents=shipping_cents, tax_cents=tax_cents,
+        total_cents=total, currency="CLP",
+        notes=notes,
+    )
+    db.add(order); db.flush()
+    for p in items:
+        db.add(OrderItem(
+            order_id=str(order.id), product_id=p["product_id"],
+            product_name=p["name"], product_sku=p["sku"],
+            product_image=p.get("image"),
+            quantity=p["quantity"],
+            unit_price_cents=p["unit_price_cents"],
+            total_cents=p["unit_price_cents"] * p["quantity"],
+        ))
+    return order
 
 
 def reset():
@@ -140,7 +177,6 @@ def seed():
                 db.add(p)
             db.flush()
             # Promos
-            from datetime import datetime, timezone, timedelta
             now = datetime.now(timezone.utc)
             db.add(Promotion(
                 tenant_id=str(t1.id), name="20% OFF en Cafés",
@@ -257,6 +293,308 @@ def seed():
                 city="Las Condes", total_orders=2, total_spent_cents=6300, points=63,
             ))
             print("✓ 2 clientes demo")
+
+        # ════════════════════════════════════════════════════════
+        # GESTIÓN INTERNA — Pedidos (lista) + Pipeline (Kanban)
+        # ════════════════════════════════════════════════════════
+        # Los mismos Orders se renderizan en 2 vistas:
+        #   • /dashboard/orders    → lista filtrable
+        #   • /dashboard/pipeline  → Kanban con 6 columnas
+        # Por eso sembramos 2 pedidos por cada uno de los 6 estados,
+        # distribuidos en los últimos 30 días, con items reales.
+        if not db.query(Order).first():
+            now = datetime.now(timezone.utc)
+
+            # ── Café Norte ─────────────────────────────────
+            cafe = db.query(Tenant).filter(Tenant.slug == "cafe-norte").first()
+            if cafe:
+                cafe_branch = db.query(Branch).filter(
+                    Branch.tenant_id == str(cafe.id),
+                    Branch.code == "CENTRO",
+                ).first()
+                # Productos por SKU (lookup rápido)
+                cafe_prods = {
+                    p.sku: p for p in
+                    db.query(Product).filter(Product.tenant_id == str(cafe.id)).all()
+                }
+                # Clientes del tenant
+                cafe_custs = db.query(Customer).filter(
+                    Customer.tenant_id == str(cafe.id)
+                ).all()
+                juan = next((c for c in cafe_custs if "Juan" in c.full_name), None)
+                ana = next((c for c in cafe_custs if "Ana" in c.full_name), None)
+
+                def _item(sku, qty):
+                    """Snapshot de un producto del catálogo."""
+                    p = cafe_prods[sku]
+                    return {
+                        "product_id": str(p.id), "sku": p.sku,
+                        "name": p.name, "image": p.image_url,
+                        "unit_price_cents": p.price_cents, "quantity": qty,
+                    }
+
+                # Genera un número legible: CAF-YYYYMMDD-NNNN
+                def _num(i):
+                    return f"CAF-{now.strftime('%Y%m%d')}-{i:04d}"
+
+                # 12 pedidos, 2 por estado
+                seed_orders = [
+                    # PENDING
+                    {
+                        "status": OrderStatus.PENDING, "source": "web",
+                        "customer_name": juan.full_name if juan else "Juan Pérez",
+                        "customer_phone": juan.phone if juan else "+56 9 1111 2222",
+                        "customer_email": juan.email if juan else "juan@example.com",
+                        "customer_id": str(juan.id) if juan else None,
+                        "items": [_item("CAP-001", 1), _item("CRU-001", 2)],
+                        "notes": "Para llevar, sin azúcar.",
+                        "days_ago": 0, "i": 1,
+                    },
+                    {
+                        "status": OrderStatus.PENDING, "source": "qr",
+                        "customer_name": "Visitante QR", "customer_phone": "+56 9 5555 0001",
+                        "customer_email": None, "customer_id": None,
+                        "items": [_item("LAT-001", 1), _item("TOR-001", 1)],
+                        "days_ago": 0, "i": 2,
+                    },
+                    # CONFIRMED
+                    {
+                        "status": OrderStatus.CONFIRMED, "source": "web",
+                        "customer_name": ana.full_name if ana else "Ana Silva",
+                        "customer_phone": ana.phone if ana else "+56 9 3333 4444",
+                        "customer_email": ana.email if ana else "ana@example.com",
+                        "customer_id": str(ana.id) if ana else None,
+                        "items": [_item("CAP-001", 2), _item("MOC-001", 1)],
+                        "notes": "Pidió extra cocoa.",
+                        "days_ago": 1, "i": 3,
+                    },
+                    {
+                        "status": OrderStatus.CONFIRMED, "source": "pos",
+                        "customer_name": "Cliente Mostrador", "customer_phone": None,
+                        "customer_email": None, "customer_id": None,
+                        "items": [_item("ESP-001", 2), _item("SAN-001", 1)],
+                        "days_ago": 1, "i": 4,
+                    },
+                    # PREPARING
+                    {
+                        "status": OrderStatus.PREPARING, "source": "qr",
+                        "customer_name": juan.full_name if juan else "Juan Pérez",
+                        "customer_phone": juan.phone if juan else "+56 9 1111 2222",
+                        "customer_email": juan.email if juan else "juan@example.com",
+                        "customer_id": str(juan.id) if juan else None,
+                        "items": [_item("TE-MATCHA", 2), _item("CRU-001", 1)],
+                        "days_ago": 2, "i": 5,
+                    },
+                    {
+                        "status": OrderStatus.PREPARING, "source": "web",
+                        "customer_name": "Carla Mendoza", "customer_phone": "+56 9 7777 8888",
+                        "customer_email": "carla@example.com", "customer_id": None,
+                        "items": [_item("LAT-001", 3), _item("SAN-002", 2)],
+                        "discount_cents": 500, "notes": "Descuento cliente VIP.",
+                        "days_ago": 2, "i": 6,
+                    },
+                    # READY
+                    {
+                        "status": OrderStatus.READY, "source": "pos",
+                        "customer_name": ana.full_name if ana else "Ana Silva",
+                        "customer_phone": ana.phone if ana else "+56 9 3333 4444",
+                        "customer_email": ana.email if ana else "ana@example.com",
+                        "customer_id": str(ana.id) if ana else None,
+                        "items": [_item("CAP-001", 1), _item("TE-MATCHA", 1),
+                                  _item("TOR-001", 1)],
+                        "days_ago": 0, "i": 7,
+                    },
+                    {
+                        "status": OrderStatus.READY, "source": "web",
+                        "customer_name": "Diego Rojas", "customer_phone": "+56 9 6666 5555",
+                        "customer_email": "diego@example.com", "customer_id": None,
+                        "items": [_item("LAT-001", 2), _item("SAN-001", 1)],
+                        "days_ago": 0, "i": 8,
+                    },
+                    # DELIVERED
+                    {
+                        "status": OrderStatus.DELIVERED, "source": "web",
+                        "customer_name": juan.full_name if juan else "Juan Pérez",
+                        "customer_phone": juan.phone if juan else "+56 9 1111 2222",
+                        "customer_email": juan.email if juan else "juan@example.com",
+                        "customer_id": str(juan.id) if juan else None,
+                        "items": [_item("ESP-001", 1), _item("TOR-001", 1)],
+                        "days_ago": 7, "i": 9,
+                    },
+                    {
+                        "status": OrderStatus.DELIVERED, "source": "qr",
+                        "customer_name": "Mesa 3", "customer_phone": None,
+                        "customer_email": None, "customer_id": None,
+                        "items": [_item("CRU-001", 2), _item("TE-MATCHA", 1)],
+                        "days_ago": 10, "i": 10,
+                    },
+                    # CANCELED
+                    {
+                        "status": OrderStatus.CANCELED, "source": "web",
+                        "customer_name": "Pedro Soto", "customer_phone": "+56 9 4444 3333",
+                        "customer_email": "pedro@example.com", "customer_id": None,
+                        "items": [_item("LAT-001", 1), _item("SAN-001", 1)],
+                        "notes": "Cancelado por timeout en el checkout.",
+                        "days_ago": 5, "i": 11,
+                    },
+                    {
+                        "status": OrderStatus.CANCELED, "source": "pos",
+                        "customer_name": ana.full_name if ana else "Ana Silva",
+                        "customer_phone": ana.phone if ana else "+56 9 3333 4444",
+                        "customer_email": ana.email if ana else "ana@example.com",
+                        "customer_id": str(ana.id) if ana else None,
+                        "items": [_item("CAP-001", 2)],
+                        "days_ago": 12, "i": 12,
+                    },
+                ]
+                for o in seed_orders:
+                    _make_order(
+                        db=db, tenant_id=str(cafe.id),
+                        branch_id=str(cafe_branch.id) if cafe_branch else None,
+                        number=_num(o["i"]),
+                        status=o["status"], source=o["source"],
+                        customer_name=o["customer_name"],
+                        customer_phone=o["customer_phone"],
+                        customer_email=o["customer_email"],
+                        customer_id=o.get("customer_id"),
+                        items=o["items"], notes=o.get("notes"),
+                        discount_cents=o.get("discount_cents", 0),
+                        days_ago=o["days_ago"],
+                    )
+                print(f"✓ {len(seed_orders)} pedidos demo para Café Norte")
+
+            # ── BiciFix ────────────────────────────────────
+            bicifix = db.query(Tenant).filter(Tenant.slug == "bicifix").first()
+            if bicifix:
+                bf_branch = db.query(Branch).filter(
+                    Branch.tenant_id == str(bicifix.id),
+                    Branch.code == "MATRIZ",
+                ).first()
+                bf_prods = {
+                    p.sku: p for p in
+                    db.query(Product).filter(Product.tenant_id == str(bicifix.id)).all()
+                }
+
+                def _bf_item(sku, qty):
+                    p = bf_prods[sku]
+                    return {
+                        "product_id": str(p.id), "sku": p.sku,
+                        "name": p.name, "image": p.image_url,
+                        "unit_price_cents": p.price_cents, "quantity": qty,
+                    }
+
+                def _bf_num(i):
+                    return f"BFX-{now.strftime('%Y%m%d')}-{i:04d}"
+
+                bf_orders = [
+                    {"status": OrderStatus.PENDING, "source": "web",
+                     "customer_name": "Luis Vargas", "customer_phone": "+56 9 2222 1111",
+                     "customer_email": "luis@example.com", "customer_id": None,
+                     "items": [_bf_item("CAM-001", 2)], "days_ago": 0, "i": 1},
+                    {"status": OrderStatus.CONFIRMED, "source": "pos",
+                     "customer_name": "Cliente Mostrador", "customer_phone": None,
+                     "customer_email": None, "customer_id": None,
+                     "items": [_bf_item("CAS-001", 1)], "days_ago": 1, "i": 2},
+                    {"status": OrderStatus.DELIVERED, "source": "web",
+                     "customer_name": "Marta León", "customer_phone": "+56 9 9999 0000",
+                     "customer_email": "marta@example.com", "customer_id": None,
+                     "items": [_bf_item("CAM-001", 1), _bf_item("CAS-001", 1)],
+                     "days_ago": 8, "i": 3},
+                    {"status": OrderStatus.DELIVERED, "source": "pos",
+                     "customer_name": "Cliente Mostrador", "customer_phone": None,
+                     "customer_email": None, "customer_id": None,
+                     "items": [_bf_item("CAS-001", 1)], "days_ago": 15, "i": 4},
+                ]
+                for o in bf_orders:
+                    _make_order(
+                        db=db, tenant_id=str(bicifix.id),
+                        branch_id=str(bf_branch.id) if bf_branch else None,
+                        number=_bf_num(o["i"]),
+                        status=o["status"], source=o["source"],
+                        customer_name=o["customer_name"],
+                        customer_phone=o["customer_phone"],
+                        customer_email=o["customer_email"],
+                        customer_id=o.get("customer_id"),
+                        items=o["items"], days_ago=o["days_ago"],
+                    )
+                print(f"✓ {len(bf_orders)} pedidos demo para BiciFix")
+
+        # ════════════════════════════════════════════════════════
+        # GESTIÓN INTERNA — Inventario (stock por sucursal)
+        # ════════════════════════════════════════════════════════
+        # Sembramos BranchProduct para que la página de Inventario tenga
+        # algo que mostrar. Algunos productos quedan con stock bajo o
+        # en cero para que se disparen las alertas de reposición.
+        if not db.query(BranchProduct).first():
+            cafe = db.query(Tenant).filter(Tenant.slug == "cafe-norte").first()
+            if cafe:
+                cafe_branch = db.query(Branch).filter(
+                    Branch.tenant_id == str(cafe.id),
+                    Branch.code == "CENTRO",
+                ).first()
+                if cafe_branch:
+                    # (sku, stock, threshold) — diseño de niveles:
+                    #   • 3 productos con stock BAJO → alerta "Reposición"
+                    #   • 1 producto SIN STOCK  → alerta crítica
+                    #   • resto saludable
+                    inv_seed = [
+                        ("ESP-001", 45, 10),  # Espresso — OK
+                        ("CAP-001", 2, 8),   # Cappuccino — BAJO
+                        ("LAT-001", 18, 5),   # Latte — OK
+                        ("MOC-001", 3, 6),   # Mochaccino — BAJO
+                        ("TE-MATCHA", 22, 5),  # Matcha — OK
+                        ("TE-VERDE", 0, 4),  # Té Verde — SIN STOCK
+                        ("CRU-001", 4, 10),  # Croissant — BAJO
+                        ("TOR-001", 12, 4),  # Torta — OK
+                        ("SAN-001", 8, 6),   # Sándwich Pollo — OK
+                        ("SAN-002", 15, 6),  # Sándwich Veggie — OK
+                    ]
+                    created = 0
+                    for sku, stock, threshold in inv_seed:
+                        p = db.query(Product).filter(
+                            Product.tenant_id == str(cafe.id),
+                            Product.sku == sku,
+                        ).first()
+                        if not p:
+                            continue
+                        db.add(BranchProduct(
+                            tenant_id=str(cafe.id),
+                            branch_id=str(cafe_branch.id),
+                            product_id=str(p.id),
+                            stock=stock,
+                            low_stock_threshold=threshold,
+                        ))
+                        created += 1
+                    print(f"✓ {created} BranchProduct para Café Norte (Local Centro)")
+
+            bicifix = db.query(Tenant).filter(Tenant.slug == "bicifix").first()
+            if bicifix:
+                bf_branch = db.query(Branch).filter(
+                    Branch.tenant_id == str(bicifix.id),
+                    Branch.code == "MATRIZ",
+                ).first()
+                if bf_branch:
+                    bf_inv = [
+                        ("CAM-001", 25, 5),  # Cámara — OK
+                        ("CAS-001", 1, 3),   # Casco — BAJO (alerta)
+                    ]
+                    created = 0
+                    for sku, stock, threshold in bf_inv:
+                        p = db.query(Product).filter(
+                            Product.tenant_id == str(bicifix.id),
+                            Product.sku == sku,
+                        ).first()
+                        if not p:
+                            continue
+                        db.add(BranchProduct(
+                            tenant_id=str(bicifix.id),
+                            branch_id=str(bf_branch.id),
+                            product_id=str(p.id),
+                            stock=stock,
+                            low_stock_threshold=threshold,
+                        ))
+                        created += 1
+                    print(f"✓ {created} BranchProduct para BiciFix (Casa Matriz)")
 
         db.commit()
         print("\n✅ Seed completo. URLs de demo:")
