@@ -40,7 +40,7 @@
     <h1 id="hero-title">…</h1>
     <p class="lead" id="hero-subtitle"></p>
     <div class="cta">
-      <a class="btn btn-primary btn-lg" id="hero-cta" href="#">Ver catálogo</a>
+      <a class="btn btn-primary btn-lg" id="hero-cta" href="/u/{{ slug }}/catalogo">Ver catálogo</a>
     </div>
   </div>
 </section>
@@ -115,7 +115,13 @@ const slug = {{ slug | tojson }};
     if (landing) {
       document.getElementById("hero-title").textContent = landing.hero_title;
       document.getElementById("hero-subtitle").textContent = landing.hero_subtitle || "";
-      document.getElementById("hero-cta").textContent = landing.hero_cta_text || "Ver catálogo";
+      const heroCta = document.getElementById("hero-cta");
+      heroCta.textContent = landing.hero_cta_text || "Ver catálogo";
+      // Si el landing define un hero_cta_url custom, respétalo;
+      // si no, el href estático del template (/u/{slug}/catalogo)
+      // sigue apuntando al catálogo. Esto evita el bug donde
+      // el JS cambiaba solo el texto y el href quedaba en "#".
+      if (landing.hero_cta_url) heroCta.href = landing.hero_cta_url;
       if (landing.hero_image_url) {
         const hero = document.getElementById("hero-section");
         hero.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${landing.hero_image_url}')`;
