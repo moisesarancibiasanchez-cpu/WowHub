@@ -228,18 +228,32 @@
      desbordaban la tarjeta en todos los estados EXCEPTO 10/10 (donde
      todas las celdas tienen el mismo content height y el loop se
      estabilizaba).
-     Solución: `minmax(0, 1fr)` fuerza a los tracks a respetar su espacio
-     asignado SIN crecer al content-size. La celda se ancla a su track
-     con `min-width:0; min-height:0` y `overflow:hidden` para que ningún
-     contenido hijo la pueda expandir. */
+     Solución capa 1: `minmax(0, 1fr)` fuerza a los tracks a respetar su
+     espacio asignado SIN crecer al content-size. La celda se ancla a su
+     track con `min-width:0; min-height:0` y `overflow:hidden` para que
+     ningún contenido hijo la pueda expandir.
+
+     Problema capa 2 (óvalos): el `.preview-card` es un flex column con
+     `justify-content: space-between` → los items flex (incluido el grid)
+     pueden ESTIRARSE verticalmente más allá de la altura del aspect-ratio
+     (porque `aspect-ratio` es SOLO una PREFERENCIA, no una restricción
+     dura). Resultado: el grid crecía en alto → celdas más altas que anchas
+     → óvalos verticales.
+     Solución capa 2: ALTURA EXPLÍCITA calculada con `calc(width * 7/18)`
+     + `flex-shrink: 0` para que el flex parent NO pueda comprimir el
+     grid ni estirarlo por encima de su altura calculada. */
   .preview-card .stamps-grid {
-    width: min(100%, 240px);
-    aspect-ratio: 18 / 7;            /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
+    --pv-stamp-w: min(100%, 240px);
+    width: var(--pv-stamp-w);
+    height: calc(var(--pv-stamp-w) * 7 / 18);  /* ALTURA EXPLÍCITA (no preference) */
+    flex-shrink: 0;                            /* El flex parent NO estira este item */
+    flex-grow: 0;
     margin: 4px auto 2px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));   /* TRACKS NO CRECEN al content */
     grid-template-rows: repeat(2, minmax(0, 1fr));      /* TRACKS NO CRECEN al content */
     gap: 4px 4px;
+    box-sizing: border-box;
   }
   .preview-card .stamp-slot {
     width: 100%;

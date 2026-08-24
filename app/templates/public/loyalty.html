@@ -235,22 +235,35 @@
   .tier-badge.vip       { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
 
   /* ── Stamps grid (5x2 fixed, último slot = recompensa) ─ */
-  /* Cuadratura GARANTIZADA con blindaje anti-feedback-loop:
-     1) aspect-ratio: 18/7 en el grid  →  alto = ancho × 7/18
-     2) minmax(0, 1fr) en tracks  →  tracks NO crecen al content-size
+  /* Cuadratura GARANTIZADA con blindaje anti-feedback-loop + anti-óvalo:
+     CAPA 1 — anti feedback-loop:
+     1) minmax(0, 1fr) en tracks  →  tracks NO crecen al content-size
         (sin esto, `1fr` tiene min-content:auto y la celda con aspect-ratio
          crea un loop infinito que desborda la tarjeta)
-     3) min-width:0; min-height:0; overflow:hidden en slot  →  celda
-        anclada a su track, contenido desbordado se recorta */
+     2) min-width:0; min-height:0; overflow:hidden en slot  →  celda
+        anclada a su track, contenido desbordado se recorta
+
+     CAPA 2 — anti óvalo:
+     El `.loyalty-card` es un flex column con `justify-content: space-between`
+     → los items flex (incluido el grid) pueden ESTIRARSE verticalmente más
+     allá del aspect-ratio (porque aspect-ratio es SOLO una PREFERENCIA, no
+     una restricción dura). Resultado: grid crecía en alto → celdas más
+     altas que anchas → óvalos verticales.
+     SOLUCIÓN: ALTURA EXPLÍCITA calculada con `calc(width × 7/18)` +
+     `flex-shrink: 0` para que el flex parent NO pueda comprimir el grid
+     ni estirarlo por encima de su altura calculada. */
   .stamps-grid {
+    --stamp-w: min(100%, 360px);
+    width: var(--stamp-w);
+    height: calc(var(--stamp-w) * 7 / 18);  /* ALTURA EXPLÍCITA (no preference) */
+    flex-shrink: 0;                          /* El flex parent NO estira este item */
+    flex-grow: 0;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     grid-template-rows: repeat(2, minmax(0, 1fr));
-    aspect-ratio: 18 / 7;         /* ≈ 360:140 → celdas ~67×67 (cuadradas) */
     gap: 5px 6px;
     margin: 6px auto 3px;
-    width: 100%;
-    max-width: 360px;
+    box-sizing: border-box;
   }
   .stamp-slot {
     width: 100%;
