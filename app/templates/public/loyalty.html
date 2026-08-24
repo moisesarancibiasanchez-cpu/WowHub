@@ -255,8 +255,10 @@
   .stamps-grid {
     --stamp-w: min(100%, 360px);
     width: var(--stamp-w);
-    height: calc(var(--stamp-w) * 7 / 18);  /* ALTURA EXPLÍCITA (no preference) */
-    flex-shrink: 0;                          /* El flex parent NO estira este item */
+    height: calc(var(--stamp-w) * 7 / 18);   /* ALTURA EXPLÍCITA (no preference) */
+    min-height: calc(var(--stamp-w) * 7 / 18);/* CRÍTICO mobile: flex parent NO puede comprimir */
+    flex-basis: calc(var(--stamp-w) * 7 / 18);/* CRÍTICO mobile: flex algorithm usa este tamaño */
+    flex-shrink: 0;                           /* El flex parent NO estira este item */
     flex-grow: 0;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
