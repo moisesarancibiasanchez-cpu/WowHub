@@ -223,15 +223,18 @@
   /* Stamps grid (5x2) — TRIPLE-SEGURO idéntico al de public/loyalty.html
      para que las celdas sean SIEMPRE cuadradas sin importar el contenido
      (slot vacío con ✦ vs slot stamped con badge W+wowhub+✓ vs reward con ★).
-     Sin el grid-template-rows + aspect-ratio en el GRID, la fila se estira
-     a la celda más alta y los slots vacíos se ven como óvalos alargados. */
+     Importante: usamos `height` calculada (no `aspect-ratio`) porque
+     `aspect-ratio` es una PREFERENCIA — el contenido más alto (badge de
+     stamp más alto que ✦ vacío) puede estirar el grid y deformar las celdas
+     a óvalos. Con `height` explícita el navegador NO puede sobreescribirla. */
   .preview-card .stamps-grid {
-    width: min(100%, 240px);
+    --w: min(100%, 240px);
+    width: var(--w);
+    height: calc(var(--w) * 7 / 18);   /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
     margin: 4px auto 2px;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     grid-template-rows: repeat(2, 1fr);
-    aspect-ratio: 18 / 7;            /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
     gap: 4px 4px;
   }
   .preview-card .stamp-slot {
