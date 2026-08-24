@@ -251,11 +251,9 @@
   .preview-card .stamps-grid {
     --pv-stamp-w: min(100%, 240px);
     width: var(--pv-stamp-w);
-    height: calc(var(--pv-stamp-w) * 7 / 18);   /* ALTURA EXPLÍCITA (no preference) */
-    min-height: calc(var(--pv-stamp-w) * 7 / 18);/* CRÍTICO: flex parent NO puede comprimir */
-    flex-basis: calc(var(--pv-stamp-w) * 7 / 18);/* CRÍTICO: flex algorithm usa este tamaño */
-    flex-shrink: 0;                              /* El flex parent NO estira este item */
-    flex-grow: 0;
+    aspect-ratio: 18 / 7;                          /* width:height = 18:7 → 5cols×2rows de celdas cuadradas */
+    min-height: calc(var(--pv-stamp-w) * 7 / 18);  /* Evita colapso del ratio en contextos flex/grid */
+    flex: 0 0 auto;                                /* No shrink, no grow en flex parent */
     margin: 4px auto 2px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));   /* TRACKS NO CRECEN al content */
