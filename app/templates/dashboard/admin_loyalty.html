@@ -93,6 +93,10 @@
     .loyalty-modal-grid { grid-template-columns: 1fr; }
     .loyalty-modal-preview { border-left: 0; border-top: 1px solid rgba(255,255,255,0.08); }
     .loyalty-modal-form { max-height: none; }
+    .preview-card.loyalty-card-preview {
+      aspect-ratio: auto;            /* CRÍTICO mobile: dejar que crezca con el contenido */
+      min-height: 240px;             /* CRÍTICO mobile: alto mínimo para que el grid no se corte */
+    }
   }
 
   /* ── Live preview: full card design (matches public/loyalty.html) ── */
