@@ -404,10 +404,9 @@
           <input class="form-input" id="c_reward_label" required maxlength="160" placeholder="ej. 1 Café Gratis">
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Sellos necesarios *</label>
-            <input class="form-input" type="number" id="c_stamps_required" min="2" max="50" value="6" required>
-          </div>
+          <!-- Sellos necesarios FIJO en 10 (grilla 5×2 + slot 10 = premio).
+               Se envía siempre 10 al backend, no es configurable. -->
+          <input type="hidden" id="c_stamps_required" value="10">
           <div class="form-group">
             <label class="form-label">Color principal</label>
             <input class="form-input" type="color" id="c_primary_color" value="#1A73E8">
@@ -499,7 +498,7 @@
                   </div>
                   <div class="header-right">
                     <div class="card-title-engraved">Tarjeta de Fidelización</div>
-                    <span class="tier-badge" id="pv-tier-badge">Community</span>
+                    <span class="tier-badge vip" id="pv-tier-badge">VIP MEMBER</span>
                   </div>
                 </div>
 
@@ -526,13 +525,10 @@
             </div>
           </div>
 
-          <!-- Controles de simulación -->
+          <!-- Controles de simulación (FIJO en 10/10: la grilla 5×2 siempre muestra
+               9 sellos normales + 1 slot de premio. No es configurable.) -->
           <div class="preview-controls">
-            <button type="button" class="btn" data-sim-stamps="3"><span data-sim-label>3</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
-            <button type="button" class="btn" data-sim-stamps="6"><span data-sim-label>6</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
-            <button type="button" class="btn" data-sim-stamps="8"><span data-sim-label>8</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
-            <button type="button" class="btn" data-sim-stamps="9"><span data-sim-label>9</span> <span data-sim-sep>/</span> <span data-sim-total>9</span></button>
-            <button type="button" class="btn" data-sim-stamps="10"><span data-sim-label>10</span> <span data-sim-sep>/</span> <span data-sim-total>10</span> ✦</button>
+            <button type="button" class="btn active" data-sim-stamps="10"><span data-sim-label>10</span> <span data-sim-sep>/</span> <span data-sim-total>10</span> ✦</button>
           </div>
           <p class="preview-hint">Mueve el mouse sobre la tarjeta para ver el efecto 3D · haz clic en los sellos para simular la experiencia del cliente</p>
         </div>
@@ -610,7 +606,7 @@ async function loadCampaigns() {
         </div>
         <div class="text-muted" style="margin: 6px 0; font-size: 13px;">${escapeHtml(c.reward_label)}</div>
         <div style="margin: 12px 0; font-size: 14px;">
-          <strong>${c.stamps_required}</strong> sellos · <strong>${c.total_passes}</strong> pases · <strong>${c.total_rewards_redeemed}</strong> premios
+          <strong>10</strong> sellos · <strong>${c.total_passes}</strong> pases · <strong>${c.total_rewards_redeemed}</strong> premios
         </div>
         <div class="row" style="gap: 6px; flex-wrap: wrap;">
           <button class="btn btn-sm" data-action="qr" data-id="${c.id}">QR del mostrador</button>
@@ -641,7 +637,7 @@ function openNewModal() {
   $("c_id").value = "";
   $("c_name").value = "";
   $("c_reward_label").value = "";
-  $("c_stamps_required").value = "6";
+  $("c_stamps_required").value = "10";  // FIJO: siempre 10 (grilla 5×2 + slot premio)
   $("c_primary_color").value = "#1A73E8";
   $("c_text_color").value = "#FFFFFF";
   // Default metallic preset (Titanium)
@@ -662,7 +658,7 @@ function openEditModal(c) {
   $("c_id").value = c.id;
   $("c_name").value = c.name;
   $("c_reward_label").value = c.reward_label;
-  $("c_stamps_required").value = c.stamps_required;
+  $("c_stamps_required").value = "10";  // FIJO: siempre 10 (grilla 5×2 + slot premio)
   $("c_primary_color").value = c.primary_color;
   $("c_text_color").value = c.text_color;
   // V2 metallic — si la campaña tiene stops, los cargamos
@@ -909,14 +905,11 @@ function clearActivePreset() {
 }
 
 // ── V2: Live preview state ─────────────────────────────────
-let previewStampsFilled = 0; // cuántos sellos están "pintados" en el preview (estado de simulación)
+let previewStampsFilled = 10; // La grilla 5×2 SIEMPRE muestra 9 sellos + 1 premio = 10/10
 
-// Tier badge en base a la cantidad de sellos
+// Tier badge FIJO en VIP MEMBER (todas las tarjetas son VIP por diseño)
 function tierFor(filled) {
-  if (filled >= 5) return { label: "Black",   cls: "black" };
-  if (filled >= 3) return { label: "VIP",     cls: "vip" };
-  if (filled >= 1) return { label: "Elite",   cls: "elite" };
-  return             { label: "Community", cls: "community" };
+  return { label: "VIP MEMBER", cls: "vip" };
 }
 
 // Formato tipo "•••• ••34 ••56" — lo derivamos de un hash del nombre del negocio
@@ -930,7 +923,7 @@ function previewSerial(name) {
 function renderPreviewStamps() {
   const cont = $("pv-stamps");
   if (!cont) return;
-  const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
+  const total = 10;               // FIJO: siempre 10 (grilla 5×2 + slot 10 = premio)
   const totalSlots = 10;          // grilla 5x2 fija
   const rewardIdx = totalSlots - 1; // slot 9 (10º) = recompensa
   const rewardUnlocked = previewStampsFilled >= total;
@@ -1016,28 +1009,11 @@ function updatePreview() {
   document.querySelectorAll(".preview-controls .btn").forEach(b => b.classList.remove("active"));
 }
 
-// Actualiza el denominador de los botones de simulación según stamps_required.
-// El último botón (10 sellos) siempre muestra "/10 ✦" porque es la grilla completa.
+// La grilla es FIJA en 10/10 (5×2 + slot premio). El único botón de simulación
+// siempre muestra "10/10 ✦". No hay denominador dinámico que actualizar.
 function updateSimLabels() {
-  const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
-  // Denominador = stamps_required (los sellos que necesita el cliente)
-  // Para el botón "10 sellos" dejamos "/10" como representación de grilla completa.
-  document.querySelectorAll(".preview-controls .btn[data-sim-stamps]").forEach(btn => {
-    const n = parseInt(btn.dataset.simStamps || "0", 10);
-    const totalEl = btn.querySelector("[data-sim-total]");
-    if (totalEl) {
-      totalEl.textContent = (n >= 10) ? "10" : total.toString();
-    }
-    // Si el botón pide más sellos que los requeridos, lo deshabilitamos
-    // (ej: stamps_required=6 → el botón "8" no aplica, lo ocultamos)
-    if (n > total && n < 10) {
-      btn.style.display = "none";
-    } else if (n === total) {
-      btn.style.display = "";  // siempre visible: es el "completa la tarjeta"
-    } else {
-      btn.style.display = "";
-    }
-  });
+  // No-op: el botón "10/10 ✦" ya tiene el label correcto en el HTML estático.
+  // Esta función se mantiene para no romper la llamada en updatePreview().
 }
 
 // ── 3D tilt + specular sheen en el preview ─────────────────
@@ -1079,7 +1055,7 @@ function bindStampClicks() {
     if (!slot) return;
     const idx = parseInt(slot.dataset.slotIndex || "0", 10);
     if (!idx) return;
-    const total = Math.max(2, Math.min(50, parseInt(($("c_stamps_required") || {}).value || 6, 10)));
+    const total = 10;             // FIJO: siempre 10 (grilla 5×2 + slot premio)
     const totalSlots = 10;
     const rewardIdx = totalSlots; // 10 (1-based)
     if (idx === rewardIdx) {
@@ -1095,7 +1071,7 @@ function bindStampClicks() {
   });
 }
 
-// ── Botones de simulación rápida (Vacía / 3 / 6 / 9 / 10) ─
+// ── Botón de simulación rápida (único: 10/10 ✦) ─
 function bindSimControls() {
   document.querySelectorAll(".preview-controls .btn[data-sim-stamps]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1108,7 +1084,8 @@ function bindSimControls() {
   });
 }
 
-// ── Wire up controls: pickers, sliders, stamps_required, name ──
+// ── Wire up controls: pickers, sliders, name ──
+// (stamps_required es hidden fijo en 10, no necesita listener)
 ["c_metal_c1", "c_metal_c2", "c_metal_c3", "c_metal_c4", "c_metal_c5", "c_text_color"].forEach(id => {
   const el = $(id);
   if (el) el.addEventListener("input", () => { updatePreview(); clearActivePreset(); });
@@ -1128,8 +1105,6 @@ if (sheenInput) {
     updatePreview();
   });
 }
-const stampsInput = $("c_stamps_required");
-if (stampsInput) stampsInput.addEventListener("input", updatePreview);
 const rewardInput = $("c_reward_label");
 if (rewardInput) rewardInput.addEventListener("input", updatePreview);
 const nameInput = $("c_name");
