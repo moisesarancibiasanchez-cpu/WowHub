@@ -96,9 +96,7 @@
     .preview-card.loyalty-card-preview {
       aspect-ratio: auto;            /* CRÍTICO mobile: dejar que crezca con el contenido */
       min-height: 240px;             /* CRÍTICO mobile: alto mínimo para que el grid no se corte */
-      display: grid;                 /* OVERRIDE flex: cada hijo en su propia fila natural */
-      grid-template-rows: auto auto auto auto;
-      row-gap: 3px;
+      display: block;                /* OVERRIDE flex: block flow NO comprime el grid */
       overflow: hidden;
     }
   }
