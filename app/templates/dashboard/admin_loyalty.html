@@ -220,29 +220,33 @@
   .preview-card .tier-badge.vip   { background: linear-gradient(135deg, #d97706, #fbbf24); border-color: #fff7d6; color: #1c1003; }
   .preview-card .tier-badge.black { background: linear-gradient(135deg, #0a0a0a, #262626); border-color: #ffd700; color: #ffd700; }
 
-  /* Stamps grid (5x2) — TRIPLE-SEGURO idéntico al de public/loyalty.html
-     para que las celdas sean SIEMPRE cuadradas sin importar el contenido
-     (slot vacío con ✦ vs slot stamped con badge W+wowhub+✓ vs reward con ★).
-     Importante: usamos `height` calculada (no `aspect-ratio`) porque
-     `aspect-ratio` es una PREFERENCIA — el contenido más alto (badge de
-     stamp más alto que ✦ vacío) puede estirar el grid y deformar las celdas
-     a óvalos. Con `height` explícita el navegador NO puede sobreescribirla. */
+  /* Stamps grid (5x2) — CUADRATURA PERFECTA GARANTIZADA
+     Problema previo: `aspect-ratio: 1` en la celda + `1fr` en tracks
+     creaba un feedback loop — el track crecía al content-size del cell
+     (que quería ser cuadrado), lo que hacía la celda más grande, lo que
+     hacía el track más grande, etc. Resultado: celdas enormes que
+     desbordaban la tarjeta en todos los estados EXCEPTO 10/10 (donde
+     todas las celdas tienen el mismo content height y el loop se
+     estabilizaba).
+     Solución: `minmax(0, 1fr)` fuerza a los tracks a respetar su espacio
+     asignado SIN crecer al content-size. La celda se ancla a su track
+     con `min-width:0; min-height:0` y `overflow:hidden` para que ningún
+     contenido hijo la pueda expandir. */
   .preview-card .stamps-grid {
-    --w: min(100%, 240px);
-    width: var(--w);
-    height: calc(var(--w) * 7 / 18);   /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
+    width: min(100%, 240px);
+    aspect-ratio: 18 / 7;            /* 240×7/18 ≈ 93.3px → celdas ~44.8×44.8 */
     margin: 4px auto 2px;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));   /* TRACKS NO CRECEN al content */
+    grid-template-rows: repeat(2, minmax(0, 1fr));      /* TRACKS NO CRECEN al content */
     gap: 4px 4px;
   }
   .preview-card .stamp-slot {
     width: 100%;
     height: 100%;
-    aspect-ratio: 1;                /* respaldo: si algo estira, sigue cuadrado */
-    max-width: 100%;
-    max-height: 100%;
+    min-width: 0;                    /* CRÍTICO: impide que el contenido expanda la celda */
+    min-height: 0;                   /* CRÍTICO: impide que el contenido expanda la celda */
+    overflow: hidden;                /* CRÍTICO: recorta cualquier overflow del badge */
     border-radius: 50%;
     position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
