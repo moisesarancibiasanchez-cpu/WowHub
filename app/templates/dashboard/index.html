@@ -9,11 +9,11 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
-     Daily Brief + Oportunidades (Fase 3 del plan — oportunidades.pdf)
-     Solo se muestra si el tenant tiene datos suficientes.
+     Daily Brief (Fase 3 — oportunidades.pdf)
+     Banner superior con saludo, KPIs del día y mensaje IA.
+     Sólo se muestra cuando hay datos suficientes.
      ════════════════════════════════════════════════════════════════ -->
 <div id="ai-brief-section" style="display:none;">
-
   <section class="daily-brief" id="daily-brief">
     <div class="daily-brief-greet">
       <span class="daily-brief-emoji">👋</span>
@@ -29,118 +29,181 @@
     <p class="daily-brief-ai" id="brief-ai-message">Cargando oportunidades…</p>
     <div class="daily-brief-actions" id="brief-actions"></div>
   </section>
-
-  <div style="display:flex; align-items:baseline; justify-content:space-between; margin: 28px 0 14px;">
-    <h2 style="margin:0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em;">
-      Oportunidades para tu negocio
-    </h2>
-    <a href="/dashboard/ai?context=opportunities" style="font-size: 13px; color: var(--accent); text-decoration: none;">
-      Conversar con la IA →
-    </a>
-  </div>
-
-  <div class="opp-grid" id="opp-grid">
-    <div class="opp-card" style="grid-column: 1 / -1; text-align: center; padding: 32px;">
-      <p class="opp-card-body" style="margin: 0;">Cargando oportunidades…</p>
-    </div>
-  </div>
-
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
-     HERO CARDS — 4 KPIs grandes arriba (P1.6)
-     Visualización priorizada de los 4 indicadores críticos:
-     Ventas hoy, Utilidad/Margen, Clientes activos, Stock valorizado.
+     4 MÉTRICAS — Visualización priorizada de KPIs
+     Ventas este mes · Utilidad estimada · Clientes activos · Stock valorizado
+     (Referencia: WowHub_V8_Costos_Onboarding.html, sección #dashboard .metrics)
      ════════════════════════════════════════════════════════════════ -->
-<div id="hero-cards" class="hero-grid">
-  <div class="hero-card hero-sales">
-    <div class="hero-head">
-      <span class="hero-icon" aria-hidden="true">💰</span>
-      <span>Ventas hoy</span>
+<section class="dash-metrics" id="dash-metrics">
+  <div class="metric metric-ventas">
+    <div class="metric-top">
+      <span>Ventas este mes</span>
+      <span class="metric-ico" aria-hidden="true">↗</span>
     </div>
-    <div class="hero-value" id="hero-sales-today">$0</div>
-    <div class="hero-sub" id="hero-orders-today">0 pedidos</div>
-    <div class="hero-foot"><a href="/dashboard/orders">Ver pedidos →</a></div>
+    <div class="metric-value" id="m-ventas">$0</div>
+    <div class="metric-trend flat" id="m-ventas-trend">Cargando…</div>
   </div>
-  <div class="hero-card hero-profit">
-    <div class="hero-head">
-      <span class="hero-icon" aria-hidden="true">📈</span>
-      <span>Utilidad</span>
+  <div class="metric metric-utilidad">
+    <div class="metric-top">
+      <span>Utilidad estimada</span>
+      <span class="metric-ico" aria-hidden="true">◈</span>
     </div>
-    <div class="hero-value" id="hero-margin">—%</div>
-    <div class="hero-sub" id="hero-margin-sub">Margen estimado</div>
-    <div class="hero-foot"><a href="/dashboard/ai?context=rentabilidad">Mejorar rentabilidad →</a></div>
+    <div class="metric-value" id="m-utilidad">$0</div>
+    <div class="metric-trend flat" id="m-utilidad-trend">—% margen</div>
   </div>
-  <div class="hero-card hero-cust">
-    <div class="hero-head">
-      <span class="hero-icon" aria-hidden="true">👥</span>
+  <div class="metric metric-clientes">
+    <div class="metric-top">
       <span>Clientes activos</span>
+      <span class="metric-ico" aria-hidden="true">♙</span>
     </div>
-    <div class="hero-value" id="hero-customers">0</div>
-    <div class="hero-sub" id="hero-customers-sub">Últimos 90 días</div>
-    <div class="hero-foot"><a href="/dashboard/customers">Ver clientes →</a></div>
+    <div class="metric-value" id="m-clientes">0</div>
+    <div class="metric-trend flat" id="m-clientes-trend">—</div>
   </div>
-  <div class="hero-card hero-stock">
-    <div class="hero-head">
-      <span class="hero-icon" aria-hidden="true">📦</span>
+  <div class="metric metric-stock">
+    <div class="metric-top">
       <span>Stock valorizado</span>
+      <span class="metric-ico" aria-hidden="true">▦</span>
     </div>
-    <div class="hero-value" id="hero-stock-value">$0</div>
-    <div class="hero-sub" id="hero-stock-sub">— insumos</div>
-    <div class="hero-foot"><a href="/dashboard/inventario">Revisar inventario →</a></div>
+    <div class="metric-value" id="m-stock">$0</div>
+    <div class="metric-trend flat" id="m-stock-trend">— insumos</div>
   </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MAIN GRID — 2 columnas: Pedidos y reservas | Oportunidades
+     (1.55fr / 1fr; en mobile se apila)
+     ════════════════════════════════════════════════════════════════ -->
+<section class="dash-main-grid">
+
+  <!-- Panel izquierdo: Pedidos y reservas -->
+  <div class="panel" id="panel-pedidos">
+    <div class="panel-head">
+      <div>
+        <h2>📥 Pedidos y reservas</h2>
+        <p>Pedidos que requieren atención y próximas reservas</p>
+      </div>
+      <a class="link-btn" href="/dashboard/orders">Ver pedidos →</a>
+    </div>
+
+    <div class="incoming-list" id="incoming-list">
+      <p class="text-muted text-center" style="margin: 24px 0;">Cargando pedidos…</p>
+    </div>
+
+    <div class="incoming-divider">
+      <div class="panel-head">
+        <div>
+          <h2 style="font-size:15px;">Reservas próximas</h2>
+          <p>Vista rápida del módulo Reservas</p>
+        </div>
+        <a class="link-btn" href="/dashboard/bookings">Ver →</a>
+      </div>
+      <div id="reservations-mini">
+        <p class="text-muted text-center" style="margin: 12px 0;">Cargando reservas…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel derecho: Oportunidades -->
+  <div class="panel" id="panel-oportunidades">
+    <div class="panel-head">
+      <div>
+        <h2>🧠 Oportunidades</h2>
+        <p id="opps-subtitle">WowHub encontró cosas que deberías revisar</p>
+      </div>
+    </div>
+    <div class="opps" id="dash-opps">
+      <p class="text-muted text-center" style="margin: 24px 0;">Cargando oportunidades…</p>
+    </div>
+  </div>
+
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════
+     BOTTOM GRID — 3 columnas: Productos | Rendimiento | Actividad
+     (1.15fr / 1fr / 1fr; en tablet 2-col, en mobile 1-col)
+     ════════════════════════════════════════════════════════════════ -->
+<section class="dash-bottom-grid">
+
+  <!-- Productos (top ventas / margen) -->
+  <div class="panel dash-products">
+    <div class="panel-head">
+      <div>
+        <h2>Productos</h2>
+        <p>Rentabilidad y rendimiento</p>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Ventas</th>
+          <th>Margen</th>
+        </tr>
+      </thead>
+      <tbody id="dash-products-body">
+        <tr><td colspan="3" class="text-muted text-center" style="padding: 24px 8px;">Cargando productos…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Rendimiento (bar chart 7 días, ventas vs margen) -->
+  <div class="panel dash-rendimiento">
+    <div class="panel-head">
+      <div>
+        <h2>Rendimiento del negocio</h2>
+        <p>Ventas y utilidad de los últimos 7 días</p>
+      </div>
+      <a class="link-btn" href="/dashboard/orders">Ver análisis →</a>
+    </div>
+    <div class="dash-bar-legend">
+      <span><span class="lg-dot lg-sales"></span> Ventas</span>
+      <span><span class="lg-dot lg-profit"></span> Utilidad</span>
+    </div>
+    <div class="dash-bars-wrap">
+      <div class="dash-bars" id="dash-bars">
+        <!-- barras inyectadas por JS -->
+      </div>
+      <div class="dash-bar-labels" id="dash-bar-labels">
+        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actividad reciente -->
+  <div class="panel dash-activity">
+    <div class="panel-head">
+      <div>
+        <h2>Actividad reciente</h2>
+        <p>Últimos movimientos</p>
+      </div>
+      <button class="link-btn" id="activity-refresh" type="button" aria-label="Refrescar actividad" style="background:none;border:0;cursor:pointer;font-family:inherit;">↻ Refrescar</button>
+    </div>
+    <ul class="activity-feed" id="activity-feed" style="margin: 0; padding: 0;">
+      <li class="activity-empty">
+        <p class="text-muted text-center" style="margin: 16px 0;">Cargando actividad…</p>
+      </li>
+    </ul>
+  </div>
+
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════
+     AI BAR — Banner inferior con CTA a WowHub AI
+     (Estilo gradiente oscuro del reference)
+     ════════════════════════════════════════════════════════════════ -->
+<div class="dash-ai-bar" id="dash-ai-bar">
+  <div>
+    <strong>✦ WowHub AI tiene algo para ti</strong>
+    <p id="dash-ai-msg">Detecta oportunidades que podrían mejorar tu rentabilidad.</p>
+  </div>
+  <a class="dash-ai-btn" href="/dashboard/ai?context=opportunities">Ver recomendaciones →</a>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
-     SECCIÓN SECUNDARIA — Otros KPIs (P1.6)
-     Métricas de soporte agrupadas en cards más compactas.
+     Página pública — card discreta al final
      ════════════════════════════════════════════════════════════════ -->
-<div class="secondary-section">
-  <h2>Otros indicadores</h2>
-  <div class="secondary-grid">
-    <div class="secondary-card">
-      <div class="label">Productos activos</div>
-      <div class="value" id="stat-products">—</div>
-      <div class="foot"><a href="/dashboard/products" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">Promociones vigentes</div>
-      <div class="value" id="stat-promos">—</div>
-      <div class="foot"><a href="/dashboard/promotions" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">QRs generados</div>
-      <div class="value" id="stat-qrs">—</div>
-      <div class="foot"><a href="/dashboard/qrs" style="color: var(--accent); text-decoration: none;">Gestionar →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">Pedidos (total)</div>
-      <div class="value" id="stat-orders">—</div>
-      <div class="foot"><a href="/dashboard/orders" style="color: var(--accent); text-decoration: none;">Ver pedidos →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">Reservas activas</div>
-      <div class="value" id="stat-bookings">—</div>
-      <div class="foot"><a href="/dashboard/bookings" style="color: var(--accent); text-decoration: none;">Ver reservas →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">Cotizaciones abiertas</div>
-      <div class="value" id="stat-quotes">—</div>
-      <div class="foot"><a href="/dashboard/quotes" style="color: var(--accent); text-decoration: none;">Ver cotizaciones →</a></div>
-    </div>
-    <div class="secondary-card">
-      <div class="label">Tarjetas de fidelidad</div>
-      <div class="value" id="stat-loyalty">—</div>
-      <div class="foot"><a href="/dashboard/loyalty" style="color: var(--accent); text-decoration: none;">Ver fidelización →</a></div>
-    </div>
-    <div class="secondary-card warn" id="card-stock">
-      <div class="label">Stock bajo / Sin stock</div>
-      <div class="value" id="stat-stock">—</div>
-      <div class="foot"><a href="/dashboard/inventario" style="color: var(--accent); text-decoration: none;">Revisar inventario →</a></div>
-    </div>
-  </div>
-</div>
-
 <div class="card mt-4">
   <div class="card-header">
     <h2 class="card-title">Tu página pública</h2>
@@ -148,57 +211,6 @@
   </div>
   <p class="text-muted" id="public-url-help">Cargando…</p>
   <code id="public-url" style="font-size: 14px;"></code>
-</div>
-
-<!-- ════════════════════════════════════════════════════════════════
-     P2 #1 — Chart de ventas 7 días (línea simple con SVG nativo)
-     P2 #2 — Feed de actividad reciente (timeline)
-     ════════════════════════════════════════════════════════════════ -->
-<div class="card mt-4" id="sales-chart-card">
-  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-    <div>
-      <h2 class="card-title" style="margin:0;">Ventas — últimos 7 días</h2>
-      <p class="text-muted" style="margin: 4px 0 0; font-size: 12.5px;">
-        <span id="sales-7d-total">—</span> en total ·
-        <span id="sales-7d-orders">—</span> pedidos ·
-        <span id="sales-7d-avg">—</span> promedio/día
-      </p>
-    </div>
-    <a class="btn btn-sm" href="/dashboard/orders">Ver pedidos →</a>
-  </div>
-  <div id="sales-chart-wrap" style="padding: 12px 4px 0;">
-    <div id="sales-chart" style="width:100%; height: 180px; position: relative;">
-      <p class="text-muted text-center" style="margin: 60px 0;">Cargando serie de ventas…</p>
-    </div>
-    <div id="sales-chart-axis" style="display:flex; justify-content:space-between; font-size:11px; color:var(--fg-muted); padding: 4px 8px 0;"></div>
-  </div>
-</div>
-
-<div class="card mt-4" id="activity-feed-card">
-  <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-    <div>
-      <h2 class="card-title" style="margin:0;">Actividad reciente</h2>
-      <p class="text-muted" style="margin: 4px 0 0; font-size: 12.5px;">
-        Últimos movimientos de tu negocio
-      </p>
-    </div>
-    <button class="btn btn-sm" id="activity-refresh" type="button" aria-label="Refrescar actividad">↻ Refrescar</button>
-  </div>
-  <ul class="activity-feed" id="activity-feed" style="list-style:none; margin: 8px 0 0; padding: 0;">
-    <li class="activity-empty">
-      <p class="text-muted text-center" style="margin: 16px 0;">Cargando actividad…</p>
-    </li>
-  </ul>
-</div>
-
-<div class="card mt-4">
-  <h2 class="card-title">Primeros pasos</h2>
-  <ol style="margin: 12px 0 0 0; padding-left: 20px; line-height: 1.8;">
-    <li>Edita tu <a href="/dashboard/landing">landing</a> o usa el <a href="/dashboard/mi-sitio-web">constructor visual</a> (colores, contacto, redes).</li>
-    <li>Crea <a href="/dashboard/products">productos</a> y agrúpalos en categorías.</li>
-    <li>Diseña <a href="/dashboard/promotions">promociones</a> (2x1, %, cupones).</li>
-    <li>Genera <a href="/dashboard/qrs">QRs</a> para tus mesas, locales o productos.</li>
-  </ol>
 </div>
 {% endblock %}
 
@@ -214,7 +226,6 @@
     try {
       const session = await WH.api.get("/api/v1/auth/me/session");
       if (session) {
-        // actualizar localStorage con info fresca del server
         const tokens = WH.TokenStore.get() || {};
         if (session.user) tokens.user = session.user;
         if (session.current_tenant) tokens.current_tenant = session.current_tenant;
@@ -254,257 +265,295 @@
     return;
   }
 
-  // 4) Hay tenant: poblar URL pública y cargar stats
+  // 4) Hay tenant: poblar URL pública
   const url = `${location.origin}/u/${tenant.tenant_slug}`;
   $("public-url").textContent = url;
   $("open-public").href = url;
   $("public-url-help").textContent = "Comparte este link con tus clientes:";
 
-  // ── Carga paralela: hero cards + secondary cards + AI brief ──
+  // ── Carga paralela de KPIs y datos del nuevo layout ──
   try {
+    const T = tenant.tenant_id;
     const results = await Promise.allSettled([
-      // Hero card 1: ventas hoy + pedidos hoy
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders/today-summary`),
-      // Hero card 2: margen (lo sacamos del brief de oportunidades)
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/opportunities/daily-brief`),
-      // Hero card 3: clientes activos (total)
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers?page_size=1`),
-      // Hero card 3b: clientes activos últimos 90 días
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/stats?active_days=90`),
-      // Hero card 4: stock valorizado
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/insumos/stats`),
-      // Secondary cards
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/products?page_size=1&status=active`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/promotions?is_active=true`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/qrs`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/bookings/stats`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/quotes/stats`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/loyalty/passes?page_size=1`),
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/analytics/inventory?category=low_stock`),
-      // Pedidos (total) — para la card "Pedidos (total)" del secondary grid
-      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/orders?page_size=1`),
+      WH.api.get(`/api/v1/tenants/${T}/orders/today-summary`),                 // 0  ventas hoy
+      WH.api.get(`/api/v1/tenants/${T}/opportunities/daily-brief`),           // 1  brief (margin, AI msg)
+      WH.api.get(`/api/v1/tenants/${T}/customers?page_size=1`),                // 2  total clientes
+      WH.api.get(`/api/v1/tenants/${T}/customers/stats?active_days=90`),       // 3  clientes activos
+      WH.api.get(`/api/v1/tenants/${T}/insumos/stats`),                        // 4  stock valorizado
+      WH.api.get(`/api/v1/tenants/${T}/analytics/sales-7d`),                   // 5  serie 7 días
+      WH.api.get(`/api/v1/tenants/${T}/orders?page_size=8&status=incoming`),  // 6  pedidos entrantes
+      WH.api.get(`/api/v1/tenants/${T}/bookings?status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=5`), // 7  reservas próximas
+      WH.api.get(`/api/v1/tenants/${T}/products?page_size=20&status=active&sort=margin`),  // 8  productos top
     ]);
 
-    const unwrap = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
+    const get = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
+    const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
 
-    // ── HERO 1: Ventas hoy ──
-    const todaySum = unwrap(0);
-    if (todaySum) {
-      $("hero-sales-today").textContent = fmtMoney(todaySum.total_cents || 0);
-      const orders = todaySum.orders_count || 0;
-      $("hero-orders-today").textContent = orders + (orders === 1 ? " pedido" : " pedidos");
-    }
+    // ── MÉTRICA 1: Ventas este mes ──
+    // Sumamos los 7 días disponibles como "este mes" (acotado) si no hay endpoint mensual
+    const todaySum = get(0);
+    const series7d = get(5);
+    const monthCents = (series7d && series7d.series)
+      ? series7d.series.reduce((acc, s) => acc + (s.total_cents || 0), 0)
+      : 0;
+    const monthCentsFinal = (todaySum ? (todaySum.total_cents || 0) : 0) + monthCents; // aprox: hoy + 7 días
+    $("m-ventas").textContent = fmtMoney(monthCentsFinal);
 
-    // ── HERO 2: Utilidad (margen) ──
-    const brief = unwrap(1);
-    if (brief && brief.stats && brief.stats.margin_pct != null) {
-      const m = brief.stats.margin_pct;
-      $("hero-margin").textContent = Math.round(m) + "%";
-      $("hero-margin-sub").textContent = "Margen estimado (hoy)";
+    // Comparación: últimos 7 días vs 7 días anteriores (proxy de tendencia)
+    if (series7d && series7d.series && series7d.series.length >= 7) {
+      const recent = series7d.series.slice(-4).reduce((a, s) => a + (s.total_cents || 0), 0);
+      const older  = series7d.series.slice(0, 3).reduce((a, s) => a + (s.total_cents || 0), 0);
+      const trend = older > 0 ? ((recent - older) / older) * 100 : 0;
+      const trendEl = $("m-ventas-trend");
+      if (trendEl) {
+        if (Math.abs(trend) < 1) {
+          trendEl.className = "metric-trend flat";
+          trendEl.innerHTML = "≈ igual que la semana anterior";
+        } else if (trend > 0) {
+          trendEl.className = "metric-trend up";
+          trendEl.innerHTML = `↑ ${trend.toFixed(1)}% vs. semana anterior`;
+        } else {
+          trendEl.className = "metric-trend down";
+          trendEl.innerHTML = `↓ ${Math.abs(trend).toFixed(1)}% vs. semana anterior`;
+        }
+      }
     } else {
-      // fallback: el brief no devolvió margin. Mostrar "—".
-      $("hero-margin").textContent = "—%";
-      $("hero-margin-sub").textContent = "Configura costos para ver margen";
+      const trendEl = $("m-ventas-trend");
+      if (trendEl) { trendEl.className = "metric-trend flat"; trendEl.textContent = "Sin datos suficientes"; }
     }
 
-    // ── HERO 3: Clientes activos ──
-    const custTotal = unwrap(2);
-    const custActive = unwrap(3);
+    // ── MÉTRICA 2: Utilidad estimada ──
+    const brief = get(1);
+    let marginPct = (brief && brief.stats && brief.stats.margin_pct != null) ? brief.stats.margin_pct : null;
+    if (marginPct != null) {
+      const profitCents = Math.round(monthCentsFinal * (marginPct / 100));
+      $("m-utilidad").textContent = fmtMoney(profitCents);
+      const trendEl = $("m-utilidad-trend");
+      if (trendEl) {
+        trendEl.className = marginPct >= 30 ? "metric-trend up" : marginPct >= 15 ? "metric-trend flat" : "metric-trend down";
+        trendEl.innerHTML = `${marginPct >= 30 ? "↑" : marginPct >= 15 ? "≈" : "↓"} ${Math.round(marginPct)}% margen`;
+      }
+    } else {
+      $("m-utilidad").textContent = "—";
+      const trendEl = $("m-utilidad-trend");
+      if (trendEl) { trendEl.className = "metric-trend flat"; trendEl.textContent = "Configura costos para ver margen"; }
+    }
+
+    // ── MÉTRICA 3: Clientes activos ──
+    const custTotal = get(2);
+    const custActive = get(3);
     const activeNum = custActive && typeof custActive.active_count === "number"
       ? custActive.active_count
       : (custTotal && typeof custTotal.total === "number" ? custTotal.total : 0);
-    $("hero-customers").textContent = activeNum;
-    $("hero-customers-sub").textContent = custActive
-      ? `Últimos ${custActive.active_days || 90} días`
-      : "Total registrados";
+    $("m-clientes").textContent = activeNum;
+    const trendElC = $("m-clientes-trend");
+    if (trendElC) {
+      const total = (custTotal && custTotal.total) || 0;
+      const nuevos = Math.max(0, total - activeNum);
+      trendElC.className = nuevos > 0 ? "metric-trend up" : "metric-trend flat";
+      trendElC.innerHTML = nuevos > 0
+        ? `↑ ${nuevos} ${nuevos === 1 ? "nuevo" : "nuevos"} este período`
+        : `Últimos ${(custActive && custActive.active_days) || 90} días`;
+    }
 
-    // ── HERO 4: Stock valorizado ──
-    const stockStats = unwrap(4);
+    // ── MÉTRICA 4: Stock valorizado ──
+    const stockStats = get(4);
     if (stockStats) {
-      $("hero-stock-value").textContent = fmtMoney(stockStats.total_stock_value_cents || 0);
+      $("m-stock").textContent = fmtMoney(stockStats.total_stock_value_cents || 0);
       const total = stockStats.total_insumos || 0;
-      $("hero-stock-sub").textContent = total + (total === 1 ? " insumo" : " insumos");
+      const low = stockStats.low_stock_count || 0;
+      const trendElS = $("m-stock-trend");
+      if (trendElS) {
+        if (low > 0) {
+          trendElS.className = "metric-trend down";
+          trendElS.innerHTML = `↓ ${low} ${low === 1 ? "insumo" : "insumos"} bajo mínimo`;
+        } else {
+          trendElS.className = "metric-trend up";
+          trendElS.innerHTML = `↑ ${total} ${total === 1 ? "insumo" : "insumos"} · saludable`;
+        }
+      }
     }
 
-    // ── Secondary cards ──
-    const p   = unwrap(5);
-    const pr  = unwrap(6);
-    const q   = unwrap(7);
-    const b   = unwrap(8);
-    const qt  = unwrap(9);
-    const lp  = unwrap(10);
-    const st  = unwrap(11);
-    const od  = unwrap(12);
+    // ── PANEL Pedidos y reservas ──
+    renderIncomingOrders(get(6));
+    renderUpcomingReservations(get(7));
 
-    $("stat-products").textContent = (p  && typeof p.total === "number") ? p.total : 0;
-    $("stat-promos").textContent   = Array.isArray(pr) ? pr.filter(x => x.is_valid_now).length : 0;
-    $("stat-qrs").textContent      = Array.isArray(q)  ? q.length : 0;
-    $("stat-orders").textContent   = (od && typeof od.total === "number") ? od.total : 0;
+    // ── PANEL Productos ──
+    renderDashProducts(get(8));
 
-    if (b) {
-      const pending   = (b.by_status && b.by_status.pending)   || b.pending   || 0;
-      const confirmed = (b.by_status && b.by_status.confirmed) || b.confirmed || 0;
-      $("stat-bookings").textContent = pending + confirmed;
-    } else {
-      $("stat-bookings").textContent = 0;
-    }
-
-    $("stat-quotes").textContent = qt
-      ? ((qt.by_status.draft || 0) + (qt.by_status.sent || 0) + (qt.by_status.viewed || 0))
-      : 0;
-
-    $("stat-loyalty").textContent   = (lp && typeof lp.total === "number") ? lp.total : 0;
-
-    const stockLow = (st && typeof st.count === "number") ? st.count : 0;
-    $("stat-stock").textContent = stockLow;
-    // Si no hay alertas, mostramos la card en color neutral en vez de warn
-    const stockCard = $("card-stock");
-    if (stockCard) {
-      if (stockLow === 0) stockCard.classList.remove("warn");
-      else stockCard.classList.add("warn");
-    }
-
-    // Si todos los KPIs quedaron en 0 por falta de datos, dejamos un
-    // tooltip discreto para que el owner sepa que el sistema no está roto,
-    // simplemente su tenant todavía no tiene actividad.
-    const allZero = ["hero-sales-today", "hero-customers", "hero-stock-value",
-                     "stat-products","stat-promos","stat-qrs","stat-orders",
-                     "stat-bookings","stat-quotes","stat-loyalty","stat-stock"]
-      .every(id => {
-        const el = document.getElementById(id);
-        if (!el) return true;
-        // Para textos que empiezan con $, comparar el number parseado
-        const t = (el.textContent || "").trim();
-        if (t.startsWith("$")) return parseInt(t.replace(/[^\d]/g, ""), 10) === 0;
-        return Number(t) === 0;
-      });
-    if (allZero) {
-      const help = document.getElementById("public-url-help");
-      if (help) help.textContent = "Sin actividad todavía. Crea tu primer pedido o promoción para empezar a ver datos aquí.";
-    }
+    // ── PANEL Rendimiento (bar chart) ──
+    renderDashBars(series7d);
   } catch (err) {
     console.warn("Stats err", err);
   }
 
-  // 5) Cargar Daily Brief + Oportunidades (Fase 3 — oportunidades.pdf)
+  // 5) Daily Brief superior
   await loadAiBrief(tenant.tenant_id, user);
 
-  // 6) P2 #1 — Chart de ventas 7 días
-  loadSalesChart(tenant.tenant_id);
+  // 6) Oportunidades (panel lateral)
+  await loadDashOpportunities(tenant.tenant_id);
 
-  // 7) P2 #2 — Feed de actividad reciente
+  // 7) Actividad reciente
   loadActivityFeed(tenant.tenant_id);
 })();
 
 // ──────────────────────────────────────────────────────────────
-// P2 #1 — Chart SVG de ventas 7 días
+// Pedidos entrantes (panel Pedidos y reservas)
 // ──────────────────────────────────────────────────────────────
-async function loadSalesChart(tenantId) {
-  const chartEl = document.getElementById("sales-chart");
-  const axisEl = document.getElementById("sales-chart-axis");
-  const totEl = document.getElementById("sales-7d-total");
-  const ordEl = document.getElementById("sales-7d-orders");
-  const avgEl = document.getElementById("sales-7d-avg");
-  if (!chartEl) return;
-  try {
-    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/sales-7d`);
-    renderSalesChart(chartEl, axisEl, data);
-    if (totEl) totEl.textContent = fmtMoney(data.total_cents || 0);
-    if (ordEl) ordEl.textContent = (data.orders_count || 0) + " pedidos";
-    if (avgEl) avgEl.textContent = fmtMoney(data.avg_per_day_cents || 0) + "/día";
-  } catch (err) {
-    console.warn("sales-7d failed:", err);
-    chartEl.innerHTML = `<p class="text-muted text-center" style="margin: 60px 0;">No se pudo cargar la serie de ventas.</p>`;
-  }
-}
-
-function renderSalesChart(chartEl, axisEl, data) {
-  const series = (data && data.series) || [];
-  if (series.length === 0) {
-    chartEl.innerHTML = `<p class="text-muted text-center" style="margin: 60px 0;">Sin ventas en los últimos 7 días.</p>`;
+function renderIncomingOrders(data) {
+  const list = document.getElementById("incoming-list");
+  if (!list) return;
+  const items = (data && (data.items || data)) || [];
+  const arr = Array.isArray(items) ? items : [];
+  if (arr.length === 0) {
+    list.innerHTML = `<p class="text-muted text-center" style="margin: 16px 0;">No hay pedidos pendientes por ahora. ✨</p>`;
     return;
   }
-  const W = chartEl.clientWidth || 600;
-  const H = 180;
-  const padL = 36, padR = 12, padT = 14, padB = 18;
-  const innerW = W - padL - padR;
-  const innerH = H - padT - padB;
-  const maxCents = Math.max(1, ...series.map(s => s.total_cents || 0));
-  const yTicks = 4;
-  // ── Eje Y (4 líneas horizontales) ──
-  let yAxisSvg = "";
-  for (let i = 0; i <= yTicks; i++) {
-    const y = padT + (innerH / yTicks) * i;
-    const val = Math.round((maxCents * (1 - i / yTicks)) / 100);
-    yAxisSvg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border, #e8ecf3)" stroke-dasharray="2 3" />`;
-    yAxisSvg += `<text x="${padL - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--fg-muted, #73809a)">$${val.toLocaleString("es-CL")}</text>`;
-  }
-  // ── Línea + área + puntos ──
-  const stepX = innerW / Math.max(1, series.length - 1);
-  const points = series.map((s, i) => {
-    const x = padL + stepX * i;
-    const y = padT + innerH - (innerH * (s.total_cents || 0) / maxCents);
-    return { x, y, ...s };
-  });
-  // path línea
-  const linePath = points.map((p, i) => (i === 0 ? "M" : "L") + p.x + "," + p.y).join(" ");
-  // path área
-  const areaPath = `M${points[0].x},${padT + innerH} ` +
-                   points.map(p => `L${p.x},${p.y}`).join(" ") +
-                   ` L${points[points.length - 1].x},${padT + innerH} Z`;
-  // puntos
-  const dots = points.map(p => `
-    <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--ok, #16a673)" stroke="var(--bg-elev, #fff)" stroke-width="2">
-      <title>${p.date}: ${fmtMoney(p.total_cents)} · ${p.orders_count || 0} pedidos</title>
-    </circle>
-  `).join("");
-  chartEl.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block;">
-      <defs>
-        <linearGradient id="sales-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--ok, #16a673)" stop-opacity="0.30"/>
-          <stop offset="100%" stop-color="var(--ok, #16a673)" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      ${yAxisSvg}
-      <path d="${areaPath}" fill="url(#sales-grad)" />
-      <path d="${linePath}" fill="none" stroke="var(--ok, #16a673)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-      ${dots}
-    </svg>
-  `;
-  // eje X: abreviatura del día (Lun, Mar, etc.)
-  if (axisEl) {
-    const fmtDay = (iso) => {
-      const d = new Date(iso + "T00:00:00");
-      return ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d.getDay()] || "";
+  list.innerHTML = arr.slice(0, 5).map(o => {
+    const status = (o.status || "pending").toLowerCase();
+    const sMap = {
+      "pending":   { cls: "s-new",   label: "Nuevo" },
+      "in_production": { cls: "s-work",  label: "En producción" },
+      "ready":     { cls: "s-ready", label: "Listo" },
+      "delivered": { cls: "s-ready", label: "Entregado" },
+      "canceled":  { cls: "s-cancel",label: "Cancelado" },
     };
-    axisEl.innerHTML = series.map(s => `<span>${fmtDay(s.date)}</span>`).join("");
+    const sm = sMap[status] || sMap["pending"];
+    const customer = escapeHtml(o.customer_name || o.customer?.full_name || "Cliente");
+    const total = fmtMoney(o.total_cents || 0);
+    const orderId = o.short_id || o.id?.slice(0, 6) || "—";
+    return `<div class="incoming">
+      <span class="status ${sm.cls}">${sm.label}</span>
+      <div>
+        <b>Pedido #${escapeHtml(orderId)}</b>
+        <p>${customer}</p>
+      </div>
+      <strong>${total}</strong>
+    </div>`;
+  }).join("");
+}
+
+// ──────────────────────────────────────────────────────────────
+// Reservas próximas (panel Pedidos y reservas · sub-bloque)
+// ──────────────────────────────────────────────────────────────
+function renderUpcomingReservations(data) {
+  const list = document.getElementById("reservations-mini");
+  if (!list) return;
+  const arr = Array.isArray(data) ? data : [];
+  if (arr.length === 0) {
+    list.innerHTML = `<p class="text-muted text-center" style="margin: 12px 0;">Sin reservas próximas.</p>`;
+    return;
+  }
+  list.innerHTML = arr.slice(0, 4).map(b => {
+    const dt = new Date(b.scheduled_at || b.start_at || b.date);
+    const when = isNaN(dt.getTime()) ? "" : dt.toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    const customer = escapeHtml(b.customer_name || b.customer?.full_name || "Cliente");
+    const service  = escapeHtml(b.service_name || b.service || "Reserva");
+    const status   = (b.status || "pending").toLowerCase();
+    const sMap = {
+      "pending":   { cls: "s-new",   label: "Pendiente" },
+      "confirmed": { cls: "s-ready", label: "Confirmada" },
+      "completed": { cls: "s-ready", label: "Completada" },
+      "canceled":  { cls: "s-cancel",label: "Cancelada" },
+    };
+    const sm = sMap[status] || sMap["pending"];
+    return `<div class="reservation-mini">
+      <div>
+        <b>${customer} — ${service}</b>
+        <span class="res-meta">${when}</span>
+      </div>
+      <span class="status ${sm.cls}">${sm.label}</span>
+    </div>`;
+  }).join("");
+}
+
+// ──────────────────────────────────────────────────────────────
+// Top productos (panel Productos del bottom grid)
+// ──────────────────────────────────────────────────────────────
+function renderDashProducts(data) {
+  const tbody = document.getElementById("dash-products-body");
+  if (!tbody) return;
+  const items = (data && (data.items || data)) || [];
+  const arr = Array.isArray(items) ? items : [];
+  if (arr.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center" style="padding: 24px 8px;">Aún no hay productos para mostrar.</td></tr>`;
+    return;
+  }
+  // Ordenar por margen desc y tomar top 5
+  const top = arr.slice().sort((a, b) => (b.current_margin_pct || 0) - (a.current_margin_pct || 0)).slice(0, 5);
+  tbody.innerHTML = top.map(p => {
+    const margin = Math.round(p.current_margin_pct || 0);
+    const pillClass = margin >= 30 ? "green" : margin >= 15 ? "yellow" : "red";
+    const ventas = p.sold_count != null ? p.sold_count : (p.units_sold || 0);
+    return `<tr>
+      <td><span class="product-name">${escapeHtml(p.name || p.title || "Producto")}</span></td>
+      <td>${ventas} ${ventas === 1 ? "venta" : "ventas"}</td>
+      <td><span class="pill ${pillClass}">${margin}%</span></td>
+    </tr>`;
+  }).join("");
+}
+
+// ──────────────────────────────────────────────────────────────
+// Bar chart 7 días (panel Rendimiento)
+// ──────────────────────────────────────────────────────────────
+function renderDashBars(seriesData) {
+  const wrap = document.getElementById("dash-bars");
+  const labels = document.getElementById("dash-bar-labels");
+  if (!wrap) return;
+  const series = (seriesData && seriesData.series) || [];
+  if (series.length === 0) {
+    wrap.innerHTML = `<p class="text-muted text-center" style="margin: 60px 0; flex: 1; align-self: center;">Sin datos en los últimos 7 días.</p>`;
+    return;
+  }
+  // Calcular el máximo combinado para escalar las barras
+  const maxCents = Math.max(1, ...series.map(s => s.total_cents || 0));
+  const marginPct = 0.3; // 30% de margen asumido si no hay datos
+  const dayNames = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+  wrap.innerHTML = series.map((s, i) => {
+    const date = new Date((s.date || "") + "T00:00:00");
+    const salesCents = s.total_cents || 0;
+    const profitCents = Math.round(salesCents * marginPct);
+    const salesH = Math.max(2, (salesCents / maxCents) * 100);
+    const profitH = Math.max(2, (profitCents / maxCents) * 100);
+    const dayLabel = isNaN(date.getTime()) ? `D${i+1}` : dayNames[date.getDay()];
+    return `<div class="dash-bar-col" data-day="${dayLabel}" title="${dayLabel}: ${fmtMoney(salesCents)}">
+      <div class="dash-bar" style="height:${salesH}%"></div>
+      <div class="dash-bar alt" style="height:${profitH}%"></div>
+    </div>`;
+  }).join("");
+
+  if (labels) {
+    labels.innerHTML = series.map((s) => {
+      const date = new Date((s.date || "") + "T00:00:00");
+      const dayLabel = isNaN(date.getTime()) ? "—" : dayNames[date.getDay()];
+      return `<span>${dayLabel}</span>`;
+    }).join("");
   }
 }
 
 // ──────────────────────────────────────────────────────────────
-// P2 #2 — Feed de actividad reciente
+// Feed de actividad reciente (panel Actividad del bottom grid)
 // ──────────────────────────────────────────────────────────────
 async function loadActivityFeed(tenantId) {
   const list = document.getElementById("activity-feed");
   if (!list) return;
   try {
-    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=15`);
-    renderActivityFeed(list, data.events || []);
+    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=8`);
+    renderActivityFeed(list, (data && data.events) || []);
   } catch (err) {
     console.warn("activity feed failed:", err);
     list.innerHTML = `<li class="activity-empty"><p class="text-muted text-center" style="margin: 16px 0;">No se pudo cargar la actividad.</p></li>`;
   }
-
   const refresh = document.getElementById("activity-refresh");
   if (refresh) {
     refresh.addEventListener("click", async () => {
       refresh.disabled = true;
       const original = refresh.textContent;
-      refresh.textContent = "Actualizando…";
+      refresh.textContent = "↻";
       try {
-        const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=15`);
-        renderActivityFeed(list, data.events || []);
+        const data = await WH.api.get(`/api/v1/tenants/${tenantId}/analytics/activity?limit=8`);
+        renderActivityFeed(list, (data && data.events) || []);
       } catch (e) {
         WH.Toast && WH.Toast.show("No se pudo refrescar", "error");
       }
@@ -517,7 +566,7 @@ async function loadActivityFeed(tenantId) {
 function renderActivityFeed(list, events) {
   if (!events || events.length === 0) {
     list.innerHTML = `<li class="activity-empty">
-      <p class="text-muted text-center" style="margin: 16px 0;">Sin actividad reciente. Cuando haya pedidos, clientes o reservas nuevas, aparecerán aquí.</p>
+      <p class="text-muted text-center" style="margin: 16px 0;">Sin actividad reciente.</p>
     </li>`;
     return;
   }
@@ -546,25 +595,46 @@ function relTime(iso) {
   if (isNaN(d.getTime())) return "";
   const diff = Math.floor((Date.now() - d.getTime()) / 1000);
   if (diff < 60)    return "ahora";
-  if (diff < 3600)  return "hace " + Math.floor(diff / 60) + " min";
-  if (diff < 86400) return "hace " + Math.floor(diff / 3600) + " h";
-  if (diff < 604800) return "hace " + Math.floor(diff / 86400) + " d";
+  if (diff < 3600)  return "hace " + Math.floor(diff / 60) + "m";
+  if (diff < 86400) return "hace " + Math.floor(diff / 3600) + "h";
+  if (diff < 604800) return "hace " + Math.floor(diff / 86400) + "d";
   return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
 }
 
 // ──────────────────────────────────────────────────────────────
-//  AI Brief + Oportunidades (Fase 3 del plan de oportunidades.pdf)
+// AI Brief (banner superior) + Oportunidades (panel lateral)
 // ──────────────────────────────────────────────────────────────
 async function loadAiBrief(tenantId, user) {
   try {
-    const [brief, opps] = await Promise.all([
-      WH.api.get(`/api/v1/tenants/${tenantId}/opportunities/daily-brief`),
-      WH.api.get(`/api/v1/tenants/${tenantId}/opportunities?limit=9`),
-    ]);
+    const brief = await WH.api.get(`/api/v1/tenants/${tenantId}/opportunities/daily-brief`);
     renderDailyBrief(brief, user);
-    renderOpportunities(opps.opportunities || []);
   } catch (err) {
     console.warn("AI Brief no disponible todavía:", err);
+  }
+}
+
+async function loadDashOpportunities(tenantId) {
+  const cont = document.getElementById("dash-opps");
+  const sub  = document.getElementById("opps-subtitle");
+  if (!cont) return;
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${tenantId}/opportunities?limit=6`);
+    renderDashOpps(cont, (data && data.opportunities) || []);
+    const n = (data && data.opportunities) ? data.opportunities.length : 0;
+    if (sub) {
+      if (n === 0) sub.textContent = "Tu negocio se ve saludable — te avisaremos si detectamos algo.";
+      else if (n === 1) sub.textContent = "WowHub encontró 1 cosa que deberías revisar";
+      else sub.textContent = `WowHub encontró ${n} cosas que deberías revisar`;
+    }
+    // AI bar al final
+    const aiMsg = document.getElementById("dash-ai-msg");
+    if (aiMsg) {
+      if (n === 0) aiMsg.textContent = "No detectamos oportunidades críticas por ahora. ¡Buen trabajo!";
+      else if (n === 1) aiMsg.innerHTML = "Detectamos <strong>1 oportunidad</strong> que podría mejorar tu rentabilidad.";
+      else aiMsg.innerHTML = `Detectamos <strong>${n} oportunidades</strong> para que las revises cuando puedas.`;
+    }
+  } catch (err) {
+    console.warn("Oportunidades no disponibles:", err);
   }
 }
 
@@ -577,56 +647,22 @@ function renderDailyBrief(brief, user) {
   if (!brief) return;
   const stats = brief.stats || {};
   const total = brief.opportunities_total || 0;
-  // Nombre del usuario
   const nameEl = document.getElementById("brief-user-name");
   if (nameEl) {
     const firstName = (user && user.full_name) ? user.full_name.split(" ")[0] : "equipo";
     nameEl.textContent = firstName;
   }
-  // Stats
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   set("brief-sales", fmtMoney(stats.sales_today_cents));
   set("brief-orders", stats.orders_today != null ? stats.orders_today : "—");
   set("brief-margin", stats.margin_pct != null ? stats.margin_pct + "%" : "—");
   set("brief-products", stats.products_active != null ? stats.products_active : "—");
-  // Sincronizar también los hero cards si el brief trae más info
-  if (stats.sales_today_cents != null) {
-    const heroSales = document.getElementById("hero-sales-today");
-    if (heroSales && (heroSales.textContent === "$0" || !heroSales.textContent.trim())) {
-      heroSales.textContent = fmtMoney(stats.sales_today_cents);
-    }
-  }
-  if (stats.orders_today != null) {
-    const heroOrders = document.getElementById("hero-orders-today");
-    if (heroOrders) {
-      const n = stats.orders_today;
-      heroOrders.textContent = n + (n === 1 ? " pedido" : " pedidos");
-    }
-  }
-  if (stats.margin_pct != null) {
-    const heroMargin = document.getElementById("hero-margin");
-    const heroMarginSub = document.getElementById("hero-margin-sub");
-    if (heroMargin) heroMargin.textContent = Math.round(stats.margin_pct) + "%";
-    if (heroMarginSub) heroMarginSub.textContent = "Margen estimado (hoy)";
-  }
-  if (stats.products_active != null) {
-    const statProducts = document.getElementById("stat-products");
-    if (statProducts && (statProducts.textContent === "—" || statProducts.textContent === "0")) {
-      statProducts.textContent = stats.products_active;
-    }
-  }
-  // Mensaje IA
   const aiMsg = document.getElementById("brief-ai-message");
   if (aiMsg) {
-    if (total === 0) {
-      aiMsg.innerHTML = "No detectamos oportunidades críticas por ahora. ¡Buen trabajo!";
-    } else if (total === 1) {
-      aiMsg.innerHTML = "WowHub detectó <b>1 oportunidad</b> para ti hoy.";
-    } else {
-      aiMsg.innerHTML = `WowHub detectó <b>${total} oportunidades</b> para ti hoy. ¿Por dónde querés empezar?`;
-    }
+    if (total === 0) aiMsg.innerHTML = "No detectamos oportunidades críticas por ahora. ¡Buen trabajo!";
+    else if (total === 1) aiMsg.innerHTML = "WowHub detectó <b>1 oportunidad</b> para ti hoy.";
+    else aiMsg.innerHTML = `WowHub detectó <b>${total} oportunidades</b> para ti hoy. ¿Por dónde querés empezar?`;
   }
-  // Botones contextuales (los 4 del PDF)
   const actions = document.getElementById("brief-actions");
   if (actions) {
     const byCat = brief.opportunities_by_category || {};
@@ -640,39 +676,40 @@ function renderDailyBrief(brief, user) {
     }
     actions.innerHTML = btns.map(b => `<a class="btn btn-sm" href="${b.url}">${b.label}</a>`).join("");
   }
-  // Mostrar la sección
   const section = document.getElementById("ai-brief-section");
   if (section) section.style.display = "block";
 }
 
-function renderOpportunities(opps) {
-  const grid = document.getElementById("opp-grid");
-  if (!grid) return;
+function renderDashOpps(cont, opps) {
   if (!opps || opps.length === 0) {
-    grid.innerHTML = `
-      <div class="opp-card" style="grid-column: 1 / -1; text-align: center; padding: 32px; border-left-color: var(--accent);">
-        <p class="opp-card-body" style="margin: 0;">
-          Sin oportunidades críticas por ahora. Tu negocio se ve saludable —
-          te avisaremos cuando detectemos algo accionable.
-        </p>
-      </div>`;
+    cont.innerHTML = `<p class="text-muted text-center" style="margin: 20px 0;">Sin oportunidades activas. ✨</p>`;
     return;
   }
-  grid.innerHTML = opps.map(o => `
-    <article class="opp-card opp-card--${escapeHtml(o.severity)}">
-      <header class="opp-card-head">
-        <span class="opp-category" data-cat="${escapeHtml(o.category)}">${escapeHtml(o.category)}</span>
-        <span class="opp-score" data-band="${escapeHtml(o.band)}" title="OpportunityScore = Impacto × Urgencia × Confianza">
-          ${o.score}
-        </span>
-      </header>
-      <h3 class="opp-card-title">${escapeHtml(o.title)}</h3>
-      <p class="opp-card-body">${escapeHtml(o.body)}</p>
-      <footer class="opp-card-foot">
-        <a class="btn btn-sm" href="${escapeAttr(o.action_url)}">${escapeHtml(o.action_label)}</a>
-      </footer>
-    </article>
-  `).join("");
+  // Color del dot por categoría
+  const dotColor = (cat) => {
+    switch ((cat || "").toLowerCase()) {
+      case "rentabilidad": return "var(--err)";
+      case "inventario":   return "var(--warn)";
+      case "clientes":     return "var(--info)";
+      case "ventas":       return "var(--ok)";
+      default:             return "var(--accent)";
+    }
+  };
+  cont.innerHTML = opps.slice(0, 6).map(o => {
+    const color = dotColor(o.category);
+    const tag = escapeHtml(o.category || "Oportunidad");
+    const title = escapeHtml(o.title || "Revisa esta oportunidad");
+    const body = escapeHtml(o.body || "");
+    const url = escapeAttr(o.action_url || "/dashboard/ai?context=opportunities");
+    return `<a class="opp" href="${url}">
+      <span class="dot" style="background:${color};"></span>
+      <div class="opp-body">
+        <h3>${title}</h3>
+        <p>${body}</p>
+        <span class="tag">${tag}</span>
+      </div>
+    </a>`;
+  }).join("");
 }
 
 // XSS-safe minimal escape
