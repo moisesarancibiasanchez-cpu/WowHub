@@ -1,23 +1,62 @@
-"""Seguridad: hashing de passwords, JWT tokens, helpers."""
+"""Seguridad: hashing de passwords, JWT tokens, helpers.
+
+Nota: usamos ``bcrypt`` directamente (no ``passlib``) porque passlib 1.7.4
+(último release, 2020) rompió compatibilidad con bcrypt 4.x/5.x al
+referenciar ``bcrypt.__about__`` que ya no existe. La API de ``bcrypt``
+es estable y nos da control explícito del truncado a 72 bytes.
+"""
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 
 # ── Password hashing ─────────────────────────────────────────────────
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt tiene un límite de 72 bytes por password. Aplicamos el truncado
+# de forma explícita (en bytes UTF-8) tanto al hashear como al verificar,
+# para mantener consistencia con hashes preexistentes generados por
+# passlib en la misma app.
+_BCRYPT_MAX_BYTES = 72
+_BCRYPT_DEFAULT_ROUNDS = 12  # mismo coste por defecto que passlib
+
+
+def _normalize(plain: str) -> bytes:
+    """Codifica un password a bytes y trunca a 72 bytes (límite de bcrypt)."""
+    return plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    """Hashea un password en texto plano con bcrypt + sal aleatoria.
+
+    Devuelve el hash como ``str`` (decodificado del ``bytes`` que produce
+    ``bcrypt.hashpw``) para mantener el contrato previo con la base de
+    datos (columna ``password_hash`` de tipo ``String``).
+    """
+    if not plain:
+        raise ValueError("password must be a non-empty string")
+    salt = bcrypt.gensalt(rounds=_BCRYPT_DEFAULT_ROUNDS)
+    return bcrypt.hashpw(_normalize(plain), salt).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """Verifica un password contra un hash bcrypt.
+
+    Acepta tanto hashes ``$2b$`` (generados por esta función) como
+    ``$2a$`` (los que producía passlib 1.7.4 con bcrypt 3.x/4.0.x),
+    porque ``bcrypt.checkpw`` reconoce ambos prefijos.
+    """
+    if not plain or not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(_normalize(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        # Hash malformado o encoding inválido: nunca coincidirá.
+        return False
 
 
 # ── JWT ──────────────────────────────────────────────────────────────
