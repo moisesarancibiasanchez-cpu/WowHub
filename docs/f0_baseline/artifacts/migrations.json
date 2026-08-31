@@ -1,0 +1,13 @@
+{
+  "hu": "HU_03",
+  "title": "Estado Alembic + pytest",
+  "result": {
+    "alembic_dir_exists": false,
+    "alembic_upgrade": "n/a (no alembic/ en el proyecto)",
+    "pytest": "======================== 19 passed, 4 warnings in 0.35s ========================",
+    "pytest_collected": 19,
+    "database_url": "sqlite:///./wowhub.db",
+    "models_loaded": 40,
+    "elapsed_ms": 4095
+  }
+}

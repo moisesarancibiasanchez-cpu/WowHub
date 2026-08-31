@@ -68,3 +68,7 @@ tmp/
 # Node / frontend
 node_modules/
 .pnpm-store/
+
+# F0 baseline — artefactos generados (la versión canónica vive en docs/f0_baseline/artifacts/)
+reports/
+prototypes/

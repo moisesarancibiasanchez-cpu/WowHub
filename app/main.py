@@ -28,6 +28,7 @@ from app.api.v1 import (
     notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
     insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 )
+from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
 from app.config import settings
 from app.core.audit_middleware import AuditMiddleware
@@ -174,6 +175,10 @@ app.include_router(costs.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 app.include_router(insumos.router, prefix="/api/v1")
+# F0 — Baseline & Auditoría (HU_01, HU_02, HU_03)
+# Audita la coherencia entre el prototipo HTML y los modelos existentes
+# en `app.models`. NO añade modelos nuevos — solo introspección.
+app.include_router(f0_baseline_router)
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
