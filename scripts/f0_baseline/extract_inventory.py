@@ -30,30 +30,20 @@ def main(html: str | None = None) -> int:
 
     inv = WindowInventory.from_html(proto)
     result = inv.run()
-    result.pop("markdown", None)  # se regenera a continuación
-    result["markdown"] = inv.to_markdown(result.pop("rows", []) and __import__("dataclasses").asdict if False else [], result["elapsed_ms"])
 
     out_dir = ROOT / "reports" / "f0_baseline"
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "window-functions.json"
     md_path = out_dir / "window-functions.md"
 
-    # Re-generar filas + markdown de forma limpia
-    rows = inv.extract()
-    elapsed = result["elapsed_ms"]
-    md = inv.to_markdown(rows, elapsed)
+    # `inv.run()` ya produce el payload completo con `rows`, `markdown`,
+    # `total` y `elapsed_ms`. Lo escribimos tal cual al disco.
+    json_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    md_path.write_text(result["markdown"], encoding="utf-8")
 
-    payload = {
-        "html": str(proto),
-        "total": len(rows),
-        "elapsed_ms": elapsed,
-        "rows": [r.__dict__ for r in rows],
-        "markdown": md,
-    }
-    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    md_path.write_text(md, encoding="utf-8")
-
-    print(f"[OK] Inventario: {len(rows)} funciones en {elapsed} ms")
+    print(f"[OK] Inventario: {result['total']} funciones en {result['elapsed_ms']} ms")
     print(f"     → {json_path}")
     print(f"     → {md_path}")
     return 0

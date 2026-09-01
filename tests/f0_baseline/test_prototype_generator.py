@@ -47,4 +47,5 @@ def test_generator_html_has_220_functions() -> None:
     # + 1 función extra (localStorage_seed) = 221
     import re
     n = len(re.findall(r"window\.\w+\s*=\s*function", html))
-    assert n >= 220
+    expected = sum(n for _, n in MODULES) + 1
+    assert n == expected, f"Esperaba {expected} funciones, encontré {n}"

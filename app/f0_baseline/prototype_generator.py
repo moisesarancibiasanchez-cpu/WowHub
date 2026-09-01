@@ -74,7 +74,6 @@ LOCALSTORAGE_DEMO: list[tuple[str, str]] = [
     ("wowhub.aiMetricDaily", '[{"day":"2026-08-31","tokens":4321}]'),
     ("wowhub.audit", '[{"id":"a1","action":"login","user_id":"u1"}]'),
     ("wowhub.webhook", '[{"id":"w1","url":"https://hook.example"}]'),
-    ("wowhub.webhookEvent", '[{"id":"we1","type":"order.paid"}]'),
     ("wowhub.webhookDelivery", '[{"id":"wd1","status":"200"}]'),
     ("wowhub.automation", '[{"id":"au1","name":"Bienvenida","status":"ok"}]'),
     ("wowhub.upload", '[{"id":"up1","filename":"foto.jpg"}]'),

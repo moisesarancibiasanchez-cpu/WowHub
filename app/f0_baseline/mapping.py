@@ -19,8 +19,6 @@ import time
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
-from sqlalchemy import inspect
-
 from app.database import Base
 
 
@@ -76,12 +74,16 @@ KEY_TO_MODEL: dict[str, dict[str, str]] = {
     # ── Plataforma ───────────────────────────────────────
     "wowhub.audit":           {"model": "AuditLog",        "module": "platform", "kind": "array"},
     "wowhub.webhook":         {"model": "Webhook",         "module": "platform", "kind": "array"},
-    "wowhub.webhookEvent":    {"model": "WebhookEvent",    "module": "platform", "kind": "array"},
     "wowhub.webhookDelivery": {"model": "WebhookDelivery", "module": "platform", "kind": "array"},
     "wowhub.automation":      {"model": "AutomationExecution","module": "platform", "kind": "array"},
     "wowhub.upload":          {"model": "Upload",          "module": "platform", "kind": "array"},
     "wowhub.legalConsent":    {"model": "LegalConsent",    "module": "platform", "kind": "array"},
     "wowhub.onboarding":      {"model": "OnboardingState", "module": "platform", "kind": "object"},
+    # Nota: 'wowhub.webhookEvent' se eliminó del catálogo porque NO existe
+    # un modelo `WebhookEvent` en `app.models` — los eventos se almacenan
+    # como filas de `Webhook` (con su `event_type` y payload). Mantener
+    # esta entrada en KEY_TO_MODEL rompía `test_mapping_uses_existing_models`
+    # con `table='—'`. El prototipo V134.1 ya no siembra esta clave.
 }
 
 
@@ -101,15 +103,9 @@ class LocalStorageMapping:
     """Genera el reporte localStorage ↔ modelos a partir de `Base.metadata`."""
 
     def __init__(self) -> None:
-        # Importar modelos para que `Base.metadata` se llene.
-        # (No-op si ya están importados vía `app.main`.)
-        from app.models import (  # noqa: F401
-            tenant, user, branch, category, product, customer,
-            promotion, qr, landing, order, payment, webhook,
-            audit, branch_product, token, cart, invoice, booking,
-            legal, onboarding, upload, site_config, ai,
-            loyalty_pass, quote, automation, insumo,
-        )
+        # Importar el paquete de modelos para que `Base.metadata` se llene.
+        # Es un no-op si ya están importados vía `app.main`.
+        from app import models  # noqa: F401
 
     # ----------------------------------------------------------------
     # API principal
@@ -118,11 +114,12 @@ class LocalStorageMapping:
         rows: list[MappingRow] = []
         for key, meta in KEY_TO_MODEL.items():
             model_name = meta["model"]
+            # Primero probar la convención plural estándar; si falla,
+            # delegar a `_find_table` (mapper → class_registry → convención
+            # inglesa irregular: y→ies, métrics_daily, etc.).
             table_name = _snake_case(model_name) + "s"
-            try:
-                table = Base.metadata.tables[table_name]
-            except KeyError:
-                # Tabla plural estándar; algunos modelos usan nombres diferentes.
+            table = Base.metadata.tables.get(table_name)
+            if table is None:
                 table = self._find_table(model_name)
             row = self._build_row(key, meta, table)
             rows.append(row)

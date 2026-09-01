@@ -6,23 +6,20 @@ from app.f0_baseline.mapping import KEY_TO_MODEL
 
 
 def test_mapping_uses_existing_models() -> None:
-    """Ninguna referencia en KEY_TO_MODEL debe apuntar a un modelo inexistente."""
+    """TODAS las referencias en KEY_TO_MODEL deben apuntar a modelos existentes.
+
+    El catálogo curado promete 100% de cobertura, así que cualquier modelo
+    que falte en `Base.metadata` es un bug que debe romper el test (no un
+    80% "razonable" como hacía la versión previa).
+    """
     m = LocalStorageMapping()
     rows = m.build_rows()
-    # Cada fila debe tener un modelo cuyo nombre esté en la lista de modelos del proyecto.
-    # Importamos dinámicamente para evitar fallos si el modelo aún no está cargado.
     from app.database import Base
     declared_tables = {t.name for t in Base.metadata.tables.values()}
-    # Algunos modelos pueden tener nombres de tabla irregulares — los aceptamos con advertencia.
-    found = 0
-    for r in rows:
-        expected = r.table
-        if expected in declared_tables:
-            found += 1
-    # Al menos el 80% de los modelos deben existir en la metadata actual.
-    assert found >= int(len(rows) * 0.8), (
-        f"Solo {found}/{len(rows)} modelos se encontraron en Base.metadata. "
-        f"Faltantes: {[r.model for r in rows if r.table not in declared_tables]}"
+    missing = [r for r in rows if r.table not in declared_tables]
+    assert not missing, (
+        f"{len(missing)}/{len(rows)} modelos no se encontraron en Base.metadata: "
+        f"{[(r.model, r.table) for r in missing]}"
     )
 
 
@@ -57,10 +54,17 @@ def test_mapping_marks_tenant_id_correctly() -> None:
         "Quote", "AutomationExecution", "Insumo", "Receta",
         "TenantMembership",
     }
+    # Cada modelo declarado como tenant_scoped DEBE existir en el catálogo
+    # y tener tenant_id=True. Si el modelo falta del catálogo, es un bug
+    # silencioso que la versión previa se saltaba con `if name in by_model`.
     for model_name in tenant_scoped:
-        if model_name in by_model:
-            r = by_model[model_name]
-            assert r.has_tenant_id is True, f"{model_name} debería tener tenant_id"
+        assert model_name in by_model, (
+            f"Modelo tenant-scoped '{model_name}' no está en KEY_TO_MODEL"
+        )
+        r = by_model[model_name]
+        assert r.has_tenant_id is True, (
+            f"{model_name} debería tener tenant_id (columna real en la tabla)"
+        )
 
 
 def test_mapping_markdown_has_modules_section() -> None:

@@ -1,0 +1,164 @@
+name: ci
+# CI completo de WowHub.
+# Ejecuta la SUITE COMPLETA (F0 + general) en cada cambio. La suite previa
+# sólo corría los tests de F0; esta reemplaza a `ci-f0.yml` (que queda
+# archivado como legacy) y agrega los paquetes de la app principal.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancelar la corrida anterior del mismo PR/ref para no gastar minutos.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # 1) Suite completa de pytest (F0 + app general).
+  # ─────────────────────────────────────────────────────────────────
+  pytest:
+    name: pytest (suite completa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run full test suite
+        env:
+          # DB en memoria para no tocar SQLite del runner.
+          DATABASE_URL: sqlite:///:memory:
+          SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
+          JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
+          # Apagar middleware pesado (rate limit + audit) para que la suite
+          # no genere 429 spurios ni escriba logs de auditoría.
+          RATE_LIMIT_ENABLED: "false"
+          AUDIT_ENABLED: "false"
+        run: |
+          python -m pytest \
+            tests/ \
+            --tb=short \
+            --color=yes \
+            -p no:cacheprovider \
+            --maxfail=20 \
+            -q
+
+      - name: Upload coverage (si está configurado)
+        if: always()
+        run: |
+          echo "✓ Suite completa terminada — ver logs arriba para detalle"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 2) Pipeline F0 (genera artefactos de auditoría).
+  # ─────────────────────────────────────────────────────────────────
+  f0-pipeline:
+    name: F0 baseline (HU_01 + HU_02 + HU_03)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run F0 pipeline
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
+          JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
+          RATE_LIMIT_ENABLED: "false"
+          AUDIT_ENABLED: "false"
+        run: |
+          # Validar que la suite de tests de F0 pasa (rápida, sin DB).
+          python -m pytest tests/f0_baseline/ -v --tb=short -p no:cacheprovider
+          # Generar los 3 artefactos (HU_01, HU_02, HU_03) en reports/f0_baseline/.
+          python -m scripts.f0_baseline.validate_all
+
+      - name: Verify artifacts exist
+        run: |
+          test -f reports/f0_baseline/window-functions.json
+          test -f reports/f0_baseline/mapping.json
+          test -f reports/f0_baseline/migrations.json
+          echo "✓ Todos los artefactos F0 generados"
+
+      - name: Upload F0 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: f0-baseline-report
+          path: reports/f0_baseline/
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────
+  # 3) Smoke del paquete F0 vía FastAPI TestClient (sin servidor).
+  # ─────────────────────────────────────────────────────────────────
+  f0-smoke:
+    name: F0 endpoints (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Smoke-test FastAPI app + F0 router
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
+          JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
+          RATE_LIMIT_ENABLED: "false"
+          AUDIT_ENABLED: "false"
+        run: |
+          /tmp/.venv/bin/python -c "
+          from fastapi.testclient import TestClient
+          from app.main import app
+          c = TestClient(app)
+          for path in ('/f0/', '/f0/health'):
+              r = c.get(path)
+              assert r.status_code == 200, f'{path} -> {r.status_code}'
+              print(f'  {path} -> {r.status_code} ✓')
+          # /openapi.json incluye las rutas F0
+          r = c.get('/openapi.json')
+          paths = r.json()['paths'].keys()
+          for p in ('/f0/hu01', '/f0/hu02', '/f0/hu03'):
+              assert p in paths, f'{p} no está en OpenAPI'
+          print('✓ /f0/hu01, /f0/hu02, /f0/hu03 registrados en OpenAPI')
+          "

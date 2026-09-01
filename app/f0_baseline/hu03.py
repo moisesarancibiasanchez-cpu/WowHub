@@ -14,9 +14,10 @@ Devuelve un dict con estado de cada check.
 from __future__ import annotations
 
 import os
-import shutil
+import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -64,17 +65,17 @@ def _run(cmd: list[str], cwd: Path, timeout: int = 60) -> tuple[int, str, str]:
 
 def build_report() -> dict[str, Any]:
     """Ejecuta los checks de HU_03 y devuelve un dict serializable."""
-    import time
     t0 = time.perf_counter()
     root = _project_root()
     alembic_dir = root / "alembic"
     alembic_ini = root / "alembic.ini"
     has_alembic = alembic_dir.exists() and alembic_ini.exists()
 
-    # 1) Alembic
+    # 1) Alembic — si existe la carpeta, corremos `upgrade head` (no `current`)
+    # para validar que la cadena de migraciones aplica limpia desde cero.
     if has_alembic:
         rc, out, err = _run(
-            ["alembic", "current"], cwd=root, timeout=30
+            ["alembic", "upgrade", "head"], cwd=root, timeout=30
         )
         alembic_status = "ok" if rc == 0 else f"error: {(err or out).strip()[:120]}"
     else:
@@ -83,13 +84,7 @@ def build_report() -> dict[str, Any]:
     # 2) Modelos cargan
     try:
         from app.database import Base  # noqa: F401
-        from app.models import (  # noqa: F401
-            tenant, user, branch, category, product, customer,
-            promotion, qr, landing, order, payment, webhook,
-            audit, branch_product, token, cart, invoice, booking,
-            legal, onboarding, upload, site_config, ai,
-            loyalty_pass, quote, automation, insumo,
-        )
+        from app import models  # noqa: F401
         n_models = len(Base.metadata.tables)
     except Exception as e:  # pragma: no cover
         n_models = 0
@@ -97,7 +92,7 @@ def build_report() -> dict[str, Any]:
 
     # 3) Pytest collect
     # Por defecto solo recolectamos los tests de F0 (rápido).
-    # Para validar todo el suite, exportar F0_PYTEST_TARGET=tests/
+    # Para validar todo el suite, exportar F0_PYTEST_TARGET=tests/.
     pytest_target = os.environ.get("F0_PYTEST_TARGET", "tests/f0_baseline/")
     rc, out, err = _run(
         [sys.executable, "-m", "pytest", pytest_target, "--collect-only", "-q"],
@@ -105,20 +100,23 @@ def build_report() -> dict[str, Any]:
     )
     pytest_collected = 0
     if rc == 0:
-        import re as _re
         # Buscar la línea resumen "N tests collected" (puede estar envuelta
         # en separadores "===" o venir sola al final de la salida).
         for line in out.splitlines():
-            m = _re.search(r"(\d+)\s+tests?\s+collected", line)
+            m = re.search(r"(\d+)\s+tests?\s+collected", line)
             if m:
                 pytest_collected = int(m.group(1))
                 break
 
     # 4) Pytest run (resumido) — solo si la collect fue ok.
-    # Por defecto solo corre los tests de F0 (rápido). Para correr todo,
-    # exportar F0_PYTEST_TARGET=tests/ y F0_PYTEST_RUN=full.
-    pytest_run_target = os.environ.get("F0_PYTEST_RUN", pytest_target)
-    if rc == 0 and pytest_collected > 0:
+    # Por defecto corre el mismo target que la collect (rápido). Para correr
+    # otro target, exportar F0_PYTEST_RUN_TARGET (target alternativo) o
+    # F0_PYTEST_SKIP_RUN=1 para saltarse la corrida y solo reportar collect.
+    skip_run = os.environ.get("F0_PYTEST_SKIP_RUN", "").lower() in ("1", "true", "yes")
+    if skip_run:
+        pytest_status = "skipped (F0_PYTEST_SKIP_RUN=1)"
+    elif rc == 0 and pytest_collected > 0:
+        pytest_run_target = os.environ.get("F0_PYTEST_RUN_TARGET", pytest_target)
         rc2, out2, err2 = _run(
             [sys.executable, "-m", "pytest", pytest_run_target, "-q", "--tb=line"],
             cwd=root, timeout=120,
@@ -138,13 +136,20 @@ def build_report() -> dict[str, Any]:
     else:
         pytest_status = f"collect-fail rc={rc}"
 
+    # Resolver database_url desde settings (respeta env vars y .env).
+    try:
+        from app.config import settings
+        database_url = settings.database_url
+    except Exception:  # pragma: no cover — settings no disponibles
+        database_url = os.environ.get("DATABASE_URL", "sqlite:///./wowhub.db")
+
     elapsed = int((time.perf_counter() - t0) * 1000)
     report = Hu03Report(
         alembic_dir_exists=has_alembic,
         alembic_upgrade=alembic_status,
         pytest=pytest_status,
         pytest_collected=pytest_collected,
-        database_url=os.environ.get("DATABASE_URL", "sqlite:///./wowhub.db"),
+        database_url=database_url,
         models_loaded=n_models,
         elapsed_ms=elapsed,
     )

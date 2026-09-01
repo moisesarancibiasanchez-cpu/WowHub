@@ -14,11 +14,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.f0_baseline import __version__, __phase__, __story_points__, __hu_covered__
-from app.f0_baseline.hu03 import build_report as build_hu03_report, to_markdown as hu03_md
 
 router = APIRouter(
     prefix="/f0",
@@ -28,7 +27,6 @@ router = APIRouter(
 
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "reports" / "f0_baseline"
-PROTOTYPES_DIR = Path(__file__).resolve().parent.parent.parent / "prototypes" / "f0_baseline"
 
 
 def _read_json(name: str) -> dict[str, Any]:
@@ -122,28 +120,31 @@ async def hu02_mapping() -> JSONResponse:
 
 
 @router.get("/hu03", response_model=dict)
-async def hu03_migrations() -> JSONResponse:
+async def hu03_migrations(live: bool = Query(False, description="Si True, corre pytest + alembic en vivo en lugar de leer el cache.")) -> JSONResponse:
     """HU_03 — Estado de Alembic + última corrida de pytest.
 
-    Devuelve el reporte cacheado generado por
-    `python -m scripts.f0_baseline.validate_all`.
-    Para forzar una corrida en vivo, exponer
-    `?live=1` (sólo recomendado fuera de tests).
+    Por defecto devuelve el reporte cacheado generado por
+    `python -m scripts.f0_baseline.validate_all`. Si el cache no existe
+    o si se pasa ``?live=1``, corre los checks en vivo (sólo recomendado
+    fuera de tests porque puede tardar 30-120 s).
     """
-    from fastapi import Request
-    from starlette.requests import Request as StarletteRequest  # noqa: F401
-    from app.f0_baseline.hu03 import build_report as _build  # noqa: F401
-    # Por defecto leemos el cache; en vivo solo si se pide explícitamente.
-    try:
-        data = _read_json("migrations.json")
-        report = data.get("result", data)
-    except HTTPException:
-        report = {"note": "Ejecuta `python -m scripts.f0_baseline.validate_all` para generar el reporte."}
+    if live:
+        from app.f0_baseline.hu03 import build_report as _build
+        try:
+            report = _build()
+        except Exception as e:  # pragma: no cover — defensivo
+            report = {"error": f"live build failed: {e}"}
+    else:
+        try:
+            data = _read_json("migrations.json")
+            report = data.get("result", data)
+        except HTTPException:
+            report = {"note": "Ejecuta `python -m scripts.f0_baseline.validate_all` para generar el reporte."}
     return JSONResponse(content={
         "hu": "HU_03",
         "title": "Configurar Alembic como sistema de migraciones",
         "story_points": 2,
         "priority": "Must",
         "result": report,
-        "tests": "/tests/db/test_migrations.py" if (Path(__file__).resolve().parent.parent.parent / "tests" / "db" / "test_migrations.py").exists() else "/tests/",
+        "tests": "/tests/",
     })
