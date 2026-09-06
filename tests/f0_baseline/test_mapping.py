@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from app.f0_baseline import LocalStorageMapping
 from app.f0_baseline.mapping import KEY_TO_MODEL
+from app.f0_baseline.router import INTERNAL_MODELS_ALLOWLIST, _catalog_diff
 
 
 def test_mapping_uses_existing_models() -> None:
@@ -86,3 +87,66 @@ def test_mapping_run_returns_serializable_dict() -> None:
     assert "stats" in report
     assert "mapping" in report
     assert "markdown" in report
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Detección de modelos huérfanos (no catalogados).
+# Cierra el punto débil §3.7 del análisis de Fase 1.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_no_orphan_models_in_metadata() -> None:
+    """Detecta modelos en ``app.models`` que no están en ``KEY_TO_MODEL``.
+
+    Si un dev añade un modelo nuevo a ``app/models/`` y olvida crear
+    su entrada en ``KEY_TO_MODEL``, este test falla con la lista de
+    huérfanos. La allowlist ``INTERNAL_MODELS_ALLOWLIST`` exime a los
+    modelos "internos" (Tenant, User, AuthToken, etc.) que no se siembran
+    en localStorage.
+
+    Si añades un modelo de UI que SÍ debe estar en localStorage pero
+    no quieres romper este test, **debes** añadir su entrada en
+    ``KEY_TO_MODEL`` (no en la allowlist).
+    """
+    diff = _catalog_diff()
+    assert diff["orphan_models"] == [], (
+        f"Modelos en app.models sin entrada en KEY_TO_MODEL: "
+        f"{diff['orphan_models']}. Añádelos a KEY_TO_MODEL o a "
+        f"INTERNAL_MODELS_ALLOWLIST (solo si NO se siembran en localStorage)."
+    )
+
+
+def test_no_catalog_only_entries() -> None:
+    """Detecta entradas del catálogo sin modelo físico en metadata.
+
+    Si ``KEY_TO_MODEL`` referencia un modelo que no existe en
+    ``Base.metadata``, este test falla. Sería un bug grave: el
+    endpoint /f0/hu02 mentiría sobre la cobertura.
+    """
+    diff = _catalog_diff()
+    assert diff["catalog_only"] == [], (
+        f"Entradas en KEY_TO_MODEL sin modelo en Base.metadata: "
+        f"{diff['catalog_only']}. Borra la entrada o crea el modelo."
+    )
+
+
+def test_allowlist_is_a_frozenset() -> None:
+    """La allowlist debe ser inmutable para que no se modifique por accidente."""
+    assert isinstance(INTERNAL_MODELS_ALLOWLIST, frozenset), (
+        "INTERNAL_MODELS_ALLOWLIST debe ser frozenset, no set/list"
+    )
+    # Debe tener al menos Tenant y User (modelos raíz de SaaS).
+    assert "Tenant" in INTERNAL_MODELS_ALLOWLIST
+    assert "User" in INTERNAL_MODELS_ALLOWLIST
+
+
+def test_catalog_diff_includes_table_map() -> None:
+    """El diff debe incluir el mapeo modelo→tabla para auditoría."""
+    diff = _catalog_diff()
+    assert "metadata_table_map" in diff
+    assert isinstance(diff["metadata_table_map"], dict)
+    # Cada modelo del catálogo que tenga tabla física debe aparecer.
+    for model_name, table_name in diff["metadata_table_map"].items():
+        assert model_name in {meta["model"] for meta in KEY_TO_MODEL.values()}
+        assert isinstance(table_name, str)
+        assert table_name  # no vacío

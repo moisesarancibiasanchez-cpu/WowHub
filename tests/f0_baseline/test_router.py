@@ -162,3 +162,121 @@ def test_router_hu03_live_runs_subprocess(client: TestClient, monkeypatch) -> No
     assert body["result"]["pytest"] == "mocked"
     assert "alembic_dir_exists" in body["result"]
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Tests para los endpoints nuevos del paquete F0+ (catálogo, métricas,
+# circuit breaker). Cierran los puntos débiles §3.7, §3.9 y la
+# recomendación #9 del análisis de Fase 1.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_router_metrics_returns_payload(client: TestClient) -> None:
+    """``/f0/metrics`` devuelve counts, ratios, flags y metadata del paquete."""
+    r = client.get("/f0/metrics")
+    assert r.status_code == 200
+    body = r.json()
+    assert "counts" in body
+    assert "ratios" in body
+    assert "flags" in body
+    assert "package" in body
+    # Conteos claves
+    counts = body["counts"]
+    assert counts["models_in_metadata"] >= 1
+    assert counts["models_in_catalog"] >= 1
+    assert counts["keys_localstorage"] == counts["models_in_catalog"]
+    # El paquete debe estar bien identificado
+    assert body["package"]["name"] == "app.f0_baseline"
+    assert body["package"]["phase"] == "F0"
+    assert body["package"]["story_points"] == 8
+
+
+def test_router_metrics_handles_missing_cache(
+    client: TestClient, monkeypatch, tmp_path: Path
+) -> None:
+    """``/f0/metrics`` debe funcionar aunque no haya cache de F0."""
+    import app.f0_baseline.router as router_mod
+    # Apuntar REPORTS_DIR a un directorio vacío (sin migrations.json ni window-functions.json)
+    empty_dir = tmp_path / "empty_reports"
+    empty_dir.mkdir()
+    monkeypatch.setattr(router_mod, "REPORTS_DIR", empty_dir)
+    r = client.get("/f0/metrics")
+    assert r.status_code == 200
+    body = r.json()
+    # Sin cache, los counts de tests y funciones deben ser 0 (no explotar).
+    assert body["counts"]["tests_collected"] == 0
+    assert body["counts"]["window_functions"] == 0
+
+
+def test_router_catalog_returns_diff(client: TestClient) -> None:
+    """``/f0/catalog`` devuelve el diff KEY_TO_MODEL ↔ Base.metadata."""
+    r = client.get("/f0/catalog")
+    assert r.status_code == 200
+    body = r.json()
+    # Estructura del diff
+    assert "in_catalog_count" in body
+    assert "in_metadata_count" in body
+    assert "orphan_models" in body
+    assert "catalog_only" in body
+    assert "metadata_table_map" in body
+    # Conteos consistentes
+    assert body["in_catalog_count"] >= 1
+    assert body["in_metadata_count"] >= 1
+    # Las listas deben ser listas de strings
+    assert isinstance(body["orphan_models"], list)
+    assert isinstance(body["catalog_only"], list)
+
+
+def test_router_hu03_live_returns_503_on_timeout(
+    client: TestClient, monkeypatch
+) -> None:
+    """El circuit breaker de ``?live=true`` debe devolver 503 si excede el timeout.
+
+    Mockeamos ``build_report`` con un sleep > F0_HU03_LIVE_TIMEOUT para forzar
+    el path de timeout. Sin el circuit breaker, el test colgaría hasta que
+    pytest termine (o pytest muera con el timeout interno de 120 s).
+    """
+    import time as _time
+    from app.f0_baseline import hu03
+
+    def slow_build() -> dict:
+        _time.sleep(5)  # > F0_HU03_LIVE_TIMEOUT=1
+        return {"pytest": "too-late", "models_loaded": 0}
+
+    monkeypatch.setattr(hu03, "build_report", slow_build)
+    monkeypatch.setenv("F0_HU03_LIVE_TIMEOUT", "1")
+
+    r = client.get("/f0/hu03?live=true")
+    assert r.status_code == 503, (
+        f"Esperaba 503 (circuit breaker), recibí {r.status_code}: {r.text}"
+    )
+    body = r.json()
+    assert body["error"] == "live_timeout"
+    assert body["timeout_s"] == 1
+    assert "Aumenta F0_HU03_LIVE_TIMEOUT" in body["detail"]
+
+
+def test_router_hu03_live_respects_custom_timeout(
+    client: TestClient, monkeypatch
+) -> None:
+    """El timeout de ``?live=true`` debe respetar la env var F0_HU03_LIVE_TIMEOUT."""
+    from app.f0_baseline import hu03
+
+    fast_result = {"alembic_dir_exists": False, "pytest": "fast", "models_loaded": 0}
+    monkeypatch.setattr(hu03, "build_report", lambda: fast_result)
+    # Forzar un timeout custom que el mock pueda satisfacer
+    monkeypatch.setenv("F0_HU03_LIVE_TIMEOUT", "10")
+    r = client.get("/f0/hu03?live=true")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["result"]["pytest"] == "fast"
+
+
+def test_router_index_lists_new_endpoints(client: TestClient) -> None:
+    """El índice ``/f0/`` debe listar los nuevos endpoints."""
+    r = client.get("/f0/")
+    assert r.status_code == 200
+    body = r.json()
+    endpoints = body["endpoints"]
+    assert "GET /f0/metrics" in endpoints
+    assert "GET /f0/catalog" in endpoints
+
