@@ -2,8 +2,20 @@
 HU_01 — Inventario de funciones `window.*` del prototipo V134.1.
 
 Analiza un archivo HTML del prototipo y extrae todas las asignaciones
-`window.NOMBRE = function() { ... }`, agrupándolas por módulo según los
-comentarios `// MÓDULO:`.
+`window.NOMBRE = ...`, agrupándolas por módulo según los comentarios
+`// MÓDULO:`.
+
+F1.2 (≈ HU_05): el parser regex original fue reemplazado por un parser
+basado en tokens (ver ``app.f0_baseline.js_parser``). Esto resuelve:
+
+  - Falsos positivos por strings que contienen ``"window.X = ..."``.
+  - Falsos positivos por comentarios ``/* window.X = ... */``.
+  - Cuerpos de función con braces anidados (el regex truncaba el match).
+  - Arrow functions (``window.X = () => {...}``) ahora se detectan
+    (como kind='arrow', sin descripción JSDoc por convención).
+
+El módulo ("DASHBOARD", "LOCALSTORAGE", ...) sigue computándose acá en
+base a los headers ``// MÓDULO: X`` (regex simple, no necesita AST).
 
 Uso programático:
     from app.f0_baseline.inventory import WindowInventory
@@ -22,6 +34,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
+from app.f0_baseline.js_parser import parse_window_functions
+
 
 # Patrones
 # Acepta tanto el header en una línea:
@@ -32,12 +46,9 @@ RE_MODULE_HEADER = re.compile(
     r"//\s*(?:=+\s*)?//?\s*MÓDULO:\s*(\w+)\s*\([^)]*\)",
     re.MULTILINE,
 )
-RE_WINDOW_FN = re.compile(
-    r"window\.(?P<name>[A-Za-z_]\w*)\s*=\s*function\s*\([^)]*\)\s*\{\s*"
-    r"/\*\s*(?P<desc>[^*]+?)\s*\*/\s*\};",
-    re.MULTILINE,
-)
-RE_ANY_FN = re.compile(r"window\.(?P<name>[A-Za-z_]\w*)\s*=\s*function")
+# F1.2: RE_WINDOW_FN y RE_ANY_FN eliminados — reemplazados por
+# ``app.f0_baseline.js_parser.parse_window_functions`` (AST-lite basado
+# en tokens). Mantener acá solo el header de módulo.
 
 
 @dataclass
@@ -85,33 +96,39 @@ class WindowInventory:
             self._module_ranges[name] = (start, end)
 
     def extract(self) -> list[FunctionRow]:
-        """Devuelve la lista de funciones detectadas."""
+        """Devuelve la lista de funciones detectadas usando el parser AST-lite.
+
+        F1.2: ya no usa regex para encontrar ``window.X = ...``. El parser
+        (js_parser.parse_window_functions) clasifica cada match como:
+          - 'function' (con JSDoc)        → row con description
+          - 'function' (sin JSDoc)        → row con '(sin descripción)'
+          - 'arrow' / 'method' / 'other'  → row con '(sin descripción) [kind]'
+        """
         rows: list[FunctionRow] = []
-        seen: set[str] = set()
+        seen: set[tuple[str, int]] = set()
 
-        for m in RE_WINDOW_FN.finditer(self.text):
-            name = m.group("name").strip()
-            desc = m.group("desc").strip()
-            line_no = self.text[: m.start()].count("\n") + 1
-            module = self._module_for_line(line_no)
-            rows.append(FunctionRow(
-                n=len(rows) + 1, name=name, module=module,
-                line=line_no, description=desc,
-            ))
-            seen.add(name)
-
-        # Detección de funciones huérfanas (sin /* */)
-        for m in RE_ANY_FN.finditer(self.text):
-            name = m.group("name")
-            if name in seen:
+        for fn in parse_window_functions(self.text):
+            module = self._module_for_line(fn.line)
+            # Dedupe por (name, line): el parser ya no debería emitir dupes
+            # pero defendemos contra HTML que repite el mismo bloque.
+            key = (fn.name, fn.line)
+            if key in seen:
                 continue
-            line_no = self.text[: m.start()].count("\n") + 1
-            module = self._module_for_line(line_no)
+            seen.add(key)
+
+            if fn.description:
+                description = fn.description
+            else:
+                kind_tag = f" [{fn.kind}]" if fn.kind != "function" else ""
+                description = f"(sin descripción){kind_tag}"
+
             rows.append(FunctionRow(
-                n=len(rows) + 1, name=name, module=module,
-                line=line_no, description="(sin descripción)",
+                n=len(rows) + 1,
+                name=fn.name,
+                module=module,
+                line=fn.line,
+                description=description,
             ))
-            seen.add(name)
 
         return rows
 

@@ -21,6 +21,16 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.f0_baseline import __version__, __phase__, __story_points__, __hu_covered__
+from app.f0_baseline.schemas import (
+    CatalogDiffResponse,
+    HealthResponse,
+    Hu01Response,
+    Hu02Response,
+    Hu03Response,
+    Hu03TimeoutResponse,
+    IndexResponse,
+    MetricsResponse,
+)
 
 router = APIRouter(
     prefix="/f0",
@@ -193,7 +203,7 @@ def _metrics_payload() -> dict[str, Any]:
     }
 
 
-@router.get("/", response_model=dict)
+@router.get("/", response_model=IndexResponse)
 async def index() -> dict[str, Any]:
     """Índice del paquete F0."""
     return {
@@ -214,7 +224,7 @@ async def index() -> dict[str, Any]:
     }
 
 
-@router.get("/health", response_model=dict)
+@router.get("/health", response_model=HealthResponse)
 async def health() -> dict[str, Any]:
     """Healthcheck del paquete F0."""
     return {
@@ -225,7 +235,7 @@ async def health() -> dict[str, Any]:
     }
 
 
-@router.get("/metrics", response_model=dict)
+@router.get("/metrics", response_model=MetricsResponse)
 async def metrics() -> dict[str, Any]:
     """Métricas del paquete F0 (estilo Prometheus en JSON).
 
@@ -234,7 +244,7 @@ async def metrics() -> dict[str, Any]:
     return _metrics_payload()
 
 
-@router.get("/catalog", response_model=dict)
+@router.get("/catalog", response_model=CatalogDiffResponse)
 async def catalog_diff() -> dict[str, Any]:
     """Diff entre ``KEY_TO_MODEL`` y ``Base.metadata``.
 
@@ -247,7 +257,7 @@ async def catalog_diff() -> dict[str, Any]:
     return _catalog_diff()
 
 
-@router.get("/hu01", response_model=dict)
+@router.get("/hu01", response_model=Hu01Response)
 async def hu01_inventory() -> JSONResponse:
     """HU_01 — Devuelve el inventario de funciones `window.*` del prototipo."""
     data = _read_json("window-functions.json")
@@ -269,7 +279,7 @@ async def hu01_inventory() -> JSONResponse:
     })
 
 
-@router.get("/hu02", response_model=dict)
+@router.get("/hu02", response_model=Hu02Response)
 async def hu02_mapping() -> JSONResponse:
     """HU_02 — Devuelve el mapeo localStorage ↔ modelos SQLAlchemy."""
     data = _read_json("mapping.json")
@@ -294,7 +304,17 @@ async def hu02_mapping() -> JSONResponse:
     })
 
 
-@router.get("/hu03", response_model=dict)
+@router.get(
+    "/hu03",
+    response_model=Hu03Response,
+    responses={
+        503: {
+            "model": Hu03TimeoutResponse,
+            "description": "Circuit breaker: el build en vivo excedió F0_HU03_LIVE_TIMEOUT",
+        },
+        404: {"description": "Reporte no generado aún"},
+    },
+)
 async def hu03_migrations(
     live: bool = Query(
         False,

@@ -91,10 +91,17 @@ def test_router_index(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["package"] == "app.f0_baseline"
+    # F0 (baseline)
     assert "HU_01" in body["hu_covered"]
     assert "HU_02" in body["hu_covered"]
     assert "HU_03" in body["hu_covered"]
-    assert body["story_points"] == 8
+    # F1 (hardening)
+    assert "HU_04" in body["hu_covered"]  # F1.1 Pydantic
+    assert "HU_05" in body["hu_covered"]  # F1.2 AST parser
+    assert "HU_06" in body["hu_covered"]  # F1.3 Alembic
+    # Total: 8 (F0) + 8 (F1) = 16
+    assert body["story_points"] == 16
+    assert body["phase"] == "F1"
 
 
 def test_router_health(client: TestClient) -> None:
@@ -186,8 +193,9 @@ def test_router_metrics_returns_payload(client: TestClient) -> None:
     assert counts["keys_localstorage"] == counts["models_in_catalog"]
     # El paquete debe estar bien identificado
     assert body["package"]["name"] == "app.f0_baseline"
-    assert body["package"]["phase"] == "F0"
-    assert body["package"]["story_points"] == 8
+    assert body["package"]["phase"] == "F1"
+    # 8 (F0: HU_01+02+03) + 8 (F1: HU_04+05+06) = 16
+    assert body["package"]["story_points"] == 16
 
 
 def test_router_metrics_handles_missing_cache(

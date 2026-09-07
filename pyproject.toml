@@ -57,6 +57,7 @@ testpaths = ["tests"]
 addopts = "-v --tb=short"
 markers = [
     "e2e: tests E2E con Playwright (requieren --base-url y un servidor vivo)",
+    "slow: tests lentos (subprocess a alembic/pytest). Omitir con `-m 'not slow'`",
 ]
 # Configuración de pytest-playwright
 # Para correr E2E:

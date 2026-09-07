@@ -1,8 +1,8 @@
 # WowHub — Prototipo Python
 
-Plataforma SaaS modular para PyMEs en LATAM. **v0.4.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks, **Cotizaciones**, **Pipeline Kanban**, **Inventario**, **Costos V8 (Fase 2)**, **Notificaciones (Fase 4)**.
+Plataforma SaaS modular para PyMEs en LATAM. **v0.5.0**: Página, Catálogo, QR, Promociones, Pedidos, Pagos, Reservas, Loyalty, AI Assistant, Uploads, Audit, Webhooks, **Cotizaciones**, **Pipeline Kanban**, **Inventario**, **Costos V8 (Fase 2)**, **Notificaciones (Fase 4)**, **F0 Baseline (auditoría)**, **F1 Hardening (OpenAPI estricto + AST parser + Alembic)**.
 
-Construido con **FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Jinja2 + JS vanilla**.
+Construido con **FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Alembic + Jinja2 + JS vanilla**.
 
 ## ⚡ Quick start
 
@@ -225,6 +225,56 @@ wowhub-app/
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+## 🔍 F0 Baseline + F1 Hardening (paquete `app/f0_baseline/`)
+
+Paquete dedicado a auditar la coherencia entre el prototipo HTML V134.1 y los 30+ modelos SQLAlchemy del proyecto. Empezó como F0 (3 HU, 8 SP) y se endureció en F1 (3 HU más, 8 SP).
+
+### F0 — Baseline & auditoría (8 SP, 30 tests)
+- **HU_01 (3 SP)**: Inventariar funciones `window.*` del prototipo V134.1 — `WindowInventory`.
+- **HU_02 (3 SP)**: Mapear localStorage keys a modelos SQLAlchemy existentes — `LocalStorageMapping`.
+- **HU_03 (2 SP)**: Validar Alembic + tests del proyecto — `hu03.build_report` con circuit breaker.
+
+### F1 — Hardening del baseline (8 SP, 58 tests nuevos)
+- **F1.1 / HU_04 (3 SP)**: Pydantic v2 estricto en `/f0/*` (12 schemas, `response_model` + 404/503 documentados en OpenAPI).
+- **F1.2 / HU_05 (3 SP)**: AST-lite parser para `window.*` (`app/f0_baseline/js_parser.py`) que reemplaza el regex frágil — sin falsos positivos por strings/comentarios, soporta arrow functions y braces anidados.
+- **F1.3 / HU_06 (2 SP)**: Alembic inicializado + migración autogenerada desde `Base`. `env.py` lee `DATABASE_URL` de env (no hardcoded). Captura los 30+ modelos en `alembic/versions/2026_09_07_1002-f2efb29e03b1_initial_schema.py` (1201 líneas).
+
+**Suite total**: 88 tests (30 F0 + 18 F1.1 + 23 F1.2 + 17 F1.3) pasando en ~0.6 s (sin slow) / ~3.7 s (con slow). 2 tests marcados `@pytest.mark.slow` se omiten en el flujo default de CI.
+
+### Endpoints `/f0/*`
+
+```http
+GET    /f0/              # índice del paquete (IndexResponse)
+GET    /f0/health        # health check (HealthResponse: status=Literal["ok"])
+GET    /f0/metrics       # counts + ratios + flags (MetricsResponse)
+GET    /f0/catalog       # diff models vs catálogo (CatalogDiffResponse)
+GET    /f0/hu01          # inventario de window.* (Hu01Response)
+GET    /f0/hu02          # mapeo localStorage (Hu02Response)
+GET    /f0/hu03          # Alembic + tests (Hu03Response; 503 si live timeout)
+GET    /f0/hu03?live=true  # fuerza corrida en vivo (con circuit breaker)
+```
+
+Todos los endpoints declaran `response_model` y los modelos 404/503 están en la spec OpenAPI.
+
+### Migraciones Alembic
+
+```bash
+# Generar nueva migración (autogenerada desde Base)
+export DATABASE_URL=sqlite:///./wowhub.db
+alembic revision --autogenerate -m "mi_cambio"
+
+# Aplicar / rollback
+alembic upgrade head
+alembic downgrade -1
+
+# Ver historial
+alembic history --verbose
+```
+
+La URL de la DB nunca está hardcoded: `env.py` la lee de `DATABASE_URL` (env) o, en su defecto, de `app.config.settings.database_url`.
+
+Documentación detallada en [`docs/f1/F1_REPORT.md`](docs/f1/F1_REPORT.md) y [`docs/f0_baseline/ANALISIS.md`](docs/f0_baseline/ANALISIS.md).
 
 ## 🤖 AI Assistant (v0.2.0)
 
@@ -461,22 +511,36 @@ Suite cubre: autenticación, multi-tenancy, productos, promociones, QR, endpoint
 - [x] Modal refactor (JS, `WH.Modal` + `WH.Confirm`)
 - [x] Análisis integral + bug fixes de deprecations (Pydantic v2, Starlette ≥0.40, Python 3.12, pytest 8)
 
-### ✅ v0.4.0 — Notifications (Fase 4) **← estamos acá**
+### ✅ v0.4.0 — Notifications (Fase 4)
 - [x] **`NotificationsEngine`** (`app/services/notifications.py`) con 9 reglas (N1-N9)
 - [x] `THRESHOLDS` configurables (single source of truth)
 - [x] IDs estables (SHA1) para caching en front
 - [x] 27 tests (`tests/test_notifications.py`)
 - [x] Diccionario V8 (`docs/V8_DICTIONARY.md`) — mapa completo pantalla × entidad × endpoint × seed
 
-### 🔜 v0.5.0 — Fase 6 UI (próximo)
+### ✅ v0.5.0 — F0 Baseline + F1 Hardening **← estamos acá**
+- [x] **F0 (paquete `app/f0_baseline/`)**: 3 HU, 8 SP, 30 tests — inventario de `window.*`, mapeo localStorage, validación Alembic+pytest.
+- [x] **F1.1 (HU_04)**: 12 schemas Pydantic v2 estrictos, `response_model` + 404/503 en OpenAPI, 18 tests.
+- [x] **F1.2 (HU_05)**: AST-lite parser para `window.*` (505 líneas, lexer + brace counter), elimina falsos positivos del regex, 23 tests.
+- [x] **F1.3 (HU_06)**: Alembic inicializado, `env.py` con `DATABASE_URL` env-aware, migración inicial autogenerada (1201 líneas, 30+ modelos), 17 tests.
+- [x] **88 tests F0+F1** pasando (2 marcados `@pytest.mark.slow` para CI rápido).
+- [x] Reporte completo en [`docs/f1/F1_REPORT.md`](docs/f1/F1_REPORT.md).
+
+### 🔜 v0.6.0 — F2: Alembic en producción + CI multi-DB
+- [ ] Reemplazar `Base.metadata.create_all()` por `alembic upgrade head` en `app/main.py` (HU_07)
+- [ ] Check "Alembic head vs DB" en startup que falle ruidosamente si hay drift
+- [ ] CI matrix: SQLite (rápido) + PostgreSQL 16 (nightly, valida tipos `UUID`/`JSONB`)
+- [ ] Limpiar 2 warnings de Pydantic (`copy` shadow en `ImagePromptRequest`, `json` shadow en `ReportLink`)
+
+### 🔜 v0.7.0 — Fase 6 UI
 - [ ] Bell badge en `base.html` (consume `NotificationsEngine.summary()`)
 - [ ] Dropdown de notificaciones en el header (consume `detect_all(limit=20)`)
 - [ ] Página `/dashboard/notifications` con filtros por categoría/severidad
 - [ ] Marcar como leída / dismiss (nuevo modelo `NotificationDismiss` opcional)
 - [ ] Web Push API para notificaciones críticas (browser-level)
 
-### 🔜 v0.6.0 — Post-MVP
-- [x] Migrar a Alembic (carpeta `alembic/` ya existe)
+### 🔜 v0.8.0 — Post-MVP
+- [x] Migrar a Alembic (carpeta `alembic/` ya existe — F1.3)
 - [ ] PostgreSQL + Row-Level Security policies
 - [ ] 2FA TOTP para owners
 - [ ] Storage S3/R2 para imágenes (placeholder ya en `UploadService`)
@@ -496,6 +560,10 @@ La documentación para clientes, equipo y reportes de avance vive en la carpeta
   Mapa de toda la app: para cada URL del dashboard, qué template, qué entidad ORM, qué
   endpoint API, qué regla de `NotificationsEngine` la alimenta, y qué dato de seed la puebla.
   **Es el documento de referencia entre fases** (Fase 4 → 5 → 6 → …).
+- 📄 **[Reporte F1 — Hardening del Baseline](docs/f1/F1_REPORT.md)** — F1.1 (Pydantic estricto),
+  F1.2 (AST-lite parser para `window.*`) y F1.3 (Alembic init + autogen).
+- 📄 **[Análisis F0 — Baseline & Auditoría](docs/f0_baseline/ANALISIS.md)** — el reporte del
+  paquete `app.f0_baseline/` con HU_01, HU_02 y HU_03.
 - 📄 **[Análisis Integral](docs/ANALYSIS.md)** — auditoría estática + funcional del repo
   (puntos fuertes, débiles, bugs corregidos, roadmap v0.2.1/v0.3.0/v0.4.0).
 - 📄 **[Informe de Integración del Asistente Virtual](docs/INFORME_INTEGRACION_IA.md)** —

@@ -5,6 +5,101 @@ Este archivo sigue parcialmente el estándar [Keep a Changelog](https://keepacha
 
 ---
 
+## [0.5.0] — 2026-09-07
+
+### Added — F0 Baseline + F1 Hardening (paquete `app/f0_baseline/`)
+
+F0 introdujo el paquete `app.f0_baseline/` (3 HU, 8 SP, 30 tests) y F1 lo endureció
+para producción (3 HU más, 8 SP, 58 tests nuevos). Total: 16 SP, 88 tests.
+
+#### F1.1 — Pydantic v2 estricto en `/f0/*` (HU_04, 3 SP)
+- **12 schemas Pydantic v2** nuevos en `app/f0_baseline/schemas.py`:
+  `PackageInfo`, `ReportLink`, `IndexResponse`, `HealthResponse` (con
+  `Literal["ok"]`), `MetricsResponse` + `MetricsCounts` + `MetricsRatios` +
+  `MetricsFlags` + `MetricsPackage` (con `Field(..., ge=0)` y `le=100.0` para
+  validar ratios), `CatalogDiffResponse`, `Hu01Response` + `Hu01Result`,
+  `Hu02Response` + `Hu02Result` + `Hu02MappingSampleItem`,
+  `Hu03Query` + `Hu03Response` + `Hu03Result`, `Hu03TimeoutResponse`,
+  `ErrorResponse`.
+- **Router estricto** en `app/f0_baseline/router.py`: cada endpoint declara
+  `response_model=...` y `responses={503: {"model": Hu03TimeoutResponse, ...}}`
+  / `responses={404: {"model": ErrorResponse, ...}}`. La spec OpenAPI ahora
+  expone los shapes exactos de cada endpoint, incluyendo los modelos 404/503.
+- **18 tests nuevos** en `tests/f0_baseline/test_schemas.py` que verifican:
+  OpenAPI spec (paths + 503/404 + `$ref`), cada response valida contra su
+  schema, Pydantic v2 rechaza payloads malformados (incluyendo `ge=0` para
+  `MetricsCounts` y `le=100.0` para `MetricsRatios`), el 503 del circuit
+  breaker valida contra `Hu03TimeoutResponse` con `monkeypatch` + `sleep`.
+
+#### F1.2 — AST-lite parser para `window.*` (HU_05, 3 SP)
+- **`app/f0_baseline/js_parser.py`** (505 líneas): lexer JS (`JSLexer`) con
+  `TokKind` enum (IDENT, KEYWORD, STRING, NUMBER, BLOCK_COMMENT, LINE_COMMENT,
+  PUNCT, WHITESPACE, EOF) + parser (`parse_window_functions`) que tokeniza,
+  skipea strings/comentarios, y cuenta braces con un stack.
+- **Clasificación del RHS**: `function` (con JSDoc como `description`),
+  `arrow` (`() => ...`), `method` (clase/objeto), `other`.
+- **Refactor de `app/f0_baseline/inventory.py`**: eliminados los regex
+  `RE_WINDOW_FN` y `RE_ANY_FN`; `WindowInventory.extract()` ahora delega en
+  el parser. Dedupe por `(name, line)`.
+- **23 tests nuevos** en `tests/f0_baseline/test_js_parser.py`: lexer (strings
+  con escape, comentarios, line tracking, operadores de 2 chars), `_safe_source`
+  (preserva newlines, reemplaza strings/comments por spaces), `_find_matching_brace`
+  (simple, anidado, en strings, en comments), `parse_window_functions` end-to-end
+  (detecta funciones con JSDoc, ignora `window.X` en strings y comentarios,
+  soporta braces anidados, arrow functions, métodos de clase, dedupe).
+- **Bugs eliminados del regex original**:
+  - `"window.fake = function(){}"` ya no genera falsos positivos.
+  - `/* window.fake = function(){} */` ya no genera falsos positivos.
+  - `function() { if (x) { y(); } }` ya no trunca el cuerpo.
+  - `window.X = () => {...}` ya se detecta (antes era falso negativo).
+
+#### F1.3 — Alembic init + autogen desde `Base` (HU_06, 2 SP)
+- **`alembic/`** inicializado con `alembic init alembic` y customizado:
+  - `alembic/env.py` (133 líneas) reescrito: agrega `PROJECT_ROOT` a
+    `sys.path`, resuelve `DATABASE_URL` de env var o `settings.database_url`
+    (nunca hardcoded), importa `Base` y todos los módulos de `app.models`
+    (user, tenant, branch, category, product, customer, promotion, qr,
+    landing, order, site_config, loyalty_pass, automation, business_costs,
+    insumo) para que se registren en `Base.metadata`.
+  - `alembic.ini` con `file_template` cronológico
+    (`%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s`)
+    y la `sqlalchemy.url` documentada como placeholder.
+- **Migración inicial autogenerada**:
+  `alembic/versions/2026_09_07_1002-f2efb29e03b1_initial_schema.py` (1201
+  líneas, captura los 30+ modelos del proyecto). Se agregó
+  `import app.models.base  # noqa: F401` para que `GUID()` esté disponible
+  en `upgrade()`.
+- **Verificado end-to-end**: `alembic upgrade head` y `alembic downgrade
+  base` funcionan contra SQLite temporal. La DB queda vacía tras el
+  downgrade.
+- **17 tests nuevos** en `tests/f0_baseline/test_alembic.py`: 15 estáticos
+  (estructura de directorios, contenido de `env.py`, `alembic.ini`, imports
+  de la migración) + 2 dinámicos marcados `@pytest.mark.slow` (upgrade head
+  contra SQLite temporal, downgrade base tras upgrade).
+- **Marker `slow`** agregado a `pyproject.toml` `[tool.pytest.ini_options]`
+  para omitir los tests lentos en el flujo default de CI.
+
+### Changed
+- `app/f0_baseline/__init__.py` ahora declara `__version__ = "1.1.0"`,
+  `__phase__ = "F1"`, `__story_points__ = 16`, y `__hu_covered__` extendido
+  con HU_04, HU_05, HU_06. Lazy loader (`__getattr__`) ahora también exporta
+  `parse_window_functions`.
+- `app/f0_baseline/inventory.py` ya no contiene regex; usa el parser AST-lite.
+
+### Tests
+- **Suite F0+F1**: 88 tests pasando (30 F0 + 18 F1.1 + 23 F1.2 + 17 F1.3).
+  Sin slow: 86 tests en ~0.6 s. Con slow: 88 tests en ~3.7 s.
+- **Comando rápido** (CI): `pytest tests/f0_baseline -m "not slow"`.
+- **Comando completo** (nightly): `pytest tests/f0_baseline`.
+
+### Documentación
+- Nuevo: [`docs/f1/F1_REPORT.md`](f1/F1_REPORT.md) — reporte completo de F1.1,
+  F1.2, F1.3 con métricas, decisiones de diseño y limitaciones.
+- Actualizado: `README.md` con la sección F0/F1 Baseline, endpoints `/f0/*`
+  con sus schemas, comandos de Alembic, y roadmap v0.5.0/v0.6.0/v0.7.0/v0.8.0.
+
+---
+
 ## [0.3.0] — 2026-08-22
 
 ### Added — Módulo de Cotizaciones, Pipeline Kanban, Inventario y Resumen consolidado
