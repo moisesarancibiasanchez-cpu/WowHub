@@ -43,7 +43,18 @@ RUN pip install --upgrade pip && \
         "psycopg[binary]>=3.1.0" \
         "gunicorn>=21.2.0" \
         "pillow>=10.2.0" \
-        "python-dateutil>=2.8.2"
+        "python-dateutil>=2.8.2" \
+        "celery[redis]>=5.3.0" \
+        "redis>=5.0.0" \
+        "sentry-sdk[fastapi]>=2.0.0" \
+        "opentelemetry-api>=1.22.0" \
+        "opentelemetry-sdk>=1.22.0" \
+        "opentelemetry-instrumentation-fastapi>=0.47b0" \
+        "opentelemetry-instrumentation-sqlalchemy>=0.47b0" \
+        "opentelemetry-exporter-otlp>=1.22.0" \
+        "prometheus-client>=0.19.0" \
+        "boto3>=1.34.0" \
+        "botocore>=1.34.0"
         
 # 3) Copiar el código de la app
 COPY app ./app
