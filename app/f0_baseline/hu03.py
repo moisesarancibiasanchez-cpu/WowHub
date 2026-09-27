@@ -63,6 +63,27 @@ def _run(cmd: list[str], cwd: Path, timeout: int = 60) -> tuple[int, str, str]:
         return 127, "", f"Comando no encontrado: {e}"
 
 
+def _redact_db_url(url: str) -> str:
+    """Redacta usuario y contraseña de una URL de base de datos.
+
+    `postgresql://wowhub:supersecreto@host:5432/db` → `postgresql://***:***@host:5432/db`
+    Conserva driver, host, puerto y nombre de base (que sí son útiles para
+    diagnosticar) pero elimina las credenciales (FIX 2026-09-27).
+    """
+    if not url or "://" not in url:
+        return url
+    scheme, _, rest = url.partition("://")
+    if "@" not in rest:
+        return url
+    userinfo, _, hostpart = rest.rpartition("@")
+    if ":" in userinfo:
+        user, _, _pwd = userinfo.partition(":")
+        userinfo = f"{user}:***" if user else "***:***"
+    else:
+        userinfo = "***"
+    return f"{scheme}://{userinfo}@{hostpart}"
+
+
 def build_report() -> dict[str, Any]:
     """Ejecuta los checks de HU_03 y devuelve un dict serializable."""
     t0 = time.perf_counter()
@@ -137,11 +158,15 @@ def build_report() -> dict[str, Any]:
         pytest_status = f"collect-fail rc={rc}"
 
     # Resolver database_url desde settings (respeta env vars y .env).
+    # FIX 2026-09-27 (seguridad): se redactan usuario y contraseña antes de
+    # incluir la URL en el reporte, que se sirve por HTTP en /f0/hu03.
     try:
         from app.config import settings
-        database_url = settings.database_url
+        database_url = _redact_db_url(settings.database_url)
     except Exception:  # pragma: no cover — settings no disponibles
-        database_url = os.environ.get("DATABASE_URL", "sqlite:///./wowhub.db")
+        database_url = _redact_db_url(
+            os.environ.get("DATABASE_URL", "sqlite:///./wowhub.db")
+        )
 
     elapsed = int((time.perf_counter() - t0) * 1000)
     report = Hu03Report(

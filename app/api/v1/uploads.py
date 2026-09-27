@@ -75,3 +75,52 @@ def delete_upload(
     db: Session = Depends(get_db),
 ):
     UploadService(db, base_url=str(request.base_url)).delete(tenant_id, upload_id)
+
+
+@router.get("/{upload_id}/content")
+def get_upload_content(
+    tenant_id: UUID,
+    upload_id: UUID,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Sirve el contenido de un archivo, validando pertenencia al tenant.
+
+    FIX 2026-09-27 (seguridad): reemplaza el montaje público `app.mount("/storage",
+    StaticFiles(...))`, que exponía los archivos de TODOS los tenants sin
+    autenticación. Aquí `get_current_membership` exige membresía activa en
+    `tenant_id`, y se verifica además que el archivo pertenezca a ese tenant.
+    """
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse, HTTPException
+    from sqlalchemy import select
+
+    from app.config import get_settings
+    from app.models.upload import Upload
+
+    upload = db.execute(
+        select(Upload).where(Upload.id == str(upload_id))
+    ).scalar_one_or_none()
+    if not upload:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    if str(upload.tenant_id) != str(tenant_id):
+        # 404 y no 403: no revelar la existencia de recursos de otros tenants.
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    storage_dir = Path(get_settings().storage_dir)
+    candidate = (storage_dir / str(tenant_id) / Path(upload.filename).name).resolve()
+    try:
+        # Path traversal: el archivo debe quedar dentro de storage/{tenant_id}/
+        candidate.relative_to((storage_dir / str(tenant_id)).resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ruta de archivo inválida")
+
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Archivo no encontrado en disco")
+
+    return FileResponse(
+        candidate,
+        media_type=upload.content_type or "application/octet-stream",
+        filename=Path(upload.filename).name,
+    )

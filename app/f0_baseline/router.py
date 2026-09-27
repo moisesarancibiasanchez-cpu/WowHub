@@ -326,6 +326,34 @@ async def hu03_migrations(
 ) -> JSONResponse:
     """HU_03 — Estado de Alembic + última corrida de pytest.
 
+    ⚠️ SEGURIDAD (FIX 2026-09-27): en modo `live` este endpoint ejecutaba
+    `alembic upgrade head` y `pytest` completos mediante `subprocess`, y
+    devolvía `settings.database_url` (que en PostgreSQL contiene usuario y
+    contraseña). El router NO tenía autenticación, por lo que cualquier
+    anónimo podía ejecutar DDL sobre la base de producción y filtrar
+    credenciales. El modo `live` queda deshabilitado en producción y la URL
+    de la base se redacta siempre.
+    """
+    from app.config import get_settings
+
+    _settings = get_settings()
+
+    if live and _settings.is_production:
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": "live deshabilitado en producción",
+                "detail": (
+                    "El modo live ejecuta DDL sobre la base de datos y no está "
+                    "permitido en producción. Usá ?live=false (reporte cacheado) "
+                    "o ejecutá los checks localmente con "
+                    "`python -m scripts.f0_baseline.validate_all`."
+                ),
+            },
+        )
+
+    """HU_03 — Estado de Alembic + última corrida de pytest.
+
     Por defecto devuelve el reporte cacheado generado por
     ``python -m scripts.f0_baseline.validate_all``. Si el cache no existe
     o si se pasa ``?live=true``, corre los checks en vivo.

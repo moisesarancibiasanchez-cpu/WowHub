@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.6
-# ─── WowHub — Dockerfile para Render ──────────────────────
+# ─── WowHub — Dockerfile (Render / Railway) ──────────────────
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -19,46 +19,27 @@ WORKDIR /app
 
 # 1) Metadata primero (aprovecha cache de Docker layer)
 COPY pyproject.toml ./
+COPY requirements.txt ./
 
-# 2) Instalar dependencias Python
+# 2) Instalar dependencias Python desde requirements.txt (fuente única de verdad).
+#    FIX 2026-09-27: la lista estaba hardcodeada acá y NO incluía `alembic`,
+#    por lo que el entrypoint ejecutaba `alembic upgrade head`, fallaba con
+#    "command not found" y caía silenciosamente a `create_all()`.
 RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir \
-        "fastapi>=0.110.0" \
-        "uvicorn[standard]>=0.27.0" \
-        "sqlalchemy>=2.0.27" \
-        "pydantic>=2.6.0" \
-        "pydantic-settings>=2.2.0" \
-        "python-multipart>=0.0.9" \
-        "python-jose[cryptography]>=3.3.0" \
-        "passlib[bcrypt]>=1.7.4" \
-        "bcrypt==4.0.1" \
-        "email-validator>=2.1.0" \
-        "jinja2>=3.1.3" \
-        "itsdangerous>=2.1.2" \
-        "qrcode[pil]>=7.4.2" \
-        "python-slugify>=8.0.1" \
-        "httpx>=0.27.0" \
-        "tenacity>=8.2.3" \
-        "psycopg2-binary>=2.9.0" \
-        "psycopg[binary]>=3.1.0" \
         "gunicorn>=21.2.0" \
-        "pillow>=10.2.0" \
-        "python-dateutil>=2.8.2" \
-        "celery[redis]>=5.3.0" \
-        "redis>=5.0.0" \
-        "sentry-sdk[fastapi]>=2.0.0" \
-        "opentelemetry-api>=1.22.0" \
-        "opentelemetry-sdk>=1.22.0" \
-        "opentelemetry-instrumentation-fastapi>=0.47b0" \
-        "opentelemetry-instrumentation-sqlalchemy>=0.47b0" \
-        "opentelemetry-exporter-otlp>=1.22.0" \
-        "prometheus-client>=0.19.0" \
-        "boto3>=1.34.0" \
-        "botocore>=1.34.0"
-        
+        "psycopg[binary]>=3.1.0" \
+        "prometheus-fastapi-instrumentator>=7.0.0"
+
 # 3) Copiar el código de la app
+#    FIX 2026-09-27: faltaban `alembic/` y `alembic.ini`, sin los cuales el
+#    control de esquema no existe dentro del contenedor.
 COPY app ./app
 COPY scripts ./scripts
+COPY alembic ./alembic
+COPY alembic.ini ./
+COPY templates ./templates
 
 # 4) Copiar y dar permisos al entrypoint (AÚN como root)
 COPY scripts/entrypoint.sh /app/entrypoint.sh
@@ -73,8 +54,8 @@ USER wowhub
 
 EXPOSE 8000
 
-# Healthcheck (Render también usa healthCheckPath del yaml)
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s \
+# Healthcheck (Render y Railway usan healthCheckPath / healthcheckPath)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=40s \
     CMD curl -fsS http://localhost:${PORT}/health || exit 1
 
 # Arranque

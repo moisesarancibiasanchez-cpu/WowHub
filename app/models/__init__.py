@@ -36,4 +36,6 @@ from app.models.automation import AutomationExecution, AutomationStatus  # noqa:
 # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 from app.models.insumo import Insumo, Receta  # noqa: F401
 from app.models.marketplace import MarketplacePlugin, PluginSubscription  # noqa: F401
-# TenantSiteConfig eliminado — usa SiteConfig existente (site_configs table)
+# TenantSiteConfig: config por tenant en tabla `tenant_site_configs` (distinta del
+# singleton global `site_config`). Ver app/models/tenant_site_config.py
+from app.models.tenant_site_config import TenantSiteConfig  # noqa: F401

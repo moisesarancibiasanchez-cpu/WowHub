@@ -22,9 +22,29 @@ dependencies = [
     "httpx>=0.27.0",
     "tenacity>=8.2.3",
     "psycopg2-binary>=2.9.0",
-    # v0.2.0 — nuevas dependencias
+    "psycopg[binary]>=3.1.0",
     "pillow>=10.2.0",                # validación de imágenes en uploads
     "python-dateutil>=2.8.2",        # parsing de fechas en CSV
+    # ── Background jobs (HU_36) ──────────────────────────────────
+    # FIX 2026-09-27: estas dependencias faltaban acá, por lo que CI
+    # (`pip install -e ".[dev]"`) corría la suite SIN Celery ni Redis
+    # importables y el 100% del código asíncrono quedaba sin ejercitar.
+    "celery[redis]>=5.3.0",
+    "redis>=5.0.0",
+    # ── Observabilidad (HU_07) ───────────────────────────────────
+    # Ídem: faltaban, por lo que OTel y Sentry nunca se cargaban en CI.
+    "sentry-sdk[fastapi]>=2.0.0",
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-sdk>=1.22.0",
+    "opentelemetry-instrumentation-fastapi>=0.47b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.47b0",
+    "opentelemetry-exporter-otlp>=1.22.0",
+    "prometheus-client>=0.19.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",  # expone /metrics
+    # ── Storage S3/R2 (HU_37) ────────────────────────────────────
+    # `boto3` sólo estaba en el Dockerfile, no en ningún manifiesto Python.
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +66,20 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["app"]
+# FIX 2026-09-27: `packages = ["app"]` empacaba sólo el módulo raíz de `app`,
+# excluyendo `app.api`, `app.models`, `app.services`, etc. del wheel.
+packages = [
+    "app",
+    "app.api",
+    "app.api.v1",
+    "app.core",
+    "app.f0_baseline",
+    "app.i18n",
+    "app.models",
+    "app.schemas",
+    "app.services",
+    "app.tasks",
+]
 
 [tool.setuptools.package-data]
 app = ["i18n/*.json", "templates/**/*", "static/**/*"]

@@ -71,31 +71,39 @@ def send_campaign(
 @celery_app.task(bind=True, name="emails.send_single", max_retries=3)
 def send_single_email(
     self: Task,
-    tenant_id: int,
     to_email: str,
     subject: str,
     body_html: str,
+    body_text: Optional[str] = None,
+    tenant_id: Optional[int] = None,
     from_name: Optional[str] = None,
 ) -> dict:
     """Send a single transactional email in background.
 
-    Args:
-        tenant_id: ID del tenant (para branding, límites de rate).
-        to_email: Destinatario.
-        subject: Asunto.
-        body_html: Cuerpo HTML renderizado.
-        from_name: Nombre del remitente (usa el del tenant si no se pasa).
+    FIX 2026-09-27: era un placeholder que sólo logueaba
+    `"Email sent (placeholder)"` y devolvía `{"ok": True}` sin enviar nada.
+    Ahora delega en `EmailService`, que selecciona el backend real
+    (resend / smtp / log / console) según `EMAIL_BACKEND`.
+
+    `tenant_id` y `from_name` se aceptan por compatibilidad con llamadas
+    previas, pero ya no son obligatorios.
 
     Returns:
         {"ok": True} o {"ok": False, "error": "..."}.
     """
     logger.info("send_single_email — to=%s, subject=%s", to_email, subject)
     try:
-        # TODO: integrar con email_service (Mailgun / SendGrid / SMTP)
-        # from app.services.email_service import EmailService
-        # svc = EmailService(tenant_id=tenant_id)
-        # svc.send(to=to_email, subject=subject, html=body_html, from_name=from_name)
-        logger.info("Email sent (placeholder) — to=%s", to_email)
+        from app.services.email_service import EmailService
+
+        svc = EmailService()
+        ok = svc._backend_send_sync(  # envío real, sin re-encolar
+            to=to_email,
+            subject=subject,
+            html=body_html,
+            text=body_text,
+        )
+        if not ok:
+            raise RuntimeError(f"backend no pudo enviar a {to_email}")
         return {"ok": True, "to": to_email, "subject": subject}
     except Exception as exc:
         logger.error("send_single_email failed — to=%s, error=%s", to_email, exc)

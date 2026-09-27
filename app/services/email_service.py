@@ -143,10 +143,62 @@ class EmailService:
         return LogBackend()
 
     def send(self, *, to: str, subject: str, html: str, text: Optional[str] = None) -> bool:
+        """Encola el envío a Celery; si el broker no está, envía de forma síncrona.
+
+        FIX 2026-09-27 (HU_36): las 12 tareas Celery estaban configuradas
+        (broker Redis, 4 colas, JSON serializer) pero NUNCA se invocaban —
+        0 llamadas a `.delay()` en todo `app/`. Los emails se enviaban en el
+        hilo del request, bloqueando la respuesta.
+
+        El fallback síncrono es deliberado y está acotado: si Redis no responde
+        no se pierde el email, sólo se degrada la latencia.
+        """
+        if self._try_enqueue(to=to, subject=subject, html=html, text=text):
+            return True
+
+        # Broker caído o tarea no disponible: envío directo.
         return self.backend.send(
             to=to, subject=subject, html=html, text=text,
             from_addr=self.from_addr, from_name=self.from_name,
         )
+
+    def _backend_send_sync(
+        self, *, to: str, subject: str, html: str, text: Optional[str] = None
+    ) -> bool:
+        """Envía usando directamente el backend, sin pasar por Celery.
+
+        Lo usan los propios workers de Celery (`app/tasks/emails.py`), que ya
+        corren dentro de un worker y no deben encolar otra vez.
+        """
+        return self.backend.send(
+            to=to,
+            subject=subject,
+            html=html,
+            text=text,
+            from_addr=self.from_addr,
+            from_name=self.from_name,
+        )
+
+    def _try_enqueue(self, *, to: str, subject: str, html: str, text: Optional[str]) -> bool:
+        """Intenta encolar en la cola `emails`. Devuelve False si no se pudo."""
+        if os.getenv("CELERY_ENABLED", "false").lower() != "true":
+            return False
+        try:
+            from app.tasks.emails import send_single_email
+
+            send_single_email.delay(
+                to_email=to,
+                subject=subject,
+                body_html=html,
+                body_text=text or "",
+            )
+            logger.debug("Email encolado en Celery para %s", to)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "No se pudo encolar email en Celery (%s) — se envía síncrono", exc
+            )
+            return False
 
     # ── Templates pre-armados ────────────────────────────
     def send_welcome(self, to: str, full_name: str, verification_url: Optional[str] = None) -> bool:

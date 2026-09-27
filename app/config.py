@@ -2,7 +2,7 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     # Storage
     storage_backend: str = "local"
     storage_path: str = "./storage"
+    # FIX 2026-09-27: en producción `/storage` NO debe servirse como
+    # `StaticFiles` público. El endpoint autenticado
+    # `GET /tenants/{tid}/uploads/{id}/content` valida pertenencia al tenant.
+    # Poner en True sólo en desarrollo local.
+    storage_public: bool = True
 
     # ── Nuevas settings (v0.2.0) ──────────────────────────
     # Email
@@ -176,8 +181,62 @@ class Settings(BaseSettings):
         return self.database_url.startswith("sqlite")
 
     @property
+    def storage_dir(self) -> str:
+        """Directorio raíz de archivos subidos (alias de `storage_path`)."""
+        return self.storage_path
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    # ── FIX 2026-09-27: fail-fast de secretos en producción ──────────
+    # Antes no existía ninguna defensa: si `JWT_SECRET` no llegaba al
+    # contenedor, la app firmaba tokens con una clave pública del repo y
+    # aceptaba `is_superuser: true` forjado → escalada a SUPERADMIN.
+    # Ahora la app NO ARRANCA con secretos por defecto en producción.
+    @model_validator(mode="after")
+    def _reject_placeholder_secrets_in_production(self) -> "Settings":
+        if self.app_env != "production":
+            return self
+
+        offenders: list[str] = []
+
+        def _is_placeholder(name: str, value: str, *, required: bool = True) -> None:
+            v = (value or "").strip()
+            if not v:
+                if required:
+                    offenders.append(f"{name} (vacío)")
+                return
+            low = v.lower()
+            if low.startswith("change-me") or "change-me" in low or low.startswith("tu-") or low == "changeme":
+                offenders.append(name)
+
+        _is_placeholder("SECRET_KEY", self.secret_key)
+        _is_placeholder("JWT_SECRET", self.jwt_secret)
+        _is_placeholder("WEBHOOK_SECRET", self.webhook_secret)
+
+        # En producción el modo debug tampoco es aceptable.
+        if offenders:
+            raise ValueError(
+                "ABORTANDO ARRANQUE: secretos placeholder detectados en producción "
+                f"({', '.join(offenders)}). Configúralos como variables de entorno "
+                "reales antes de desplegar. Si es un entorno de pruebas, usá "
+                "APP_ENV=staging o APP_ENV=development."
+            )
+        if self.debug:
+            raise ValueError(
+                "ABORTANDO ARRANQUE: DEBUG=True no es permitido en producción. "
+                "Seteá DEBUG=false."
+            )
+        # `/storage` público expone los archivos de todos los tenants.
+        if self.storage_public:
+            raise ValueError(
+                "ABORTANDO ARRANQUE: STORAGE_PUBLIC=true no es permitido en "
+                "producción (expondría los archivos de todos los tenants sin "
+                "autenticación). Seteá STORAGE_PUBLIC=false; el endpoint "
+                "autenticado /tenants/{tid}/uploads/{id}/content los sirve."
+            )
+        return self
 
 
 @lru_cache

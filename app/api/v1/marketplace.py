@@ -59,17 +59,58 @@ def _get_subscription(db: Session, tenant_id: UUID, plugin_id: UUID) -> Optional
     ).first()
 
 
-def _require_tenant(request: Request, db: Session, user: User = Depends(get_current_user)) -> User:
-    """Ensure the request has a tenant context."""
-    tenant_id = request.headers.get("x-tenant-id") or getattr(request.state, "tenant_id", None)
-    if not tenant_id:
-        # Try via membership
-        membership = db.query(TenantMembership).filter(
-            TenantMembership.user_id == str(user.id)
-        ).first()
+def _resolve_tenant(request: Request, db: Session, user: User) -> UUID:
+    """Resuelve el tenant actor y VALIDA que `user` sea miembro activo.
+
+    FIX 2026-09-27 (IDOR cross-tenant): antes el header `X-Tenant-Id` se
+    aceptaba tal cual, sin comprobar la membresía, de modo que cualquier
+    usuario autenticado podía añadir `X-Tenant-Id: <uuid_ajeno>` e
+    instalar/desinstalar/reconfigurar plugins de otro tenant.
+
+    Orden de resolución: header `X-Tenant-Id` → `request.state.tenant_id` →
+    primera membresía activa del usuario. En todos los casos se exige
+    membresía activa sobre el tenant resultante.
+    """
+    tenant_id_str = request.headers.get("x-tenant-id") if request else None
+    if not tenant_id_str:
+        tenant_id_str = getattr(request.state, "tenant_id", None) if request else None
+
+    if tenant_id_str:
+        try:
+            tenant_id = UUID(str(tenant_id_str))
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail="X-Tenant-Id inválido") from exc
+    else:
+        membership = (
+            db.query(TenantMembership)
+            .filter(
+                TenantMembership.user_id == str(user.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+            .first()
+        )
         if not membership:
-            raise HTTPException(status_code=401, detail="No tenant context")
-    return user
+            raise HTTPException(status_code=400, detail="No tenant found for user")
+        tenant_id = UUID(membership.tenant_id)
+
+    # Validación de pertenencia — la parte que faltaba en el código original.
+    member = (
+        db.query(TenantMembership)
+        .filter(
+            TenantMembership.user_id == str(user.id),
+            TenantMembership.tenant_id == str(tenant_id),
+            TenantMembership.is_active == True,  # noqa: E712
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=403, detail="No perteneces a este tenant")
+
+    return tenant_id
+
+
+# Backwards-compatible alias (el nombre original se mantenía sin uso real).
+_require_tenant = _resolve_tenant
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -115,6 +156,49 @@ def list_marketplace_plugins(
     )
 
 
+# NOTA DE ORDEN: FastAPI evalúa las rutas en orden de declaración. `/{slug}` es
+# un catch-all, por lo que las rutas literales deben declararse ANTES que él o
+# nunca serán alcanzables (FIX 2026-09-27: `/my-plugins` devolvía siempre 404).
+
+
+@router.get("/my-plugins", response_model=list[PluginSubscriptionResponse])
+def my_plugins(
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List plugins installed for the current tenant."""
+    try:
+        tenant_id = _resolve_tenant(request, db, user)
+    except HTTPException as exc:
+        # Sin contexto de tenant devolvemos lista vacía (comportamiento previo).
+        if exc.status_code in (400, 403):
+            return []
+        raise
+
+    subs = db.query(PluginSubscription).filter(
+        PluginSubscription.tenant_id == tenant_id,
+        PluginSubscription.status == "active",
+    ).all()
+
+    # Manually eager-load plugin
+    plugin_ids = [sub.plugin_id for sub in subs]
+    plugins_map = {
+        p.id: p for p in db.query(MarketplacePlugin).filter(
+            MarketplacePlugin.id.in_(plugin_ids)
+        ).all()
+    }
+
+    result = []
+    for sub in subs:
+        resp = PluginSubscriptionResponse.model_validate(sub)
+        plugin = plugins_map.get(sub.plugin_id)
+        if plugin is not None:
+            resp.plugin = MarketplacePluginResponse.model_validate(plugin)
+        result.append(resp)
+    return result
+
+
 @router.get("/{slug}", response_model=MarketplacePluginResponse)
 def get_marketplace_plugin(
     slug: str,
@@ -136,18 +220,7 @@ def install_plugin(
 ):
     """Install a plugin for the current tenant (creates subscription)."""
     plugin = _get_plugin_by_slug(db, slug)
-
-    # Resolve tenant_id from header or state
-    tenant_id_str = request.headers.get("x-tenant-id") if request else None
-    if not tenant_id_str:
-        membership = db.query(TenantMembership).filter(
-            TenantMembership.user_id == str(user.id)
-        ).first()
-        if not membership:
-            raise HTTPException(status_code=400, detail="No tenant found for user")
-        tenant_id = UUID(membership.tenant_id)
-    else:
-        tenant_id = UUID(tenant_id_str)
+    tenant_id = _resolve_tenant(request, db, user)
 
     # Check if already subscribed
     existing = _get_subscription(db, tenant_id, plugin.id)
@@ -181,17 +254,7 @@ def uninstall_plugin(
 ):
     """Uninstall a plugin for the current tenant (marks subscription canceled)."""
     plugin = _get_plugin_by_slug(db, slug)
-
-    tenant_id_str = request.headers.get("x-tenant-id") if request else None
-    if not tenant_id_str:
-        membership = db.query(TenantMembership).filter(
-            TenantMembership.user_id == str(user.id)
-        ).first()
-        if not membership:
-            raise HTTPException(status_code=400, detail="No tenant found for user")
-        tenant_id = UUID(membership.tenant_id)
-    else:
-        tenant_id = UUID(tenant_id_str)
+    tenant_id = _resolve_tenant(request, db, user)
 
     sub = _get_subscription(db, tenant_id, plugin.id)
     if not sub:
@@ -200,47 +263,6 @@ def uninstall_plugin(
     sub.status = "canceled"
     sub.canceled_at = datetime.now(timezone.utc)
     db.commit()
-
-
-@router.get("/my-plugins", response_model=list[PluginSubscriptionResponse])
-def my_plugins(
-    request: Request = None,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """List plugins installed for the current tenant."""
-    tenant_id_str = request.headers.get("x-tenant-id") if request else None
-    if not tenant_id_str:
-        membership = db.query(TenantMembership).filter(
-            TenantMembership.user_id == str(user.id)
-        ).first()
-        if not membership:
-            return []
-        tenant_id = UUID(membership.tenant_id)
-    else:
-        tenant_id = UUID(tenant_id_str)
-
-    subs = db.query(PluginSubscription).options(
-        joinedload(PluginSubscription.__dict__.get('plugin', None) if hasattr(PluginSubscription, 'plugin') else None)
-    ).filter(
-        PluginSubscription.tenant_id == tenant_id,
-        PluginSubscription.status == "active",
-    ).all()
-
-    # Manually eager-load plugin
-    plugin_ids = [sub.plugin_id for sub in subs]
-    plugins_map = {
-        p.id: p for p in db.query(MarketplacePlugin).filter(
-            MarketplacePlugin.id.in_(plugin_ids)
-        ).all()
-    }
-
-    result = []
-    for sub in subs:
-        resp = PluginSubscriptionResponse.model_validate(sub)
-        resp.plugin = MarketplacePluginResponse.model_validate(plugins_map.get(sub.plugin_id))
-        result.append(resp)
-    return result
 
 
 @router.patch("/my-plugins/{slug}/config", response_model=PluginSubscriptionResponse)
@@ -253,17 +275,7 @@ def update_plugin_config(
 ):
     """Update the configuration for an installed plugin."""
     plugin = _get_plugin_by_slug(db, slug)
-
-    tenant_id_str = request.headers.get("x-tenant-id") if request else None
-    if not tenant_id_str:
-        membership = db.query(TenantMembership).filter(
-            TenantMembership.user_id == str(user.id)
-        ).first()
-        if not membership:
-            raise HTTPException(status_code=400, detail="No tenant found for user")
-        tenant_id = UUID(membership.tenant_id)
-    else:
-        tenant_id = UUID(tenant_id_str)
+    tenant_id = _resolve_tenant(request, db, user)
 
     sub = _get_subscription(db, tenant_id, plugin.id)
     if not sub:

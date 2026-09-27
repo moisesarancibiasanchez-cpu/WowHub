@@ -37,18 +37,46 @@ logger = logging.getLogger("wowhub.ai.admin")
 router = APIRouter(prefix="/admin/ai", tags=["admin-ai"])
 
 
-def _require_admin(user: User) -> None:
-    """Permite OWNER/ADMIN del tenant o SUPERUSER (plataforma).
+def _require_admin(user: User, db: Session = None) -> None:
+    """Permite OWNER/ADMIN de algún tenant o SUPERUSER (plataforma).
 
-    SUPERUSER no tiene rol de tenant (no es miembro de TenantMembership);
-    debe poder operar la consola AI Core incluso sin impersonación activa.
+    FIX 2026-09-27 (escalada de privilegios): antes comparaba contra
+    `user.default_role`, que el registro nunca asignaba — todos los usuarios
+    autogistrados pasaban el check y podían abrir el circuit breaker global
+    del LLM. Ahora el rol se resuelve desde `TenantMembership.role`, igual que
+    en `app/deps.require_platform_admin`. Se acepta la `db` para no romper
+    las llamadas existentes; si no se provee, cae al chequeo por defecto de BD.
     """
-    # El modelo User tiene `default_role` (no `role`). Soportamos ambos por compat.
-    role = getattr(user, "role", None) or getattr(user, "default_role", None)
-    if getattr(user, "is_superuser", False):
+    if _is_platform_admin(user):
         return
-    if role not in (UserRole.OWNER, UserRole.ADMIN):
-        raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
+
+    from app.database import SessionLocal
+
+    own_db = False
+    if db is None:
+        try:
+            db = SessionLocal()
+            own_db = True
+        except Exception:  # noqa: BLE001
+            raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
+
+    try:
+        rows = db.execute(
+            select(TenantMembership).where(
+                TenantMembership.user_id == str(user.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+        ).scalars().all()
+        for m in rows:
+            role = getattr(m, "role", None)
+            role_val = getattr(role, "value", str(role)) if role is not None else ""
+            if getattr(m, "is_owner", False) or role_val in ("owner", "admin"):
+                return
+    finally:
+        if own_db:
+            db.close()
+
+    raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
 
 
 def _is_platform_admin(user: User) -> bool:
@@ -304,8 +332,16 @@ def get_log_traces(
     user: User = Depends(get_current_user),
 ) -> TraceListOut:
     _require_admin(user)
+    # FIX 2026-09-27 (fuga cross-tenant): faltaba el scope de tenant. El
+    # endpoint hermano `get_logs` sí lo aplica vía `_resolve_tenant_scope`.
     log = db.get(AILog, log_id)
     if not log:
+        raise HTTPException(status_code=404, detail="Log no encontrado")
+    tenant_ids = _resolve_tenant_scope(db, user)
+    if tenant_ids is None:
+        raise HTTPException(status_code=403, detail="Requiere rol OWNER o ADMIN")
+    if tenant_ids and str(log.tenant_id) not in tenant_ids:
+        # No revelar existencia del recurso: 404, no 403.
         raise HTTPException(status_code=404, detail="Log no encontrado")
     rows = db.execute(
         select(AITrace)

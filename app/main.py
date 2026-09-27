@@ -81,8 +81,6 @@ async def lifespan(app: FastAPI):
     # Startup
     if setup_telemetry is not None:
         setup_telemetry()
-        if instrument_app is not None:
-            instrument_app(app)
     logger.info("Inicializando base de datos...")
     init_db()
     logger.info(f"WowHub arrancado — env={settings.app_env}, db={settings.database_url}")
@@ -130,7 +128,17 @@ if getattr(settings, "audit_enabled", True):
 
 # Static & storage
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+# FIX 2026-09-27 (seguridad): `/storage` estaba montado como `StaticFiles`
+# SIN autenticación, por lo que cualquier archivo subido por cualquier tenant
+# era legible públicamente con sólo conocer la URL. Se reemplaza por un
+# endpoint autenticado que valida pertenencia al tenant del archivo.
+_storage_public = getattr(settings, "storage_public", True)
+if _storage_public:
+    logger.warning(
+        "STORAGE_PUBLIC=true: /storage se sirve sin autenticación. "
+        "Usar sólo en desarrollo local."
+    )
+    app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
 
 # ── API v1 ───────────────────────────────────────────────
 app.include_router(auth.router, prefix="/api/v1")
@@ -709,14 +717,12 @@ def public_landing_page(slug: str, request: Request):
     """Landing pública del tenant — pasa site_config para toggles de visibilidad."""
     with SessionLocal() as db:
         from app.models.tenant import Tenant
-        from app.models.site_config import SiteConfig
         from app.services.tenant_site_config_service import get_site_config_for_tenant
         t = db.execute(select(Tenant).where(Tenant.slug == slug)).scalar_one_or_none()
         if not t or not t.is_active:
             return templates.TemplateResponse(
                 request, "public/404.html", {"settings": settings, "slug": slug}, status_code=404
             )
-        sc = db.execute(select(SiteConfig).where(SiteConfig.tenant_id == t.id)).scalar_one_or_none()
         site_config_data = get_site_config_for_tenant(db, t.id)
     return templates.TemplateResponse(
         request, "public/landing.html",
@@ -924,3 +930,17 @@ def health():
         "db": _db_kind,
         "service": "wowhub-api",
     }
+
+
+# ── Instrumentación que debe existir desde el import ─────────────
+# FIX 2026-09-27: `instrument_app(app)` estaba DENTRO del `lifespan`, que sólo
+# se ejecuta cuando arranca el servidor. Con `TestClient(app)` (sin context
+# manager) el lifespan nunca corría, y `/metrics` no quedaba registrado.
+# Además, exponer `/metrics` desde el lifespan hacía que la ruta apareciera
+# tarde y fuera invisible para cualquier consumidor del OpenAPI.
+# Ahora se registra a nivel de módulo, tras incluir todos los routers.
+if instrument_app is not None:
+    try:
+        instrument_app(app)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("instrument_app falló: %s", exc)

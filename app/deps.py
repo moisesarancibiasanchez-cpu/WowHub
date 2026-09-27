@@ -233,6 +233,47 @@ def require_role(*allowed: UserRole):
     return _checker
 
 
+def _role_value(membership: TenantMembership) -> str:
+    """Valor de rol de una membresía, normalizado a string."""
+    role = getattr(membership, "role", None)
+    if role is None:
+        return ""
+    return getattr(role, "value", str(role))
+
+
+def require_platform_admin(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> User:
+    """Guard para endpoints de ADMINISTRACIÓN DE PLATAFORMA (no por tenant).
+
+    FIX 2026-09-27 (escalada de privilegios): los guards de `site_config` y
+    `admin_ai` comparaban contra `user.default_role`, que el registro NUNCA
+    asigna — por lo que todo usuario autogistrado quedaba con `OWNER` y podía
+    editar la configuración global (tema, `maintenance_mode`) o abrir el
+    circuit breaker del LLM de toda la plataforma.
+
+    Criterio correcto: superuser, o OWNER/ADMIN de al menos una membresía
+    ACTIVA. El rol se lee de `TenantMembership.role`, que es donde vive la
+    autorización real, no de `User.default_role`.
+    """
+    if bool(getattr(user, "is_superuser", False)):
+        return user
+
+    rows = db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == str(user.id),
+            TenantMembership.is_active == True,  # noqa: E712
+        )
+    ).scalars().all()
+
+    for m in rows:
+        if getattr(m, "is_owner", False) or _role_value(m) in ("owner", "admin"):
+            return user
+
+    raise ForbiddenError("Requiere rol OWNER o ADMIN en al menos un tenant")
+
+
 def _peek_jwt_superuser(request: Request) -> bool:
     """Lee el claim `is_superuser` del JWT (sin tocar la BD).
 

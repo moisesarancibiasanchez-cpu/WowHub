@@ -122,6 +122,9 @@ jobs:
   f0-smoke:
     name: F0 endpoints (smoke)
     runs-on: ubuntu-latest
+    # FIX 2026-09-27: faltaba `needs`, por lo que el smoke test corría en
+    # paralelo con la suite y reportaba éxito/fallo sin esperar al pytest.
+    needs: [pytest]
     timeout-minutes: 4
     steps:
       - name: Checkout
@@ -142,23 +145,36 @@ jobs:
       - name: Smoke-test FastAPI app + F0 router
         env:
           DATABASE_URL: sqlite:///:memory:
+          APP_ENV: development
           SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
           JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
+          WEBHOOK_SECRET: ci-webhook-secret-min-32-chars-ok
           RATE_LIMIT_ENABLED: "false"
           AUDIT_ENABLED: "false"
+          STORAGE_PUBLIC: "true"
+        # FIX 2026-09-27: usaba `/tmp/.venv/bin/python`, una ruta hardcodeada
+        # de un venv local que no existe en un runner limpio de GitHub
+        # Actions -> el job fallaba siempre. Ahora usa el intérprete del PATH.
         run: |
-          /tmp/.venv/bin/python -c "
+          python -c "
           from fastapi.testclient import TestClient
           from app.main import app
           c = TestClient(app)
           for path in ('/f0/', '/f0/health'):
               r = c.get(path)
               assert r.status_code == 200, f'{path} -> {r.status_code}'
-              print(f'  {path} -> {r.status_code} ✓')
+              print(f'  {path} -> {r.status_code} OK')
           # /openapi.json incluye las rutas F0
           r = c.get('/openapi.json')
           paths = r.json()['paths'].keys()
           for p in ('/f0/hu01', '/f0/hu02', '/f0/hu03'):
-              assert p in paths, f'{p} no está en OpenAPI'
-          print('✓ /f0/hu01, /f0/hu02, /f0/hu03 registrados en OpenAPI')
+              assert p in paths, f'{p} no esta en OpenAPI'
+          print('OK /f0/hu01, /f0/hu02, /f0/hu03 registrados en OpenAPI')
+
+          # FIX 2026-09-27: verificar que /metrics existe de verdad. El codigo
+          # afirmaba que Prometheus lo exponia 'automaticamente' pero nunca se
+          # montaba el Instrumentator.
+          r = c.get('/metrics')
+          assert r.status_code == 200, f'/metrics -> {r.status_code}'
+          print('OK /metrics expuesto')
           "

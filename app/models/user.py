@@ -26,7 +26,11 @@ class User(BaseModel):
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     default_role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role"),
-        default=UserRole.OWNER,
+        # FIX 2026-09-27: era OWNER y el registro NUNCA lo asignaba, de modo que
+        # todo usuario autogistrado quedaba con rol de plataforma. El rol real
+        # de un usuario en un negocio vive en `TenantMembership.role`; este
+        # campo es sólo el rol por defecto para membresías nuevas.
+        default=UserRole.STAFF,
         nullable=False,
     )
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
