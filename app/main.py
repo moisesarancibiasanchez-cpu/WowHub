@@ -17,7 +17,10 @@ from app.api.v1 import (
     orders, payments, webhooks, stats, uploads, password,
     i18n, csv, legal, onboarding, audit, bookings,
     branch_products, search,
-    site_config,
+    site_config,  # platform admin (singleton)
+    insumos, costs,  # V8
+    tenant_site_config,  # V134.2: tenant-scoped site config
+    insumos, costs,  # V8: already imported above
     ai, admin_ai, superadmin,
     loyalty,
     analytics, campaigns,
@@ -149,7 +152,8 @@ app.include_router(audit.router, prefix="/api/v1")
 app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(branch_products.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
-app.include_router(site_config.router, prefix="/api/v1")
+app.include_router(site_config.router, prefix="/api/v1")  # platform admin
+app.include_router(tenant_site_config.router, prefix="/api/v1")  # V134.2: per-tenant site-config
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(superadmin.router, prefix="/api/v1")
@@ -548,13 +552,39 @@ def dashboard_inventario(request: Request):
 # ── Mi sitio web (constructor con preview) — V8 P0.2 ─────────
 @app.get("/dashboard/mi-sitio-web", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_mi_sitio_web(request: Request):
-    """Constructor de la página pública con form + preview en vivo.
-    Reemplaza al editor anterior (/dashboard/landing) con tabs por sección
-    y un iframe que muestra la landing pública renderizada en tiempo real.
-    """
+    """Constructor de sitio público: branding + toggles de módulos con preview en vivo."""
+    from app.security import decode_token
+    token = (
+        request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+        or (request.headers.get("authorization", "").split(" ", 1)[1]
+            if request.headers.get("authorization", "").lower().startswith("bearer ") else None)
+    )
+    if not token:
+        return RedirectResponse(url="/login", status_code=302)
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=302)
+    tenant_id = payload.get("tenant_id")
+    if not tenant_id:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    # Precargar site_config para el form
+    site_config_data = None
+    try:
+        with SessionLocal() as db:
+            from app.services.tenant_site_config_service import get_site_config_for_tenant
+            site_config_data = get_site_config_for_tenant(db, int(tenant_id))
+    except Exception:
+        pass
+
     return templates.TemplateResponse(
-        request, "dashboard/admin_mi_sitio_web.html",
-        {"settings": settings, "body_class": "route-mi-sitio-web"},
+        request, "dashboard/site_constructor.html",
+        {
+            "settings": settings, "tenant_id": int(tenant_id),
+            "site_config_presisted": site_config_data,
+            "body_class": "route-mi-sitio-web",
+        },
     )
 
 
@@ -593,15 +623,22 @@ def dashboard_pipeline(request: Request):
 # ── Páginas públicas por tenant ──────────────────────────
 @app.get("/u/{slug}", response_class=HTMLResponse, include_in_schema=False)
 def public_landing_page(slug: str, request: Request):
-    """Landing pública del tenant."""
+    """Landing pública del tenant — pasa site_config para toggles de visibilidad."""
     with SessionLocal() as db:
         from app.models.tenant import Tenant
+        from app.models.site_config import SiteConfig
+        from app.services.tenant_site_config_service import get_site_config_for_tenant
         t = db.execute(select(Tenant).where(Tenant.slug == slug)).scalar_one_or_none()
         if not t or not t.is_active:
             return templates.TemplateResponse(
                 request, "public/404.html", {"settings": settings, "slug": slug}, status_code=404
             )
-    return templates.TemplateResponse(request, "public/landing.html", {"settings": settings, "slug": slug})
+        sc = db.execute(select(SiteConfig).where(SiteConfig.tenant_id == t.id)).scalar_one_or_none()
+        site_config_data = get_site_config_for_tenant(db, t.id)
+    return templates.TemplateResponse(
+        request, "public/landing.html",
+        {"settings": settings, "slug": slug, "site_config": site_config_data},
+    )
 
 
 @app.get("/u/{slug}/catalogo", response_class=HTMLResponse, include_in_schema=False)

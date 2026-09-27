@@ -1,0 +1,100 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Fidelización — WowHub{% endblock %}
+{% block content %}
+<h1>⭐ Programa de Fidelización</h1>
+<p style="color:var(--color-text-muted); margin-bottom:24px;">Tu código QR único para clientes.</p>
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <h2>Tu código QR</h2>
+      <div id="qr-container" style="text-align:center; padding:24px; background:var(--color-surface-2); border-radius:8px; min-height:260px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+        <div id="qr-loading" style="color:var(--color-text-muted);">Cargando código QR...</div>
+        <img id="loyalty-qr-img" src="" alt="QR Code" style="display:none; max-width:220px; border-radius:8px;" />
+        <p id="qr-caption" style="font-size:0.8rem; color:var(--color-text-muted); display:none;">Escaneame para acumular puntos</p>
+      </div>
+      <div style="text-align:center; margin-top:20px;">
+        <button class="btn btn-primary" id="download-qr-btn" onclick="downloadQR()" disabled>⬇️ Descargar QR</button>
+        <span id="download-status" style="font-size:0.8rem; color:var(--color-text-muted); margin-left:8px;"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Estadísticas</h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div style="background:var(--color-surface-2); padding:16px; border-radius:8px; text-align:center;">
+          <div style="font-size:1.8rem; font-weight:700; color:var(--color-primary);">—</div>
+          <div style="font-size:0.75rem; color:var(--color-text-muted);">Clientes registrados</div>
+        </div>
+        <div style="background:var(--color-surface-2); padding:16px; border-radius:8px; text-align:center;">
+          <div style="font-size:1.8rem; font-weight:700; color:var(--color-success);">—</div>
+          <div style="font-size:0.75rem; color:var(--color-text-muted);">Puntos emitidos (mes)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>¿Cómo funciona?</h2>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="background:var(--color-primary); color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; flex-shrink:0;">1</div>
+          <div><strong>Escanea el QR</strong><p style="font-size:0.8rem; color:var(--color-text-muted);">Cada cliente tiene su propio código único.</p></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="background:var(--color-primary); color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; flex-shrink:0;">2</div>
+          <div><strong>Acumula puntos</strong><p style="font-size:0.8rem; color:var(--color-text-muted);">1 punto por cada $100 consumidos.</p></div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="background:var(--color-primary); color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; flex-shrink:0;">3</div>
+          <div><strong>Canjea recompensas</strong><p style="font-size:0.8rem; color:var(--color-text-muted);">100 pts = $500 de descuento.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var currentQRDataUrl = null;
+
+function downloadQR(dataUrl, filename) {
+  /**
+   * TASK 5: Trigger download of loyalty QR code.
+   * @param {string} dataUrl - The base64 data URL of the QR (data:image/png;base64,...)
+   * @param {string} filename - Desired filename
+   */
+  dataUrl = dataUrl || currentQRDataUrl;
+  filename = filename || "wowhub-loyalty-qr.png";
+  if (!dataUrl) {
+    document.getElementById("download-status").textContent = "QR no disponible";
+    return;
+  }
+  var a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  var status = document.getElementById("download-status");
+  status.textContent = "Descargado";
+  setTimeout(function() { status.textContent = ""; }, 3000);
+}
+
+async function loadLoyaltyQR() {
+  var tenantId = window.location.pathname.split("/")[2] || "1";
+  var img = document.getElementById("loyalty-qr-img");
+  img.src = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent("wowhub:loyalty:" + tenantId);
+  img.style.display = "block";
+  document.getElementById("qr-loading").style.display = "none";
+  document.getElementById("qr-caption").style.display = "block";
+  document.getElementById("download-qr-btn").disabled = false;
+  img.onload = function() {
+    var canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    currentQRDataUrl = canvas.toDataURL("image/png");
+  };
+}
+document.addEventListener("DOMContentLoaded", loadLoyaltyQR);
+</script>
+{% endblock %}

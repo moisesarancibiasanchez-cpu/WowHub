@@ -1,0 +1,184 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Constructor de Sitio — WowHub{% endblock %}
+{% block content %}
+{# Extract tenant_id from URL path: /dashboard/site-constructor/{id} #}
+<script>window.__WOWHUB_TENANT_ID = {{ tenant_id | default('null') }};</script>
+<input type="hidden" id="js_tenant_id" value="{{ tenant_id | default('') }}" />
+<h1>🖥️ Constructor de Sitio</h1>
+<p style="color:var(--color-text-muted); margin-bottom:24px;">Personalizá tu sitio público.</p>
+<div id="alert-container"></div>
+<div class="grid-2">
+  <div>
+    <div class="card">
+      <h2>Branding</h2>
+      <div class="form-group">
+        <label for="nombre_sitio">Nombre del sitio</label>
+        <input type="text" id="nombre_sitio" placeholder="Mi Restaurante" />
+      </div>
+      <div class="form-group">
+        <label for="mensaje_principal">Mensaje principal</label>
+        <textarea id="mensaje_principal" placeholder="¡Bienvenidos!"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Color de marca</label>
+        <div class="color-row">
+          <input type="color" id="brand_color" value="#7c5cff" />
+          <input type="text" id="brand_color_text" value="#7c5cff" placeholder="#7c5cff" style="flex:1;" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="logo_url">URL del logo</label>
+        <input type="url" id="logo_url" placeholder="https://..." />
+        <div id="logo_preview" style="margin-top:8px;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Módulos públicos</h2>
+      <div class="toggle-row">
+        <div class="toggle-label">Reservas online<span>Muestra el módulo de reservas</span></div>
+        <label class="toggle"><input type="checkbox" id="bookings_enabled" checked /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">Pedidos online<span>Muestra el módulo de pedidos</span></div>
+        <label class="toggle"><input type="checkbox" id="orders_enabled" checked /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">Fidelización<span>Programa de puntos y recompensas</span></div>
+        <label class="toggle"><input type="checkbox" id="loyalty_enabled" checked /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">Menú público<span>Muestra el menú en el sitio</span></div>
+        <label class="toggle"><input type="checkbox" id="public_menu_enabled" checked /><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row" style="margin-top:8px; padding-top:16px; border-top:1px solid var(--color-border);">
+        <div class="toggle-label">Reservas web activas<span>Permite reservas online (toggle fino)</span></div>
+        <label class="toggle"><input type="checkbox" id="web_booking_enabled" checked /><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>Vista previa en tiempo real</h2>
+      <div id="preview-frame" style="width:100%; min-height:500px; border:1px solid var(--color-border); border-radius:8px; overflow:hidden;">
+        <iframe id="preview_iframe" srcdoc="
+<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width'>
+<style>
+  body{font-family:-apple-system,sans-serif;margin:0;padding:0;background:#fff}
+  .hero{padding:48px 24px;text-align:center;border-bottom:1px solid #eee}
+  .hero h1{font-size:1.8rem;color:var(--c,#7c5cff);margin-bottom:12px}
+  .hero p{color:#666;font-size:1rem}
+  .logo{width:64px;height:64px;border-radius:50%;object-fit:cover;margin:0 auto 16px;display:block}
+  .mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;padding:24px}
+  .mod{padding:20px;border-radius:8px;text-align:center;font-weight:600;color:#fff;font-size:0.85rem}
+  .sn{padding:16px 24px;font-size:0.8rem;color:#999;text-align:center;border-top:1px solid #eee}
+</style>
+</head>
+<body>
+  <div class='hero'>
+    <img class='logo' id='pl' src='' style='display:none' />
+    <h1 id='pt' style='color:var(--c,#7c5cff)'>Mi Sitio</h1>
+    <p id='pm'>Tu mensaje de bienvenida</p>
+  </div>
+  <div class='mg'>
+    <div class='mod' id='mb' style='background:#7c5cff'>Reservas</div>
+    <div class='mod' id='mo' style='background:#00d4a8'>Pedidos</div>
+    <div class='mod' id='ml' style='background:#ffb454'>Fidelización</div>
+    <div class='mod' id='mm' style='background:#00a3ff'>Menú</div>
+  </div>
+  <div class='sn' id='ps'>© Mi Sitio</div>
+</body>
+</html>
+        " style="width:100%;height:500px;border:none;display:block;" sandbox="allow-same-origin"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="save-bar" style="margin:0 -24px;padding:16px 24px;">
+  <button class="btn btn-secondary" onclick="loadConfig()">Descartar cambios</button>
+  <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function syncPreview() {
+  var doc = document.getElementById("preview_iframe").contentDocument;
+  var t = document.getElementById("nombre_sitio").value || "Mi Sitio";
+  var m = document.getElementById("mensaje_principal").value || "Tu mensaje de bienvenida";
+  var c = document.getElementById("brand_color_text").value || "#7c5cff";
+  var l = document.getElementById("logo_url").value;
+  doc.getElementById("pt").textContent = t;
+  doc.getElementById("pt").style.color = c;
+  doc.getElementById("pm").textContent = m;
+  doc.body.style.setProperty("--c", c);
+  doc.getElementById("mb").style.display = document.getElementById("bookings_enabled").checked ? "" : "none";
+  // Fine-grained web_booking toggle: show faded when off
+  var wbEnabled = document.getElementById("web_booking_enabled").checked;
+  if (wbEnabled && document.getElementById("bookings_enabled").checked) {
+    doc.getElementById("mb").style.opacity = "1";
+  } else if (document.getElementById("bookings_enabled").checked) {
+    doc.getElementById("mb").style.opacity = "0.35";
+  }
+  doc.getElementById("mo").style.display = document.getElementById("orders_enabled").checked ? "" : "none";
+  doc.getElementById("ml").style.display = document.getElementById("loyalty_enabled").checked ? "" : "none";
+  doc.getElementById("mm").style.display = document.getElementById("public_menu_enabled").checked ? "" : "none";
+  doc.getElementById("ps").textContent = "© " + t;
+  var logoEl = doc.getElementById("pl");
+  if (l) { logoEl.src = l; logoEl.style.display = "block"; } else { logoEl.style.display = "none"; }
+}
+
+["nombre_sitio","mensaje_principal"].forEach(function(id){ document.getElementById(id).addEventListener("input", syncPreview); });
+document.getElementById("brand_color").addEventListener("input", function(){ document.getElementById("brand_color_text").value = this.value; syncPreview(); });
+document.getElementById("brand_color_text").addEventListener("input", function(){ if(/^#[0-9a-fA-F]{6}$/.test(this.value)){ document.getElementById("brand_color").value=this.value; syncPreview(); }});
+["bookings_enabled","orders_enabled","loyalty_enabled","public_menu_enabled","web_booking_enabled"].forEach(function(id){ document.getElementById(id).addEventListener("change", syncPreview); });
+
+function showAlert(msg, type) {
+  var c = document.getElementById("alert-container");
+  c.innerHTML = "<div class='alert alert-" + type + "'>" + msg + "</div>";
+  setTimeout(function(){ c.innerHTML = ""; }, 4000);
+}
+
+async function loadConfig() {
+  // Tenant ID injected server-side via template context — never hardcode
+  var tid = document.getElementById("js_tenant_id").value || window.__WOWHUB_TENANT_ID;
+  if (!tid) { console.error("tenant_id not found in page context"); return; }
+  try {
+    var res = await fetch("/api/v1/tenants/" + tid + "/site-config",
+      { headers: { "x-tenant-id": tid, "x-user-id": "1", "x-role": "owner" } });
+    if (!res.ok) return;
+    var cfg = await res.json();
+    ["nombre_sitio","mensaje_principal","logo_url"].forEach(function(f){ document.getElementById(f).value = cfg[f]||""; });
+    document.getElementById("brand_color").value = cfg.brand_color || "#7c5cff";
+    document.getElementById("brand_color_text").value = cfg.brand_color || "#7c5cff";
+    ["bookings_enabled","orders_enabled","loyalty_enabled","public_menu_enabled"].forEach(function(f){ document.getElementById(f).checked = cfg[f]!==false; });
+    document.getElementById("web_booking_enabled").checked = cfg.web_booking_enabled !== false;
+    syncPreview();
+  } catch(e) {}
+}
+
+async function saveConfig() {
+  // Tenant ID injected server-side — multi-tenant safe
+  var tid = document.getElementById("js_tenant_id").value || window.__WOWHUB_TENANT_ID;
+  if (!tid) { showAlert("❌ No se pudo determinar el tenant", "error"); return; }
+  var payload = {
+    nombre_sitio: document.getElementById("nombre_sitio").value || null,
+    mensaje_principal: document.getElementById("mensaje_principal").value || null,
+    brand_color: document.getElementById("brand_color_text").value || null,
+    logo_url: document.getElementById("logo_url").value || null,
+    bookings_enabled: document.getElementById("bookings_enabled").checked,
+    orders_enabled: document.getElementById("orders_enabled").checked,
+    loyalty_enabled: document.getElementById("loyalty_enabled").checked,
+    public_menu_enabled: document.getElementById("public_menu_enabled").checked,
+    web_booking_enabled: document.getElementById("web_booking_enabled").checked,
+  };
+  try {
+    var res = await fetch("/api/v1/tenants/" + tid + "/site-config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-tenant-id": tid, "x-user-id": "1", "x-role": "owner" },
+      body: JSON.stringify(payload)
+    });
+    showAlert(res.ok ? "✅ Guardado correctamente" : "❌ Error: " + (await res.json()).detail, res.ok ? "success" : "error");
+  } catch(e) { showAlert("❌ Error de conexión", "error"); }
+}
+document.addEventListener("DOMContentLoaded", function(){ syncPreview(); loadConfig(); });
+</script>
+{% endblock %}
