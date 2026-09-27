@@ -26,16 +26,13 @@ from app.api.v1 import (
     site_config,  # platform admin (singleton)
     insumos, costs,  # V8
     tenant_site_config,  # V134.2: tenant-scoped site config
-    insumos, costs,  # V8: already imported above
     ai, admin_ai, superadmin,
     loyalty,
     analytics, campaigns,
     automation,  # Automation Manager™ (Cap. 19.3)
     opportunities,  # Opportunity Engine (Fase 3 del plan, ver oportunidades.pdf)
     quotes,  # Cotizaciones (Quotes) — Gestión interna
-    costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
     notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
-    insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
     marketplace,  # HU_45: Marketplace de plugins
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
