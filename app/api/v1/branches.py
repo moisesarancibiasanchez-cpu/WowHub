@@ -107,3 +107,50 @@ def list_branch_products_for_branch(
         }
         for bp in db.execute(q).scalars()
     ]
+
+
+# ── Floor Layout (HU_20) ─────────────────────────────────────────────
+# GET  /api/v1/tenants/{tenant_id}/branches/{branch_id}/floor-layout
+# POST /api/v1/tenants/{tenant_id}/branches/{branch_id}/floor-layout
+
+
+@router.get("/{branch_id}/floor-layout")
+def get_floor_layout(
+    branch_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """Devuelve el layout de mesas de una sucursal.
+
+    Si no hay layout guardado, devuelve {"tables": []}.
+    """
+    b = db.get(Branch, branch_id)
+    if not b or b.tenant_id != tenant.id:
+        raise NotFoundError("Branch")
+    layout = getattr(b, "floor_layout", None)
+    tables = layout.get("tables", []) if layout else []
+    return {"branch_id": str(branch_id), "tables": tables}
+
+
+@router.post("/{branch_id}/floor-layout")
+def save_floor_layout(
+    branch_id: UUID,
+    payload: dict,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """Guarda el layout de mesas de una sucursal.
+
+    body: {"tables": [{"id": 1, "name": "Mesa 1", "shape": "round", "capacity": 4, "status": "available"}, ...]}
+    """
+    b = db.get(Branch, branch_id)
+    if not b or b.tenant_id != tenant.id:
+        raise NotFoundError("Branch")
+    tables = payload.get("tables", [])
+    if not isinstance(tables, list):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="tables must be a list")
+    b.floor_layout = {"tables": tables}
+    db.commit()
+    return {"branch_id": str(branch_id), "tables": tables}
+

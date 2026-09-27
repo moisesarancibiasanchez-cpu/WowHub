@@ -1,0 +1,518 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Mapa de Sala — WowHub{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  /* ── Floor Map Editor ───────────────────────────────────────── */
+  .fm-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr 260px;
+    gap: 12px;
+    height: calc(100vh - 120px);
+    min-height: 500px;
+  }
+  .fm-panel {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-y: auto;
+  }
+  .fm-panel h4 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--fg-muted); }
+  .fm-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    cursor: grab;
+    margin-bottom: 8px;
+    background: var(--bg-elev-2);
+    font-size: 13px;
+    transition: border-color .15s, background .15s;
+    user-select: none;
+  }
+  .fm-palette-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .fm-palette-item:active { cursor: grabbing; }
+  .palette-shape {
+    width: 28px; height: 28px;
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+  }
+  .shape-round  { border-radius: 50%; }
+  .shape-square { border-radius: 4px; }
+  .shape-rect   { width: 44px; height: 24px; border-radius: 4px; }
+
+  /* ── Canvas / Grid ─────────────────────────────────────────── */
+  .fm-canvas-wrap {
+    position: relative;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .fm-canvas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 90px);
+    grid-auto-rows: 90px;
+    gap: 8px;
+    padding: 16px;
+    min-height: 400px;
+  }
+  .fm-table-cell {
+    border: 2px solid var(--border-strong);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 4px;
+    transition: border-color .2s, transform .1s;
+    background: var(--bg-elev);
+    min-width: 0;
+  }
+  .fm-table-cell:hover { border-color: var(--accent); transform: scale(1.03); }
+  .fm-table-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .fm-table-cell.status-available  { background: var(--ok-bg); border-color: var(--ok); color: var(--ok-ink); }
+  .fm-table-cell.status-occupied   { background: var(--err-bg); border-color: var(--err); color: var(--err-ink); }
+  .fm-table-cell.status-reserved   { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
+  .fm-table-icon { font-size: 22px; line-height: 1; }
+  .fm-table-num  { font-size: 11px; opacity: .8; }
+  .fm-table-del {
+    position: absolute; top: 4px; right: 4px;
+    background: var(--err); color: #fff;
+    border: none; border-radius: 50%;
+    width: 18px; height: 18px;
+    font-size: 10px; line-height: 18px; text-align: center;
+    cursor: pointer; display: none;
+  }
+  .fm-table-cell:hover .fm-table-del { display: block; }
+  .fm-table-empty {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--fg-muted);
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    cursor: default;
+    grid-column: span 1;
+    min-height: 90px;
+  }
+
+  /* ── Config panel ──────────────────────────────────────────── */
+  .fm-cfg-group { margin-bottom: 14px; }
+  .fm-cfg-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
+  .fm-status-btns { display: flex; gap: 6px; }
+  .fm-status-btn {
+    flex: 1; padding: 6px 4px; border: 1px solid var(--border);
+    border-radius: 4px; background: none; cursor: pointer;
+    font-size: 12px; text-align: center;
+    transition: background .15s, border-color .15s;
+  }
+  .fm-status-btn.active { font-weight: 700; }
+  .fm-status-btn[data-status="available"]  { color: var(--ok); }
+  .fm-status-btn[data-status="available"].active  { background: var(--ok-bg); border-color: var(--ok); }
+  .fm-status-btn[data-status="occupied"]   { color: var(--err); }
+  .fm-status-btn[data-status="occupied"].active   { background: var(--err-bg); border-color: var(--err); }
+  .fm-status-btn[data-status="reserved"]   { color: var(--warn); }
+  .fm-status-btn[data-status="reserved"].active  { background: var(--warn-bg); border-color: var(--warn); }
+
+  /* ── Palette drag ghost ─────────────────────────────────────── */
+  .drag-ghost { opacity: .6; }
+
+  /* ── Notifications ──────────────────────────────────────────── */
+  .fm-toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--fg); color: #fff;
+    padding: 10px 16px; border-radius: 6px;
+    font-size: 13px; z-index: 9999;
+    transition: opacity .3s;
+  }
+</style>
+{% endblock %}
+
+{% block dash_content %}
+<section class="container" style="padding: 16px 20px;">
+  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div>
+      <h1 style="margin:0; font-size:20px;">Mapa de Sala</h1>
+      <p class="text-muted" style="margin:4px 0 0; font-size:13px;">
+        Arrastra las mesas desde la paleta, colócalas en la grilla y configura su estado.
+      </p>
+    </div>
+    <div class="flex" style="gap:8px; align-items:center;">
+      <select id="fm-branch" class="form-input" style="width:180px;">
+        <option value="">Todas las sucursales</option>
+      </select>
+      <button class="btn btn-ghost" id="fm-clear-btn">Limpiar todo</button>
+      <button class="btn" id="fm-save-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Guardar layout
+      </button>
+    </div>
+  </div>
+
+  <div class="fm-layout">
+    <!-- ── Left: Table Palette ─────────────────────────────── -->
+    <div class="fm-panel">
+      <h4>Mesas</h4>
+      <div class="fm-palette-item" draggable="true" data-shape="round"   data-default-capacity="4">
+        <div class="palette-shape shape-round"></div>
+        <div>
+          <div style="font-weight:600;">Redonda</div>
+          <div style="font-size:11px; color:var(--fg-muted);">4 personas</div>
+        </div>
+      </div>
+      <div class="fm-palette-item" draggable="true" data-shape="square"  data-default-capacity="4">
+        <div class="palette-shape shape-square"></div>
+        <div>
+          <div style="font-weight:600;">Cuadrada</div>
+          <div style="font-size:11px; color:var(--fg-muted);">4 personas</div>
+        </div>
+      </div>
+      <div class="fm-palette-item" draggable="true" data-shape="rect"    data-default-capacity="6">
+        <div class="palette-shape shape-rect"></div>
+        <div>
+          <div style="font-weight:600;">Rectangular</div>
+          <div style="font-size:11px; color:var(--fg-muted);">6 personas</div>
+        </div>
+      </div>
+      <div class="fm-palette-item" draggable="true" data-shape="round"   data-default-capacity="2">
+        <div class="palette-shape shape-round" style="width:22px;height:22px;border-width:1px;"></div>
+        <div>
+          <div style="font-weight:600;">Baja</div>
+          <div style="font-size:11px; color:var(--fg-muted);">2 personas</div>
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+      <h4>Acciones</h4>
+      <p style="font-size:12px; color:var(--fg-muted); margin:0 0 8px;">
+        Haz clic en una mesa del canvas para editarla.
+      </p>
+      <button class="btn btn-ghost btn-sm" style="width:100%;font-size:12px;" id="fm-add-btn">
+        + Agregar mesa rápida
+      </button>
+    </div>
+
+    <!-- ── Center: Floor Canvas ───────────────────────────── -->
+    <div class="fm-canvas-wrap" id="fm-canvas-wrap">
+      <div class="fm-canvas" id="fm-canvas">
+        <div class="fm-table-empty" id="fm-empty-msg">
+          Arrastra una mesa aquí o usa "Agregar mesa rápida"
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Right: Table Config ────────────────────────────── -->
+    <div class="fm-panel" id="fm-config-panel">
+      <h4>Configuración</h4>
+      <div id="fm-no-selection" style="font-size:13px; color:var(--fg-muted); text-align:center; padding:20px 0;">
+        Selecciona una mesa en el plano para editarla.
+      </div>
+      <div id="fm-config-form" style="display:none;">
+        <div class="fm-cfg-group">
+          <label>Nombre de mesa</label>
+          <input id="cfg-name" class="form-input" placeholder="Mesa 1" style="width:100%;">
+        </div>
+        <div class="fm-cfg-group">
+          <label>Capacidad (personas)</label>
+          <input id="cfg-capacity" type="number" class="form-input" min="1" max="20" value="4" style="width:100%;">
+        </div>
+        <div class="fm-cfg-group">
+          <label>Estado</label>
+          <div class="fm-status-btns">
+            <button class="fm-status-btn" data-status="available">Libre</button>
+            <button class="fm-status-btn" data-status="occupied">Ocupada</button>
+            <button class="fm-status-btn" data-status="reserved">Reservada</button>
+          </div>
+        </div>
+        <div class="fm-cfg-group">
+          <label>Forma</label>
+          <select id="cfg-shape" class="form-input" style="width:100%;">
+            <option value="round">Redonda</option>
+            <option value="square">Cuadrada</option>
+            <option value="rect">Rectangular</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="fm-remove-btn" style="width:100%; margin-top:8px; color:var(--err);">
+          🗑 Eliminar mesa
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Toast notification -->
+<div id="fm-toast" class="fm-toast" style="display:none;"></div>
+
+<script>
+// ── Floor Map Editor JS ────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  const canvas = document.getElementById('fm-canvas');
+  const emptyMsg = document.getElementById('fm-empty-msg');
+  const configForm = document.getElementById('fm-config-form');
+  const noSelection = document.getElementById('fm-no-selection');
+  const saveBtn = document.getElementById('fm-save-btn');
+  const clearBtn = document.getElementById('fm-clear-btn');
+  const addBtn = document.getElementById('fm-add-btn');
+  const branchSelect = document.getElementById('fm-branch');
+  const toastEl = document.getElementById('fm-toast');
+
+  let tables = [];           // { id, name, shape, capacity, status, x, y }
+  let selectedId = null;
+  let nextId = 1;
+
+  // ── Toast ──────────────────────────────────────────────────────
+  function showToast(msg, duration = 2500) {
+    toastEl.textContent = msg;
+    toastEl.style.display = 'block';
+    toastEl.style.opacity = '1';
+    clearTimeout(toastEl._timer);
+    toastEl._timer = setTimeout(() => {
+      toastEl.style.opacity = '0';
+      setTimeout(() => { toastEl.style.display = 'none'; }, 300);
+    }, duration);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function render() {
+    // Remove all table cells (keep empty message as sentinel)
+    canvas.querySelectorAll('.fm-table-cell').forEach(el => el.remove());
+
+    if (tables.length === 0) {
+      emptyMsg.style.display = 'flex';
+    } else {
+      emptyMsg.style.display = 'none';
+      tables.forEach(t => {
+        const cell = document.createElement('div');
+        cell.className = `fm-table-cell status-${t.status}${t.id === selectedId ? ' selected' : ''}`;
+        cell.dataset.id = t.id;
+
+        // Shape icon
+        let icon = '';
+        if (t.shape === 'round')  icon = '⭘';
+        if (t.shape === 'square') icon = '◼';
+        if (t.shape === 'rect')   icon = '▬';
+        cell.innerHTML = `
+          <span class="fm-table-icon">${icon}</span>
+          <span class="fm-table-num">${t.name}</span>
+          <span class="fm-table-num" style="font-size:10px;">${t.capacity}p</span>
+          <button class="fm-table-del" title="Eliminar">×</button>
+        `;
+
+        // Click to select
+        cell.addEventListener('click', (e) => {
+          if (e.target.classList.contains('fm-table-del')) {
+            tables = tables.filter(tb => tb.id !== t.id);
+            if (selectedId === t.id) { selectedId = null; hideConfig(); }
+            render();
+            return;
+          }
+          selectTable(t.id);
+        });
+
+        // Double-click to edit name inline
+        cell.addEventListener('dblclick', () => {
+          selectTable(t.id);
+          document.getElementById('cfg-name').focus();
+        });
+
+        canvas.appendChild(cell);
+      });
+    }
+  }
+
+  // ── Select ─────────────────────────────────────────────────────
+  function selectTable(id) {
+    selectedId = id;
+    render();
+    showConfig();
+  }
+
+  function showConfig() {
+    const t = tables.find(tb => tb.id === selectedId);
+    if (!t) return;
+    noSelection.style.display = 'none';
+    configForm.style.display = 'block';
+    document.getElementById('cfg-name').value = t.name;
+    document.getElementById('cfg-capacity').value = t.capacity;
+    document.getElementById('cfg-shape').value = t.shape;
+    configForm.querySelectorAll('.fm-status-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.status === t.status);
+    });
+  }
+
+  function hideConfig() {
+    noSelection.style.display = 'block';
+    configForm.style.display = 'none';
+  }
+
+  // ── Palette drag-over-canvas ────────────────────────────────────
+  canvas.addEventListener('dragover', (e) => { e.preventDefault(); });
+  canvas.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const shape = e.dataTransfer.getData('shape');
+    const capacity = parseInt(e.dataTransfer.getData('capacity') || '4', 10);
+    if (!shape) return;
+    const t = {
+      id: nextId++,
+      name: `Mesa ${nextId - 1}`,
+      shape,
+      capacity,
+      status: 'available',
+    };
+    tables.push(t);
+    render();
+    selectTable(t.id);
+  });
+
+  document.querySelectorAll('.fm-palette-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('shape', item.dataset.shape);
+      e.dataTransfer.setData('capacity', item.dataset.defaultCapacity);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
+
+  // ── Config bindings ─────────────────────────────────────────────
+  document.getElementById('cfg-name').addEventListener('input', (e) => {
+    const t = tables.find(tb => tb.id === selectedId);
+    if (t) { t.name = e.target.value; render(); }
+  });
+  document.getElementById('cfg-capacity').addEventListener('input', (e) => {
+    const t = tables.find(tb => tb.id === selectedId);
+    if (t) { t.capacity = parseInt(e.target.value, 10) || 1; render(); }
+  });
+  document.getElementById('cfg-shape').addEventListener('change', (e) => {
+    const t = tables.find(tb => tb.id === selectedId);
+    if (t) { t.shape = e.target.value; render(); }
+  });
+  configForm.querySelectorAll('.fm-status-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = tables.find(tb => tb.id === selectedId);
+      if (t) { t.status = btn.dataset.status; render(); showConfig(); }
+    });
+  });
+  document.getElementById('fm-remove-btn').addEventListener('click', () => {
+    tables = tables.filter(tb => tb.id !== selectedId);
+    selectedId = null;
+    hideConfig();
+    render();
+  });
+
+  // ── Quick add ────────────────────────────────────────────────────
+  addBtn.addEventListener('click', () => {
+    const t = { id: nextId++, name: `Mesa ${nextId - 1}`, shape: 'square', capacity: 4, status: 'available' };
+    tables.push(t);
+    render();
+    selectTable(t.id);
+  });
+
+  // ── Clear ────────────────────────────────────────────────────────
+  clearBtn.addEventListener('click', () => {
+    if (!confirm('¿Limpiar todo el mapa de sala?')) return;
+    tables = [];
+    selectedId = null;
+    hideConfig();
+    render();
+  });
+
+  // ── Save ─────────────────────────────────────────────────────────
+  saveBtn.addEventListener('click', async () => {
+    const branchId = branchSelect.value;
+    if (!branchId) { showToast('Selecciona una sucursal primero.'); return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+    try {
+      // Resolve tenant_id
+      const msRes = await fetch('/api/v1/me/memberships', { credentials: 'include' });
+      const msData = msRes.ok ? await msRes.json() : [];
+      const currentTenantId = msData[0]?.tenant_id || msData.tenant_id || '';
+      const res = await fetch(`/api/v1/tenants/${currentTenantId}/branches/${branchId}/floor-layout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ tables }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      showToast('✅ Layout guardado correctamente.');
+    } catch (err) {
+      showToast('❌ Error al guardar: ' + err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Guardar layout`;
+    }
+  });
+
+  // ── Load on branch change ────────────────────────────────────────
+  branchSelect.addEventListener('change', async () => {
+    const branchId = branchSelect.value;
+    if (!branchId) { tables = []; selectedId = null; hideConfig(); render(); return; }
+    try {
+      const msRes = await fetch('/api/v1/me/memberships', { credentials: 'include' });
+      const msData = msRes.ok ? await msRes.json() : [];
+      const currentTenantId = msData[0]?.tenant_id || msData.tenant_id || '';
+      const res = await fetch(`/api/v1/tenants/${currentTenantId}/branches/${branchId}/floor-layout`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        tables = (data.tables || []).map(t => ({ ...t, id: t.id || nextId++ }));
+        if (tables.length > 0) nextId = Math.max(...tables.map(t => t.id)) + 1;
+        selectedId = null;
+        hideConfig();
+        render();
+        showToast(`Layout cargado (${tables.length} mesas).`);
+      }
+    } catch (err) {
+      showToast('No se pudo cargar el layout.');
+    }
+  });
+
+  // ── Load branches ───────────────────────────────────────────────
+  (async () => {
+    try {
+      // Get tenant id from /api/v1/me/memberships
+      const msRes = await fetch('/api/v1/me/memberships', { credentials: 'include' });
+      if (!msRes.ok) return;
+      const msData = await msRes.json();
+      const currentTenantId = msData[0]?.tenant_id || msData.tenant_id;
+      if (!currentTenantId) return;
+
+      const res = await fetch(`/api/v1/tenants/${currentTenantId}/branches?page_size=200`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const branches = await res.json();
+        branchSelect.innerHTML = '<option value="">Todas las sucursales</option>';
+        branches.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.id;
+          opt.textContent = b.name || b.id;
+          branchSelect.appendChild(opt);
+        });
+      }
+    } catch (_) {}
+  })();
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { selectedId = null; hideConfig(); render(); }
+    if (e.key === 'Delete' && selectedId !== null) {
+      tables = tables.filter(tb => tb.id !== selectedId);
+      selectedId = null; hideConfig(); render();
+    }
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

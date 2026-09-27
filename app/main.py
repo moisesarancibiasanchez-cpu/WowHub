@@ -12,6 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# HU_07: Observabilidad — carga perezosa para no romper dev sin dependencias
+try:
+    from app.instrumentation import setup_telemetry, instrument_app
+except ImportError:
+    setup_telemetry = instrument_app = None  # type: ignore
+
 from app.api.v1 import (
     auth, branches, categories, customers, landing, products, promotions, public, qrs, tenants,
     orders, payments, webhooks, stats, uploads, password,
@@ -75,6 +81,10 @@ templates.env.globals["settings"] = settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    if setup_telemetry is not None:
+        setup_telemetry()
+        if instrument_app is not None:
+            instrument_app(app)
     logger.info("Inicializando base de datos...")
     init_db()
     logger.info(f"WowHub arrancado — env={settings.app_env}, db={settings.database_url}")
@@ -618,6 +628,26 @@ def dashboard_notifications(request: Request):
 def dashboard_pipeline(request: Request):
     """DEPRECATED: redirige al Kanban en /dashboard/orders."""
     return RedirectResponse(url="/dashboard/orders", status_code=301)
+
+
+# ── Floor Map Editor (HU_20) ───────────────────────────────────────
+@app.get("/dashboard/floor-map", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_floor_map(request: Request):
+    """Editor visual del mapa de sala: arrastra y coloca mesas."""
+    return templates.TemplateResponse(
+        request, "dashboard/floor_map.html",
+        {"settings": settings, "body_class": "route-floor-map"},
+    )
+
+
+# ── KDS — Kitchen Display System (HU_21) ───────────────────────────
+@app.get("/dashboard/kds/", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_kds(request: Request):
+    """Pantalla completa para cocina: pedidos en tiempo real con timers."""
+    return templates.TemplateResponse(
+        request, "dashboard/kds.html",
+        {"settings": settings},
+    )
 
 
 # ── Páginas públicas por tenant ──────────────────────────

@@ -21,5 +21,6 @@ class Branch(BaseModel, TenantMixin):
     hours: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     is_main: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    floor_layout: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
 
     tenant: Mapped["Tenant"] = relationship(back_populates="branches")  # noqa: F821
