@@ -36,3 +36,4 @@ from app.models.automation import AutomationExecution, AutomationStatus  # noqa:
 # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
 from app.models.insumo import Insumo, Receta  # noqa: F401
 from app.models.marketplace import MarketplacePlugin, PluginSubscription  # noqa: F401
+from app.models.tenant_site_config import TenantSiteConfig  # noqa: F401  # V134.2
