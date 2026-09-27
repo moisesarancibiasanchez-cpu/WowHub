@@ -1,0 +1,438 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Marketplace Admin — WowHub{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ai.css">
+<style>
+  /* ── Superadmin Marketplace Admin (HU_45) ─────────────── */
+  .sa-wrap { max-width: 1300px; margin: 0 auto; }
+  .sa-banner {
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+    border: 1px solid rgba(124,92,255,0.2);
+    color: #fff;
+    padding: 18px 22px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .sa-banner h1 { margin: 0; font-size: 20px; }
+  .sa-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .sa-kpi { background: var(--ai-panel, #1a1a2e); border: 1px solid rgba(124,92,255,0.15); border-radius: 10px; padding: 16px; }
+  .sa-kpi h4 { margin: 0 0 8px 0; font-size: 11px; color: var(--ai-text-dim, #888); text-transform: uppercase; letter-spacing: .5px; }
+  .sa-kpi .num { font-size: 28px; font-weight: 700; }
+  .sa-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+  .sa-section h2 { margin: 0 0 12px 0; font-size: 16px; }
+  .sa-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sa-table th { text-align: left; padding: 9px 12px; background: rgba(0,0,0,0.3); color: #888; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+  .sa-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
+  .sa-table tr:hover td { background: rgba(124,92,255,0.05); }
+  .sa-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .sa-pill-active { background: rgba(0,212,168,0.15); color: #00d4a8; }
+  .sa-pill-inactive { background: rgba(255,80,80,0.12); color: #ff7070; }
+  .sa-pill-featured { background: rgba(124,92,255,0.2); color: #a78bfa; }
+  .sa-pill-free { background: rgba(0,212,168,0.12); color: #00d4a8; }
+  .sa-pill-paid { background: rgba(255,180,84,0.12); color: #ffb454; }
+  .sa-pill-star { background: rgba(255,180,84,0.12); color: #ffb454; }
+  .sa-btn { padding: 5px 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #c0c0d0; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .sa-btn:hover { background: rgba(124,92,255,0.15); border-color: rgba(124,92,255,0.3); }
+  .sa-btn-danger { color: #ff7070; border-color: rgba(255,80,80,0.2); }
+  .sa-btn-danger:hover { background: rgba(255,80,80,0.12); border-color: rgba(255,80,80,0.4); }
+  .sa-btn-primary { background: rgba(124,92,255,0.2); color: #a78bfa; border-color: rgba(124,92,255,0.3); }
+  .sa-btn-primary:hover { background: rgba(124,92,255,0.35); }
+
+  /* ── Form ────────────────────────────────────────────── */
+  .sa-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sa-form .full { grid-column: 1 / -1; }
+  .sa-form label { display: block; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 5px; }
+  .sa-form input, .sa-form textarea, .sa-form select {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 7px;
+    color: #e0e0e0;
+    font-size: 13px;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .sa-form input:focus, .sa-form textarea:focus { border-color: rgba(124,92,255,0.4); }
+  .sa-form textarea { resize: vertical; min-height: 80px; }
+  .sa-form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .sa-toggle {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: inline-block;
+  }
+  .sa-toggle.on { background: rgba(0,212,168,0.4); }
+  .sa-toggle.off { background: rgba(255,80,80,0.3); }
+  .sa-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.2s;
+  }
+  .sa-toggle.on::after { left: 21px; }
+  .sa-toggle.off::after { left: 3px; }
+
+  /* ── Modal ───────────────────────────────────────────── */
+  .sa-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    display: none;
+  }
+  .sa-modal-overlay.show { display: flex; }
+  .sa-modal {
+    background: #1e1e2e;
+    border: 1px solid rgba(124,92,255,0.25);
+    border-radius: 14px;
+    padding: 1.75rem;
+    max-width: 560px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .sa-modal h3 { margin: 0 0 1rem; font-size: 1.1rem; }
+  .sa-modal-close { float: right; cursor: pointer; opacity: 0.5; font-size: 1.2rem; }
+  .sa-modal-close:hover { opacity: 1; }
+
+  /* ── Toast ────────────────────────────────────────────── */
+  .sa-toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: #1e1e2e;
+    border: 1px solid rgba(0,212,168,0.3);
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    color: #00d4a8;
+    font-size: 0.9rem;
+    font-weight: 500;
+    z-index: 2000;
+    display: none;
+    animation: sa-slide-in 0.3s ease;
+  }
+  .sa-toast.show { display: block; }
+  .sa-toast.error { border-color: rgba(255,80,80,0.4); color: #ff7070; }
+  @keyframes sa-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .sa-badge { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .sa-cat-icon { font-size: 1.1rem; }
+</style>
+{% endblock %}
+
+{% block dash_content %}
+<div class="sa-wrap">
+
+  <!-- ── Banner ──────────────────────────────────────────── -->
+  <div class="sa-banner">
+    <div>
+      <h1>🧩 Marketplace Admin</h1>
+      <small>Gestiona plugins — plataforma WowHub</small>
+    </div>
+    <div style="display:flex; gap: 8px;">
+      <button class="sa-btn sa-btn-primary" onclick="showAddForm()">+ Publicar Plugin</button>
+      <button class="sa-btn" onclick="seedPlugins()">🌱 Seed 5 Plugins</button>
+    </div>
+  </div>
+
+  <!-- ── KPIs ───────────────────────────────────────────── -->
+  <div class="sa-kpi-grid" id="sa-kpis"></div>
+
+  <!-- ── Table ──────────────────────────────────────────── -->
+  <div class="sa-section">
+    <h2>Plugins <span class="badge" id="sa-count">0</span></h2>
+    <table class="sa-table">
+      <thead>
+        <tr>
+          <th>Plugin</th>
+          <th>Categoría</th>
+          <th>Versión</th>
+          <th>Precio</th>
+          <th>Instalaciones</th>
+          <th>Rating</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="sa-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Add/Edit Plugin Modal ──────────────────────────────── -->
+<div class="sa-modal-overlay" id="sa-modal">
+  <div class="sa-modal">
+    <span class="sa-modal-close" onclick="hideModal()">✕</span>
+    <h3 id="sa-modal-title">Publicar Plugin</h3>
+    <form id="sa-form" onsubmit="submitPlugin(event)">
+      <input type="hidden" id="sa-plugin-id">
+      <div class="sa-form">
+        <div>
+          <label>Nombre *</label>
+          <input type="text" id="sa-name" required maxlength="100" placeholder="WhatsApp Business">
+        </div>
+        <div>
+          <label>Slug *</label>
+          <input type="text" id="sa-slug" required maxlength="100" pattern="[a-z0-9-]+" placeholder="whatsapp-business">
+        </div>
+        <div class="full">
+          <label>Descripción</label>
+          <textarea id="sa-description" placeholder="Describe el plugin…"></textarea>
+        </div>
+        <div>
+          <label>Categoría *</label>
+          <select id="sa-category" required>
+            <option value="">Seleccionar…</option>
+            <option value="notifications">Notificaciones</option>
+            <option value="analytics">Analítica</option>
+            <option value="crm">CRM</option>
+            <option value="ai">IA</option>
+            <option value="operations">Operaciones</option>
+            <option value="integrations">Integraciones</option>
+          </select>
+        </div>
+        <div>
+          <label>Versión</label>
+          <input type="text" id="sa-version" value="1.0.0" maxlength="20">
+        </div>
+        <div>
+          <label>Paquete pip</label>
+          <input type="text" id="sa-pip_package" placeholder="wowhub-whatsapp">
+        </div>
+        <div>
+          <label>Git URL</label>
+          <input type="url" id="sa-git_url" placeholder="https://github.com/...">
+        </div>
+        <div>
+          <label>Precio mensual (USD, en centavos)</label>
+          <input type="number" id="sa-price_monthly_usd" value="0" min="0" placeholder="0 = gratis">
+        </div>
+        <div class="full" style="display:flex; gap:2rem; align-items:center; margin-top:0.5rem;">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; text-transform:none; font-size:13px;">
+            <input type="checkbox" id="sa-is_paid" onchange="togglePriceField()"> Plugin de pago
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; text-transform:none; font-size:13px;">
+            <input type="checkbox" id="sa-is_featured"> Destacado
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; text-transform:none; font-size:13px;">
+            <input type="checkbox" id="sa-is_active" checked> Activo
+          </label>
+        </div>
+      </div>
+      <div class="sa-form-actions">
+        <button type="button" class="sa-btn" onclick="hideModal()">Cancelar</button>
+        <button type="submit" class="sa-btn sa-btn-primary" id="sa-submit-btn">Publicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────── -->
+<div class="sa-toast" id="sa-toast"></div>
+
+<script>
+const API = '/api/v1/admin/marketplace';
+
+function apiHeaders() {
+  const token = document.cookie.match(/(?:^|;\s*)wowhub_access_token=([^;]*)/)?.[1]
+             || document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/)?.[1] || '';
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+}
+
+function catIcon(cat) {
+  const m = { notifications:'🔔', analytics:'📊', crm:'👥', ai:'🤖', operations:'⚙️', integrations:'🔗' };
+  return m[cat] || '📦';
+}
+
+function catLabel(cat) {
+  const m = { notifications:'Notificaciones', analytics:'Analítica', crm:'CRM', ai:'IA', operations:'Operaciones', integrations:'Integraciones' };
+  return m[cat] || cat || '';
+}
+
+function priceLabel(p) {
+  if (!p.is_paid || p.price_monthly_usd === 0) return '<span class="sa-pill sa-pill-free">Gratis</span>';
+  return `<span class="sa-pill sa-pill-paid">$${(p.price_monthly_usd/100).toFixed(2)}/mes</span>`;
+}
+
+function stars(r) {
+  const v = r || 0;
+  const f = Math.round(v / 10);
+  return '★'.repeat(f) + '☆'.repeat(5 - f);
+}
+
+async function loadPlugins() {
+  try {
+    // Load all (fetch page 1 with high per_page)
+    const res = await fetch(`${API.replace('/admin/marketplace', '/marketplace/')}?per_page=100`, { headers: apiHeaders() });
+    if (!res.ok) { showToast('Error al cargar plugins', 'error'); return; }
+    const data = await res.json();
+    renderKPIs(data.total);
+    renderTable(data.items);
+  } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+function renderKPIs(total) {
+  document.getElementById('sa-kpis').innerHTML = `
+    <div class="sa-kpi"><h4>Total Plugins</h4><div class="num">${total}</div></div>
+  `;
+}
+
+function renderTable(plugins) {
+  document.getElementById('sa-count').textContent = plugins.length;
+  const tbody = document.getElementById('sa-tbody');
+  if (!plugins.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#666;">No hay plugins aún.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = plugins.map(p => `
+    <tr>
+      <td>
+        <div class="sa-badge">${catIcon(p.category)} <strong>${p.name}</strong></div>
+        <div style="font-size:11px;color:#666;margin-top:2px;">${p.slug}</div>
+      </td>
+      <td><span class="sa-pill">${catLabel(p.category)}</span></td>
+      <td><code style="font-size:12px;">${p.version}</code></td>
+      <td>${priceLabel(p)}</td>
+      <td>${p.installs || 0}</td>
+      <td><span style="color:#ffb454;">${stars(p.rating)}</span> (${p.rating || 0})</td>
+      <td>
+        <span class="sa-pill ${p.is_active ? 'sa-pill-active' : 'sa-pill-inactive'}">${p.is_active ? 'Activo' : 'Inactivo'}</span>
+        ${p.is_featured ? '<span class="sa-pill sa-pill-featured">⭐</span>' : ''}
+      </td>
+      <td>
+        <button class="sa-btn" onclick="editPlugin('${p.id}')">Editar</button>
+        <button class="sa-btn sa-btn-danger" onclick="deletePlugin('${p.id}', '${p.slug}')">Eliminar</button>
+        <span class="sa-toggle ${p.is_active ? 'on' : 'off'}" onclick="toggleActive('${p.id}', ${!p.is_active})" title="Activar/Inactivar"></span>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function editPlugin(id) {
+  // For edit, we load the all plugins and find by id
+  try {
+    const res = await fetch(`${API.replace('/admin/marketplace', '/marketplace/')}?per_page=100`, { headers: apiHeaders() });
+    const data = await res.json();
+    const p = data.items.find(x => x.id === id);
+    if (!p) { showToast('Plugin no encontrado', 'error'); return; }
+    showAddForm(p);
+  } catch (e) { showToast('Error', 'error'); }
+}
+
+function showAddForm(p = null) {
+  document.getElementById('sa-plugin-id').value = p ? p.id : '';
+  document.getElementById('sa-name').value = p ? p.name : '';
+  document.getElementById('sa-slug').value = p ? p.slug : '';
+  document.getElementById('sa-slug').readOnly = !!p;
+  document.getElementById('sa-description').value = p ? (p.description || '') : '';
+  document.getElementById('sa-category').value = p ? p.category : '';
+  document.getElementById('sa-version').value = p ? p.version : '1.0.0';
+  document.getElementById('sa-pip_package').value = p ? (p.pip_package || '') : '';
+  document.getElementById('sa-git_url').value = p ? (p.git_url || '') : '';
+  document.getElementById('sa-price_monthly_usd').value = p ? p.price_monthly_usd : 0;
+  document.getElementById('sa-is_paid').checked = p ? !!p.is_paid : false;
+  document.getElementById('sa-is_featured').checked = p ? !!p.is_featured : false;
+  document.getElementById('sa-is_active').checked = p ? p.is_active !== false : true;
+  document.getElementById('sa-modal-title').textContent = p ? 'Editar Plugin' : 'Publicar Plugin';
+  document.getElementById('sa-submit-btn').textContent = p ? 'Guardar' : 'Publicar';
+  document.getElementById('sa-modal').classList.add('show');
+}
+
+function hideModal() {
+  document.getElementById('sa-modal').classList.remove('show');
+  document.getElementById('sa-slug').readOnly = false;
+}
+
+async function submitPlugin(e) {
+  e.preventDefault();
+  const id = document.getElementById('sa-plugin-id').value;
+  const body = {
+    name: document.getElementById('sa-name').value,
+    slug: document.getElementById('sa-slug').value,
+    description: document.getElementById('sa-description').value || null,
+    category: document.getElementById('sa-category').value,
+    version: document.getElementById('sa-version').value || '1.0.0',
+    pip_package: document.getElementById('sa-pip_package').value || null,
+    git_url: document.getElementById('sa-git_url').value || null,
+    price_monthly_usd: parseInt(document.getElementById('sa-price_monthly_usd').value) || 0,
+    is_paid: document.getElementById('sa-is_paid').checked,
+    is_featured: document.getElementById('sa-is_featured').checked,
+    is_active: document.getElementById('sa-is_active').checked,
+  };
+
+  try {
+    const url = id ? `${API}/${id}` : API;
+    const method = id ? 'PATCH' : 'POST';
+    const res = await fetch(url, { method, headers: apiHeaders(), body: JSON.stringify(body) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Error al guardar', 'error');
+      return;
+    }
+    showToast(id ? 'Plugin actualizado.' : 'Plugin publicado.');
+    hideModal();
+    loadPlugins();
+  } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+async function deletePlugin(id, slug) {
+  if (!confirm(`¿Eliminar el plugin "${slug}"? Esto también cancelará todas las suscripciones.`)) return;
+  try {
+    const res = await fetch(`${API}/${id}`, { method: 'DELETE', headers: apiHeaders() });
+    if (!res.ok) { showToast('Error al eliminar', 'error'); return; }
+    showToast('Plugin eliminado.');
+    loadPlugins();
+  } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+async function toggleActive(id, newState) {
+  try {
+    const res = await fetch(`${API}/${id}`, {
+      method: 'PATCH', headers: apiHeaders(),
+      body: JSON.stringify({ is_active: newState }),
+    });
+    if (!res.ok) { showToast('Error', 'error'); return; }
+    loadPlugins();
+  } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+async function seedPlugins() {
+  try {
+    const res = await fetch(`${API}/seed`, { method: 'POST', headers: apiHeaders() });
+    if (!res.ok) { showToast('Error al ejecutar seed', 'error'); return; }
+    const data = await res.json();
+    showToast(`✓ ${data.message}`);
+    loadPlugins();
+  } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('sa-toast');
+  t.textContent = msg;
+  t.className = 'sa-toast' + (type === 'error' ? ' error' : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+document.getElementById('sa-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) hideModal();
+});
+
+loadPlugins();
+</script>
+{% endblock %}

@@ -36,6 +36,7 @@ from app.api.v1 import (
     costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
     notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
     insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
+    marketplace,  # HU_45: Marketplace de plugins
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -193,6 +194,10 @@ app.include_router(insumos.router, prefix="/api/v1")
 # Audita la coherencia entre el prototipo HTML y los modelos existentes
 # en `app.models`. NO añade modelos nuevos — solo introspección.
 app.include_router(f0_baseline_router)
+# HU_45 — Marketplace de plugins (tenant endpoints)
+app.include_router(marketplace.router, prefix="/api/v1")
+# HU_45 — Marketplace admin (superadmin endpoints)
+app.include_router(marketplace.admin_router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -449,6 +454,57 @@ def superadmin_page(request: Request):
             "user_email": user_email,
             "user_name": user_name,
         },
+    )
+
+
+# ── HU_45: Marketplace (UI) ───────────────────────────────
+@app.get("/dashboard/marketplace/", response_class=HTMLResponse, include_in_schema=False)
+def marketplace_page(request: Request):
+    """WowHub Marketplace — browse and install plugins for your tenant."""
+    token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return RedirectResponse(url="/dashboard/login?reason=auth", status_code=302)
+    return templates.TemplateResponse(
+        request, "dashboard/marketplace.html",
+        {"settings": settings},
+    )
+
+
+@app.get("/superadmin/marketplace/", response_class=HTMLResponse, include_in_schema=False)
+def admin_marketplace_page(request: Request):
+    """Superadmin: manage marketplace plugins."""
+    token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return RedirectResponse(url="/dashboard/login?reason=superadmin_auth", status_code=302)
+
+    from app.security import decode_token
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return RedirectResponse(url="/dashboard/login?reason=superadmin_auth", status_code=302)
+
+    with SessionLocal() as db:
+        from app.models.user import User
+        user_id = payload.get("sub")
+        if not user_id:
+            return RedirectResponse(url="/dashboard/login?reason=superadmin_auth", status_code=302)
+        user = db.get(User, user_id)
+        if not user:
+            return RedirectResponse(url="/dashboard/login?reason=superadmin_auth", status_code=302)
+        is_su_jwt = bool(payload.get("is_superuser"))
+        is_su_db = bool(getattr(user, "is_superuser", False))
+        if not (is_su_jwt or is_su_db):
+            return RedirectResponse(url="/dashboard?reason=superadmin_forbidden", status_code=302)
+
+    return templates.TemplateResponse(
+        request, "superadmin/marketplace_admin.html",
+        {"settings": settings, "user_role": "superuser"},
     )
 
 

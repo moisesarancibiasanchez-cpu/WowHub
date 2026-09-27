@@ -716,6 +716,83 @@ def seed():
         db.close()
 
 
+def seed_marketplace_plugins(db) -> int:
+    """Seed 5 example marketplace plugins. Returns count of newly created plugins.
+
+    Called by:
+      - app.api.v1.marketplace:admin_seed_plugins() (API endpoint)
+      - seed() below (full demo seed)
+    """
+    from app.models.marketplace import MarketplacePlugin
+
+    plugins_data = [
+        {
+            "name": "WhatsApp Business",
+            "slug": "whatsapp-business",
+            "description": "Envía confirmaciones de pedido y reservas por WhatsApp automáticamente.",
+            "category": "notifications",
+            "is_paid": False,
+            "is_featured": True,
+            "pip_package": "wowhub-whatsapp",
+            "rating": 48,
+        },
+        {
+            "name": "Advanced Analytics",
+            "slug": "advanced-analytics",
+            "description": "Dashboards adicionales con métricas de retención, LTV y churn.",
+            "category": "analytics",
+            "is_paid": True,
+            "price_monthly_usd": 1500,
+            "is_featured": True,
+            "pip_package": "wowhub-analytics-pro",
+            "rating": 45,
+        },
+        {
+            "name": "Multi-branch Support",
+            "slug": "multi-branch",
+            "description": "Gestión avanzada de múltiples sucursales con reportes consolidados.",
+            "category": "operations",
+            "is_paid": True,
+            "price_monthly_usd": 2500,
+            "rating": 38,
+        },
+        {
+            "name": "Smart Recommendations AI",
+            "slug": "ai-recommendations",
+            "description": "Motor de recomendaciones personalizadas de productos para cada cliente.",
+            "category": "ai",
+            "is_paid": True,
+            "price_monthly_usd": 3000,
+            "rating": 42,
+        },
+        {
+            "name": "Zapier Integration",
+            "slug": "zapier-integration",
+            "description": "Conecta WowHub con más de 5000 apps via Zapier.",
+            "category": "integrations",
+            "is_paid": False,
+            "pip_package": None,
+            "git_url": "https://github.com/example/wowhub-zapier",
+            "rating": 36,
+        },
+    ]
+
+    created = 0
+    for pdata in plugins_data:
+        existing = db.query(MarketplacePlugin).filter(
+            MarketplacePlugin.slug == pdata["slug"]
+        ).first()
+        if existing:
+            continue
+        plugin = MarketplacePlugin(**pdata)
+        db.add(plugin)
+        created += 1
+
+    if created:
+        db.commit()
+    return created
+
+
 if __name__ == "__main__":
     if "--reset" in sys.argv:
         reset()

@@ -1,0 +1,628 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Marketplace{% endblock %}
+{% block title %}Marketplace — WowHub{% endblock %}
+
+{% block dash_content %}
+<style>
+  /* ── Marketplace UI (HU_45) ──────────────────────────────── */
+  .mp-hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border: 1px solid rgba(124,92,255,0.2);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .mp-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(124,92,255,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .mp-hero h1 { font-size: 1.8rem; font-weight: 700; margin: 0 0 0.4rem; }
+  .mp-hero p { opacity: 0.7; margin: 0; font-size: 0.95rem; }
+  .mp-hero .badge-free {
+    display: inline-block;
+    background: rgba(0,212,168,0.15);
+    color: #00d4a8;
+    border: 1px solid rgba(0,212,168,0.3);
+    border-radius: 20px;
+    padding: 0.15rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .mp-hero .badge-paid {
+    display: inline-block;
+    background: rgba(255,180,84,0.15);
+    color: #ffb454;
+    border: 1px solid rgba(255,180,84,0.3);
+    border-radius: 20px;
+    padding: 0.15rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* ── Search bar ─────────────────────────────────────────── */
+  .mp-search {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .mp-search input {
+    flex: 1;
+    background: var(--bg-secondary, #1e1e2e);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .mp-search input:focus { border-color: rgba(124,92,255,0.5); }
+  .mp-search select {
+    background: var(--bg-secondary, #1e1e2e);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  /* ── Category tabs ──────────────────────────────────────── */
+  .mp-tabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+  .mp-tab {
+    padding: 0.45rem 1rem;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: transparent;
+    color: #a0a0b0;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .mp-tab:hover, .mp-tab.active {
+    background: rgba(124,92,255,0.15);
+    border-color: rgba(124,92,255,0.4);
+    color: #a78bfa;
+  }
+  .mp-tab.active { color: #a78bfa; font-weight: 600; }
+
+  /* ── Featured carousel ───────────────────────────────────── */
+  .mp-featured {
+    margin-bottom: 2rem;
+  }
+  .mp-featured-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #a78bfa;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+  }
+  .mp-featured-track {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124,92,255,0.3) transparent;
+  }
+  .mp-featured-track::-webkit-scrollbar { height: 4px; }
+  .mp-featured-track::-webkit-scrollbar-thumb { background: rgba(124,92,255,0.3); border-radius: 2px; }
+
+  /* ── Plugin cards ───────────────────────────────────────── */
+  .mp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+  .mp-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .mp-card:hover {
+    border-color: rgba(124,92,255,0.3);
+    background: rgba(124,92,255,0.05);
+    transform: translateY(-2px);
+  }
+  .mp-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .mp-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(124,92,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+  .mp-card-badges { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
+  .mp-cat-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 20px;
+    background: rgba(124,92,255,0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(124,92,255,0.2);
+    font-weight: 500;
+  }
+  .mp-price-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .mp-price-badge.free { background: rgba(0,212,168,0.12); color: #00d4a8; border: 1px solid rgba(0,212,168,0.25); }
+  .mp-price-badge.paid { background: rgba(255,180,84,0.12); color: #ffb454; border: 1px solid rgba(255,180,84,0.25); }
+  .mp-card h3 { margin: 0; font-size: 1rem; font-weight: 600; color: #e8e8f0; }
+  .mp-card p { margin: 0; font-size: 0.82rem; color: #8888a0; line-height: 1.45; flex: 1; }
+  .mp-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .mp-installs { font-size: 0.75rem; color: #666; }
+  .mp-stars { color: #ffb454; font-size: 0.75rem; }
+  .mp-btn {
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mp-btn-install {
+    background: rgba(124,92,255,0.2);
+    color: #a78bfa;
+    border: 1px solid rgba(124,92,255,0.3);
+  }
+  .mp-btn-install:hover { background: rgba(124,92,255,0.35); }
+  .mp-btn-installed {
+    background: rgba(0,212,168,0.12);
+    color: #00d4a8;
+    border: 1px solid rgba(0,212,168,0.25);
+    cursor: default;
+  }
+  .mp-btn-uninstall {
+    background: rgba(255,80,80,0.12);
+    color: #ff7070;
+    border: 1px solid rgba(255,80,80,0.25);
+  }
+  .mp-btn-uninstall:hover { background: rgba(255,80,80,0.2); }
+
+  /* ── My Plugins section ─────────────────────────────────── */
+  .mp-mine { margin-bottom: 2rem; }
+  .mp-mine h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
+  .mp-mine-empty {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  /* ── Modal ──────────────────────────────────────────────── */
+  .mp-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    display: none;
+  }
+  .mp-modal-overlay.show { display: flex; }
+  .mp-modal {
+    background: #1e1e2e;
+    border: 1px solid rgba(124,92,255,0.25);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 440px;
+    width: 90%;
+    text-align: center;
+  }
+  .mp-modal h3 { margin: 0 0 0.75rem; font-size: 1.2rem; }
+  .mp-modal p { margin: 0 0 1.5rem; color: #8888a0; font-size: 0.9rem; }
+  .mp-modal-actions { display: flex; gap: 0.75rem; justify-content: center; }
+  .mp-modal-actions .mp-btn { padding: 0.6rem 1.5rem; }
+  .mp-btn-cancel {
+    background: rgba(255,255,255,0.06);
+    color: #a0a0b0;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .mp-btn-cancel:hover { background: rgba(255,255,255,0.1); }
+  .mp-toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: #1e1e2e;
+    border: 1px solid rgba(0,212,168,0.3);
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    color: #00d4a8;
+    font-size: 0.9rem;
+    font-weight: 500;
+    z-index: 2000;
+    display: none;
+    animation: mp-slide-in 0.3s ease;
+  }
+  .mp-toast.show { display: block; }
+  @keyframes mp-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .mp-empty {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+    font-size: 0.95rem;
+  }
+  .mp-empty-icon { font-size: 3rem; opacity: 0.3; }
+  .mp-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #c0c0d0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .mp-section-title span { font-size: 1.2rem; }
+  .mp-pagination { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; }
+  .mp-page-btn {
+    padding: 0.35rem 0.8rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: transparent;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .mp-page-btn.active { background: rgba(124,92,255,0.2); color: #a78bfa; border-color: rgba(124,92,255,0.3); }
+</style>
+
+<!-- ── Hero ──────────────────────────────────────────────── -->
+<div class="mp-hero">
+  <h1>🧩 WowHub Marketplace</h1>
+  <p>Extiende tu plataforma con plugins de notificaciones, analítica, IA y más.</p>
+</div>
+
+<!-- ── My Plugins ────────────────────────────────────────── -->
+<div class="mp-mine" id="mp-mine">
+  <div class="mp-section-title"><span>✅</span> Mis Plugins Instalados</div>
+  <div id="mp-mine-list">
+    <div style="padding: 1rem; color: #666; font-size: 0.85rem;">Cargando…</div>
+  </div>
+</div>
+
+<!-- ── Search + Filter ──────────────────────────────────── -->
+<div class="mp-search">
+  <input type="text" id="mp-search" placeholder="Buscar plugins…" autocomplete="off">
+  <select id="mp-cat-filter">
+    <option value="">Todas las categorías</option>
+    <option value="notifications">Notificaciones</option>
+    <option value="analytics">Analítica</option>
+    <option value="crm">CRM</option>
+    <option value="ai">IA</option>
+    <option value="operations">Operaciones</option>
+    <option value="integrations">Integraciones</option>
+  </select>
+</div>
+
+<!-- ── Category tabs ─────────────────────────────────────── -->
+<div class="mp-tabs">
+  <button class="mp-tab active" data-cat="">Todas</button>
+  <button class="mp-tab" data-cat="notifications">🔔 Notificaciones</button>
+  <button class="mp-tab" data-cat="analytics">📊 Analítica</button>
+  <button class="mp-tab" data-cat="crm">👥 CRM</button>
+  <button class="mp-tab" data-cat="ai">🤖 IA</button>
+  <button class="mp-tab" data-cat="operations">⚙️ Operaciones</button>
+  <button class="mp-tab" data-cat="integrations">🔗 Integraciones</button>
+</div>
+
+<!-- ── Featured ──────────────────────────────────────────── -->
+<div class="mp-featured" id="mp-featured-section">
+  <div class="mp-featured-label">⭐ Destacados</div>
+  <div class="mp-featured-track" id="mp-featured-track"></div>
+</div>
+
+<!-- ── All plugins grid ─────────────────────────────────── -->
+<div class="mp-section-title"><span>🔎</span> Todos los Plugins</div>
+<div class="mp-grid" id="mp-grid"></div>
+<div class="mp-pagination" id="mp-pagination"></div>
+<div class="mp-empty" id="mp-empty" style="display:none;">
+  <div class="mp-empty-icon">🔍</div>
+  <p>No se encontraron plugins.</p>
+</div>
+
+<!-- ── Install confirmation modal ────────────────────────── -->
+<div class="mp-modal-overlay" id="mp-modal">
+  <div class="mp-modal">
+    <div style="font-size: 2.5rem; margin-bottom: 0.75rem;" id="mp-modal-icon">🧩</div>
+    <h3 id="mp-modal-title">Instalar Plugin</h3>
+    <p id="mp-modal-desc">¿Quieres instalar este plugin en tu cuenta?</p>
+    <div class="mp-modal-actions">
+      <button class="mp-btn mp-btn-cancel" id="mp-modal-cancel">Cancelar</button>
+      <button class="mp-btn mp-btn-install" id="mp-modal-confirm">Instalar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────── -->
+<div class="mp-toast" id="mp-toast"></div>
+
+<script>
+// ── Marketplace UI (HU_45) ─────────────────────────────────────
+const API_BASE = '/api/v1';
+let currentPage = 1;
+let currentCategory = '';
+let currentSearch = '';
+let installedSlugs = new Set();
+let pendingSlug = null;
+
+// ── Helpers ──────────────────────────────────────────────────────
+function apiHeaders() {
+  const token = document.cookie.match(/(?:^|;\s*)wowhub_access_token=([^;]*)/)?.[1]
+             || document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/)?.[1]
+             || '';
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + token,
+  };
+}
+
+function priceLabel(plugin) {
+  if (!plugin.is_paid || plugin.price_monthly_usd === 0) {
+    return '<span class="mp-price-badge free">Gratis</span>';
+  }
+  const price = (plugin.price_monthly_usd / 100).toFixed(2);
+  return `<span class="mp-price-badge paid">$${price}/mes</span>`;
+}
+
+function stars(rating) {
+  const r = rating || 0;
+  const filled = Math.round(r / 10);  // rating stored as int 0-50, convert to 0-5 stars
+  return '★'.repeat(filled) + '☆'.repeat(5 - filled);
+}
+
+function categoryEmoji(cat) {
+  const map = {
+    notifications: '🔔', analytics: '📊', crm: '👥',
+    ai: '🤖', operations: '⚙️', integrations: '🔗',
+  };
+  return map[cat] || '📦';
+}
+
+function categoryLabel(cat) {
+  const map = {
+    notifications: 'Notificaciones', analytics: 'Analítica',
+    crm: 'CRM', ai: 'IA', operations: 'Operaciones', integrations: 'Integraciones',
+  };
+  return map[cat] || cat || '';
+}
+
+function renderPluginCard(plugin, featured = false) {
+  const isInstalled = installedSlugs.has(plugin.slug);
+  const btnClass = isInstalled ? 'mp-btn-installed' : 'mp-btn-install';
+  const btnText = isInstalled ? '✓ Instalado' : 'Instalar';
+  const installBtn = isInstalled
+    ? `<button class="mp-btn ${btnClass}" disabled>${btnText}</button>`
+    : `<button class="mp-btn ${btnClass}" onclick="showInstallModal('${plugin.slug}', '${plugin.name}')">${btnText}</button>`;
+
+  const card = `
+    <div class="mp-card">
+      <div class="mp-card-top">
+        <div class="mp-card-icon">${categoryEmoji(plugin.category)}</div>
+        <div class="mp-card-badges">
+          <span class="mp-cat-badge">${categoryLabel(plugin.category)}</span>
+          ${priceLabel(plugin)}
+        </div>
+      </div>
+      <h3>${plugin.name}</h3>
+      <p>${plugin.description || ''}</p>
+      <div class="mp-card-footer">
+        <span class="mp-installs">${plugin.installs || 0} instalaciones · <span class="mp-stars">${stars(plugin.rating)}</span></span>
+        ${installBtn}
+      </div>
+    </div>`;
+  return card;
+}
+
+function renderPagination(total, page, pages) {
+  if (pages <= 1) return '';
+  let html = '';
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="mp-page-btn${i === page ? ' active' : ''}" onclick="loadPlugins(${i})">${i}</button>`;
+  }
+  return html;
+}
+
+// ── Load plugins ──────────────────────────────────────────────────
+async function loadPlugins(page = 1) {
+  currentPage = page;
+  const params = new URLSearchParams({ page, per_page: 12 });
+  if (currentCategory) params.set('category', currentCategory);
+  if (currentSearch) params.set('search', currentSearch);
+
+  const grid = document.getElementById('mp-grid');
+  const empty = document.getElementById('mp-empty');
+  const pagination = document.getElementById('mp-pagination');
+  grid.innerHTML = '<p style="color:#666;padding:1rem;">Cargando…</p>';
+
+  try {
+    const res = await fetch(`${API_BASE}/marketplace/?${params}`, { headers: apiHeaders() });
+    if (!res.ok) { grid.innerHTML = '<p style="color:#ff7070;padding:1rem;">Error al cargar plugins.</p>'; return; }
+    const data = await res.json();
+    grid.innerHTML = '';
+
+    if (!data.items || data.items.length === 0) {
+      grid.style.display = 'none';
+      empty.style.display = 'block';
+      pagination.innerHTML = '';
+      return;
+    }
+    grid.style.display = 'grid';
+    empty.style.display = 'none';
+
+    data.items.forEach(p => { grid.innerHTML += renderPluginCard(p); });
+
+    // Show featured section only on page 1 with no filters
+    const featuredSection = document.getElementById('mp-featured-section');
+    const featuredTrack = document.getElementById('mp-featured-track');
+    if (page === 1 && !currentCategory && !currentSearch) {
+      featuredSection.style.display = 'block';
+      featuredTrack.innerHTML = '';
+      data.items.filter(p => p.is_featured).forEach(p => {
+        featuredTrack.innerHTML += renderPluginCard(p, true);
+      });
+      if (!data.items.some(p => p.is_featured)) {
+        featuredSection.style.display = 'none';
+      }
+    } else {
+      featuredSection.style.display = 'none';
+    }
+
+    pagination.innerHTML = renderPagination(data.total, page, data.pages);
+  } catch (e) {
+    grid.innerHTML = '<p style="color:#ff7070;padding:1rem;">Error de conexión.</p>';
+  }
+}
+
+// ── Load my plugins ────────────────────────────────────────────────
+async function loadMyPlugins() {
+  const list = document.getElementById('mp-mine-list');
+  try {
+    const res = await fetch(`${API_BASE}/marketplace/my-plugins`, { headers: apiHeaders() });
+    if (!res.ok) { list.innerHTML = '<p style="color:#ff7070;">Error al cargar tus plugins.</p>'; return; }
+    const subs = await res.json();
+
+    installedSlugs = new Set(subs.map(s => s.plugin?.slug).filter(Boolean));
+
+    if (!subs || subs.length === 0) {
+      list.innerHTML = `<div class="mp-mine-empty">
+        No tienes plugins instalados. ¡Explora el marketplace y amplía tu plataforma!
+      </div>`;
+      return;
+    }
+    list.innerHTML = '<div class="mp-grid">' + subs.map(s => renderPluginCard(s.plugin || {})).join('') + '</div>';
+  } catch (e) {
+    list.innerHTML = '<p style="color:#ff7070;">Error de conexión.</p>';
+  }
+}
+
+// ── Install modal ──────────────────────────────────────────────────
+function showInstallModal(slug, name) {
+  pendingSlug = slug;
+  document.getElementById('mp-modal-title').textContent = `Instalar ${name}`;
+  document.getElementById('mp-modal-desc').textContent = 'El plugin se agregará a tu cuenta. ¿Continuar?';
+  document.getElementById('mp-modal').classList.add('show');
+}
+
+function hideModal() {
+  document.getElementById('mp-modal').classList.remove('show');
+  pendingSlug = null;
+}
+
+async function confirmInstall() {
+  if (!pendingSlug) return;
+  const slug = pendingSlug;
+  hideModal();
+  try {
+    const res = await fetch(`${API_BASE}/marketplace/${slug}/install`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({}),
+    });
+    if (res.status === 409) {
+      showToast('Este plugin ya está instalado.', 'warn');
+      return;
+    }
+    if (!res.ok) { showToast('Error al instalar el plugin.', 'error'); return; }
+    showToast('✅ Plugin instalado correctamente.');
+    await loadMyPlugins();
+    await loadPlugins(currentPage);
+  } catch (e) {
+    showToast('Error de conexión.', 'error');
+  }
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('mp-toast');
+  toast.textContent = msg;
+  toast.style.borderColor = type === 'error' ? 'rgba(255,80,80,0.4)' : 'rgba(0,212,168,0.3)';
+  toast.style.color = type === 'error' ? '#ff7070' : '#00d4a8';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ── Category tab clicks ─────────────────────────────────────────────
+document.querySelectorAll('.mp-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mp-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCategory = btn.dataset.cat;
+    document.getElementById('mp-cat-filter').value = currentCategory;
+    loadPlugins(1);
+  });
+});
+
+document.getElementById('mp-cat-filter').addEventListener('change', e => {
+  currentCategory = e.target.value;
+  document.querySelectorAll('.mp-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.cat === currentCategory);
+  });
+  if (!currentCategory) {
+    document.querySelector('.mp-tab[data-cat=""]')?.classList.add('active');
+  }
+  loadPlugins(1);
+});
+
+let searchTimer;
+document.getElementById('mp-search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    currentSearch = e.target.value.trim();
+    loadPlugins(1);
+  }, 350);
+});
+
+document.getElementById('mp-modal-cancel').addEventListener('click', hideModal);
+document.getElementById('mp-modal-confirm').addEventListener('click', confirmInstall);
+document.getElementById('mp-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) hideModal();
+});
+
+// ── Init ────────────────────────────────────────────────────────────
+loadMyPlugins();
+loadPlugins(1);
+</script>
+{% endblock %}
