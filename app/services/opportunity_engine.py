@@ -475,7 +475,7 @@ class OpportunityEngine:
             select(func.coalesce(func.sum(Order.total_cents), 0)).where(
                 Order.tenant_id == self.tid,
                 Order.created_at >= start,
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
         ).scalar() or 0
         return int(total)
@@ -489,7 +489,7 @@ class OpportunityEngine:
             select(func.count(Order.id)).where(
                 Order.tenant_id == self.tid,
                 Order.created_at >= start,
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
         ).scalar() or 0
         return int(n)

@@ -9,12 +9,17 @@ from app.models.base import GUID, BaseModel, TenantMixin
 
 
 class OrderStatus(str, enum.Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    PREPARING = "preparing"
-    READY = "ready"
-    DELIVERED = "delivered"
-    CANCELED = "canceled"
+    """Estados de pedido según spec V134.2 (HU_15).
+
+    Todos los valores en español para consistencia con mercado LATAM.
+    """
+    RECIBIDO = "recibido"
+    CONFIRMADO = "confirmado"
+    EN_PREPARACION = "en_preparacion"
+    LISTO = "listo"
+    ENTREGADO = "entregado"
+    CANCELADO = "cancelado"
+    PAGADO = "pagado"  # nuevo: pago confirmado post-entrega
 
 
 class Order(BaseModel, TenantMixin):
@@ -24,7 +29,7 @@ class Order(BaseModel, TenantMixin):
     number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus, name="order_status"),
-        default=OrderStatus.PENDING,
+        default=OrderStatus.RECIBIDO,
         nullable=False,
         index=True,
     )

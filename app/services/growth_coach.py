@@ -289,9 +289,9 @@ class GrowthCoach:
                 "total_orders": stats.get("total_orders", 0),
                 "total_revenue_cents": stats.get("total_revenue_cents", 0),
                 "total_discount_cents": stats.get("total_discount_cents", 0),
-                "delivered": stats.get("delivered", 0),
-                "canceled": stats.get("canceled", 0),
-                "pending": stats.get("pending", 0),
+                "entregado": stats.get("entregado", 0),
+                "cancelado": stats.get("cancelado", 0),
+                "recibido": stats.get("recibido", 0),
                 "aov_cents": stats.get("aov_cents", 0),
                 "top_products": stats.get("top_products", [])[:5],
                 "lookback_days": lookback_days,
@@ -378,14 +378,14 @@ class GrowthCoach:
                 canceled = db.execute(
                     select(func.count(Booking.id)).where(
                         Booking.tenant_id == tid,
-                        Booking.status.in_(["canceled", "cancelled", "no_show"]),
+                        Booking.status.in_(["cancelado", "cancelled", "no_show"]),
                     )
                 ).scalar() or 0
             except Exception:
                 canceled = 0
             return {
                 "total": int(total),
-                "canceled": int(canceled),
+                "cancelado": int(canceled),
                 "cancellation_rate": (int(canceled) / int(total)) if int(total) > 0 else 0.0,
                 "lookback_days": lookback_days,
             }

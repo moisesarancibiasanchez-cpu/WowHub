@@ -108,7 +108,7 @@ class AnalyticsService:
                 .where(
                     Order.tenant_id == tid,
                     Order.created_at >= since,
-                    Order.status != OrderStatus.CANCELED,
+                    Order.status != OrderStatus.CANCELADO,
                 )
                 .distinct()
             )
@@ -131,7 +131,7 @@ class AnalyticsService:
                     Product.tenant_id == tid,
                     Order.tenant_id == tid,
                     Order.created_at >= since,
-                    Order.status != OrderStatus.CANCELED,
+                    Order.status != OrderStatus.CANCELADO,
                 )
                 .group_by(Product.id)
                 .order_by(func.sum(OrderItem.quantity).desc())
@@ -316,7 +316,7 @@ class AnalyticsService:
                 .where(
                     Order.tenant_id == tid,
                     Order.created_at >= cutoff,
-                    Order.status != OrderStatus.CANCELED,
+                    Order.status != OrderStatus.CANCELADO,
                 )
                 .distinct()
             )
@@ -423,7 +423,7 @@ class AnalyticsService:
             .where(
                 Order.tenant_id == tid,
                 Order.created_at >= inactive_cutoff,
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
             .distinct()
         )

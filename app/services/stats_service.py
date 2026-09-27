@@ -28,9 +28,9 @@ class StatsService:
                 func.count(Order.id).label("total_orders"),
                 func.coalesce(func.sum(Order.total_cents), 0).label("total_revenue_cents"),
                 func.coalesce(func.sum(Order.discount_cents), 0).label("total_discount_cents"),
-                func.count(case((Order.status == OrderStatus.DELIVERED, 1))).label("delivered"),
-                func.count(case((Order.status == OrderStatus.CANCELED, 1))).label("canceled"),
-                func.count(case((Order.status == OrderStatus.PENDING, 1))).label("pending"),
+                func.count(case((Order.status == OrderStatus.ENTREGADO, 1))).label("entregado"),
+                func.count(case((Order.status == OrderStatus.CANCELADO, 1))).label("cancelado"),
+                func.count(case((Order.status == OrderStatus.RECIBIDO, 1))).label("recibido"),
             ).where(
                 Order.tenant_id == str(tenant_id),
                 Order.created_at >= since,
@@ -57,7 +57,7 @@ class StatsService:
             .where(
                 Order.tenant_id == str(tenant_id),
                 Order.created_at >= since,
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
             .group_by(Product.id, Product.name, Product.sku, Product.image_url)
             .order_by(func.sum(OrderItem.total_cents).desc())
@@ -102,7 +102,7 @@ class StatsService:
             .where(
                 Order.tenant_id == str(tenant_id),
                 Order.created_at >= now - timedelta(days=7),
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
             .group_by(func.date(Order.created_at))
             .order_by(func.date(Order.created_at))
@@ -112,9 +112,9 @@ class StatsService:
             "period_days": days,
             "orders": {
                 "total": orders.total_orders or 0,
-                "pending": orders.pending or 0,
-                "delivered": orders.delivered or 0,
-                "canceled": orders.canceled or 0,
+                "recibido": orders.pending or 0,
+                "entregado": orders.delivered or 0,
+                "cancelado": orders.canceled or 0,
             },
             "revenue": {
                 "total_cents": int(orders.total_revenue_cents or 0),

@@ -15,14 +15,17 @@ from app.models.product import Product
 from app.models.tenant import Tenant
 
 
-# State machine de OrderStatus
+# State machine de OrderStatus (HU_15 — español LATAM)
+# Estados: RECIBIDO → CONFIRMADO → EN_PREPARACION → LISTO → ENTREGADO → PAGADO
+# Transiciones irreversibles hacia adelante; CANCELADO desde cualquier estado no-terminal
 TRANSITIONS = {
-    OrderStatus.PENDING: {OrderStatus.CONFIRMED, OrderStatus.CANCELED},
-    OrderStatus.CONFIRMED: {OrderStatus.PREPARING, OrderStatus.CANCELED},
-    OrderStatus.PREPARING: {OrderStatus.READY, OrderStatus.CANCELED},
-    OrderStatus.READY: {OrderStatus.DELIVERED, OrderStatus.CANCELED},
-    OrderStatus.DELIVERED: set(),  # terminal
-    OrderStatus.CANCELED: set(),   # terminal
+    OrderStatus.RECIBIDO: {OrderStatus.CONFIRMADO, OrderStatus.CANCELADO},
+    OrderStatus.CONFIRMADO: {OrderStatus.EN_PREPARACION, OrderStatus.CANCELADO},
+    OrderStatus.EN_PREPARACION: {OrderStatus.LISTO, OrderStatus.CANCELADO},
+    OrderStatus.LISTO: {OrderStatus.ENTREGADO, OrderStatus.CANCELADO},
+    OrderStatus.ENTREGADO: {OrderStatus.PAGADO},  # Pago post-entrega
+    OrderStatus.PAGADO: set(),    # terminal
+    OrderStatus.CANCELADO: set(), # terminal
 }
 
 
@@ -154,7 +157,7 @@ class OrderService:
         order = Order(
             tenant_id=str(tenant.id),
             number=generate_order_number(tenant),
-            status=OrderStatus.PENDING,
+            status=OrderStatus.RECIBIDO,
             customer_id=str(customer.id) if customer else None,
             branch_id=None,
             subtotal_cents=subtotal,
@@ -223,14 +226,14 @@ class OrderService:
                 f"Estados permitidos: {[s.value for s in allowed]}"
             )
         order.status = new_status
-        if new_status == OrderStatus.DELIVERED:
+        if new_status == OrderStatus.ENTREGADO:
             order.updated_at = datetime.now(timezone.utc)
         self.db.commit()
         self.db.refresh(order)
         return order
 
     def cancel(self, order: Order, reason: Optional[str] = None) -> Order:
-        if order.status in (OrderStatus.DELIVERED, OrderStatus.CANCELED):
+        if order.status in (OrderStatus.ENTREGADO, OrderStatus.CANCELADO):
             raise ConflictError(f"No se puede cancelar un pedido {order.status.value}")
         # Devolver stock
         for oi in order.items:
@@ -243,7 +246,7 @@ class OrderService:
                 p.stock += oi.quantity
                 if p.status.value == "out_of_stock" and p.stock > 0:
                     p.status = type(p.status).ACTIVE
-        order.status = OrderStatus.CANCELED
+        order.status = OrderStatus.CANCELADO
         if reason:
             order.notes = (order.notes or "") + f"\n[CANCELADO: {reason}]"
         self.db.commit()

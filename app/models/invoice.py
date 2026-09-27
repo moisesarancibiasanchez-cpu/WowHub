@@ -13,7 +13,7 @@ class InvoiceStatus(str, enum.Enum):
     DRAFT = "draft"
     ISSUED = "issued"
     PAID = "paid"
-    CANCELED = "canceled"
+    CANCELED = "cancelado"
     VOIDED = "voided"
 
 

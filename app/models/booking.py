@@ -10,10 +10,10 @@ from app.models.base import GUID, BaseModel, TenantMixin
 
 
 class BookingStatus(str, enum.Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
+    PENDING = "recibido"
+    CONFIRMED = "confirmado"
     COMPLETED = "completed"
-    CANCELED = "canceled"
+    CANCELED = "cancelado"
     NO_SHOW = "no_show"
 
 

@@ -897,7 +897,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "status": {
                         "type": "string",
-                        "enum": ["pending", "confirmed", "completed", "canceled", "no_show"],
+                        "enum": ["recibido", "confirmado", "completed", "cancelado", "no_show"],
                         "description": "Filtrar por estado de la reserva.",
                     },
                     "branch_id": {"type": "string", "description": "UUID de la sucursal."},

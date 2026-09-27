@@ -52,10 +52,10 @@ const $ = (id) => document.getElementById(id);
 const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })}`;
 
 const COLUMNS = [
-  { key: "pending",    label: "Pendiente",   next: "confirmed",  nextLabel: "Confirmar" },
-  { key: "confirmed",  label: "Confirmado",  next: "preparing",  nextLabel: "En preparación" },
-  { key: "preparing",  label: "En preparación", next: "ready",    nextLabel: "Marcar listo" },
-  { key: "ready",      label: "Listo",       next: "delivered", nextLabel: "Entregar" },
+  { key: "recibido",    label: "Pendiente",   next: "confirmado",  nextLabel: "Confirmar" },
+  { key: "confirmado",  label: "Confirmado",  next: "en_preparacion",  nextLabel: "En preparación" },
+  { key: "en_preparacion",  label: "En preparación", next: "listo",    nextLabel: "Marcar listo" },
+  { key: "listo",      label: "Listo",       next: "delivered", nextLabel: "Entregar" },
   { key: "delivered",  label: "Entregado",   next: null,        nextLabel: null },
   { key: "canceled",   label: "Cancelado",   next: null,        nextLabel: null },
 ];
@@ -128,9 +128,9 @@ function renderKanban() {
   const groups = {};
   for (const col of COLUMNS) groups[col.key] = [];
   for (const o of list) {
-    const st = (o.status || "pending").toLowerCase();
+    const st = (o.status || "recibido").toLowerCase();
     if (groups[st]) groups[st].push(o);
-    else groups["pending"].push(o);
+    else groups["recibido"].push(o);
   }
   $("kanban").innerHTML = COLUMNS.map(col => {
     const cards = groups[col.key];
@@ -162,7 +162,7 @@ async function openOrder(id) {
           <strong>${o.customer_name || "—"}</strong>${o.customer_phone ? " · " + o.customer_phone : ""}${o.customer_email ? "<br>" + o.customer_email : ""}
           <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${new Date(o.created_at).toLocaleString("es-CL")} · ${o.source || "web"}</div>
         </div>
-        <span class="badge badge-${(o.status || "pending").toLowerCase()}">${(o.status || "pending").toUpperCase()}</span>
+        <span class="badge badge-${(o.status || "recibido").toLowerCase()}">${(o.status || "recibido").toUpperCase()}</span>
       </div>
       ${o.shipping_address ? `<div style="margin-bottom: 8px;"><strong>Envío:</strong> ${o.shipping_address}</div>` : ""}
       ${o.notes ? `<div style="margin-bottom: 8px;"><strong>Notas:</strong> ${o.notes}</div>` : ""}
@@ -191,7 +191,7 @@ async function openOrder(id) {
     `;
     const foot = $("order-modal-foot");
     foot.innerHTML = "";
-    const col = COLUMNS.find(c => c.key === (o.status || "pending").toLowerCase());
+    const col = COLUMNS.find(c => c.key === (o.status || "recibido").toLowerCase());
     if (col?.next) {
       const btn = document.createElement("button");
       btn.className = "btn";
@@ -211,7 +211,7 @@ async function openOrder(id) {
       };
       foot.appendChild(btn);
     }
-    if (o.status !== "CANCELED" && o.status !== "DELIVERED") {
+    if (o.status !== "CANCELADO" && o.status !== "ENTREGADO") {
       const btnC = document.createElement("button");
       btnC.className = "btn btn-ghost";
       btnC.textContent = "Cancelar pedido";

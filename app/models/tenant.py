@@ -22,7 +22,7 @@ class TenantStatus(str, enum.Enum):
     TRIAL = "trial"
     ACTIVE = "active"
     PAST_DUE = "past_due"
-    CANCELED = "canceled"
+    CANCELED = "cancelado"
     SUSPENDED = "suspended"
 
 

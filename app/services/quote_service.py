@@ -219,7 +219,7 @@ class QuoteService:
         order = Order(
             tenant_id=tenant_id,
             number=self._next_order_number(tenant_id),
-            status=OrderStatus.PENDING,
+            status=OrderStatus.RECIBIDO,
             customer_id=quote.customer_id,
             branch_id=branch_id or quote.branch_id,
             subtotal_cents=quote.subtotal_cents,

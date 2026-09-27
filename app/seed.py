@@ -452,7 +452,7 @@ def seed():
                 seed_orders = [
                     # PENDING
                     {
-                        "status": OrderStatus.PENDING, "source": "web",
+                        "status": OrderStatus.RECIBIDO, "source": "web",
                         "customer_name": juan.full_name if juan else "Juan Pérez",
                         "customer_phone": juan.phone if juan else "+56 9 1111 2222",
                         "customer_email": juan.email if juan else "juan@example.com",
@@ -462,7 +462,7 @@ def seed():
                         "days_ago": 0, "i": 1,
                     },
                     {
-                        "status": OrderStatus.PENDING, "source": "qr",
+                        "status": OrderStatus.RECIBIDO, "source": "qr",
                         "customer_name": "Visitante QR", "customer_phone": "+56 9 5555 0001",
                         "customer_email": None, "customer_id": None,
                         "items": [_item("LAT-001", 1), _item("TOR-001", 1)],
@@ -470,7 +470,7 @@ def seed():
                     },
                     # CONFIRMED
                     {
-                        "status": OrderStatus.CONFIRMED, "source": "web",
+                        "status": OrderStatus.CONFIRMADO, "source": "web",
                         "customer_name": ana.full_name if ana else "Ana Silva",
                         "customer_phone": ana.phone if ana else "+56 9 3333 4444",
                         "customer_email": ana.email if ana else "ana@example.com",
@@ -480,7 +480,7 @@ def seed():
                         "days_ago": 1, "i": 3,
                     },
                     {
-                        "status": OrderStatus.CONFIRMED, "source": "pos",
+                        "status": OrderStatus.CONFIRMADO, "source": "pos",
                         "customer_name": "Cliente Mostrador", "customer_phone": None,
                         "customer_email": None, "customer_id": None,
                         "items": [_item("ESP-001", 2), _item("SAN-001", 1)],
@@ -488,7 +488,7 @@ def seed():
                     },
                     # PREPARING
                     {
-                        "status": OrderStatus.PREPARING, "source": "qr",
+                        "status": OrderStatus.EN_PREPARACION, "source": "qr",
                         "customer_name": juan.full_name if juan else "Juan Pérez",
                         "customer_phone": juan.phone if juan else "+56 9 1111 2222",
                         "customer_email": juan.email if juan else "juan@example.com",
@@ -497,7 +497,7 @@ def seed():
                         "days_ago": 2, "i": 5,
                     },
                     {
-                        "status": OrderStatus.PREPARING, "source": "web",
+                        "status": OrderStatus.EN_PREPARACION, "source": "web",
                         "customer_name": "Carla Mendoza", "customer_phone": "+56 9 7777 8888",
                         "customer_email": "carla@example.com", "customer_id": None,
                         "items": [_item("LAT-001", 3), _item("SAN-002", 2)],
@@ -506,7 +506,7 @@ def seed():
                     },
                     # READY
                     {
-                        "status": OrderStatus.READY, "source": "pos",
+                        "status": OrderStatus.LISTO, "source": "pos",
                         "customer_name": ana.full_name if ana else "Ana Silva",
                         "customer_phone": ana.phone if ana else "+56 9 3333 4444",
                         "customer_email": ana.email if ana else "ana@example.com",
@@ -516,7 +516,7 @@ def seed():
                         "days_ago": 0, "i": 7,
                     },
                     {
-                        "status": OrderStatus.READY, "source": "web",
+                        "status": OrderStatus.LISTO, "source": "web",
                         "customer_name": "Diego Rojas", "customer_phone": "+56 9 6666 5555",
                         "customer_email": "diego@example.com", "customer_id": None,
                         "items": [_item("LAT-001", 2), _item("SAN-001", 1)],
@@ -524,7 +524,7 @@ def seed():
                     },
                     # DELIVERED
                     {
-                        "status": OrderStatus.DELIVERED, "source": "web",
+                        "status": OrderStatus.ENTREGADO, "source": "web",
                         "customer_name": juan.full_name if juan else "Juan Pérez",
                         "customer_phone": juan.phone if juan else "+56 9 1111 2222",
                         "customer_email": juan.email if juan else "juan@example.com",
@@ -533,7 +533,7 @@ def seed():
                         "days_ago": 7, "i": 9,
                     },
                     {
-                        "status": OrderStatus.DELIVERED, "source": "qr",
+                        "status": OrderStatus.ENTREGADO, "source": "qr",
                         "customer_name": "Mesa 3", "customer_phone": None,
                         "customer_email": None, "customer_id": None,
                         "items": [_item("CRU-001", 2), _item("TE-MATCHA", 1)],
@@ -541,7 +541,7 @@ def seed():
                     },
                     # CANCELED
                     {
-                        "status": OrderStatus.CANCELED, "source": "web",
+                        "status": OrderStatus.CANCELADO, "source": "web",
                         "customer_name": "Pedro Soto", "customer_phone": "+56 9 4444 3333",
                         "customer_email": "pedro@example.com", "customer_id": None,
                         "items": [_item("LAT-001", 1), _item("SAN-001", 1)],
@@ -549,7 +549,7 @@ def seed():
                         "days_ago": 5, "i": 11,
                     },
                     {
-                        "status": OrderStatus.CANCELED, "source": "pos",
+                        "status": OrderStatus.CANCELADO, "source": "pos",
                         "customer_name": ana.full_name if ana else "Ana Silva",
                         "customer_phone": ana.phone if ana else "+56 9 3333 4444",
                         "customer_email": ana.email if ana else "ana@example.com",
@@ -598,20 +598,20 @@ def seed():
                     return f"BFX-{now.strftime('%Y%m%d')}-{i:04d}"
 
                 bf_orders = [
-                    {"status": OrderStatus.PENDING, "source": "web",
+                    {"status": OrderStatus.RECIBIDO, "source": "web",
                      "customer_name": "Luis Vargas", "customer_phone": "+56 9 2222 1111",
                      "customer_email": "luis@example.com", "customer_id": None,
                      "items": [_bf_item("CAM-001", 2)], "days_ago": 0, "i": 1},
-                    {"status": OrderStatus.CONFIRMED, "source": "pos",
+                    {"status": OrderStatus.CONFIRMADO, "source": "pos",
                      "customer_name": "Cliente Mostrador", "customer_phone": None,
                      "customer_email": None, "customer_id": None,
                      "items": [_bf_item("CAS-001", 1)], "days_ago": 1, "i": 2},
-                    {"status": OrderStatus.DELIVERED, "source": "web",
+                    {"status": OrderStatus.ENTREGADO, "source": "web",
                      "customer_name": "Marta León", "customer_phone": "+56 9 9999 0000",
                      "customer_email": "marta@example.com", "customer_id": None,
                      "items": [_bf_item("CAM-001", 1), _bf_item("CAS-001", 1)],
                      "days_ago": 8, "i": 3},
-                    {"status": OrderStatus.DELIVERED, "source": "pos",
+                    {"status": OrderStatus.ENTREGADO, "source": "pos",
                      "customer_name": "Cliente Mostrador", "customer_phone": None,
                      "customer_email": None, "customer_id": None,
                      "items": [_bf_item("CAS-001", 1)], "days_ago": 15, "i": 4},

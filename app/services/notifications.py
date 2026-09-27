@@ -480,7 +480,7 @@ class NotificationsEngine:
         rows = self.db.execute(
             select(Order).where(
                 Order.tenant_id == self.tid,
-                Order.status == OrderStatus.PENDING,
+                Order.status == OrderStatus.RECIBIDO,
                 Order.created_at < cutoff,
             )
         ).scalars().all()

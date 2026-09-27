@@ -52,10 +52,10 @@ const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { m
 // Estados del pipeline. El schema OrderStatus es lowercase (Pydantic v2
 // case-sensitive), por eso se mantienen las keys en minúsculas.
 const COLUMNS = [
-  { key: "pending",    label: "Recibidos",       next: "confirmed",  nextLabel: "Confirmar" },
-  { key: "confirmed",  label: "Confirmados",     next: "preparing",  nextLabel: "En preparación" },
-  { key: "preparing",  label: "En preparación",  next: "ready",      nextLabel: "Marcar listo" },
-  { key: "ready",      label: "Listos",          next: "delivered",  nextLabel: "Entregar" },
+  { key: "recibido",    label: "Recibidos",       next: "confirmado",  nextLabel: "Confirmar" },
+  { key: "confirmado",  label: "Confirmados",     next: "en_preparacion",  nextLabel: "En preparación" },
+  { key: "en_preparacion",  label: "En preparación",  next: "listo",      nextLabel: "Marcar listo" },
+  { key: "listo",      label: "Listos",          next: "delivered",  nextLabel: "Entregar" },
   { key: "delivered",  label: "Entregados",      next: null,         nextLabel: null },
   { key: "canceled",   label: "Cancelados",      next: null,         nextLabel: null },
 ];
@@ -128,9 +128,9 @@ function renderKanban() {
   const groups = {};
   for (const col of COLUMNS) groups[col.key] = [];
   for (const o of list) {
-    const st = (o.status || "pending").toLowerCase();
+    const st = (o.status || "recibido").toLowerCase();
     if (groups[st]) groups[st].push(o);
-    else groups["pending"].push(o);
+    else groups["recibido"].push(o);
   }
   $("kanban").innerHTML = COLUMNS.map(col => {
     const cards = groups[col.key];
@@ -143,7 +143,7 @@ function renderKanban() {
               type: "order",
               id: o.id,
               name: "Pedido #" + (o.number || (o.id || "").slice(0,8)),
-              meta: (o.customer_name || "—") + " · " + fmtMoney(o.total_cents) + " · " + (o.status || "pending"),
+              meta: (o.customer_name || "—") + " · " + fmtMoney(o.total_cents) + " · " + (o.status || "recibido"),
               data: {
                 number: o.number, status: o.status, total_cents: o.total_cents,
                 customer_name: o.customer_name, items_count: (o.items || []).length,
@@ -185,7 +185,7 @@ async function openOrder(id) {
           <strong>${o.customer_name || "—"}</strong>${o.customer_phone ? " · " + o.customer_phone : ""}${o.customer_email ? "<br>" + o.customer_email : ""}
           <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${new Date(o.created_at).toLocaleString("es-CL")} · ${o.source || "web"}</div>
         </div>
-        <span class="badge badge-${(o.status || "pending").toLowerCase()}">${(o.status || "pending").toUpperCase()}</span>
+        <span class="badge badge-${(o.status || "recibido").toLowerCase()}">${(o.status || "recibido").toUpperCase()}</span>
       </div>
       ${o.shipping_address ? `<div style="margin-bottom: 8px;"><strong>Envío:</strong> ${o.shipping_address}</div>` : ""}
       ${o.notes ? `<div style="margin-bottom: 8px;"><strong>Notas:</strong> ${o.notes}</div>` : ""}
@@ -214,7 +214,7 @@ async function openOrder(id) {
     `;
     const foot = $("order-modal-foot");
     foot.innerHTML = "";
-    const col = COLUMNS.find(c => c.key === (o.status || "pending").toLowerCase());
+    const col = COLUMNS.find(c => c.key === (o.status || "recibido").toLowerCase());
     if (col?.next) {
       const btn = document.createElement("button");
       btn.className = "btn";

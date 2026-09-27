@@ -60,7 +60,7 @@ def run_rfm_analysis(
                 )
                 .where(Order.tenant_id == tenant_id)
                 .where(Order.created_at >= cutoff)
-                .where(Order.status.notin_([OrderStatus.CANCELED]))
+                .where(Order.status.notin_([OrderStatus.CANCELADO]))
             )
             if branch_id:
                 q = q.where(Order.branch_id == branch_id)

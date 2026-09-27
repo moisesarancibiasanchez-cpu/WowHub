@@ -259,8 +259,8 @@
       RECIBIDO:         { cls: 'status-recibido',         label: 'RECIBIDO' },
       EN_PREPARACION:   { cls: 'status-en_preparacion',  label: 'EN COCINA' },
       LISTO:            { cls: 'status-listo',            label: 'LISTO' },
-      PREPARING:        { cls: 'status-en_preparacion',  label: 'EN COCINA' },
-      PENDING:          { cls: 'status-recibido',         label: 'RECIBIDO' },
+      EN_PREPARACION:        { cls: 'status-en_preparacion',  label: 'EN COCINA' },
+      RECIBIDO:          { cls: 'status-recibido',         label: 'RECIBIDO' },
     };
     const s = map[status] || { cls: 'status-recibido', label: status || '??' };
     return `<span class="kds-order-status ${s.cls}">${s.label}</span>`;
@@ -373,7 +373,7 @@
       `;
 
       // Only show ready button if in kitchen (not ready yet)
-      if (order.status !== 'LISTO' && order.status !== 'READY' && order.status !== 'ready') {
+      if (order.status !== 'LISTO' && order.status !== 'LISTO' && order.status !== 'ready') {
         card.appendChild(makeReadyBtn(order.id));
       }
 
@@ -383,7 +383,7 @@
 
   // ── Stats ────────────────────────────────────────────────────────
   function refreshStats() {
-    const activeOrders = allOrders.filter(o => o.status !== 'LISTO' && o.status !== 'READY' && o.status !== 'ready');
+    const activeOrders = allOrders.filter(o => o.status !== 'LISTO' && o.status !== 'LISTO' && o.status !== 'ready');
     pendingEl.textContent = activeOrders.length;
 
     const times = activeOrders.map(o => elapsed(o.created_at)).filter(t => t >= 0);
@@ -421,7 +421,7 @@
   // ── Poll orders ─────────────────────────────────────────────────
   async function poll() {
     try {
-      const res = await fetch('/api/v1/orders?status=PREPARING,EN_PREPARACION,RECIBIDO,PENDING&limit=50', {
+      const res = await fetch('/api/v1/orders?status=EN_PREPARACION,RECIBIDO&limit=50', {
         headers: {
           'x-tenant-id': window.__TENANT_ID__ || '',
           'x-user-id':   window.__USER_ID__   || '',

@@ -154,10 +154,10 @@ def get_activity_feed(
                 "action_url": f"/dashboard/orders?focus={r.id}",
                 "occurred_at": r.created_at.isoformat() if r.created_at else None,
             })
-            if r.status and r.status.value in ("delivered", "ready") and r.updated_at and r.updated_at != r.created_at:
+            if r.status and r.status.value in ("entregado", "listo") and r.updated_at and r.updated_at != r.created_at:
                 events.append({
                     "kind": f"order.{r.status.value}",
-                    "icon": "✅" if r.status.value == "delivered" else "🍽️",
+                    "icon": "✅" if r.status.value == "entregado" else "🍽️",
                     "title": f"Pedido #{r.number} {r.status.value}",
                     "subtitle": (r.customer_name or "Cliente anónimo")
                                  + f" · ${(r.total_cents or 0)/100:,.0f}",
@@ -297,7 +297,7 @@ def get_sales_7d(
         .where(
             Order.tenant_id == str(tenant.id),
             Order.created_at >= start_window,
-            Order.status != OrderStatus.CANCELED,
+            Order.status != OrderStatus.CANCELADO,
         )
         .group_by("d")
         .order_by("d")

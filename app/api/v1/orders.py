@@ -135,7 +135,7 @@ def orders_today_summary(
         .where(
             Order.tenant_id == str(tenant_id),
             Order.created_at >= start_of_day,
-            Order.status != OrderStatus.CANCELED,
+            Order.status != OrderStatus.CANCELADO,
         )
     )
     row = db.execute(q).one()
@@ -174,7 +174,7 @@ def orders_sales_7d(
         .where(
             Order.tenant_id == str(tenant_id),
             Order.created_at >= start_window,
-            Order.status != OrderStatus.CANCELED,
+            Order.status != OrderStatus.CANCELADO,
         )
         .group_by("d")
         .order_by("d")

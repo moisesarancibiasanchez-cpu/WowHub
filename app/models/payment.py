@@ -18,12 +18,12 @@ class PaymentMethod(str, enum.Enum):
 
 
 class PaymentStatus(str, enum.Enum):
-    PENDING = "pending"
+    PENDING = "recibido"
     AUTHORIZED = "authorized"
     PAID = "paid"
     FAILED = "failed"
     REFUNDED = "refunded"
-    CANCELED = "canceled"
+    CANCELED = "cancelado"
 
 
 class Payment(BaseModel, TenantMixin):

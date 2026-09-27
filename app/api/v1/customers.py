@@ -282,7 +282,7 @@ def customer_insights(
             .where(
                 Order.customer_id == customer_id,
                 Order.tenant_id == str(tenant.id),
-                Order.status != OrderStatus.CANCELED,
+                Order.status != OrderStatus.CANCELADO,
             )
             .group_by(OrderItem.product_name)
             .order_by(func.sum(OrderItem.quantity).desc())

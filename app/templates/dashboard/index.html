@@ -410,15 +410,15 @@ function renderIncomingOrders(data) {
     return;
   }
   list.innerHTML = arr.slice(0, 5).map(o => {
-    const status = (o.status || "pending").toLowerCase();
+    const status = (o.status || "recibido").toLowerCase();
     const sMap = {
-      "pending":   { cls: "s-new",   label: "Nuevo" },
+      "recibido":   { cls: "s-new",   label: "Nuevo" },
       "in_production": { cls: "s-work",  label: "En producción" },
-      "ready":     { cls: "s-ready", label: "Listo" },
+      "listo":     { cls: "s-ready", label: "Listo" },
       "delivered": { cls: "s-ready", label: "Entregado" },
       "canceled":  { cls: "s-cancel",label: "Cancelado" },
     };
-    const sm = sMap[status] || sMap["pending"];
+    const sm = sMap[status] || sMap["recibido"];
     const customer = escapeHtml(o.customer_name || o.customer?.full_name || "Cliente");
     const total = fmtMoney(o.total_cents || 0);
     const orderId = o.short_id || o.id?.slice(0, 6) || "—";
@@ -449,14 +449,14 @@ function renderUpcomingReservations(data) {
     const when = isNaN(dt.getTime()) ? "" : dt.toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
     const customer = escapeHtml(b.customer_name || b.customer?.full_name || "Cliente");
     const service  = escapeHtml(b.service_name || b.service || "Reserva");
-    const status   = (b.status || "pending").toLowerCase();
+    const status   = (b.status || "recibido").toLowerCase();
     const sMap = {
-      "pending":   { cls: "s-new",   label: "Pendiente" },
-      "confirmed": { cls: "s-ready", label: "Confirmada" },
+      "recibido":   { cls: "s-new",   label: "Pendiente" },
+      "confirmado": { cls: "s-ready", label: "Confirmada" },
       "completed": { cls: "s-ready", label: "Completada" },
       "canceled":  { cls: "s-cancel",label: "Cancelada" },
     };
-    const sm = sMap[status] || sMap["pending"];
+    const sm = sMap[status] || sMap["recibido"];
     return `<div class="reservation-mini">
       <div>
         <b>${customer} — ${service}</b>

@@ -102,7 +102,7 @@ class PaymentService:
                 "back_urls": {
                     "success": f"{os.getenv('FRONT_URL', 'http://localhost:3000')}/orders/{order.number}?status=approved",
                     "failure": f"{os.getenv('FRONT_URL', 'http://localhost:3000')}/orders/{order.number}?status=rejected",
-                    "pending": f"{os.getenv('FRONT_URL', 'http://localhost:3000')}/orders/{order.number}?status=pending",
+                    "recibido": f"{os.getenv('FRONT_URL', 'http://localhost:3000')}/orders/{order.number}?status=pending",
                 },
                 "auto_return": "approved",
             }
@@ -175,8 +175,8 @@ class PaymentService:
             payment.paid_at = datetime.now(timezone.utc)
             # Marcar orden como pagada
             order = self.db.get(Order, UUID(payment.order_id) if isinstance(payment.order_id, str) else payment.order_id)
-            if order and order.status == OrderStatus.PENDING:
-                order.status = OrderStatus.CONFIRMED
+            if order and order.status == OrderStatus.RECIBIDO:
+                order.status = OrderStatus.CONFIRMADO
         if notes:
             payment.notes = (payment.notes or "") + f"\n[{('CONFIRMADO' if paid else 'RECHAZADO')}: {notes}]"
         self.db.commit()
@@ -231,7 +231,7 @@ class PaymentService:
             status_map = {
                 "approved": PaymentStatus.PAID,
                 "authorized": PaymentStatus.AUTHORIZED,
-                "pending": PaymentStatus.PENDING,
+                "recibido": PaymentStatus.PENDING,
                 "in_process": PaymentStatus.PENDING,
                 "rejected": PaymentStatus.FAILED,
                 "cancelled": PaymentStatus.CANCELED,
@@ -247,8 +247,8 @@ class PaymentService:
                 payment.paid_at = datetime.now(timezone.utc)
                 # Marcar orden como confirmada
                 order = self.db.get(Order, UUID(payment.order_id) if isinstance(payment.order_id, str) else payment.order_id)
-                if order and order.status == OrderStatus.PENDING:
-                    order.status = OrderStatus.CONFIRMED
+                if order and order.status == OrderStatus.RECIBIDO:
+                    order.status = OrderStatus.CONFIRMADO
                     # Disparar webhook order.paid
                     try:
                         from app.services.webhook_service import WebhookDispatcher
