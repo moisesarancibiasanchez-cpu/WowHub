@@ -1,4 +1,4 @@
-"""add tenant_site_configs + marketplace tables
+"""add tenant_site_configs + marketplace tables (idempotente)
 
 Revision ID: 2026_09_27_0001
 Revises: f2efb29e03b1
@@ -17,21 +17,37 @@ Esta migración cierra tres huecos de esquema detectados en la auditoría del
    ``/tenants/{tid}/site-config`` falla en runtime.
 
 2. ``marketplace_plugins`` y ``plugin_subscriptions`` — los modelos existen en
-   ``app/models/marketplace.py`` pero NO estaban en la migración inicial, por
-   lo que ``alembic upgrade head`` sobre una base limpia no creaba el
-   Marketplace (sólo lo creaba ``Base.metadata.create_all``).
+   ``app/models/marketplace.py`` y la versión pre-9163349 ya los creaba con
+   ``Base.metadata.create_all()``. En una DB legacy de producción esas dos
+   tablas YA EXISTEN; sólo falta ``tenant_site_configs``. Esta migración usa
+   ``CREATE TABLE IF NOT EXISTS`` y ``CREATE INDEX IF NOT EXISTS`` para ser
+   idempotente: crea lo que falte y respeta lo que ya esté.
 
 3. ``users.default_role`` — el default en el modelo era ``OWNER`` y el registro
    nunca lo asignaba, así que todo usuario autogistrado quedaba con rol de
    plataforma. El fix del modelo está en ``app/models/user.py``; esta
    migración normaliza las filas existentes que quedaron en OWNER sin
    membresía OWNER/ADMIN activa.
+
+FIX 2026-09-29 (producción Railway)
+-----------------------------------
+La versión anterior usaba ``op.create_table(...)`` (de Alembic) que emite un
+``CREATE TABLE`` sin ``IF NOT EXISTS``. Eso falla con
+``psycopg.errors.DuplicateTable`` cuando la tabla ya existe — situación
+real en Railway, donde ``marketplace_plugins`` y ``plugin_subscriptions``
+fueron creadas por el ``create_all()`` de la versión pre-9163349.
+
+La reescritura usa ``op.execute(text("CREATE TABLE IF NOT EXISTS ..."))``
+y ``CREATE INDEX IF NOT EXISTS``. Es portable a PostgreSQL y SQLite
+(los tests del bootstrap usan SQLite). Alembic trata la ejecución exitosa
+como migración aplicada: ``alembic_version`` se actualiza a esta revisión
+incluso si las tablas ya existían.
 """
 from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -41,84 +57,137 @@ branch_labels = None
 depends_on = None
 
 
+# ── Helpers ────────────────────────────────────────────────────────────
+# Usamos SQL crudo con IF NOT EXISTS porque Alembic no expone
+# ``create_table(if_not_exists=True)`` para PostgreSQL en 1.13.x. Es la
+# forma más portable cross-DB. PostgreSQL acepta CREATE TABLE IF NOT EXISTS
+# desde 9.1; SQLite desde 3.3.0.
+_PG_UUID = "UUID"
+
+
+def _uuid_type_sql() -> str:
+    """Devuelve el tipo de columna para IDs UUID, portable cross-DB.
+
+    PostgreSQL tiene ``UUID`` nativo. SQLite no: ahí las columnas se
+    almacenan como TEXT. El ``Base.metadata.create_all`` ya hace esto bien
+    (CHAR(36) en SQLite, UUID en Postgres). Como nosotros trabajamos con
+    el esquema lógico (lo que la app ve), basta con declarar UUID — el
+    dialecto de SQLAlchemy hace la conversión cuando se necesite.
+
+    Para esta migración manual usamos ``UUID`` directamente: el deploy de
+    Railway apunta a Postgres, y los tests usan SQLite en cuyo caso
+    Alembic interpreta la columna como CHAR(36) automáticamente (es lo que
+    hace ``postgresql.UUID(as_uuid=True)`` cuando el dialect es SQLite).
+    """
+    return _PG_UUID
+
+
+# ── DDL de las 3 tablas (idempotente) ────────────────────────────────
+# Mantenemos los DDL alineados 1-a-1 con lo que declara ``Base.metadata``
+# en ``app/models/tenant_site_config.py`` y ``app/models/marketplace.py``
+# (verificado durante la auditoría del 2026-09-27). Si esos modelos
+# cambian, hay que actualizar este script también.
+
+_DDL_TENANT_SITE_CONFIGS = f"""
+CREATE TABLE IF NOT EXISTS tenant_site_configs (
+    id {_uuid_type_sql()} NOT NULL,
+    tenant_id {_uuid_type_sql()} NOT NULL,
+    nombre_sitio VARCHAR(120) NOT NULL DEFAULT '',
+    eslogan VARCHAR(200) NOT NULL DEFAULT '',
+    logo_url VARCHAR(500) NOT NULL DEFAULT '',
+    brand_color VARCHAR(20) NOT NULL DEFAULT '#0f172a',
+    mensaje_principal TEXT NOT NULL DEFAULT '',
+    imagen_hero_url VARCHAR(500) NOT NULL DEFAULT '',
+    bookings_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    orders_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    loyalty_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    public_menu_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    web_booking_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (tenant_id),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+)
+"""
+
+_DDL_MARKETPLACE_PLUGINS = f"""
+CREATE TABLE IF NOT EXISTS marketplace_plugins (
+    id {_uuid_type_sql()} NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) NOT NULL,
+    description TEXT,
+    version VARCHAR(20) DEFAULT '1.0.0',
+    category VARCHAR(50) NOT NULL,
+    pip_package VARCHAR(255),
+    git_url VARCHAR(500),
+    install_script TEXT,
+    config_schema TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    is_paid BOOLEAN DEFAULT FALSE,
+    price_monthly_usd INTEGER DEFAULT 0,
+    installs INTEGER DEFAULT 0,
+    rating INTEGER DEFAULT 0,
+    published_by {_uuid_type_sql()},
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (slug)
+)
+"""
+
+_DDL_PLUGIN_SUBSCRIPTIONS = f"""
+CREATE TABLE IF NOT EXISTS plugin_subscriptions (
+    id {_uuid_type_sql()} NOT NULL,
+    tenant_id {_uuid_type_sql()} NOT NULL,
+    plugin_id {_uuid_type_sql()} NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    config TEXT,
+    installed_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    canceled_at TIMESTAMP WITHOUT TIME ZONE,
+    revenue_share_70_to_developer BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (tenant_id, plugin_id),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+    FOREIGN KEY (plugin_id) REFERENCES marketplace_plugins(id)
+)
+"""
+
+# Índices — alineados con ``op.create_index`` que usaba la versión previa.
+_IDX_STATEMENTS = (
+    "CREATE INDEX IF NOT EXISTS ix_tenant_site_configs_tenant_id "
+    "ON tenant_site_configs (tenant_id)",
+    "CREATE INDEX IF NOT EXISTS ix_marketplace_plugins_slug "
+    "ON marketplace_plugins (slug)",
+    "CREATE INDEX IF NOT EXISTS ix_marketplace_plugins_category "
+    "ON marketplace_plugins (category)",
+    "CREATE INDEX IF NOT EXISTS ix_marketplace_plugins_is_active "
+    "ON marketplace_plugins (is_active)",
+    "CREATE INDEX IF NOT EXISTS ix_plugin_subscriptions_tenant_id "
+    "ON plugin_subscriptions (tenant_id)",
+    "CREATE INDEX IF NOT EXISTS ix_plugin_subscriptions_plugin_id "
+    "ON plugin_subscriptions (plugin_id)",
+)
+
+
 def upgrade() -> None:
     # ── 1. tenant_site_configs ──────────────────────────────
-    op.create_table(
-        "tenant_site_configs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("nombre_sitio", sa.String(length=120), nullable=False, server_default=""),
-        sa.Column("eslogan", sa.String(length=200), nullable=False, server_default=""),
-        sa.Column("logo_url", sa.String(length=500), nullable=False, server_default=""),
-        sa.Column("brand_color", sa.String(length=20), nullable=False, server_default="#0f172a"),
-        sa.Column("mensaje_principal", sa.Text(), nullable=False, server_default=""),
-        sa.Column("imagen_hero_url", sa.String(length=500), nullable=False, server_default=""),
-        sa.Column("bookings_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("orders_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("loyalty_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("public_menu_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("web_booking_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["tenant_id"], ["tenants.id"], ondelete="CASCADE", name="fk_tenant_site_configs_tenant_id"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("tenant_id", name="uq_tenant_site_configs_tenant_id"),
-    )
-    op.create_index("ix_tenant_site_configs_tenant_id", "tenant_site_configs", ["tenant_id"])
+    op.execute(text(_DDL_TENANT_SITE_CONFIGS))
 
-    # ── 2. marketplace_plugins (espejo de app/models/marketplace.py) ──
-    op.create_table(
-        "marketplace_plugins",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("name", sa.String(length=100), nullable=False),
-        sa.Column("slug", sa.String(length=100), nullable=False),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("version", sa.String(length=20), nullable=True, server_default="1.0.0"),
-        sa.Column("category", sa.String(length=50), nullable=False),
-        sa.Column("pip_package", sa.String(length=255), nullable=True),
-        sa.Column("git_url", sa.String(length=500), nullable=True),
-        sa.Column("install_script", sa.Text(), nullable=True),
-        sa.Column("config_schema", sa.Text(), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("is_featured", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("is_paid", sa.Boolean(), nullable=True, server_default=sa.false()),
-        sa.Column("price_monthly_usd", sa.Integer(), nullable=True, server_default="0"),
-        sa.Column("installs", sa.Integer(), nullable=True, server_default="0"),
-        sa.Column("rating", sa.Integer(), nullable=True, server_default="0"),
-        sa.Column("published_by", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("slug"),
-    )
-    op.create_index("ix_marketplace_plugins_slug", "marketplace_plugins", ["slug"])
-    op.create_index("ix_marketplace_plugins_category", "marketplace_plugins", ["category"])
-    op.create_index("ix_marketplace_plugins_is_active", "marketplace_plugins", ["is_active"])
+    # ── 2. marketplace_plugins ──────────────────────────────
+    op.execute(text(_DDL_MARKETPLACE_PLUGINS))
 
-    # ── 3. plugin_subscriptions ──────────────────────────────
-    op.create_table(
-        "plugin_subscriptions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("plugin_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("status", sa.String(length=20), nullable=True, server_default="active"),
-        sa.Column("config", sa.Text(), nullable=True),
-        sa.Column("installed_at", sa.DateTime(), nullable=False),
-        sa.Column("canceled_at", sa.DateTime(), nullable=True),
-        sa.Column("revenue_share_70_to_developer", sa.Boolean(), nullable=True, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["plugin_id"], ["marketplace_plugins.id"]),
-        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"]),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("tenant_id", "plugin_id", name="uq_tenant_plugin"),
-    )
-    op.create_index("ix_plugin_subscriptions_tenant_id", "plugin_subscriptions", ["tenant_id"])
-    op.create_index("ix_plugin_subscriptions_plugin_id", "plugin_subscriptions", ["plugin_id"])
+    # ── 3. plugin_subscriptions ─────────────────────────────
+    op.execute(text(_DDL_PLUGIN_SUBSCRIPTIONS))
 
-    # ── 4. normalizar default_role de usuarios sin OWNER ──
+    # ── 4. índices (idempotentes) ──────────────────────────
+    for idx_sql in _IDX_STATEMENTS:
+        op.execute(text(idx_sql))
+
+    # ── 5. normalizar default_role de usuarios sin OWNER ──
     # FIX 2026-09-29: la versión anterior usaba `u.id::text` y `is_active = true`
     # en SQL raw, que funciona en PostgreSQL pero rompe en SQLite (driver de
     # tests/CI y desarrollo local). Se reescribe con SQLAlchemy core, que es
@@ -126,7 +195,6 @@ def upgrade() -> None:
     # mismo tipo (CHAR(36) en SQLite, UUID en Postgres) la comparación directa
     # funciona sin cast.
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
     users_table = sa.Table("users", sa.MetaData(), autoload_with=bind)
     tm_table = sa.Table("tenant_memberships", sa.MetaData(), autoload_with=bind)
 
@@ -151,14 +219,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_plugin_subscriptions_plugin_id", table_name="plugin_subscriptions")
-    op.drop_index("ix_plugin_subscriptions_tenant_id", table_name="plugin_subscriptions")
-    op.drop_table("plugin_subscriptions")
+    # El downgrade elimina los índices y las tablas. Como pueden estar
+    # parcialmente pre-existentes (caso legacy), usamos IF EXISTS.
+    for idx in (
+        "ix_plugin_subscriptions_plugin_id",
+        "ix_plugin_subscriptions_tenant_id",
+        "ix_marketplace_plugins_is_active",
+        "ix_marketplace_plugins_category",
+        "ix_marketplace_plugins_slug",
+        "ix_tenant_site_configs_tenant_id",
+    ):
+        op.execute(text(f"DROP INDEX IF EXISTS {idx}"))
 
-    op.drop_index("ix_marketplace_plugins_is_active", table_name="marketplace_plugins")
-    op.drop_index("ix_marketplace_plugins_category", table_name="marketplace_plugins")
-    op.drop_index("ix_marketplace_plugins_slug", table_name="marketplace_plugins")
-    op.drop_table("marketplace_plugins")
-
-    op.drop_index("ix_tenant_site_configs_tenant_id", table_name="tenant_site_configs")
-    op.drop_table("tenant_site_configs")
+    op.execute(text("DROP TABLE IF EXISTS plugin_subscriptions"))
+    op.execute(text("DROP TABLE IF EXISTS marketplace_plugins"))
+    op.execute(text("DROP TABLE IF EXISTS tenant_site_configs"))

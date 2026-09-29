@@ -221,12 +221,64 @@ print(
 
 print()
 print("=" * 72)
+print("TEST F: DB legacy con 2 de las 3 tablas nuevas pre-existentes")
+print("=" * 72)
+print(
+    "   Simula: WowHub pre-9163349 SI tenia marketplace_plugins y\n"
+    "   plugin_subscriptions como modelos (las creo en su create_all),\n"
+    "   pero NO tenant_site_configs (introducida despues del 9163349).\n"
+    "   La migracion usa CREATE TABLE IF NOT EXISTS para no chocar con\n"
+    "   las tablas pre-existentes."
+)
+db_f = ROOT / "test_f.db"
+db_f.unlink(missing_ok=True)
+setup_env(f"sqlite:///{db_f}")
+subprocess.run(
+    [sys.executable, "-c",
+     "from app.database import Base, engine\n"
+     "import app.models  # noqa\n"
+     "Base.metadata.create_all(bind=engine)\n"],
+    cwd=str(ROOT), check=True,
+)
+# Borrar SOLO tenant_site_configs (las otras 2 quedan como legacy)
+subprocess.run(
+    [sys.executable, "-c",
+     "from sqlalchemy import create_engine, text\n"
+     "eng = create_engine('sqlite:///" + str(db_f).replace("\\", "\\\\") + "')\n"
+     "with eng.begin() as conn:\n"
+     "    conn.execute(text('DROP TABLE IF EXISTS tenant_site_configs'))\n"
+     "eng.dispose()\n"],
+    cwd=str(ROOT), check=True,
+)
+n_f_pre = table_count(f"sqlite:///{db_f}")
+v_f_pre = has_alembic_version(f"sqlite:///{db_f}")
+print(f"   antes de bootstrap: tablas={n_f_pre}  alembic_version={v_f_pre}")
+rc_f = run_bootstrap()
+n_f = table_count(f"sqlite:///{db_f}")
+v_f = has_alembic_version(f"sqlite:///{db_f}")
+print(f"   exit={rc_f}  tablas={n_f}  alembic_version={v_f}")
+new_present_f = all_new_present(f"sqlite:///{db_f}")
+ok_f = (
+    rc_f == 0
+    and v_f
+    and not v_f_pre
+    and new_present_f
+    # Solo se anade tenant_site_configs (+1) y alembic_version (+1) = +2
+    and n_f == n_f_pre + 2
+)
+print(
+    f"   {'[OK  ]' if ok_f else '[FAIL]'} TEST F "
+    "(legacy con tablas pre-existentes: CREATE TABLE IF NOT EXISTS no falla)"
+)
+
+print()
+print("=" * 72)
 print("RESUMEN")
 print("=" * 72)
-total = 5
-passed = sum([ok_a, ok_b, ok_c, ok_d, ok_e])
+total = 6
+passed = sum([ok_a, ok_b, ok_c, ok_d, ok_e, ok_f])
 print(f"   Pasaron: {passed}/{total}")
 print(f"   {'EXIT OK' if passed == total else 'EXIT FAIL'}")
-for db in (db_a, db_b, db_c, db_d, db_e):
+for db in (db_a, db_b, db_c, db_d, db_e, db_f):
     db.unlink(missing_ok=True)
 sys.exit(0 if passed == total else 1)
