@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -118,18 +119,34 @@ def upgrade() -> None:
     op.create_index("ix_plugin_subscriptions_plugin_id", "plugin_subscriptions", ["plugin_id"])
 
     # ── 4. normalizar default_role de usuarios sin OWNER ──
-    op.execute(
-        """
-        UPDATE users u
-        SET default_role = 'STAFF'
-        WHERE u.default_role = 'OWNER'
-          AND NOT EXISTS (
-            SELECT 1 FROM tenant_memberships tm
-            WHERE tm.user_id = u.id::text
-              AND tm.is_active = true
-              AND (tm.is_owner = true OR tm.role IN ('OWNER', 'ADMIN'))
-          )
-        """
+    # FIX 2026-09-29: la versión anterior usaba `u.id::text` y `is_active = true`
+    # en SQL raw, que funciona en PostgreSQL pero rompe en SQLite (driver de
+    # tests/CI y desarrollo local). Se reescribe con SQLAlchemy core, que es
+    # cross-database. Como `users.id` y `tenant_memberships.user_id` son del
+    # mismo tipo (CHAR(36) en SQLite, UUID en Postgres) la comparación directa
+    # funciona sin cast.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    users_table = sa.Table("users", sa.MetaData(), autoload_with=bind)
+    tm_table = sa.Table("tenant_memberships", sa.MetaData(), autoload_with=bind)
+
+    # Subquery: hay AL MENOS una membresia activa OWNER/ADMIN del usuario?
+    has_owner_membership = (
+        select(tm_table.c.id)
+        .where(
+            tm_table.c.user_id == users_table.c.id,
+            tm_table.c.is_active.is_(True),
+            sa.or_(
+                tm_table.c.is_owner.is_(True),
+                tm_table.c.role.in_(("OWNER", "ADMIN")),
+            ),
+        )
+        .exists()
+    )
+    bind.execute(
+        sa.update(users_table)
+        .where(users_table.c.default_role == "OWNER", ~has_owner_membership)
+        .values(default_role="STAFF")
     )
 
 

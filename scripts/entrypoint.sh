@@ -22,20 +22,28 @@ print('DB no responde')
 sys.exit(1)
 "
 
-# ── FIX 2026-09-27: el esquema de producción ──────────────
-# Antes:  alembic upgrade head 2>/dev/null || echo "…create_all"
-# El `2>/dev/null` ocultaba el error, el `|| echo` absorbía el exit code y
-# la app arrancaba con `create_all()`. Como `create_all()` NUNCA altera tablas
-# existentes, cualquier cambio futuro de esquema era imposible de aplicar.
-# Ahora: Alembic es la única fuente del esquema; si falla, el deploy falla.
-echo "▶ Corriendo migrations Alembic (fuente única del esquema)..."
-if alembic upgrade head; then
-    echo "✔ Alembic upgrade head OK"
-else
-    echo "✖ FALLO CRÍTICO: 'alembic upgrade head' falló. El esquema no quedó aplicado."
-    echo "  Causa probable: DATABASE_URL inválida o permisos insuffientes."
-    exit 1
+# ── FIX 2026-09-29: bootstrap idempotente de migraciones ──────────
+# Antes:  `alembic upgrade head 2>/dev/null || echo "…create_all"` — se
+#         tragaba el error y caía a create_all(), lo que impedía aplicar
+#         migraciones futuras.
+# Después: `python -m scripts.bootstrap_migrate` decide entre:
+#           - DB vacía        → alembic upgrade head
+#           - DB pre-existente sin alembic_version (legacy create_all) →
+#             alembic stamp head (alinea) + upgrade head (no-op)
+#           - DB gestionada   → alembic upgrade head (idempotente)
+# En cualquier caso abortamos con exit 1 si falla — el deploy no se considera
+# exitoso sin esquema aplicado.
+echo "▶ Bootstrap de migraciones (idempotente)..."
+python -m scripts.bootstrap_migrate
+rc=$?
+if [ $rc -ne 0 ]; then
+    echo "✖ FALLO CRÍTICO: bootstrap_migrate salió con código $rc."
+    echo "  Si el error es 'DuplicateTable', la DB tiene un esquema previo que"
+    echo "  bootstrap_migrate debería haber detectado. Revisa que el script"
+    echo "  se ejecute contra la misma DATABASE_URL que la app."
+    exit $rc
 fi
+echo "✔ Migraciones aplicadas"
 
 # create_all sólo como red de seguridad para tablas que la migración no cubre
 # (no altera ni borra nada; es idempotente).
