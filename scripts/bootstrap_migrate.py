@@ -177,7 +177,7 @@ def _tables_referenced_by_migration(mig_dir: str, rev: str) -> list[str]:
 
 
 def _highest_fully_applied_revision(
-    eng, migs: dict[str, dict], mig_dir: str
+    eng, migs: dict[str, dict], mig_dir: str, model_tables: set[str] | None = None
 ) -> str | None:
     """Revisión más alta cuyas tablas declaradas están TODAS presentes en la DB.
 
@@ -187,32 +187,66 @@ def _highest_fully_applied_revision(
     que se manifestaba en TEST B (DB legacy con ``Base.metadata.create_all``
     previo, idéntico al caso real de Railway).
 
-    Recorre las migraciones de head a base. La primera migración (de head
-    hacia abajo) cuyas tablas declaradas faltan es la cota. La migración
-    inmediatamente anterior (de mayor a menor) es la más alta fully applied.
+    ``model_tables`` es el conjunto de tablas conocidas por ``Base.metadata``
+    (modelos activos). Si se pasa, las tablas declaradas en una migración
+    que NO tengan modelo activo se IGNORAN del cómputo "fully-applied".
+    Esto evita el falso negativo que producía el bug histórico: la
+    migración ``initial_schema`` declara ``business_costs``, una tabla que
+    fue eliminada del modelo en el commit 9163349 pero sigue declarada
+    en la migración. Esa tabla nunca se crea con ``create_all()`` y por
+    tanto siempre aparecía como "no presente", lo que hacía que la base
+    NUNCA fuese fully-applied y el bootstrap cayera al ERROR
+    "no encuentro ninguna migración aplicable".
 
-        Caso típico: tras ``Base.metadata.create_all``, la DB tiene todas las
-    tablas (incluidas las de migraciones nuevas), pero ``alembic_version`` no
-    existe. Esta función devuelve head directamente, evitando el
-    ``DuplicateTable`` del upgrade.
+    Recorre TODAS las migraciones de base a head y devuelve la más alta que
+    esté fully-applied (todas sus ``create_table`` con modelo presente).
+    Esto cubre los dos casos reales que se ven en producción:
+
+    Caso 1 (legacy completo)
+        ``Base.metadata.create_all()`` pobló la DB con todas las tablas del
+        modelo, incluidas las 3 nuevas de ``2026_09_27_0001``. Como esa
+        versión NO usaba Alembic, ``alembic_version`` no existe. Aquí
+        todas las migraciones están aplicadas; devolvemos head y hacemos
+        stamp directo.
+
+    Caso 2 (legacy parcial — el bug real de Railway, observable en el log
+    ``[bootstrap_migrate] ERROR: no encuentro ninguna migración aplicable``)
+        La versión pre-9163349 pobló la DB cuando ``TenantSiteConfig`` aún
+        no existía como modelo. La DB tiene las tablas de ``initial_schema``
+        pero NO las 3 nuevas. Aquí solo la inicial está aplicada;
+        devolvemos la inicial y dejamos que ``upgrade head`` añada las 3
+        nuevas.
+
+    La función NUNCA aborta prematuramente: si una revisión no está
+    fully-applied, sigue mirando las anteriores. Solo devuelve ``None`` si
+    NINGUNA migración con ``CREATE TABLE`` (modelo activo) tiene sus
+    tablas presentes.
     """
     insp = inspect(eng)
-    ordered = _migrations_in_dependency_order(migs)
-    for rev in reversed(ordered):
+    ordered = _migrations_in_dependency_order(migs)  # base -> head
+
+    applied: list[str] = []
+    for rev in ordered:
         tables = _tables_referenced_by_migration(mig_dir, rev)
+        # Filtrar tablas huerfanas: declaradas en la migracion pero sin
+        # modelo activo. Estas son legacy (modelo borrado en algun commit)
+        # y nunca se crearan con `create_all()`. Si las exigieramos, ninguna
+        # DB legacy podria ser fully-applied y el bootstrap siempre fallaria.
+        if model_tables is not None:
+            tables = [t for t in tables if t in model_tables]
         if not tables:
-            # Migración sin CREATE TABLE (ej. sólo UPDATE de filas). Si todas
-            # las migraciones posteriores a ella están aplicadas, también está
-            # aplicada. Conservamos la candidata actual y seguimos mirando
-            # hacia abajo por si hay una base aún más temprana.
+            # Migracion sin CREATE TABLE (o sin tablas con modelo activo).
+            # No podemos confirmar su aplicacion por `has_table`. La
+            # omitimos del computo; si las migraciones que la rodean si
+            # estan, `upgrade head` se encargara de re-ejecutar su UPDATE
+            # (los UPDATE son idempotentes en este proyecto).
             continue
         if all(insp.has_table(t) for t in tables):
-            return rev
-        # Esta migración NO está aplicada. En la práctica, las migraciones
-        # se aplican en orden, así que una falla aquí implica que las
-        # anteriores también faltan. Devolvemos None.
+            applied.append(rev)
+
+    if not applied:
         return None
-    return None
+    return applied[-1]
 
 
 def _load_migrations() -> dict[str, dict]:
@@ -298,7 +332,24 @@ def main() -> int:
         mig_dir = os.path.normpath(os.path.join(here, "..", "alembic", "versions"))
         migs = _load_migrations()
 
-        target = _highest_fully_applied_revision(eng, migs, mig_dir)
+        # Tablas conocidas por el modelo ACTUAL (Base.metadata). Las usamos
+        # para filtrar las "tablas huerfanas" declaradas en migraciones pero
+        # sin modelo activo (caso business_costs, eliminado en 9163349).
+        # Sin este filtro, una DB legacy nunca seria fully-applied.
+        model_tables: set[str] | None = None
+        try:
+            from app.database import Base  # noqa: WPS433 (import local)
+            import app.models  # noqa: F401,WPS433
+
+            model_tables = set(Base.metadata.tables.keys())
+        except Exception as exc:
+            print(
+                f"[bootstrap_migrate] WARN: no pude cargar Base.metadata: {exc}. "
+                "Continuando sin filtro de tablas huerfanas.",
+                file=sys.stderr,
+            )
+
+        target = _highest_fully_applied_revision(eng, migs, mig_dir, model_tables)
         if not target:
             print(
                 "[bootstrap_migrate] ERROR: no encuentro ninguna migración aplicable "

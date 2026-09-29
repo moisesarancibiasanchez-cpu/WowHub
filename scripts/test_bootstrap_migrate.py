@@ -8,6 +8,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Tablas nuevas que la migracion 2026_09_27_0001 introduce y que NO existian
+# en la version previa de WowHub (pre-commit 9163349). En produccion la DB fue
+# poblada por esa version anterior via `Base.metadata.create_all`, asi que
+# estas 3 tablas no existen en la DB legacy de Railway. El TEST E simula
+# exactamente ese escenario.
+NEW_TABLES_2026_09_27_0001 = (
+    "tenant_site_configs",
+    "marketplace_plugins",
+    "plugin_subscriptions",
+)
+
 
 def setup_env(db_url: str) -> None:
     os.environ["DATABASE_URL"] = db_url
@@ -144,12 +155,78 @@ print(
 
 print()
 print("=" * 72)
+print("TEST E: DB legacy parcial (caso real Railway — sin las 3 tablas nuevas)")
+print("=" * 72)
+print(
+    "   Simula: WowHub pre-9163349 poblo la DB con create_all() cuando\n"
+    "   tenant_site_configs / marketplace_plugins / plugin_subscriptions\n"
+    "   NO eran modelos. La DB tiene la base (initial_schema) aplicada\n"
+    "   pero NO las 3 tablas nuevas."
+)
+db_e = ROOT / "test_e.db"
+db_e.unlink(missing_ok=True)
+setup_env(f"sqlite:///{db_e}")
+# crear todas las tablas con Base.metadata.create_all
+subprocess.run(
+    [sys.executable, "-c",
+     "from app.database import Base, engine\n"
+     "import app.models  # noqa\n"
+     "Base.metadata.create_all(bind=engine)\n"],
+    cwd=str(ROOT), check=True,
+)
+# Borrar las 3 tablas nuevas para simular el estado real de la DB legacy de
+# Railway. DROP las crea el bootstrap via `alembic upgrade head`.
+subprocess.run(
+    [sys.executable, "-c",
+     "from sqlalchemy import create_engine, text\n"
+     "eng = create_engine('sqlite:///" + str(db_e).replace("\\", "\\\\") + "')\n"
+     "with eng.begin() as conn:\n"
+     "    for t in ('tenant_site_configs', 'marketplace_plugins', 'plugin_subscriptions'):\n"
+     "        conn.execute(text(f'DROP TABLE IF EXISTS {t}'))\n"
+     "eng.dispose()\n"],
+    cwd=str(ROOT), check=True,
+)
+n_e_pre = table_count(f"sqlite:///{db_e}")
+v_e_pre = has_alembic_version(f"sqlite:///{db_e}")
+print(f"   antes de bootstrap: tablas={n_e_pre}  alembic_version={v_e_pre}")
+rc_e = run_bootstrap()
+n_e = table_count(f"sqlite:///{db_e}")
+v_e = has_alembic_version(f"sqlite:///{db_e}")
+print(f"   exit={rc_e}  tablas={n_e}  alembic_version={v_e}")
+# Tras el bootstrap la DB debe tener:
+#   - todas las tablas de Base.metadata (incluidas las 3 nuevas)
+#   - alembic_version presente
+#   - ninguna tabla duplicada (el bug que estamos arreglando)
+def all_new_present(db_url: str) -> bool:
+    from sqlalchemy import create_engine, inspect
+    eng = create_engine(db_url)
+    try:
+        names = set(inspect(eng).get_table_names())
+        return all(t in names for t in NEW_TABLES_2026_09_27_0001)
+    finally:
+        eng.dispose()
+new_present = all_new_present(f"sqlite:///{db_e}")
+ok_e = (
+    rc_e == 0
+    and v_e
+    and not v_e_pre
+    and new_present
+    and n_e >= n_e_pre + 1  # +1 alembic_version + 3 tablas nuevas = +4
+    and n_e == n_e_pre + 4
+)
+print(
+    f"   {'[OK  ]' if ok_e else '[FAIL]'} TEST E "
+    "(legacy parcial: stamp base + upgrade crea las 3 tablas nuevas)"
+)
+
+print()
+print("=" * 72)
 print("RESUMEN")
 print("=" * 72)
-total = 4
-passed = sum([ok_a, ok_b, ok_c, ok_d])
+total = 5
+passed = sum([ok_a, ok_b, ok_c, ok_d, ok_e])
 print(f"   Pasaron: {passed}/{total}")
 print(f"   {'EXIT OK' if passed == total else 'EXIT FAIL'}")
-for db in (db_a, db_b, db_c, db_d):
+for db in (db_a, db_b, db_c, db_d, db_e):
     db.unlink(missing_ok=True)
 sys.exit(0 if passed == total else 1)
