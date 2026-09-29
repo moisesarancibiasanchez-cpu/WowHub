@@ -39,10 +39,10 @@
   </header>
   <nav>
     <a href="/">Inicio</a>
-    {% if site_config.public_menu_enabled %}<a href="/menu">Menú</a>{% endif %}
-    {% if site_config.bookings_enabled and site_config.web_booking_enabled %}<a href="/reservas">Reservas</a>{% endif %}
-    {% if site_config.orders_enabled %}<a href="/pedidos">Pedidos</a>{% endif %}
-    {% if site_config.loyalty_enabled %}<a href="/fidelizacion">Fidelización</a>{% endif %}
+    {% if site_config.public_menu_enabled %}<a href="/u/{{ slug }}/catalogo">Menú</a>{% endif %}
+    {% if site_config.bookings_enabled and site_config.web_booking_enabled %}<a href="/dashboard/bookings">Reservas</a>{% endif %}
+    {% if site_config.orders_enabled %}<a href="/dashboard/orders">Pedidos</a>{% endif %}
+    {% if site_config.loyalty_enabled %}<a href="/loyalty/{{ slug }}">Fidelización</a>{% endif %}
   </nav>
   <main>
     <div style="text-align:center; margin-bottom:8px;">
@@ -51,28 +51,28 @@
     </div>
     <div class="modules-grid">
       {% if site_config.bookings_enabled %}
-      <a href="/reservas" class="module-card">
+      <a href="/dashboard/bookings" class="module-card">
         <div class="module-icon">📅</div><h2>Reservas</h2><p>Reservá tu mesa online</p>
       </a>
       {% else %}
       <div class="module-card disabled"><div class="module-icon">📅</div><h2>Reservas</h2><p>No disponible</p><span class="disabled-badge">Desactivado</span></div>
       {% endif %}
       {% if site_config.orders_enabled %}
-      <a href="/pedidos" class="module-card">
+      <a href="/dashboard/orders" class="module-card">
         <div class="module-icon">🛒</div><h2>Pedidos</h2><p>Hacé tu pedido online</p>
       </a>
       {% else %}
       <div class="module-card disabled"><div class="module-icon">🛒</div><h2>Pedidos</h2><p>No disponible</p><span class="disabled-badge">Desactivado</span></div>
       {% endif %}
       {% if site_config.loyalty_enabled %}
-      <a href="/fidelizacion" class="module-card">
+      <a href="/loyalty/{{ slug }}" class="module-card">
         <div class="module-icon">⭐</div><h2>Fidelización</h2><p>Acumulá puntos</p>
       </a>
       {% else %}
       <div class="module-card disabled"><div class="module-icon">⭐</div><h2>Fidelización</h2><p>No disponible</p><span class="disabled-badge">Desactivado</span></div>
       {% endif %}
       {% if site_config.public_menu_enabled %}
-      <a href="/menu" class="module-card">
+      <a href="/u/{{ slug }}/catalogo" class="module-card">
         <div class="module-icon">🍽️</div><h2>Menú</h2><p>Nuestra carta</p>
       </a>
       {% else %}

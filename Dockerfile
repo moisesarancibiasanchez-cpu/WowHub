@@ -39,7 +39,11 @@ COPY app ./app
 COPY scripts ./scripts
 COPY alembic ./alembic
 COPY alembic.ini ./
-COPY templates ./templates
+# NOTA: NO copiar `templates` aquí — las plantillas viven en `app/templates`
+# (51 archivos) y ya vienen incluidas por `COPY app ./app`. Una línea
+# `COPY templates ./templates` rompe el build con
+# "failed to calculate checksum ... /templates: not found".
+# Los .json de i18n también viven en `app/i18n` y llegan por la misma vía.
 
 # 4) Copiar y dar permisos al entrypoint (AÚN como root)
 COPY scripts/entrypoint.sh /app/entrypoint.sh
