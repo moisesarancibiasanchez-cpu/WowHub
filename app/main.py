@@ -41,6 +41,7 @@ from app.api.v1 import (
     dining_sessions,   # HU_19 — mesero virtual / cuenta dividida
     loyalty_tiers,     # HU_29 — tiers de fidelidad
     sii,               # HU_32 — SII Chile (Libro de Ventas + validador RUT)
+    webhook_stripe,    # HU_23 — Stripe webhook (público, sin auth) — /api/v1/webhook/stripe
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -222,6 +223,8 @@ app.include_router(dining_sessions.router, prefix="/api/v1")
 app.include_router(loyalty_tiers.router, prefix="/api/v1")
 # HU_32 — SII Chile: Libro de Ventas + validador RUT
 app.include_router(sii.router, prefix="/api/v1")
+# HU_23 — Stripe webhook (público, sin auth)
+app.include_router(webhook_stripe.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────

@@ -208,3 +208,112 @@ def _to_out(p) -> PaymentOut:
         expires_at=p.expires_at,
         created_at=p.created_at,
     )
+
+
+# ── HU_23 — Stripe (pasarela unificada) ─────────────────────────────
+# Endpoints ADICIONALES — los existentes (MercadoPago, manual, mock) NO
+# se tocan. Sólo agregamos dos rutas nuevas detrás de `tenant_router`:
+#   POST /api/v1/tenants/{tenant_id}/payments/stripe/intent
+#   GET  /api/v1/tenants/{tenant_id}/payments/stripe/status/{payment_intent_id}
+#
+# Si `STRIPE_SECRET_KEY` no está configurado, ambos endpoints funcionan
+# gracias al fail-open del `StripeProvider` (cae a Mock + warning).
+from typing import Optional as _Optional  # noqa: E402  (local alias para evitar shadowing del import superior)
+from fastapi import HTTPException  # noqa: E402
+from pydantic import BaseModel as _BaseModel, Field as _Field  # noqa: E402
+
+from app.services.payments import get_provider as _get_provider  # noqa: E402
+
+
+class _StripeIntentBody(_BaseModel):
+    """Body de POST /tenants/{id}/payments/stripe/intent."""
+    amount_cents: int = _Field(..., ge=1, description="Monto en centavos")
+    currency: str = _Field("usd", min_length=2, max_length=8, description="ISO-4217")
+
+
+class _StripeIntentResponse(_BaseModel):
+    """Respuesta normalizada del endpoint de Stripe."""
+    provider: str
+    intent_id: str
+    client_secret: _Optional[str] = None
+    status: str
+    amount_cents: int
+    currency: str
+
+
+class _StripeStatusResponse(_BaseModel):
+    provider: str
+    intent_id: str
+    status: str
+    amount_cents: int
+    currency: str
+
+
+@tenant_router.post(
+    "/stripe/intent",
+    response_model=_StripeIntentResponse,
+    status_code=201,
+    tags=["payments", "stripe"],
+)
+def create_stripe_intent(
+    tenant_id: UUID,
+    payload: _StripeIntentBody,
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """Crea un PaymentIntent en Stripe (o Mock si no hay STRIPE_SECRET_KEY).
+
+    Requiere auth de tenant (JWT + membresía). El `tenant_id` del JWT y del
+    path deben coincidir (regla estándar de WowHub — ver `get_current_membership`).
+    """
+    provider = _get_provider("stripe")
+    meta = {
+        "tenant_id": str(tenant_id),
+        "membership_id": str(getattr(membership, "id", "")),
+    }
+    try:
+        result = provider.create_payment_intent(
+            amount_cents=payload.amount_cents,
+            currency=payload.currency,
+            metadata=meta,
+        )
+    except RuntimeError as e:
+        # SDK no instalado o config inválida — devolvemos 503 (no 500)
+        # para que el cliente sepa que es un problema de configuración.
+        raise HTTPException(status_code=503, detail=str(e))
+    if result.status == "error":
+        raise HTTPException(status_code=502, detail="Stripe error")
+    return _StripeIntentResponse(
+        provider=result.provider,
+        intent_id=result.intent_id,
+        client_secret=result.client_secret,
+        status=result.status,
+        amount_cents=result.amount_cents,
+        currency=result.currency,
+    )
+
+
+@tenant_router.get(
+    "/stripe/status/{payment_intent_id}",
+    response_model=_StripeStatusResponse,
+    tags=["payments", "stripe"],
+)
+def get_stripe_status(
+    tenant_id: UUID,
+    payment_intent_id: str,
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """Consulta el estado de un PaymentIntent por id."""
+    provider = _get_provider("stripe")
+    try:
+        result = provider.confirm_payment(payment_intent_id)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    if result.status == "error":
+        raise HTTPException(status_code=502, detail="Stripe error")
+    return _StripeStatusResponse(
+        provider=result.provider,
+        intent_id=result.intent_id,
+        status=result.status,
+        amount_cents=result.amount_cents,
+        currency=result.currency,
+    )

@@ -105,6 +105,16 @@ class Settings(BaseSettings):
     mercadopago_enabled: bool = False
     payment_default_provider: str = "mock"  # mock | mercadopago
 
+    # ── HU_23 — Stripe (pasarela unificada) ────────────────────────
+    # Fail-open: si `stripe_secret_key` está vacío, `get_provider("stripe")`
+    # sigue funcionando pero `create_payment_intent` / `confirm_payment` /
+    # `refund` caen transparentes a `MockProvider` (mensaje warning en logs).
+    # El webhook handler NO es fail-open: si falta `stripe_webhook_secret`,
+    # devuelve 503 explícito para no aceptar eventos sin verificar firma.
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_publishable_key: str | None = None
+
     # Webhooks
     webhook_secret: str = "change-me-webhook-secret-min-32-chars-ok"
     webhook_max_retries: int = 5

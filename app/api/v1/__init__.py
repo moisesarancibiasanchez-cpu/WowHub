@@ -11,4 +11,5 @@ from app.api.v1 import (  # noqa: F401
     marketplace,  # HU_45: Marketplace de plugins
     plugins,  # HU_45: Plugin sandbox (RestrictedPython) — /plugins/test
     sii,  # HU_32 — SII Chile (Libro de Ventas + validador RUT)
+    webhook_stripe,  # HU_23 — Stripe webhook (público, sin auth)
 )

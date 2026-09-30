@@ -45,3 +45,8 @@ flower>=2.0.0
 # Aislamiento in-process de código de plugin. Compila en modo restringido
 # y aplica whitelist de builtins + guards (`_getattr_`, `_getitem_`, etc.).
 RestrictedPython>=6.0
+
+# ── HU_23 — Stripe (pasarela de pagos unificada) ────────────────
+# SDK oficial de Stripe. Import dentro de los métodos (lazy) para que un
+# fallo del SDK no rompa el resto de WowHub.
+stripe>=8.0
