@@ -9,4 +9,5 @@ from app.api.v1 import (  # noqa: F401
     costs,  # Costos fijos mensuales + cálculo de costo_hora (Fase 2 V8)
     insumos,  # V8 P0.1 — Insumos (materia prima) + Recetas (BOM)
     marketplace,  # HU_45: Marketplace de plugins
+    plugins,  # HU_45: Plugin sandbox (RestrictedPython) — /plugins/test
 )

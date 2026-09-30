@@ -40,3 +40,8 @@ flower>=2.0.0
 # Requiere `playwright install chromium` para descargar el binario.
 # playwright>=1.42.0
 # pytest-playwright>=0.4.4
+
+# ── Plugin sandbox (HU_45) ──
+# Aislamiento in-process de código de plugin. Compila en modo restringido
+# y aplica whitelist de builtins + guards (`_getattr_`, `_getitem_`, etc.).
+RestrictedPython>=6.0

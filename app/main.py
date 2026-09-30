@@ -34,6 +34,7 @@ from app.api.v1 import (
     quotes,  # Cotizaciones (Quotes) — Gestión interna
     notifications,  # Notifications Engine API (Fase 5) — bell badge + lista
     marketplace,  # HU_45: Marketplace de plugins
+    plugins,  # HU_45: Plugin sandbox (RestrictedPython) — /plugins/test
     # HU_12 / HU_17 / HU_19 / HU_29 — features nuevas
     variants,          # HU_12 — variantes y modificadores de producto
     order_events,      # HU_17 — timeline del pedido
@@ -208,6 +209,8 @@ app.include_router(f0_baseline_router)
 app.include_router(marketplace.router, prefix="/api/v1")
 # HU_45 — Marketplace admin (superadmin endpoints)
 app.include_router(marketplace.admin_router, prefix="/api/v1")
+# HU_45 — Plugin sandbox (RestrictedPython) — endpoint de prueba
+app.include_router(plugins.router, prefix="/api/v1")
 # HU_12 — Variantes y modificadores de producto
 app.include_router(variants.router, prefix="/api/v1")
 # HU_17 — Timeline del pedido (OrderEvent)
