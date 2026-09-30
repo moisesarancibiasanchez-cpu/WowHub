@@ -12,4 +12,5 @@ from app.api.v1 import (  # noqa: F401
     plugins,  # HU_45: Plugin sandbox (RestrictedPython) — /plugins/test
     sii,  # HU_32 — SII Chile (Libro de Ventas + validador RUT)
     webhook_stripe,  # HU_23 — Stripe webhook (público, sin auth)
+    audit_chain,  # HU_40 — Audit hash chain (backfill + verify)
 )
