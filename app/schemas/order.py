@@ -96,3 +96,30 @@ class OrderOut(BaseModel):
     items: list[OrderItemOut]
     created_at: datetime
     updated_at: datetime
+
+
+# ════════════════════════════════════════════════════════════
+# HU_17 — Línea de tiempo del pedido (OrderEvent)
+# ════════════════════════════════════════════════════════════
+class OrderEventBase(BaseModel):
+    event_type: str = Field(
+        "note",
+        pattern="^(status_change|note|payment|refund|channel)$",
+        description="status_change|note|payment|refund|channel",
+    )
+    payload: dict = Field(default_factory=dict)
+    message: Optional[str] = Field(None, max_length=2000)
+
+
+class OrderEventCreate(OrderEventBase):
+    """Body de POST /orders/{oid}/events — usado para notas manuales."""
+    pass
+
+
+class OrderEventOut(OrderEventBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    tenant_id: UUID
+    order_id: UUID
+    actor_user_id: Optional[UUID] = None
+    created_at: datetime

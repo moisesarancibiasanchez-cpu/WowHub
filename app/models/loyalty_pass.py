@@ -140,6 +140,17 @@ class CustomerPass(BaseModel, TenantMixin):
     redeemed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # HU_29 — Tier actual del pass (denormalizado). Se recalcula
+    # automáticamente en LoyaltyPassService.add_stamp() a partir de
+    # stamps_current y los tiers activos de la campaña.
+    # Nullable para no romper pases pre-existentes ni breaking changes.
+    current_tier_id: Mapped[Optional[str]] = mapped_column(
+        GUID(),
+        ForeignKey("loyalty_tiers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     campaign: Mapped["LoyaltyCampaign"] = relationship(back_populates="passes")
 
     __table_args__ = (

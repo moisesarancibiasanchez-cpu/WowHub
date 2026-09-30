@@ -124,3 +124,108 @@ class ProductListItem(BaseModel):
     target_margin_pct: Optional[int] = None
     health: Health = "unknown"
     health_message: Optional[str] = None
+
+
+# ════════════════════════════════════════════════════════════
+# HU_12 — Variantes y modificadores
+# ════════════════════════════════════════════════════════════
+class ProductVariantBase(BaseModel):
+    sku: str = Field(..., min_length=1, max_length=80)
+    name: str = Field(..., min_length=1, max_length=200)
+    price_cents: int = Field(0, ge=0)
+    cost_cents: Optional[int] = Field(None, ge=0)
+    stock: int = Field(0, ge=0)
+    track_inventory: bool = False
+    image_url: Optional[str] = Field(None, max_length=500)
+    sort_order: int = 0
+    is_active: bool = True
+    attributes: dict = Field(default_factory=dict)
+
+
+class ProductVariantIn(ProductVariantBase):
+    pass
+
+
+class ProductVariantUpdate(BaseModel):
+    """PATCH — todos opcionales."""
+    sku: Optional[str] = Field(None, min_length=1, max_length=80)
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    price_cents: Optional[int] = Field(None, ge=0)
+    cost_cents: Optional[int] = Field(None, ge=0)
+    stock: Optional[int] = Field(None, ge=0)
+    track_inventory: Optional[bool] = None
+    image_url: Optional[str] = Field(None, max_length=500)
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+    attributes: Optional[dict] = None
+
+
+class ProductVariantOut(ProductVariantBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    tenant_id: UUID
+    product_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Modifier Option ─────────────────────────────────────────
+class ModifierOptionBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    price_delta_cents: int = Field(0)
+    is_default: bool = False
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class ModifierOptionIn(ModifierOptionBase):
+    pass
+
+
+class ModifierOptionUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
+    price_delta_cents: Optional[int] = None
+    is_default: Optional[bool] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class ModifierOptionOut(ModifierOptionBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    modifier_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Modifier (grupo) ───────────────────────────────────────
+class ModifierBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    type: str = Field("single", pattern="^(single|multi)$")
+    required: bool = False
+    sort_order: int = 0
+    is_active: bool = True
+    description: Optional[str] = None
+
+
+class ModifierIn(ModifierBase):
+    options: list[ModifierOptionIn] = Field(default_factory=list)
+
+
+class ModifierUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=120)
+    type: Optional[str] = Field(None, pattern="^(single|multi)$")
+    required: Optional[bool] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+    description: Optional[str] = None
+
+
+class ModifierOut(ModifierBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    tenant_id: UUID
+    product_id: UUID
+    options: list[ModifierOptionOut] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime

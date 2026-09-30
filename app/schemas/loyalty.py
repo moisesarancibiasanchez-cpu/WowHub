@@ -272,3 +272,51 @@ class PassUpdateWebhook(BaseModel):
     serial_number: str
     event: str  # 'install' | 'uninstall' | 'update'
     device_id: Optional[str] = None
+
+
+# ════════════════════════════════════════════════════════════
+# HU_29 — Tiers de fidelidad (Bronce / Plata / Oro / Platino)
+# ════════════════════════════════════════════════════════════
+class LoyaltyTierBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+    min_stamps: int = Field(0, ge=0, le=10_000)
+    discount_pct: float = Field(0.0, ge=0.0, le=100.0)
+    perks: dict = Field(default_factory=dict)
+    sort_order: int = 0
+    is_active: bool = True
+    color: Optional[str] = Field(None, max_length=7)
+    icon: Optional[str] = Field(None, max_length=60)
+
+    @field_validator("color")
+    @classmethod
+    def _check_color(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_hex_color(v)
+
+
+class LoyaltyTierCreate(LoyaltyTierBase):
+    campaign_id: UUID
+
+
+class LoyaltyTierUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=60)
+    min_stamps: Optional[int] = Field(None, ge=0, le=10_000)
+    discount_pct: Optional[float] = Field(None, ge=0.0, le=100.0)
+    perks: Optional[dict] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+    color: Optional[str] = Field(None, max_length=7)
+    icon: Optional[str] = Field(None, max_length=60)
+
+    @field_validator("color")
+    @classmethod
+    def _check_color(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_hex_color(v)
+
+
+class LoyaltyTierOut(LoyaltyTierBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    tenant_id: UUID
+    campaign_id: UUID
+    created_at: datetime
+    updated_at: datetime

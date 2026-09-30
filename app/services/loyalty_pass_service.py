@@ -395,6 +395,19 @@ class LoyaltyPassService:
             reward_unlocked=reward_unlocked,
         )
         self.db.add(stamp)
+
+        # 7.5) HU_29 — Auto-asignar tier según los stamps actuales
+        try:
+            from app.services.loyalty_tier_service import LoyaltyTierService
+            LoyaltyTierService(self.db, self.tenant_id).recompute_tier_for_pass(customer_pass)
+        except Exception as e:
+            # La asignación de tier es un derivado — un fallo no debe
+            # romper el scan (que ya validó el QR).
+            import logging
+            logging.getLogger("wowhub.loyalty").warning(
+                "recompute_tier_for_pass falló: %s", e,
+            )
+
         self.db.commit()
         self.db.refresh(customer_pass)
         self.db.refresh(campaign)

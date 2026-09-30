@@ -39,3 +39,15 @@ from app.models.marketplace import MarketplacePlugin, PluginSubscription  # noqa
 # TenantSiteConfig: config por tenant en tabla `tenant_site_configs` (distinta del
 # singleton global `site_config`). Ver app/models/tenant_site_config.py
 from app.models.tenant_site_config import TenantSiteConfig  # noqa: F401
+# HU_12 — Variantes y modificadores de productos
+from app.models.product_variant import (  # noqa: F401
+    ProductVariant, Modifier, ModifierOption, ModifierType, ProductModifierGroup,
+)
+# HU_17 — Línea de tiempo del pedido (OrderEvent)
+from app.models.order_event import OrderEvent, OrderEventType  # noqa: F401
+# HU_19 — Mesero virtual / cuenta dividida (DiningSession)
+from app.models.dining_session import (  # noqa: F401
+    DiningSession, DiningSessionItem, DiningSessionStatus,
+)
+# HU_29 — Tiers de fidelidad (Bronce / Plata / Oro / Platino)
+from app.models.loyalty_tier import LoyaltyTier  # noqa: F401

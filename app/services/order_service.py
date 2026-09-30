@@ -225,9 +225,27 @@ class OrderService:
                 f"Transición inválida: {order.status.value} → {new_status.value}. "
                 f"Estados permitidos: {[s.value for s in allowed]}"
             )
+        # HU_17 — guardar el estado anterior para emitir OrderEvent
+        from_status = order.status.value
         order.status = new_status
         if new_status == OrderStatus.ENTREGADO:
             order.updated_at = datetime.now(timezone.utc)
+        # HU_17 — registrar OrderEvent automático (commit atómico junto
+        # con el cambio de status).
+        try:
+            from app.services.order_event_service import OrderEventService
+            OrderEventService(self.db, str(order.tenant_id)).record_status_change(
+                order=order,
+                from_status=from_status,
+                to_status=new_status.value,
+            )
+        except Exception as e:
+            # Si falla la creación del evento, NO abortamos el cambio
+            # de estado (la timeline es derivada). Logueamos.
+            import logging
+            logging.getLogger("wowhub.order").warning(
+                "record_status_change falló: %s", e,
+            )
         self.db.commit()
         self.db.refresh(order)
         return order
