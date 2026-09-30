@@ -62,6 +62,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Limpiar entradas antiguas
         self.buckets[key] = [t for t in self.buckets[key] if t > now - window]
 
+        # HU_41 — Headers RFC 6585 / draft-ietf-httpapi-ratelimit-headers.
+        # Permite al cliente conocer su estado sin esperar el 429.
+        remaining = max(0, limit - len(self.buckets[key]))
+        reset_seconds = int(window)
+        rl_headers = {
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": str(remaining),
+            "X-RateLimit-Reset": str(reset_seconds),
+        }
+
         if len(self.buckets[key]) >= limit:
             logger.warning("Rate limit exceeded for %s on %s", client_ip, path)
             return JSONResponse(
@@ -70,7 +80,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "detail": "Demasiadas solicitudes. Intenta de nuevo en un momento.",
                     "retry_after": window,
                 },
-                headers={"Retry-After": str(window)},
+                headers={
+                    **rl_headers,
+                    "Retry-After": str(window),
+                },
             )
 
         self.buckets[key].append(now)
@@ -80,7 +93,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._cleanup()
             self._last_cleanup = now
 
-        return await call_next(request)
+        response = await call_next(request)
+        # Propagar los headers al cliente en respuestas 2xx/4xx que no sean 429.
+        try:
+            for hk, hv in rl_headers.items():
+                response.headers[hk] = hv
+        except Exception:
+            # Algunos tipos de respuesta (p.ej. StreamingResponse) son inmutables.
+            pass
+        return response
 
     @staticmethod
     def _match(path: str, pattern: str) -> bool:

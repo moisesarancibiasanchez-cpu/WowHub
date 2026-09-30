@@ -36,9 +36,16 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_time_limit=300,          # 5 min max per job
-    worker_prefetch_multiplier=4,
+    # HU_36 — Anti thundering-herd:
+    #   prefetch=1 evita que un worker acapare N tareas en memoria y cause
+    #   spikes de CPU cuando una tarea pesada bloquea el evento loop.
+    #   Combinado con task_acks_late=True garantiza que la tarea solo se
+    #   elimina del broker DESPUÉS de completarse (no al recibirla).
+    worker_prefetch_multiplier=1,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
+    # HU_36 — Visibilidad de la cola:
+    broker_transport_options={"visibility_timeout": 3600},  # 1 h
     task_routes={
         "app.tasks.emails.*": {"queue": "emails"},
         "app.tasks.pdfs.*":  {"queue": "pdfs"},
