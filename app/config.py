@@ -116,6 +116,21 @@ class Settings(BaseSettings):
     rate_limit_orders_per_min: int = 60
     rate_limit_default_per_min: int = 200
 
+    # ── HU_41: Redis-backed rate limit (sliding window) ────────────
+    # ``redis_url`` re-usa la variable de entorno ``REDIS_URL`` que
+    # ya existe en .env.example para Celery. Si está vacía o el
+    # cliente Redis no responde, ``app.services.redis_client`` cae
+    # transparente a in-memory. NO es necesario tocar nada de lo
+    # existente para activar HU_41: basta con setear ``REDIS_URL``
+    # en producción.
+    #
+    # ``redis_enabled`` es un kill-switch explícito: si se setea
+    # ``REDIS_ENABLED=false``, ``get_redis()`` devuelve ``None``
+    # sin intentar conectar. Útil para tests y para apagar el rate
+    # limit distribuido en caso de incidente operativo.
+    redis_url: str | None = None
+    redis_enabled: bool = True
+
     # Audit
     audit_enabled: bool = True
     audit_retention_days: int = 365
