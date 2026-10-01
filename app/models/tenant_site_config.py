@@ -7,8 +7,14 @@ controlado por el equipo de WowHub (tema de portada, mantenimiento).
 El nombre de tabla es `tenant_site_configs` (plural) a propósito: la tabla
 global es `site_config` (singular). Una versión anterior de este modelo usó
 `site_configs` y colisionó con el índice de la global.
+
+HU_42 — Drag&drop section builder:
+- ``social_links``: lista de links a redes sociales.
+- ``blocks``: lista de bloques custom (hero, features, gallery, etc.) con
+  posición para drag&drop. El frontend los renderiza ordenados por
+  ``position`` ASC.
 """
-from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import BaseModel, GUID
@@ -50,5 +56,10 @@ class TenantSiteConfig(BaseModel):
     public_menu_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     web_booking_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # HU_42 — Drag&drop section builder (HU_42 site constructor avanzado)
+    social_links: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    blocks: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
     def __repr__(self) -> str:  # pragma: no cover - debug helper
-        return f"<TenantSiteConfig tenant_id={self.tenant_id} nombre={self.nombre_sitio!r}>"
+        n = len(self.blocks or [])
+        return f"<TenantSiteConfig tenant_id={self.tenant_id} blocks={n}>"

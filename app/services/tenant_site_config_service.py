@@ -4,9 +4,15 @@ A diferencia de `SiteConfigService` (singleton global), este servicio opera
 sobre un registro por tenant. Aísla el acceso por `tenant_id` y expone
 `get_site_config_for_tenant` como helper de módulo, que es la firma que
 consumen las páginas renderizadas en `app/main.py`.
+
+HU_42 — Drag&drop section builder:
+- ``social_links``: lista de links a redes sociales.
+- ``blocks``: lista de bloques custom (hero, features, gallery, etc.) con
+  posición para drag&drop. El frontend los renderiza ordenados por
+  ``position`` ASC.
 """
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,6 +35,8 @@ _UPDATABLE_FIELDS = frozenset(
         "loyalty_enabled",
         "public_menu_enabled",
         "web_booking_enabled",
+        "social_links",  # HU_42
+        "blocks",         # HU_42
     }
 )
 
@@ -59,19 +67,54 @@ class TenantSiteConfigService:
         return cfg
 
     def update(self, tenant_id: Any, data: Dict[str, Any]) -> TenantSiteConfig:
-        """Actualiza sólo los campos permitidos. Ignora el resto silenciosamente."""
+        """Actualiza sólo los campos permitidos. Ignora el resto silenciosamente.
+
+        Para listas (social_links, blocks), las claves ``null``/ausentes
+        no modifican el valor actual; sólo los valores explícitos
+        (incluyendo ``[]``) reemplazan.
+        """
         cfg = self.get_or_create(tenant_id)
-        applied = {k: v for k, v in (data or {}).items() if k in _UPDATABLE_FIELDS}
-        ignored = set(data or {}) - _UPDATABLE_FIELDS
-        if ignored:
-            logger.warning(
-                "TenantSiteConfig.update ignoró campos no permitidos: %s", sorted(ignored)
-            )
+        applied: Dict[str, Any] = {}
+        for key, value in (data or {}).items():
+            if key in _UPDATABLE_FIELDS:
+                applied[key] = value
+            else:
+                logger.warning(
+                    "TenantSiteConfig.update ignoró campo no permitido: %s",
+                    key,
+                )
+
         for key, value in applied.items():
-            setattr(cfg, key, value)
+            if key in ("social_links", "blocks"):
+                # Listas: validar que sea lista de dicts (Pydantic ya validó
+                # en el schema, pero defendemos en profundidad).
+                if value is not None and not isinstance(value, list):
+                    logger.warning(
+                        "TenantSiteConfig.update: %s no es una lista, ignorando",
+                        key,
+                    )
+                    continue
+                # Reemplazar solo si es lista explícita (incluso vacía).
+                # None significa "no toques este campo".
+                setattr(cfg, key, value or [])
+            else:
+                setattr(cfg, key, value)
+
         self.db.commit()
         self.db.refresh(cfg)
         return cfg
+
+    def get_blocks_ordered(self, tenant_id: Any) -> List[Dict[str, Any]]:
+        """Devuelve los bloques ordenados por position ASC (para render)."""
+        cfg = self.get(tenant_id)
+        if cfg is None:
+            return []
+        blocks = list(cfg.blocks or [])
+        # Solo enabled=True, ordenados.
+        return sorted(
+            [b for b in blocks if b.get("enabled", True)],
+            key=lambda b: b.get("position", 0),
+        )
 
 
 def get_site_config_for_tenant(db: Session, tenant_id: Any) -> Optional[Dict[str, Any]]:
@@ -96,6 +139,8 @@ def get_site_config_for_tenant(db: Session, tenant_id: Any) -> Optional[Dict[str
             "loyalty_enabled": cfg.loyalty_enabled,
             "public_menu_enabled": cfg.public_menu_enabled,
             "web_booking_enabled": cfg.web_booking_enabled,
+            "social_links": list(cfg.social_links or []),
+            "blocks": list(cfg.blocks or []),
         }
     except Exception:  # noqa: BLE001 - una config ausente no debe romper el render
         logger.exception("get_site_config_for_tenant falló para tenant=%s", tenant_id)
