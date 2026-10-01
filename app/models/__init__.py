@@ -55,3 +55,5 @@ from app.models.loyalty_tier import LoyaltyTier  # noqa: F401
 from app.models.rbac import RBACPolicy, RBACGrouping  # noqa: F401
 # HU_34 — Dashboard personalizable (GridStack widgets) — 1 fila por tenant (1:1)
 from app.models.dashboard import DashboardLayout  # noqa: F401
+# HU_33 — Receipt OCR (comprobantes/tickets) — 1 fila por imagen procesada
+from app.models.receipt import Receipt, ReceiptStatus  # noqa: F401
