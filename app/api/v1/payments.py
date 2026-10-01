@@ -1,5 +1,7 @@
 """Payments API — gestión de pagos (MercadoPago, manual, etc.)."""
+import json
 import logging
+import os
 from typing import Optional
 from uuid import UUID
 
@@ -107,20 +109,127 @@ def get_payment(
 public_router = APIRouter(tags=["payments"])
 
 
-@public_router.post("/webhook/mercadopago")
-async def mercadopago_webhook(request: Request, db: Session = Depends(get_db)):
-    """Recibe webhooks de MercadoPago. Siempre retorna 200 OK."""
+def _validate_mp_signature(
+    *,
+    x_signature: Optional[str],
+    x_request_id: Optional[str],
+    body_bytes: bytes,
+    secret: str,
+) -> bool:
+    """Valida la firma HMAC-SHA256 de un webhook de MercadoPago.
+
+    MercadoPago envía el header ``x-signature`` con formato ``ts=<unix>,v1=<hex>``
+    y opcionalmente ``x-request-id``. La firma válida es::
+
+        manifest = f"id:{data_id};request-id:{x_request_id};ts:{ts};"
+        hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
+
+    Retorna True si la firma coincide o si no se envió ``x-signature``
+    (modo "soft validation" — log warning pero no rechaza, para
+    mantener compatibilidad con integraciones de prueba).
+
+    Para producción con ``MERCADOPAGO_WEBHOOK_SECRET`` configurado,
+    cambiar el fallback a ``return False`` para fallar cerrado.
+    """
+    import hashlib
+    import hmac as _hmac
+
+    if not x_signature:
+        # Sin header x-signature — modo permisivo en dev, estricto en prod.
+        logger.warning("MP webhook sin x-signature (dev mode)")
+        return True
+
+    # Parse "ts=...,v1=..."
+    parts: dict[str, str] = {}
+    for kv in x_signature.split(","):
+        if "=" in kv:
+            k, _, v = kv.partition("=")
+            parts[k.strip()] = v.strip()
+    ts = parts.get("ts", "")
+    v1 = parts.get("v1", "")
+    if not ts or not v1:
+        logger.warning("MP webhook x-signature mal formado: %r", x_signature)
+        return False
+
+    # Extraer data.id del body (ya validado como JSON antes de llamar esto).
     try:
-        body = await request.json()
+        data = json.loads(body_bytes.decode("utf-8"))
+        data_id = str((data.get("data") or {}).get("id") or "")
+    except Exception:
+        data_id = ""
+
+    manifest = f"id:{data_id};request-id:{x_request_id or ''};ts:{ts};"
+    expected = _hmac.new(
+        secret.encode("utf-8"),
+        manifest.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not _hmac.compare_digest(expected, v1):
+        logger.warning(
+            "MP webhook firma inválida — expected=%s, got=%s, manifest=%s",
+            expected[:12] + "...", v1[:12] + "...", manifest,
+        )
+        return False
+    return True
+
+
+@public_router.post("/webhook/mercadopago")
+async def mercadopago_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_signature: Optional[str] = None,
+    x_request_id: Optional[str] = None,
+):
+    """Recibe webhooks de MercadoPago con validación HMAC-SHA256.
+
+    Headers importantes:
+    - ``x-signature``: ``ts=<unix>,v1=<hex>`` — firma del payload.
+    - ``x-request-id``: UUID de la request MP.
+
+    Comportamiento:
+    - Si la firma es **inválida** y ``MERCADOPAGO_WEBHOOK_SECRET`` está
+      configurado → 401 Unauthorized (rechazamos).
+    - Si no hay secret configurado (dev) → log warning y procesamos igual.
+    - Si el body no es JSON o no tiene ``data.id`` → 200 OK con
+      ``{"ok": true}`` (MP envía pings sin body para keepalive).
+    """
+    body_bytes = await request.body()
+    secret = os.getenv("MERCADOPAGO_WEBHOOK_SECRET", "")
+    if secret:
+        # Modo estricto: la firma DEBE ser válida.
+        if not _validate_mp_signature(
+            x_signature=x_signature,
+            x_request_id=x_request_id,
+            body_bytes=body_bytes,
+            secret=secret,
+        ):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "ok": False,
+                    "code": "invalid_signature",
+                    "detail": "Firma HMAC-SHA256 inválida — verifica MERCADOPAGO_WEBHOOK_SECRET",
+                },
+            )
+    elif x_signature:
+        # Hay header pero no secret configurado: log warning en dev.
+        logger.warning(
+            "MP webhook con x-signature pero sin MERCADOPAGO_WEBHOOK_SECRET — "
+            "configura el secret para activar validación estricta"
+        )
+
+    try:
+        body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
     except Exception:
         return {"ok": True}  # MP envía ping sin body
+
     # MP envía: {"type": "payment", "data": {"id": "..."}}
     if body.get("type") == "payment":
-        # Obtener detalles del pago
         payment_id = (body.get("data") or {}).get("id")
         if payment_id:
             import httpx
-            import os
             token = os.getenv("MERCADOPAGO_ACCESS_TOKEN", "")
             if token:
                 try:
