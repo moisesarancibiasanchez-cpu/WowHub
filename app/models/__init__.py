@@ -53,3 +53,5 @@ from app.models.dining_session import (  # noqa: F401
 from app.models.loyalty_tier import LoyaltyTier  # noqa: F401
 # HU_38 — RBAC Granular con Casbin (rbac_policies + rbac_groupings)
 from app.models.rbac import RBACPolicy, RBACGrouping  # noqa: F401
+# HU_34 — Dashboard personalizable (GridStack widgets) — 1 fila por tenant (1:1)
+from app.models.dashboard import DashboardLayout  # noqa: F401
