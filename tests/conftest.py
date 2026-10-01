@@ -91,6 +91,8 @@ def reset_db():
         automation,  # noqa
         # Costos (Fase 2 V8)
         business_costs,  # noqa
+        # HU_38 — RBAC Granular con Casbin
+        rbac,  # noqa
     )
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

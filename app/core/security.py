@@ -254,3 +254,332 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 keys_to_remove.append(key)
         for key in keys_to_remove:
             del self.buckets[key]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# HU_38 — RBAC Granular con Casbin
+# ──────────────────────────────────────────────────────────────────────
+# IMPORTANTE: este bloque es APPEND-ONLY. No tocar ``RateLimitMiddleware``
+# arriba — fue re-escrito por HU_41 y debe seguir funcionando intacto.
+#
+# Lo que hace este bloque:
+#   * Singleton del Casbin Enforcer (``_get_rbac_enforcer``), con
+#     inicialización perezosa para no romper tests sin seed.
+#   * Decorator ``@requires_permission(obj, act)`` que aplica RBAC a un
+#     endpoint FastAPI. Funciona sobre cualquier endpoint que tenga
+#     ``membership`` (TenantMembership) o ``user`` (User) como kwarg.
+#   * Helper ``_legacy_check()`` con la matriz hard-coded de roles, usada
+#     como fallback cuando Casbin no está disponible.
+#   * Invalidación del singleton vía ``_invalidate_rbac_enforcer()`` para
+#     que POST/DELETE /rbac/policies tengan efecto inmediato.
+#
+# Coexistencia:
+#   * Casbin (>=1.35,<2) es la única dependencia nueva.
+#   * El adapter (``app/core/rbac_adapter.py``) es genérico y no requiere
+#     modelos específicos.
+# ──────────────────────────────────────────────────────────────────────
+import logging
+import threading
+from typing import TYPE_CHECKING
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from app.models.tenant import TenantMembership
+    from app.models.user import User
+
+logger = logging.getLogger("wowhub.rbac.security")
+
+# Lazy-loaded global enforcer (singleton + lock para thread-safety).
+_RBAC_ENFORCER = None
+_RBAC_LOCK = threading.Lock()
+
+# Modelo legacy hard-coded. Réplica exacta de la matriz del repo antes
+# de HU_38 — es la fuente de verdad para el fallback ``_legacy_check()``.
+#
+# Estructura: { "ROLE": { "obj": { "act": bool } } }. Si ``obj`` o ``act``
+# no están presentes, el deny es implícito (default = False).
+_LEGACY_ROLE_MATRIX: dict[str, dict[str, dict[str, bool]]] = {
+    "SUPERADMIN": {"*": {"*": True}},
+    "OWNER":      {"*": {"*": True}},
+    "ADMIN": {
+        "product":   {"read": True, "write": True, "delete": True},
+        "category":  {"read": True, "write": True, "delete": True},
+        "order":     {"read": True, "write": True, "delete": True},
+        "customer":  {"read": True, "write": True, "delete": True},
+        "promotion": {"read": True, "write": True, "delete": True},
+        "branch":    {"read": True, "write": True, "delete": True},
+        "stats":     {"read": True},
+        "loyalty":   {"read": True, "write": True},
+        "audit":     {"read": True},
+        "settings":  {"read": True, "write": True},
+    },
+    "STAFF": {
+        "product":   {"read": True, "write": True, "delete": False},
+        "category":  {"read": True, "write": True, "delete": False},
+        "order":     {"read": True, "write": True, "delete": False},
+        "customer":  {"read": True, "write": True, "delete": False},
+        "promotion": {"read": True, "write": True, "delete": False},
+        "branch":    {"read": True},
+        "stats":     {"read": True},
+        "loyalty":   {"read": True, "write": True},
+    },
+    "CASHIER": {
+        "product":  {"read": True},
+        "order":    {"read": True, "write": True, "delete": False},
+        "customer": {"read": True, "write": True, "delete": False},
+        "loyalty":  {"read": True, "write": True, "delete": False},
+    },
+    "VIEWER": {
+        "product":   {"read": True},
+        "category":  {"read": True},
+        "order":     {"read": True},
+        "customer":  {"read": True},
+        "promotion": {"read": True},
+        "branch":    {"read": True},
+        "stats":     {"read": True},
+        "loyalty":   {"read": True},
+        "settings":  {"read": True},
+    },
+}
+
+
+# ── Helpers de inicialización ─────────────────────────────────────────
+def _get_rbac_enforcer():
+    """Devuelve el Casbin Enforcer singleton (lazy init).
+
+    Inicialización:
+      1) Carga el modelo desde ``app/core/rbac_model.conf``.
+      2) Crea el adapter SQLAlchemy apuntando a ``SessionLocal``.
+      3) Llama ``enforcer.load_policy()`` para levantar policies y
+         groupings de la DB.
+
+    Si Casbin no está disponible (ImportError) o la carga falla
+    (DB no inicializada en tests), retorna ``None`` — el decorator
+    hace fallback a ``_legacy_check``.
+    """
+    global _RBAC_ENFORCER
+    if _RBAC_ENFORCER is not None:
+        return _RBAC_ENFORCER
+
+    with _RBAC_LOCK:
+        if _RBAC_ENFORCER is not None:
+            return _RBAC_ENFORCER  # type: ignore[unreachable]
+
+        try:
+            from casbin.enforcer import Enforcer
+            from app.core.rbac_adapter import SQLAlchemyAdapter
+            from app.database import SessionLocal
+            from pathlib import Path
+
+            model_path = Path(__file__).parent / "rbac_model.conf"
+            adapter = SQLAlchemyAdapter(SessionLocal)
+            enforcer = Enforcer(str(model_path), adapter)
+            _RBAC_ENFORCER = enforcer
+            logger.info(
+                "rbac.enforcer: inicializado con %d policies",
+                len(enforcer.get_policy()),
+            )
+            return enforcer
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "rbac.enforcer: no se pudo inicializar (%s: %s) — "
+                "fallback a legacy",
+                type(exc).__name__,
+                exc,
+            )
+            return None
+
+
+def _invalidate_rbac_enforcer() -> None:
+    """Invalida el singleton — útil cuando cambia la DB de policies.
+
+    La próxima llamada a ``_get_rbac_enforcer()`` re-inicializa y
+    re-carga ``load_policy()``.
+    """
+    global _RBAC_ENFORCER
+    with _RBAC_LOCK:
+        _RBAC_ENFORCER = None
+
+
+# ── Legacy check (fallback) ───────────────────────────────────────────
+def _legacy_check(role: str, obj: str, act: str) -> bool:
+    """Evalúa la matriz legacy hard-coded.
+
+    Retorna True si el rol tiene permiso (obj, act).
+    """
+    role = (role or "").upper()
+    rules = _LEGACY_ROLE_MATRIX.get(role, {})
+
+    # 1) Match exacto obj/act.
+    obj_rules = rules.get(obj, {})
+    if obj_rules.get(act) is True:
+        return True
+
+    # 2) Match ``obj='*'`` (role permite todo sobre cualquier obj).
+    if rules.get("*", {}).get(act) is True:
+        return True
+
+    # 3) Match ``act='*'`` (role permite cualquier act sobre el obj).
+    if obj_rules.get("*") is True:
+        return True
+
+    # 4) Match ``obj='*' act='*'`` (ej. OWNER/SUPERADMIN).
+    if rules.get("*", {}).get("*") is True:
+        return True
+
+    return False
+
+
+# ── Decorador ─────────────────────────────────────────────────────────
+def _resolve_subject_and_domain(args: tuple, kwargs: dict) -> tuple[str, str]:
+    """Extrae ``(subject, dom)`` de los kwargs del endpoint.
+
+    Busca ``membership`` (TenantMembership) o ``user`` (User) en ese
+    orden. Si no encuentra ninguno, retorna ``("", "")`` y el caller
+    retorna 401 limpio.
+
+    Retorna:
+      * subject: ``"role:<UPPER>"`` (formato Casbin)
+      * dom: ``tenant_id`` del membership o ``"*"`` si no hay.
+    """
+    membership = kwargs.get("membership")
+    user = kwargs.get("user")
+
+    role_value = ""
+    dom = "*"
+
+    if membership is not None:
+        # ``role`` puede ser enum o string.
+        role = getattr(membership, "role", None)
+        if role is not None:
+            role_value = getattr(role, "value", str(role)).upper()
+        tid = getattr(membership, "tenant_id", None)
+        if tid:
+            dom = str(tid)
+    elif user is not None:
+        # Si no hay membership, el ``user`` manda — usamos default_role.
+        # Esto pasa en endpoints cross-tenant (e.g. /superadmin/...).
+        role = getattr(user, "default_role", None) or getattr(user, "role", None)
+        if role is not None:
+            role_value = getattr(role, "value", str(role)).upper()
+
+    subject = f"role:{role_value}" if role_value else ""
+    return subject, dom
+
+
+def requires_permission(obj: str, act: str):
+    """Decorator FastAPI: aplica RBAC al endpoint.
+
+    Uso::
+
+        @router.post("/tenants/{tenant_id}/products")
+        @requires_permission("product", "write")
+        async def create_product(
+            tenant_id: UUID,
+            payload: ProductIn,
+            membership: TenantMembership = Depends(get_current_membership),
+        ):
+            ...
+
+    Reglas:
+      * ``membership`` o ``user`` deben aparecer en los kwargs (FastAPI
+        los inyecta via ``Depends(...)``). Si no están, 401.
+      * Si ``user.is_superuser`` → bypass total (return sin check).
+      * Si Casbin está inicializado → ``enforce(subject, dom, obj, act)``.
+      * Si Casbin falla o no está disponible → ``_legacy_check(role, obj, act)``.
+
+    Para acciones "delete" usar ``act='delete'``. Wildcards ``"*"``
+    en ``obj`` o ``act`` también son válidos.
+    """
+    import functools
+    from app.core.errors import ForbiddenError, UnauthorizedError
+
+    def _decorator(fn):
+        @functools.wraps(fn)
+        async def _async_wrapper(*args, **kwargs):
+            return await _check_and_call(fn, args, kwargs, obj, act)
+
+        @functools.wraps(fn)
+        def _sync_wrapper(*args, **kwargs):
+            return _check_and_call_sync(fn, args, kwargs, obj, act)
+
+        import inspect
+        if inspect.iscoroutinefunction(fn):
+            return _async_wrapper
+        return _sync_wrapper
+
+    return _decorator
+
+
+async def _check_and_call(fn, args, kwargs, obj, act):
+    from app.core.errors import ForbiddenError, UnauthorizedError
+
+    # 1) Bypass para superusers.
+    user = kwargs.get("user")
+    if user is not None and getattr(user, "is_superuser", False):
+        return await fn(*args, **kwargs)
+
+    # 2) Resolver subject + dom.
+    subject, dom = _resolve_subject_and_domain(args, kwargs)
+    if not subject:
+        raise UnauthorizedError(
+            "Endpoint protegido por RBAC requiere 'membership' o 'user'"
+        )
+
+    # 3) Evaluar Casbin (con fallback a legacy).
+    allowed = _enforce_with_fallback(subject, dom, obj, act)
+    if not allowed:
+        logger.info(
+            "rbac.requires_permission: deny sub=%s dom=%s obj=%s act=%s",
+            subject, dom, obj, act,
+        )
+        raise ForbiddenError(
+            f"Permiso denegado: {subject} no puede '{act}' sobre '{obj}'"
+        )
+
+    return await fn(*args, **kwargs)
+
+
+def _check_and_call_sync(fn, args, kwargs, obj, act):
+    from app.core.errors import ForbiddenError, UnauthorizedError
+
+    user = kwargs.get("user")
+    if user is not None and getattr(user, "is_superuser", False):
+        return fn(*args, **kwargs)
+
+    subject, dom = _resolve_subject_and_domain(args, kwargs)
+    if not subject:
+        raise UnauthorizedError(
+            "Endpoint protegido por RBAC requiere 'membership' o 'user'"
+        )
+
+    allowed = _enforce_with_fallback(subject, dom, obj, act)
+    if not allowed:
+        raise ForbiddenError(
+            f"Permiso denegado: {subject} no puede '{act}' sobre '{obj}'"
+        )
+
+    return fn(*args, **kwargs)
+
+
+def _enforce_with_fallback(subject: str, dom: str, obj: str, act: str) -> bool:
+    """Llama a Casbin; si falla, cae a ``_legacy_check``.
+
+    Retorna True si el permiso está permitido.
+    """
+    enforcer = _get_rbac_enforcer()
+    if enforcer is not None:
+        try:
+            return bool(enforcer.enforce(subject, dom, obj, act))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "rbac.enforce: falló sub=%s dom=%s obj=%s act=%s (%s) — "
+                "fallback a legacy",
+                subject, dom, obj, act, exc,
+            )
+
+    # Fallback: extraer role del subject y usar matriz legacy.
+    role = subject.replace("role:", "", 1) if subject.startswith("role:") else subject
+    return _legacy_check(role, obj, act)

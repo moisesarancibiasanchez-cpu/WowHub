@@ -43,6 +43,7 @@ from app.api.v1 import (
     sii,               # HU_32 — SII Chile (Libro de Ventas + validador RUT)
     webhook_stripe,    # HU_23 — Stripe webhook (público, sin auth) — /api/v1/webhook/stripe
     audit_chain,       # HU_40 — Audit hash chain (backfill + verify, superadmin only)
+    rbac,              # HU_38 — RBAC granular con Casbin (5 endpoints superadmin)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -92,6 +93,13 @@ async def lifespan(app: FastAPI):
         setup_telemetry()
     logger.info("Inicializando base de datos...")
     init_db()
+    # HU_38 — seed default RBAC policies (idempotente: si ya hay, no duplica)
+    try:
+        from app.core.rbac_seed import seed_default_rbac_policies
+        seeded = seed_default_rbac_policies()
+        logger.info("HU_38 — RBAC seed completado: %d policies activas", seeded)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("HU_38 — RBAC seed falló (continuando): %s", exc)
     logger.info(f"WowHub arrancado — env={settings.app_env}, db={settings.database_url}")
     yield
     # Shutdown
@@ -228,6 +236,8 @@ app.include_router(sii.router, prefix="/api/v1")
 app.include_router(webhook_stripe.router, prefix="/api/v1")
 # HU_40 — Audit hash chain (superadmin only): backfill + verify
 app.include_router(audit_chain.router, prefix="/api/v1")
+# HU_38 — RBAC granular con Casbin (superadmin only): 5 endpoints
+app.include_router(rbac.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────

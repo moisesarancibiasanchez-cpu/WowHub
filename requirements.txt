@@ -50,3 +50,10 @@ RestrictedPython>=6.0
 # SDK oficial de Stripe. Import dentro de los métodos (lazy) para que un
 # fallo del SDK no rompa el resto de WowHub.
 stripe>=8.0
+
+# ── HU_38 — RBAC Granular con Casbin ───────────────────────────────
+# Casbin 1.x provee el motor de policies/groups. Lo importamos vía
+# ``casbin.enforcer.Enforcer`` con el adapter SQLAlchemy propio
+# (``app/core/rbac_adapter.py``). Pinneado a <2 porque v2 cambia la API
+# (firmas de ``add_policy``, ``remove_policy``, etc.).
+casbin>=1.35.0,<2

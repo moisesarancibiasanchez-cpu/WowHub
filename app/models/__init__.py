@@ -51,3 +51,5 @@ from app.models.dining_session import (  # noqa: F401
 )
 # HU_29 — Tiers de fidelidad (Bronce / Plata / Oro / Platino)
 from app.models.loyalty_tier import LoyaltyTier  # noqa: F401
+# HU_38 — RBAC Granular con Casbin (rbac_policies + rbac_groupings)
+from app.models.rbac import RBACPolicy, RBACGrouping  # noqa: F401

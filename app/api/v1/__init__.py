@@ -13,4 +13,5 @@ from app.api.v1 import (  # noqa: F401
     sii,  # HU_32 — SII Chile (Libro de Ventas + validador RUT)
     webhook_stripe,  # HU_23 — Stripe webhook (público, sin auth)
     audit_chain,  # HU_40 — Audit hash chain (backfill + verify)
+    rbac,  # HU_38 — RBAC granular con Casbin (superadmin endpoints)
 )
