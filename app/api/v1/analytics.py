@@ -269,25 +269,117 @@ def get_activity_feed(
     }
 
 
+# ── HU_35 — Comparativas temporales ────────────────────────────────────
+# Presets de período soportados. Mantener sincronizado con ``ALLOWED_PERIODS``.
+_PERIOD_PRESETS = {
+    "today": 1,
+    "7d": 7,
+    "14d": 14,
+    "30d": 30,
+    "90d": 90,
+    "1y": 365,
+}
+ALLOWED_PERIODS = Literal["today", "7d", "14d", "30d", "90d", "1y"]
+
+
+def _detect_anomalies(values: list[int], z_threshold: float = 2.0) -> list[bool]:
+    """Detección simple de anomalías por Z-score.
+
+    Marca un punto como anómalo si su Z-score (desviaciones estándar
+    respecto a la media móvil) supera ``z_threshold``. Para series
+    cortas (n<3) no detecta nada.
+
+    Returns:
+        Lista de bool (True = anómalo) del mismo tamaño que ``values``.
+    """
+    n = len(values)
+    if n < 3:
+        return [False] * n
+    mean = sum(values) / n
+    variance = sum((v - mean) ** 2 for v in values) / n
+    std = variance ** 0.5
+    if std < 1e-9:
+        return [False] * n
+    return [abs((v - mean) / std) >= z_threshold for v in values]
+
+
 @router.get("/sales-7d")
 def get_sales_7d(
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
 ):
-    """Serie de ventas de los últimos 7 días (P2 #1 — chart Dashboard).
+    """Serie de ventas de los últimos 7 días (back-compat con HU_30).
 
-    Devuelve la serie diaria `series: [{date, total_cents, orders_count}]`
-    para los últimos 7 días (incluyendo hoy). Los días sin pedidos
-    aparecen con `total_cents=0` y `orders_count=0` para mantener la
-    serie continua y lista para graficar.
+    Mantiene la firma original (HU_30). Internamente delega en
+    ``_build_sales_series`` con período ``"7d"``.
+    """
+    return _build_sales_series(db, tenant.id, period="7d")
+
+
+@router.get("/sales-trend")
+def get_sales_trend(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    period: ALLOWED_PERIODS = Query(
+        "7d",
+        description="Preset de período: today | 7d | 14d | 30d | 90d | 1y",
+    ),
+    detect_anomalies: bool = Query(
+        True,
+        description="Si True, marca días con Z-score > 2 como anómalos.",
+    ),
+):
+    """Serie temporal de ventas con presets de período (HU_35).
+
+    Acepta los presets definidos en ``_PERIOD_PRESETS``:
+      - ``today``: solo hoy.
+      - ``7d``:    últimos 7 días (default, back-compat con ``/sales-7d``).
+      - ``14d``:   últimos 14 días.
+      - ``30d``:   último mes.
+      - ``90d``:   último trimestre.
+      - ``1y``:    último año.
+
+    Devuelve:
+      - ``series``: lista diaria con ``total_cents``, ``orders_count`` y
+        opcional ``is_anomaly`` (cuando ``detect_anomalies=True``).
+      - ``summary``: agregados del período (totales, promedios, mejor/
+        peor día, # de anomalías).
+      - ``comparison``: delta vs período anterior (delta_total_cents,
+        delta_orders_count, delta_pct).
+    """
+    return _build_sales_series(
+        db, tenant.id, period=period, detect_anomalies=detect_anomalies,
+    )
+
+
+def _build_sales_series(
+    db: Session,
+    tenant_id,
+    period: str = "7d",
+    detect_anomalies: bool = True,
+    z_threshold: float = 2.0,
+) -> dict:
+    """Construye la serie de ventas para un tenant y un período dado.
+
+    Helper interno compartido por ``/sales-7d`` (HU_30, back-compat) y
+    ``/sales-trend`` (HU_35, con presets y anomalías).
     """
     from datetime import datetime, time, timedelta, timezone
     from sqlalchemy import func as _func, select as _select
     from app.models.order import Order, OrderStatus
 
+    if period not in _PERIOD_PRESETS:
+        period = "7d"
+    window_days = _PERIOD_PRESETS[period]
+
     now = datetime.now(timezone.utc)
     today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
-    start_window = today_start - timedelta(days=6)
+    start_window = today_start - timedelta(days=window_days - 1)
+    # Período anterior: mismo número de días, inmediatamente antes.
+    prev_start = start_window - timedelta(days=window_days)
+    prev_end = start_window - timedelta(seconds=1)
+
+    # ── Query principal: período actual ──
     q = (
         _select(
             _func.date(Order.created_at).label("d"),
@@ -295,7 +387,7 @@ def get_sales_7d(
             _func.count(Order.id).label("orders_count"),
         )
         .where(
-            Order.tenant_id == str(tenant.id),
+            Order.tenant_id == str(tenant_id),
             Order.created_at >= start_window,
             Order.status != OrderStatus.CANCELADO,
         )
@@ -304,27 +396,80 @@ def get_sales_7d(
     )
     rows = db.execute(q).all()
     by_day = {str(r.d): r for r in rows}
+
+    # ── Query período anterior (para comparación) ──
+    q_prev = (
+        _select(
+            _func.coalesce(_func.sum(Order.total_cents), 0).label("total_cents"),
+            _func.count(Order.id).label("orders_count"),
+        )
+        .where(
+            Order.tenant_id == str(tenant_id),
+            Order.created_at >= prev_start,
+            Order.created_at <= prev_end,
+            Order.status != OrderStatus.CANCELADO,
+        )
+    )
+    prev_row = db.execute(q_prev).one()
+    prev_total = int(prev_row.total_cents or 0)
+    prev_orders = int(prev_row.orders_count or 0)
+
+    # ── Construir serie completa (incluyendo días sin ventas) ──
     series = []
     total_period = 0
     total_orders = 0
-    for i in range(7):
+    daily_totals = []  # para detección de anomalías
+    for i in range(window_days):
         d = (start_window + timedelta(days=i)).date()
         r = by_day.get(d.isoformat())
         cents = int(r.total_cents or 0) if r else 0
         oc = int(r.orders_count or 0) if r else 0
         total_period += cents
         total_orders += oc
+        daily_totals.append(cents)
         series.append({
             "date": d.isoformat(),
             "total_cents": cents,
             "orders_count": oc,
         })
+
+    # ── Detección de anomalías ──
+    anomalies = _detect_anomalies(daily_totals, z_threshold=z_threshold) if detect_anomalies else [False] * len(series)
+    for s, is_anom in zip(series, anomalies):
+        s["is_anomaly"] = is_anom
+    n_anomalies = sum(anomalies)
+
+    # ── Mejor / peor día ──
+    if series:
+        best = max(series, key=lambda x: x["total_cents"])
+        worst = min(series, key=lambda x: x["total_cents"])
+        best_day = best["date"] if best["total_cents"] > 0 else None
+        worst_day = worst["date"] if worst["total_cents"] > 0 else None
+    else:
+        best_day = worst_day = None
+
+    # ── Comparación con período anterior ──
+    delta_total = total_period - prev_total
+    delta_orders = total_orders - prev_orders
+    delta_pct = (delta_total / prev_total * 100.0) if prev_total > 0 else (100.0 if total_period > 0 else 0.0)
+
     return {
-        "window_days": 7,
+        "period": period,
+        "window_days": window_days,
         "from": start_window.date().isoformat(),
         "to": now.date().isoformat(),
         "total_cents": total_period,
         "orders_count": total_orders,
-        "avg_per_day_cents": total_period // 7,
+        "avg_per_day_cents": total_period // max(window_days, 1),
+        "best_day": best_day,
+        "worst_day": worst_day,
+        "anomalies_detected": n_anomalies,
+        "comparison": {
+            "prev_total_cents": prev_total,
+            "prev_orders_count": prev_orders,
+            "delta_total_cents": delta_total,
+            "delta_orders_count": delta_orders,
+            "delta_pct": round(delta_pct, 2),
+        },
         "series": series,
     }
