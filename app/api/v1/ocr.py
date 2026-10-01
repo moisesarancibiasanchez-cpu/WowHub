@@ -100,6 +100,9 @@ class PaymentProofIn(BaseModel):
     order_id: str = Field(..., min_length=1, max_length=64)
     expected_amount_cents: int = Field(0, ge=0, description="Monto esperado (centavos).")
     tolerance_cents: int = Field(500, ge=0, le=100_000, description="Tolerancia (centavos).")
+    # Si True, procesa SINCRONICAMENTE en lugar de encolar Celery (útil para
+    # debug o cuando el worker no está disponible).
+    sync: bool = Field(False, description="Si True, procesa en línea en lugar de encolar Celery.")
 
 
 class PaymentProofOut(BaseModel):
@@ -222,6 +225,7 @@ def verify_payment_proof(
             tenant_id=str(tenant.id),
             order_id=payload.order_id,
             expected_amount_cents=payload.expected_amount_cents,
+            tolerance_cents=payload.tolerance_cents,
         )
         receipt = db.query(Receipt).filter(
             Receipt.id == result["receipt_id"]
@@ -245,6 +249,7 @@ def verify_payment_proof(
         tenant_id=str(tenant.id),
         order_id=payload.order_id,
         expected_amount_cents=payload.expected_amount_cents,
+        tolerance_cents=payload.tolerance_cents,
     )
     receipt = Receipt(
         tenant_id=str(tenant.id),

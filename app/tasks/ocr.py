@@ -155,6 +155,7 @@ def process_payment_proof(
     tenant_id: str,
     order_id: str,
     expected_amount_cents: int = 0,
+    tolerance_cents: int = 500,
 ) -> dict:
     """Verify a payment proof image (HU_33 + HU_23 reconciliation).
 
@@ -167,20 +168,22 @@ def process_payment_proof(
         tenant_id: ID del tenant.
         order_id: ID de la orden asociada.
         expected_amount_cents: monto que esperábamos (opcional).
+        tolerance_cents: tolerancia de diferencia permitida (centavos).
 
     Returns:
         dict con ``verified``, ``detected_total_cents``, ``delta_cents``,
         ``receipt_id``, ``provider``.
     """
     logger.info(
-        "process_payment_proof — tenant=%s, order=%s, url=%s",
-        tenant_id, order_id, image_url,
+        "process_payment_proof — tenant=%s, order=%s, url=%s, tol=%d",
+        tenant_id, order_id, image_url, tolerance_cents,
     )
     try:
         from app.services.ocr_service import get_ocr_service
         verification = get_ocr_service().verify_payment_proof(
             image_url=image_url,
             expected_amount_cents=expected_amount_cents,
+            tolerance_cents=tolerance_cents,
         )
 
         # Persistir el resultado en receipts (entity_type='order', entity_id=order_id).

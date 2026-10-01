@@ -11,11 +11,22 @@ os.environ["JWT_SECRET"] = "test-jwt-secret-min-32-chars-ok-test"
 # Desactivar rate limit y auditoría en tests (estado limpio, sin 429 spurios)
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ["AUDIT_ENABLED"] = "false"
+# HU_33 — Activar Celery eager mode: ``task.delay()`` se ejecuta inline
+# sin necesidad de Redis (HU_36 broker). Ver ``app/celery_app.py``.
+os.environ["APP_ENV"] = "testing"
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "true"
 
 # Importar DESPUÉS de setear env
 from app.database import Base, SessionLocal, engine, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.core.security import RateLimitMiddleware  # noqa: E402
+
+# Forzar eager mode explícitamente por si el módulo celery_app fue importado
+# antes que conftest por otro test runner o plugin (defensa en profundidad).
+from app.celery_app import celery_app  # noqa: E402
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
+celery_app.conf.task_store_eager_result = False
 
 
 def _disable_rate_limit_middleware():
