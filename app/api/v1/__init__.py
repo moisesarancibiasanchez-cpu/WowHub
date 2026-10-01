@@ -15,4 +15,5 @@ from app.api.v1 import (  # noqa: F401
     audit_chain,  # HU_40 — Audit hash chain (backfill + verify)
     rbac,  # HU_38 — RBAC granular con Casbin (superadmin endpoints)
     dashboard,  # HU_34 — Dashboard personalizable (GridStack widgets)
+    status,  # HU_49 — Status page público (uptime + historial)
 )

@@ -45,6 +45,7 @@ from app.api.v1 import (
     audit_chain,       # HU_40 — Audit hash chain (backfill + verify, superadmin only)
     rbac,              # HU_38 — RBAC granular con Casbin (5 endpoints superadmin)
     dashboard,         # HU_34 — Dashboard personalizable (GridStack widgets)
+    status,            # HU_49 — Status page público (uptime monitor)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -101,6 +102,13 @@ async def lifespan(app: FastAPI):
         logger.info("HU_38 — RBAC seed completado: %d policies activas", seeded)
     except Exception as exc:  # noqa: BLE001
         logger.warning("HU_38 — RBAC seed falló (continuando): %s", exc)
+    # HU_49 — Iniciar monitor de uptime en background
+    try:
+        from app.services.uptime_monitor import get_uptime_monitor
+        get_uptime_monitor().start()
+        logger.info("HU_49 — Uptime monitor iniciado (thread daemon)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("HU_49 — Uptime monitor no se pudo iniciar: %s", exc)
     logger.info(f"WowHub arrancado — env={settings.app_env}, db={settings.database_url}")
     yield
     # Shutdown
@@ -241,6 +249,8 @@ app.include_router(audit_chain.router, prefix="/api/v1")
 app.include_router(rbac.router, prefix="/api/v1")
 # HU_34 — Dashboard personalizable (GridStack widgets)
 app.include_router(dashboard.router, prefix="/api/v1")
+# HU_49 — Status page público (sin auth: /api/v1/status)
+app.include_router(status.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -979,6 +989,13 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
 
 @app.get("/health", tags=["meta"])
 def health():
+    """Health check — alimenta el uptime monitor (HU_49)."""
+    # HU_49: registrar este check en el monitor de uptime (best-effort).
+    try:
+        from app.services.uptime_monitor import get_uptime_monitor
+        get_uptime_monitor().record("operational")
+    except Exception:  # noqa: BLE001 — el health check NO debe fallar por el monitor
+        pass
     return {
         "status": "ok",
         "version": "0.2.0",
@@ -986,6 +1003,19 @@ def health():
         "db": _db_kind,
         "service": "wowhub-api",
     }
+
+
+# ── HU_49 — Status page público (HTML) ────────────────────────────────
+@app.get("/status", response_class=HTMLResponse, include_in_schema=False)
+def status_page(request: Request):
+    """Sirve la página de status pública con uptime e historial."""
+    from app.services.uptime_monitor import get_uptime_monitor
+    monitor = get_uptime_monitor()
+    return templates.TemplateResponse(
+        request,
+        "public/status.html",
+        {"settings": settings, "status": monitor.as_dict(days=30)},
+    )
 
 
 # ── Instrumentación que debe existir desde el import ─────────────
