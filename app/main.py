@@ -44,6 +44,7 @@ from app.api.v1 import (
     webhook_stripe,    # HU_23 — Stripe webhook (público, sin auth) — /api/v1/webhook/stripe
     audit_chain,       # HU_40 — Audit hash chain (backfill + verify, superadmin only)
     rbac,              # HU_38 — RBAC granular con Casbin (5 endpoints superadmin)
+    dashboard,         # HU_34 — Dashboard personalizable (GridStack widgets)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -238,6 +239,8 @@ app.include_router(webhook_stripe.router, prefix="/api/v1")
 app.include_router(audit_chain.router, prefix="/api/v1")
 # HU_38 — RBAC granular con Casbin (superadmin only): 5 endpoints
 app.include_router(rbac.router, prefix="/api/v1")
+# HU_34 — Dashboard personalizable (GridStack widgets)
+app.include_router(dashboard.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -341,6 +344,24 @@ def dashboard_stats(request: Request):
 @app.get("/dashboard/webhooks", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_webhooks(request: Request):
     return templates.TemplateResponse(request, "dashboard/webhooks.html", {"settings": settings})
+
+
+# HU_34 — Vista experimental de widgets personalizables (GridStack).
+# Render inicial con los 4 widgets default; el JS carga/save el layout
+# vía GET/PUT /api/v1/dashboard/layout.
+@app.get("/dashboard/widgets", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_widgets(request: Request):
+    initial = [
+        {"id": "stats",    "x": 0, "y": 0, "w": 4, "h": 2, "type": "stats"},
+        {"id": "orders",   "x": 4, "y": 0, "w": 4, "h": 4, "type": "orders"},
+        {"id": "products", "x": 0, "y": 2, "w": 4, "h": 4, "type": "products"},
+        {"id": "ai",       "x": 8, "y": 0, "w": 4, "h": 2, "type": "ai"},
+    ]
+    return templates.TemplateResponse(
+        request,
+        "dashboard/widgets.html",
+        {"settings": settings, "initial_widgets": initial},
+    )
 
 
 @app.get("/dashboard/ai", response_class=HTMLResponse, include_in_schema=False)

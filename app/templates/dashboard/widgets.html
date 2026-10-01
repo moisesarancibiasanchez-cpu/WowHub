@@ -1,0 +1,158 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Widgets (GridStack){% endblock %}
+{% block dash_content %}
+
+{# ── HU_34 — Dashboard personalizable ──────────────────────────────────
+   Vista experimental con GridStack (CDN). Permite arrastrar/redimensionar
+   widgets y guardar el layout vía PUT /api/v1/dashboard/layout.
+
+   Esta página NO reemplaza al dashboard clásico (/dashboard) — es una
+   vista adicional que se linkea desde el menú para que el usuario explore
+   la personalización del layout.
+   ─────────────────────────────────────────────────────────────────────── #}
+
+<h1>Widgets personalizables</h1>
+<p class="sub">
+  Arrastra y redimensiona los widgets. Los cambios se guardan
+  automáticamente en este navegador (botón "Guardar layout").
+</p>
+
+<div id="layout-status" class="alert alert-info" style="display:none;"></div>
+
+<!-- Toolbar -->
+<div class="gs-toolbar" style="margin: 16px 0;">
+  <button id="gs-save" class="btn btn-primary btn-sm">💾 Guardar layout</button>
+  <button id="gs-reset" class="btn btn-outline-secondary btn-sm">↺ Restaurar default</button>
+  <span id="gs-meta" class="text-muted" style="margin-left: 12px;"></span>
+</div>
+
+<!-- GridStack container: 12 columnas -->
+<div class="grid-stack">
+  {% for w in initial_widgets %}
+  <div class="grid-stack-item"
+       gs-id="{{ w.id }}"
+       gs-x="{{ w.x }}"
+       gs-y="{{ w.y }}"
+       gs-w="{{ w.w }}"
+       gs-h="{{ w.h }}"
+       data-type="{{ w.type }}">
+    <div class="grid-stack-item-content widget-{{ w.type }}">
+      <div class="widget-title">{{ w.type|capitalize }} — {{ w.id }}</div>
+      <div class="widget-body">
+        {# Contenido placeholder por tipo de widget. #}
+        {% if w.type == "stats" %}
+          <p>📊 Ventas, margen, clientes (próximamente).</p>
+        {% elif w.type == "orders" %}
+          <p>📥 Pedidos en vivo (próximamente).</p>
+        {% elif w.type == "products" %}
+          <p>📦 Top productos (próximamente).</p>
+        {% elif w.type == "ai" %}
+          <p>🤖 Resumen IA del día (próximamente).</p>
+        {% else %}
+          <p>Widget {{ w.type }}.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── GridStack via CDN (no requiere npm install) ─────────────────────── #}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css">
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
+
+<style>
+  .grid-stack { background: #f5f6f8; padding: 12px; border-radius: 8px; min-height: 400px; }
+  .grid-stack-item-content {
+    inset: 0;
+    background: #fff;
+    border: 1px solid #d8dde3;
+    border-radius: 6px;
+    padding: 10px;
+    overflow: auto;
+    cursor: move;
+  }
+  .widget-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #1f2937;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 4px;
+  }
+  .widget-body { font-size: 13px; color: #4b5563; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  // Inicializar GridStack.
+  // Nota: la API global ``GridStack`` viene del CDN ``gridstack-all.js``.
+  var grid = GridStack.init({
+    column: 12,
+    cellHeight: 70,
+    margin: 6,
+    float: false,
+    animate: true,
+    disableOneColumnMode: false,
+  }, document.querySelector(".grid-stack"));
+
+  var statusEl = document.getElementById("layout-status");
+  var metaEl = document.getElementById("gs-meta");
+
+  function showStatus(msg, kind) {
+    statusEl.className = "alert alert-" + (kind || "info");
+    statusEl.textContent = msg;
+    statusEl.style.display = "block";
+    setTimeout(function () { statusEl.style.display = "none"; }, 3500);
+  }
+
+  function refreshMeta() {
+    var n = grid.engine.nodes.length;
+    metaEl.textContent = n + " widget" + (n === 1 ? "" : "s") + " en el layout.";
+  }
+
+  function widgetsFromGrid() {
+    // Serializa cada nodo al contrato del backend.
+    return grid.engine.nodes.map(function (n) {
+      var el = n.el;
+      return {
+        id: el.getAttribute("gs-id"),
+        x: n.x, y: n.y, w: n.w, h: n.h,
+        type: el.getAttribute("data-type") || "custom",
+      };
+    });
+  }
+
+  document.getElementById("gs-save").addEventListener("click", function () {
+    var widgets = widgetsFromGrid();
+    var token = (document.cookie.match(/(?:^|; )access_token=([^;]*)/) || [])[1] || "";
+    fetch("/api/v1/dashboard/layout", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": token ? ("Bearer " + decodeURIComponent(token)) : "",
+      },
+      body: JSON.stringify({ widgets: widgets }),
+      credentials: "same-origin",
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function (data) {
+      showStatus("Layout guardado (" + data.widgets.length + " widgets).", "success");
+    }).catch(function (err) {
+      showStatus("Error guardando layout: " + err.message, "danger");
+    });
+  });
+
+  document.getElementById("gs-reset").addEventListener("click", function () {
+    // Recargar la página → el server devuelve default.
+    window.location.reload();
+  });
+
+  refreshMeta();
+})();
+</script>
+
+{% endblock %}
