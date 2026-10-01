@@ -16,4 +16,5 @@ from app.api.v1 import (  # noqa: F401
     rbac,  # HU_38 — RBAC granular con Casbin (superadmin endpoints)
     dashboard,  # HU_34 — Dashboard personalizable (GridStack widgets)
     status,  # HU_49 — Status page público (uptime + historial)
+    ocr,  # HU_33 — OCR de comprobantes (recibos, facturas, payment proof)
 )

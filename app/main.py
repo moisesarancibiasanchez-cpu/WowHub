@@ -46,6 +46,7 @@ from app.api.v1 import (
     rbac,              # HU_38 — RBAC granular con Casbin (5 endpoints superadmin)
     dashboard,         # HU_34 — Dashboard personalizable (GridStack widgets)
     status,            # HU_49 — Status page público (uptime monitor)
+    ocr,               # HU_33 — OCR de comprobantes (HU_33)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -251,6 +252,8 @@ app.include_router(rbac.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 # HU_49 — Status page público (sin auth: /api/v1/status)
 app.include_router(status.router, prefix="/api/v1")
+# HU_33 — OCR de comprobantes (recibos, facturas, payment-proof)
+app.include_router(ocr.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────

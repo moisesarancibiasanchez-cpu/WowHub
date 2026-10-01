@@ -54,6 +54,23 @@ celery_app.conf.update(
     },
 )
 
+# FIX HU_33 — Tests sin Redis: en modo dev/staging o cuando se setea
+# CELERY_TASK_ALWAYS_EAGER=true, ejecutar tasks en línea (sin broker).
+# Esto permite que ``task.delay()`` corra sincrónicamente sin Redis.
+_eager_env = os.getenv("CELERY_TASK_ALWAYS_EAGER", "false").lower() == "true"
+_app_env = os.getenv("APP_ENV", "production").lower()
+_eager_for_env = _app_env in ("development", "dev", "test", "testing", "staging")
+if _eager_env or _eager_for_env:
+    celery_app.conf.update(
+        task_always_eager=True,
+        task_eager_propagates=True,  # propagar excepciones en eager mode
+    )
+    logger.warning(
+        "Celery en EAGER mode (APP_ENV=%s, CELERY_TASK_ALWAYS_EAGER=%s) — "
+        "tasks se ejecutan sincrónicamente, sin broker.",
+        _app_env, _eager_env,
+    )
+
 # Auto-discover tasks from installed apps (Celery standard behaviour)
 celery_app.autodiscover_tasks(["app.tasks"], related_name="*", force=True)
 
