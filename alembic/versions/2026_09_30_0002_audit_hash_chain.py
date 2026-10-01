@@ -106,8 +106,23 @@ CREATE TRIGGER audit_logs_no_delete
 
 def upgrade() -> None:
     # 1) columnas (idempotente, cross-DB).
-    op.execute(text(_DDL_ADD_PREV_HASH))
-    op.execute(text(_DDL_ADD_CURRENT_HASH))
+    # FIX 2026-10-02: SQLite NO soporta ``ADD COLUMN IF NOT EXISTS``
+    # (sólo PostgreSQL 9.6+). Usamos try/except con OperationalError
+    # para que la migración sea idempotente en ambos motores.
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute(text(_DDL_ADD_PREV_HASH))
+        op.execute(text(_DDL_ADD_CURRENT_HASH))
+    else:
+        from sqlalchemy.exc import OperationalError
+        for ddl in (_DDL_ADD_PREV_HASH, _DDL_ADD_CURRENT_HASH):
+            try:
+                op.execute(text(ddl.replace("ADD COLUMN IF NOT EXISTS", "ADD COLUMN")))
+            except OperationalError as exc:
+                logger.warning(
+                    "audit_hash_chain: columna ya existe (SQLite idempotente): %s",
+                    exc,
+                )
 
     # 2) índices (idempotente, cross-DB).
     op.execute(text(_IDX_TENANT_WALK))
@@ -115,7 +130,6 @@ def upgrade() -> None:
     op.execute(text(_IDX_CURRENT_HASH))
 
     # 3) trigger PG (best-effort, sólo si el dialecto es PostgreSQL).
-    bind = op.get_bind()
     if bind.dialect.name != "postgresql":
         logger.info(
             "audit_hash_chain: dialect=%s — se omite el trigger "

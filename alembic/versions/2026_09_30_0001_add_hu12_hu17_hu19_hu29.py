@@ -45,9 +45,13 @@ Railway) como en SQLite (tests). PostgreSQL 9.5+ soporta
 """
 from __future__ import annotations
 
+import logging
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import text
+
+logger = logging.getLogger("alembic.runtime.migration")
 
 # revision identifiers, used by Alembic.
 revision = "2026_09_30_0001"
@@ -300,13 +304,32 @@ def upgrade() -> None:
     op.execute(text(_DDL_LOYALTY_TIERS))
 
     # ── 2. Columna nueva en customer_passes (HU_29) ───────
-    # ADD COLUMN IF NOT EXISTS: PostgreSQL 9.6+ y SQLite 3.35.0+.
-    # Si la columna ya existe (escenario re-aplicación o DB legacy),
-    # la cláusula IF NOT EXISTS evita el DuplicateColumn / duplicate.
-    op.execute(text(
-        "ALTER TABLE customer_passes ADD COLUMN IF NOT EXISTS "
-        "current_tier_id UUID"
-    ))
+    # FIX 2026-10-02: ADD COLUMN IF NOT EXISTS NO funciona en SQLite
+    # (<3.35 no la soporta, y 3.45 sigue sin soportarla — solo Postgres).
+    # Usamos try/except con OperationalError que captura el error
+    # "duplicate column" en SQLite cuando la columna ya existe.
+    # En PostgreSQL seguimos usando IF NOT EXISTS (path original).
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute(text(
+            "ALTER TABLE customer_passes ADD COLUMN IF NOT EXISTS "
+            "current_tier_id UUID"
+        ))
+    else:
+        # SQLite: try/except. Si la columna ya existe, el ALTER falla
+        # con OperationalError("duplicate column name: current_tier_id")
+        # que capturamos e ignoramos (idempotencia).
+        from sqlalchemy.exc import OperationalError
+        try:
+            op.execute(text(
+                "ALTER TABLE customer_passes ADD COLUMN current_tier_id UUID"
+            ))
+        except OperationalError as exc:
+            logger.warning(
+                "ADD COLUMN customer_passes.current_tier_id ya existe "
+                "(SQLite idempotente): %s",
+                exc,
+            )
 
     # ── 3. Índices (idempotentes) ──────────────────────────
     for idx_sql in _INDEX_STATEMENTS:
