@@ -135,11 +135,13 @@ def test_payment_proof_verified(client):
     tid = data["current_tenant"]["tenant_id"]
 
     # El Mock provider detecta $19.597 CLP = 1.959.700 cents.
+    # URL elegida para mapear determinísticamente al template "restaurant"
+    # (idx=0) bajo el hash MD5 actual — ver ``_stable_index`` en ocr_service.
     r = client.post(
         f"/api/v1/tenants/{tid}/ocr/payment-proof",
         headers=_headers(token),
         json={
-            "image_url": "https://example.com/ticket1.jpg",
+            "image_url": "https://example.com/a.jpg",
             "order_id": "order-test-001",
             "expected_amount_cents": 1_959_700,
             "tolerance_cents": 100,
@@ -164,7 +166,7 @@ def test_payment_proof_mismatch(client):
         f"/api/v1/tenants/{tid}/ocr/payment-proof",
         headers=_headers(token),
         json={
-            "image_url": "https://example.com/ticket1.jpg",
+            "image_url": "https://example.com/mismatch.jpg",
             "order_id": "order-test-002",
             "expected_amount_cents": 99_999_999,  # muy distinto
             "tolerance_cents": 100,

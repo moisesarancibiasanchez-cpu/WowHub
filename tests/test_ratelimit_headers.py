@@ -10,9 +10,14 @@ from app.core.security import RateLimitMiddleware
 
 
 def _enable_rate_limit(stack):
-    """Recorre el ASGI stack y reactiva RateLimitMiddleware (lo opuesto a conftest)."""
-    cls = getattr(stack, "cls", None)
-    if cls is RateLimitMiddleware:
+    """Recorre el ASGI stack y reactiva RateLimitMiddleware (lo opuesto a conftest).
+
+    FIX 2026-10: usa ``type(stack) is RateLimitMiddleware`` en vez de
+    ``stack.cls is RateLimitMiddleware`` (las instancias de BaseHTTPMiddleware
+    no exponen ``.cls``). Antes la detección era un no-op y el re-enable nunca
+    tomaba efecto — los tests fallaban porque el bucket no se vaciaba entre tests.
+    """
+    if type(stack) is RateLimitMiddleware:
         try:
             stack.enabled = True
             stack.buckets.clear()
@@ -33,9 +38,8 @@ def ratelimited_client(client):
     # Limpiar cualquier bucket residual entre tests
     stack = getattr(client.app, "middleware_stack", None)
     if stack is not None:
-        from app.core.security import RateLimitMiddleware
         def _walk_clear(app_obj):
-            if getattr(app_obj, "cls", None) is RateLimitMiddleware:
+            if type(app_obj) is RateLimitMiddleware:
                 try:
                     app_obj.buckets.clear()
                 except Exception:

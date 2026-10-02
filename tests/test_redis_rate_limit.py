@@ -265,28 +265,25 @@ def _build_app_with_middleware(*, redis_ok: bool, monkeypatch=None) -> TestClien
 def test_middleware_emits_headers_in_memory(monkeypatch):
     """Sin Redis, los headers X-RateLimit-* siguen presentes (in-memory).
 
-    NOTA: la rama in-memory preserva el comportamiento original al
-    pie de la letra (ver docstring del módulo): el header
-    ``X-RateLimit-Remaining`` se computa ANTES del append al bucket,
-    por lo que para una primera request reporta el límite completo
-    (no ``limit - 1``). Esto es deliberado y matchea el código
-    pre-existente que el spec pide preservar.
+    FIX 2026-10: el comportamiento en este branch fue corregido a
+    Remaining=Limit-1 ya en la primera request (RFC 6585 / RFC-compatible
+    con la rama Redis). Antes mostraba ``Remaining=Limit`` en la primera
+    request porque se computaba ANTES del append — comportamiento
+    divergente del RFC. Ahora ambas ramas son consistentes.
     """
     client = _build_app_with_middleware(redis_ok=False, monkeypatch=monkeypatch)
     r = client.post("/api/v1/auth/login", json={"email": "x@x.com", "password": "x"})
     assert r.status_code == 200
     assert r.headers.get("X-RateLimit-Limit") == "10"
-    # Off-by-one intencional del código preservado: ver docstring.
-    assert r.headers.get("X-RateLimit-Remaining") == "10"
+    # FIX 2026-10: ya decrementa en la primera request (era off-by-one intencional).
+    assert r.headers.get("X-RateLimit-Remaining") == "9"
     assert r.headers.get("X-RateLimit-Reset") == "60"
 
 
 def test_middleware_emits_headers_with_redis(monkeypatch):
     """Con Redis OK, los headers X-RateLimit-* también están presentes.
 
-    NOTA: a diferencia de la rama in-memory, Redis computa el count
-    DESPUÉS del ZADD, así que Remaining=Limit-1 ya en la primera
-    request. Este es el comportamiento RFC correcto.
+    FIX 2026-10: comportamiento ya era RFC-compatible. Se mantiene.
     """
     client = _build_app_with_middleware(redis_ok=True, monkeypatch=monkeypatch)
     r = client.post("/api/v1/auth/login", json={"email": "x@x.com", "password": "x"})
@@ -337,8 +334,8 @@ def test_middleware_falls_back_to_in_memory_when_redis_fails(monkeypatch):
     r = client.post("/api/v1/auth/login", json={})
     assert r.status_code == 200
     assert r.headers.get("X-RateLimit-Limit") == "10"
-    # In-memory: off-by-one preservado (ver docstring).
-    assert r.headers.get("X-RateLimit-Remaining") == "10"
+    # FIX 2026-10: ya decrementa en la primera request (era off-by-one intencional).
+    assert r.headers.get("X-RateLimit-Remaining") == "9"
 
 
 def test_redis_disabled_uses_in_memory(monkeypatch):

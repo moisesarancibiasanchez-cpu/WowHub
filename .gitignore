@@ -3,3 +3,29 @@
 flow*.txt
 audit.txt
 dfval.txt
+# Scripts de debug temporales
+_debug_*.py
+_check_*.py
+_temp_*.py
+_tmp_*.py
+_single_*.py
+_flaky_*.py
+_smoke_*.py
+_ocr_test_*.txt
+_pytest_*.txt
+_rfm_*.txt
+_rfm_test*.txt
+_final*.txt
+push*.txt
+_validation*.txt
+diag*.txt
+diag*.db
+_check*.py
+_sii_*.json
+boot*.txt
+_*.db
+# Pycache general
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/

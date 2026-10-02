@@ -42,6 +42,7 @@ mismos items parseados).
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -50,6 +51,21 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 logger = logging.getLogger("wowhub.ocr")
+
+
+def _stable_index(image_url: str, modulo: int) -> int:
+    """Hash determinístico entre procesos para mapear ``image_url`` a un índice.
+
+    Python ``hash()`` está sembrado aleatoriamente por proceso (PYTHONHASHSEED),
+    así que usarlo rompe:
+      1) Tests flaky según el orden de invocación.
+      2) Producción: el mismo ``image_url`` puede devolver distintos OCR results
+         tras un redeploy, rompiendo idempotencia (HU_33 docstring lo promete).
+    Usamos MD5 — rápido, determinístico, sin dependencias externas.
+    """
+    digest = hashlib.md5(image_url.encode("utf-8")).digest()
+    # Tomamos los primeros 4 bytes como entero unsigned (suficiente para modulo).
+    return int.from_bytes(digest[:4], "big") % modulo
 
 
 # ── Dataclass de resultado ─────────────────────────────────────────────
@@ -139,9 +155,9 @@ Total: $22.500
     ]
 
     def process_image(self, image_url: str) -> OCRResult:
-        # Selección determinística basada en hash de la URL → mismo image_url
-        # siempre devuelve el mismo texto. Permite que los tests sean estables.
-        idx = abs(hash(image_url)) % len(self._TEMPLATES)
+        # Selección determinística entre invocaciones: usamos MD5 (estable
+        # entre procesos y redespliegues). Ver `_stable_index` para rationale.
+        idx = _stable_index(image_url, len(self._TEMPLATES))
         text = self._TEMPLATES[idx]
 
         items, total_cents = self._parse_items(text)

@@ -192,18 +192,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Limpiar entradas antiguas
         self.buckets[key] = [t for t in self.buckets[key] if t > now - window]
 
-        # HU_41 — Headers RFC 6585 / draft-ietf-httpapi-ratelimit-headers.
-        # Permite al cliente conocer su estado sin esperar el 429.
-        remaining = max(0, limit - len(self.buckets[key]))
         reset_seconds = int(window)
-        rl_headers = {
-            "X-RateLimit-Limit": str(limit),
-            "X-RateLimit-Remaining": str(remaining),
-            "X-RateLimit-Reset": str(reset_seconds),
-        }
 
         if len(self.buckets[key]) >= limit:
+            # 429 — el bucket está saturado ANTES de este request.
             logger.warning("Rate limit exceeded for %s on %s", client_ip, path)
+            rl_headers = {
+                "X-RateLimit-Limit": str(limit),
+                # FIXED 2026-10: remaining=0 en 429 (no mostrar el count pre-append
+                # porque no se consumió cupo). Antes mostraba `limit` en la
+                # primera request porque se computaba antes del append.
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(reset_seconds),
+            }
             return JSONResponse(
                 status_code=429,
                 content={
@@ -216,7 +217,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 },
             )
 
+        # Consumir el cupo y reportar el estado POST-append para cumplir
+        # RFC 6585 / draft-ietf-httpapi-ratelimit-headers (X-RateLimit-Remaining
+        # refleja lo que QUEDA tras este request).
         self.buckets[key].append(now)
+
+        # HU_41 — Headers RFC 6585 / draft-ietf-httpapi-ratelimit-headers.
+        # Permite al cliente conocer su estado sin esperar el 429.
+        remaining = max(0, limit - len(self.buckets[key]))
+        rl_headers = {
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": str(remaining),
+            "X-RateLimit-Reset": str(reset_seconds),
+        }
 
         # Cleanup periódico
         if now - self._last_cleanup > 300:

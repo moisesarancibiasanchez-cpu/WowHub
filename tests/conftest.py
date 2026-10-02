@@ -8,13 +8,16 @@ from sqlalchemy.orm import sessionmaker
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-min-32-chars-ok-test"
 os.environ["JWT_SECRET"] = "test-jwt-secret-min-32-chars-ok-test"
-# Desactivar rate limit y auditoría en tests (estado limpio, sin 429 spurios)
-os.environ["RATE_LIMIT_ENABLED"] = "false"
+# Desactivar auditoría en tests (estado limpio, sin writes extra a DB)
 os.environ["AUDIT_ENABLED"] = "false"
 # HU_33 — Activar Celery eager mode: ``task.delay()`` se ejecuta inline
 # sin necesidad de Redis (HU_36 broker). Ver ``app/celery_app.py``.
 os.environ["APP_ENV"] = "testing"
 os.environ["CELERY_TASK_ALWAYS_EAGER"] = "true"
+# NOTA — Rate limit: NO desactivamos via env var porque eso evita que el
+# middleware se añada al stack. En su lugar, lo registramos siempre y
+# desactivamos a nivel de instancia (``_walk_and_disable`` abajo) — así el
+# fixture ``ratelimited_client`` puede re-activarlo por test.
 
 # Importar DESPUÉS de setear env
 from app.database import Base, SessionLocal, engine, get_db  # noqa: E402
@@ -56,9 +59,15 @@ def _disable_rate_limit_middleware():
 
 
 def _walk_and_disable(app_obj):
-    """Recorre recursivamente el ASGI stack y deshabilita RateLimitMiddleware."""
-    cls = getattr(app_obj, "cls", None)
-    if cls is RateLimitMiddleware:
+    """Recorre recursivamente el ASGI stack y deshabilita RateLimitMiddleware.
+
+    FIX 2026-10: usa ``type(app_obj) is RateLimitMiddleware`` en vez de
+    ``app_obj.cls is RateLimitMiddleware``. Las instancias de BaseHTTPMiddleware
+    NO tienen atributo ``.cls`` (sólo los specs ``Middleware``), por lo que la
+    detección anterior era un no-op silencioso y los tests de rate-limit no
+    podían limpiar buckets entre requests.
+    """
+    if type(app_obj) is RateLimitMiddleware:
         try:
             app_obj.enabled = False
             app_obj.buckets.clear()
