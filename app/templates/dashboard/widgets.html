@@ -226,37 +226,24 @@
   // fallback a tenant()/localStorage si por alguna razón esa promesa
   // no está disponible.
   async function loadWidgetData() {
+    // FIX 2026-10-02e — Llamamos directamente a /api/v1/me/memberships en
+    // vez de depender de WH.Auth.ensureSession() que puede tener orden
+    // de hidratación impredecible. /me/memberships SIEMPRE devuelve el
+    // tenant_id activo, y es lo que ya usa el bell badge del header.
     var T = null;
-    var path = "none";
     try {
-      if (window.WH && window.WH.Auth && typeof window.WH.Auth.ensureSession === "function") {
-        const s = await window.WH.Auth.ensureSession();
-        if (s && s.tenant && s.tenant.tenant_id) {
-          T = s.tenant.tenant_id;
-          path = "ensureSession";
-        }
+      const mems = await WH.api.get("/api/v1/me/memberships");
+      if (Array.isArray(mems) && mems.length > 0) {
+        T = mems[0].tenant_id;
       }
-    } catch (e) { console.warn("[widgets] ensureSession failed:", e); }
-    if (!T && window.WH && window.WH.Auth) {
-      try {
-        var t = window.WH.Auth.tenant();
-        if (t && t.tenant_id) { T = t.tenant_id; path = "Auth.tenant"; }
-      } catch (_) {}
-    }
-    if (!T) {
-      try {
-        var tok = window.WH && window.WH.TokenStore ? window.WH.TokenStore.get() : null;
-        if (tok && tok.current_tenant && tok.current_tenant.tenant_id) {
-          T = tok.current_tenant.tenant_id;
-          path = "TokenStore";
-        }
-      } catch (_) {}
+    } catch (e) {
+      console.warn("[widgets] /me/memberships failed:", e);
     }
     if (!T) {
       console.warn("[widgets] tenant_id no disponible; datos no se cargarán");
       return;
     }
-    console.info("[widgets] tenant_id resuelto vía " + path + ": " + T);
+    console.info("[widgets] tenant_id resuelto vía /me/memberships: " + T);
 
     // Render helpers
     function htmlEscape(s) {
