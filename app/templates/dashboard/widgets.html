@@ -227,28 +227,36 @@
   // no está disponible.
   async function loadWidgetData() {
     var T = null;
+    var path = "none";
     try {
       if (window.WH && window.WH.Auth && typeof window.WH.Auth.ensureSession === "function") {
         const s = await window.WH.Auth.ensureSession();
-        if (s && s.tenant && s.tenant.tenant_id) T = s.tenant.tenant_id;
+        if (s && s.tenant && s.tenant.tenant_id) {
+          T = s.tenant.tenant_id;
+          path = "ensureSession";
+        }
       }
-    } catch (_) {}
+    } catch (e) { console.warn("[widgets] ensureSession failed:", e); }
     if (!T && window.WH && window.WH.Auth) {
       try {
         var t = window.WH.Auth.tenant();
-        if (t && t.tenant_id) T = t.tenant_id;
+        if (t && t.tenant_id) { T = t.tenant_id; path = "Auth.tenant"; }
       } catch (_) {}
     }
     if (!T) {
       try {
         var tok = window.WH && window.WH.TokenStore ? window.WH.TokenStore.get() : null;
-        if (tok && tok.current_tenant && tok.current_tenant.tenant_id) T = tok.current_tenant.tenant_id;
+        if (tok && tok.current_tenant && tok.current_tenant.tenant_id) {
+          T = tok.current_tenant.tenant_id;
+          path = "TokenStore";
+        }
       } catch (_) {}
     }
     if (!T) {
       console.warn("[widgets] tenant_id no disponible; datos no se cargarán");
       return;
     }
+    console.info("[widgets] tenant_id resuelto vía " + path + ": " + T);
 
     // Render helpers
     function htmlEscape(s) {
