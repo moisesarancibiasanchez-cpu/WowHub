@@ -9,10 +9,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+# HU_38 — RBAC granular con Casbin. Importamos el decorator para proteger
+# los endpoints sensibles (delete, write) según la matriz del usuario.
+from app.core.security import requires_permission
 from app.database import get_db
-from app.deps import get_tenant_for_membership
+from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.product import ProductStatus
 from app.models.tenant import Tenant
+from app.models.tenant import TenantMembership
 from app.schemas.common import Page
 from app.schemas.product import ProductCreate, ProductOut, ProductUpdate, ProductListItem
 from app.services.product_service import ProductService
@@ -45,11 +49,22 @@ def list_products(
 
 
 @router.post("", response_model=ProductOut, status_code=201)
+@requires_permission("product", "write")
 def create_product(
     payload: ProductCreate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — membership explícito para que el decorator RBAC pueda
+    # resolver el rol del usuario contra Casbin. FastAPI cachea la
+    # dependencia dentro del request (mismo callable que
+    # ``get_tenant_for_membership``), sin DB extra.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — crear producto requiere ``product.write``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN, STAFF.
+    VIEWER y CASHIER quedan fuera por falta de policy.
+    """
     p = ProductService(db).create(tenant.id, payload)
     return ProductService(db).to_out(p)
 
@@ -86,12 +101,16 @@ def get_product_pricing(
 
 
 @router.patch("/{product_id}", response_model=ProductOut)
+@requires_permission("product", "write")
 def update_product(
     product_id: UUID,
     payload: ProductUpdate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product. Mismo patrón de inyección explícita.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — actualizar producto requiere ``product.write``."""
     svc = ProductService(db)
     p = svc.get(tenant.id, product_id)
     p = svc.update(p, payload)
@@ -99,11 +118,21 @@ def update_product(
 
 
 @router.delete("/{product_id}", status_code=204)
+@requires_permission("product", "delete")
 def delete_product(
     product_id: UUID,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product. Mismo patrón de inyección explícita.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — eliminar producto requiere ``product.delete``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN.
+    STAFF y VIEWER quedan fuera (sin policy de delete en el seed).
+    Esto cierra el hueco donde cualquier miembro del tenant podía
+    borrar productos antes de HU_38.
+    """
     svc = ProductService(db)
     p = svc.get(tenant.id, product_id)
     svc.delete(p)

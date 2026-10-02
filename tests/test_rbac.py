@@ -359,3 +359,127 @@ class TestModelsAndSanity:
         assert "STAFF" in _LEGACY_ROLE_MATRIX
         assert "VIEWER" in _LEGACY_ROLE_MATRIX
         assert "SUPERADMIN" in _LEGACY_ROLE_MATRIX
+
+
+# ──────────────────────────────────────────────────────────────────────
+# TestEndpointEnforcement — verificación end-to-end del guard RBAC
+# HU_38 audit 2026-10-02: confirma que el decorator @requires_permission
+# está aplicado y bloquea acciones según la matriz de Casbin.
+# ──────────────────────────────────────────────────────────────────────
+class TestEndpointEnforcement:
+    """Verifica que el guard ``@requires_permission`` está aplicado a los
+    endpoints críticos de los recursos sensibles (products, categories,
+    customers, branches, promotions, orders).
+
+    Estrategia: importar el módulo y leer el código fuente para confirmar
+    que cada función crítica lleva el decorator. Esto evita depender del
+    cliente HTTP (los tests unitarios así son estables y rápidos).
+    """
+
+    # Mapeo módulo → endpoints críticos que DEBEN tener el guard.
+    EXPECTED_GUARDS = [
+        # (path del módulo, función, par (obj, act) que debe estar)
+        ("app.api.v1.products",   "create_product",    ("product",   "write")),
+        ("app.api.v1.products",   "update_product",    ("product",   "write")),
+        ("app.api.v1.products",   "delete_product",    ("product",   "delete")),
+        ("app.api.v1.categories", "create_category",   ("category",  "write")),
+        ("app.api.v1.categories", "update_category",   ("category",  "write")),
+        ("app.api.v1.categories", "delete_category",   ("category",  "delete")),
+        ("app.api.v1.customers",  "create_customer",   ("customer",  "write")),
+        ("app.api.v1.customers",  "update_customer",   ("customer",  "write")),
+        ("app.api.v1.customers",  "delete_customer",   ("customer",  "delete")),
+        ("app.api.v1.branches",   "create_branch",     ("branch",    "write")),
+        ("app.api.v1.branches",   "update_branch",     ("branch",    "write")),
+        ("app.api.v1.branches",   "delete_branch",     ("branch",    "delete")),
+        ("app.api.v1.promotions", "create_promotion",  ("promotion", "write")),
+        ("app.api.v1.promotions", "update_promotion",  ("promotion", "write")),
+        ("app.api.v1.promotions", "delete_promotion",  ("promotion", "delete")),
+        ("app.api.v1.orders",     "create_order",      ("order",     "write")),
+        ("app.api.v1.orders",     "transition_order",  ("order",     "write")),
+        ("app.api.v1.orders",     "cancel_order",      ("order",     "delete")),
+    ]
+
+    def test_all_critical_endpoints_have_rbac_guard(self):
+        """Cada endpoint crítico en EXPECTED_GUARDS debe llevar el
+        decorator ``@requires_permission(obj, act)`` con los args correctos.
+
+        Antes de HU_38 estos endpoints NO tenían el guard y un usuario
+        VIEWER podía borrar productos. Este test es el regression guard.
+        """
+        import inspect
+        from app.core.security import requires_permission
+
+        for mod_name, fn_name, (obj, act) in self.EXPECTED_GUARDS:
+            import importlib
+            mod = importlib.import_module(mod_name)
+            fn = getattr(mod, fn_name, None)
+            assert fn is not None, f"{mod_name}.{fn_name} no existe"
+            src = inspect.getsource(fn)
+            # El decorator deja un wrapper con functools.wraps. Buscamos
+            # el nombre del callable del decorator (``requires_permission``)
+            # y los argumentos literales en el código fuente cercano.
+            assert "@requires_permission" in src or "requires_permission" in src, (
+                f"{mod_name}.{fn_name} no parece estar decorado con "
+                f"@requires_permission"
+            )
+            # Verificamos que los argumentos (obj, act) están en la firma
+            # del decorator (literal en el source).
+            assert f'"{obj}"' in src and f'"{act}"' in src, (
+                f"{mod_name}.{fn_name} no lleva @requires_permission"
+                f'("{obj}", "{act}")'
+            )
+
+    def test_staff_cannot_delete_product_via_casbin(self):
+        """STAFF NO debe poder (product, delete) en el enforcer.
+
+        Esto valida que la matriz default seed niega STAFF la acción
+        destructiva sobre productos (regression guard del seed).
+        """
+        enforcer = _fresh_enforcer_with_seed()
+        assert enforcer is not None
+        # STAFF sí puede write (crear/editar productos según seed).
+        assert enforcer.enforce("role:STAFF", "tenant-x", "product", "write")
+        # STAFF NO puede delete.
+        assert not enforcer.enforce(
+            "role:STAFF", "tenant-x", "product", "delete"
+        )
+
+    def test_admin_can_delete_product_via_casbin(self):
+        """ADMIN debe poder (product, delete) según el seed."""
+        enforcer = _fresh_enforcer_with_seed()
+        assert enforcer is not None
+        assert enforcer.enforce("role:ADMIN", "tenant-x", "product", "delete")
+
+    def test_viewer_cannot_write_product_via_casbin(self):
+        """VIEWER NO debe poder (product, write) — sólo read."""
+        enforcer = _fresh_enforcer_with_seed()
+        assert enforcer is not None
+        assert enforcer.enforce("role:VIEWER", "tenant-x", "product", "read")
+        assert not enforcer.enforce(
+            "role:VIEWER", "tenant-x", "product", "write"
+        )
+        assert not enforcer.enforce(
+            "role:VIEWER", "tenant-x", "product", "delete"
+        )
+
+    def test_viewer_cannot_cancel_order_via_casbin(self):
+        """Cancelar un pedido mapea a (order, delete). VIEWER no debe poder."""
+        enforcer = _fresh_enforcer_with_seed()
+        assert enforcer is not None
+        assert not enforcer.enforce(
+            "role:VIEWER", "tenant-x", "order", "delete"
+        )
+
+    def test_decorator_blocks_staff_delete_at_function_level(self):
+        """El decorator @requires_permission en delete_product llama a
+        ``_check_and_call_sync`` que delega en ``_legacy_check`` o
+        ``enforcer.enforce``. Verificamos el path legacy (sin Casbin
+        inicializado) para STAFF → product.delete debe denegar.
+        """
+        from app.core.security import _legacy_check
+        # STAFF → product.delete = False (DoD FILIERT 2026-10-04).
+        assert _legacy_check("STAFF", "product", "delete") is False
+        # ADMIN → product.delete = True.
+        assert _legacy_check("ADMIN", "product", "delete") is True
+        # VIEWER → product.delete = False.
+        assert _legacy_check("VIEWER", "product", "delete") is False

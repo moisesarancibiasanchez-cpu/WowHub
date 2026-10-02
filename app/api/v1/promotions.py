@@ -5,11 +5,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# HU_38 — RBAC granular con Casbin. Ver app/api/v1/products.py.
 from app.core.errors import NotFoundError
+from app.core.security import requires_permission
 from app.database import get_db
-from app.deps import get_tenant_for_membership
+from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.promotion import Promotion
 from app.models.tenant import Tenant
+from app.models.tenant import TenantMembership
 from app.schemas.promotion import PromotionCreate, PromotionOut, PromotionUpdate
 
 router = APIRouter(prefix="/tenants/{tenant_id}/promotions", tags=["promotions"])
@@ -58,11 +61,15 @@ def list_promotions(
 
 
 @router.post("", response_model=PromotionOut, status_code=201)
+@requires_permission("promotion", "write")
 def create_promotion(
     payload: PromotionCreate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — crear promoción requiere ``promotion.write``."""
     data = payload.model_dump()
     # Convertir UUIDs a str
     data["product_ids"] = [str(x) for x in data.get("product_ids", [])]
@@ -87,12 +94,16 @@ def get_promotion(promotion_id: UUID, tenant: Tenant = Depends(get_tenant_for_me
 
 
 @router.patch("/{promotion_id}", response_model=PromotionOut)
+@requires_permission("promotion", "write")
 def update_promotion(
     promotion_id: UUID,
     payload: PromotionUpdate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — actualizar promoción requiere ``promotion.write``."""
     p = db.get(Promotion, promotion_id)
     if not p or p.tenant_id != tenant.id:
         raise NotFoundError("Promotion")
@@ -111,7 +122,19 @@ def update_promotion(
 
 
 @router.delete("/{promotion_id}", status_code=204)
-def delete_promotion(promotion_id: UUID, tenant: Tenant = Depends(get_tenant_for_membership), db: Session = Depends(get_db)):
+@requires_permission("promotion", "delete")
+def delete_promotion(
+    promotion_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """HU_38 — eliminar promoción requiere ``promotion.delete``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN.
+    STAFF/VIEWER quedan fuera (sin policy de delete).
+    """
     p = db.get(Promotion, promotion_id)
     if not p or p.tenant_id != tenant.id:
         raise NotFoundError("Promotion")

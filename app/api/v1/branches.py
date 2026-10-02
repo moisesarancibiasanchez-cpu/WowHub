@@ -4,12 +4,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# HU_38 — RBAC granular con Casbin. Ver app/api/v1/products.py.
 from app.core.errors import NotFoundError
+from app.core.security import requires_permission
 from app.database import get_db
-from app.deps import get_tenant_for_membership
+from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.branch import Branch
 from app.models.branch_product import BranchProduct
 from app.models.tenant import Tenant
+from app.models.tenant import TenantMembership
 from app.schemas.branch import BranchCreate, BranchOut, BranchUpdate
 
 router = APIRouter(prefix="/tenants/{tenant_id}/branches", tags=["branches"])
@@ -23,11 +26,19 @@ def list_branches(tenant: Tenant = Depends(get_tenant_for_membership), db: Sessi
 
 
 @router.post("", response_model=BranchOut, status_code=201)
+@requires_permission("branch", "write")
 def create_branch(
     payload: BranchCreate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — crear sucursal requiere ``branch.write``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN.
+    STAFF/VIEWER quedan fuera (sin policy de write en branch).
+    """
     b = Branch(**payload.model_dump(), tenant_id=str(tenant.id))
     db.add(b)
     db.commit()
@@ -44,12 +55,16 @@ def get_branch(branch_id: UUID, tenant: Tenant = Depends(get_tenant_for_membersh
 
 
 @router.patch("/{branch_id}", response_model=BranchOut)
+@requires_permission("branch", "write")
 def update_branch(
     branch_id: UUID,
     payload: BranchUpdate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — actualizar sucursal requiere ``branch.write``."""
     b = db.get(Branch, branch_id)
     if not b or b.tenant_id != tenant.id:
         raise NotFoundError("Branch")
@@ -61,7 +76,19 @@ def update_branch(
 
 
 @router.delete("/{branch_id}", status_code=204)
-def delete_branch(branch_id: UUID, tenant: Tenant = Depends(get_tenant_for_membership), db: Session = Depends(get_db)):
+@requires_permission("branch", "delete")
+def delete_branch(
+    branch_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """HU_38 — eliminar sucursal requiere ``branch.delete``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN.
+    STAFF/VIEWER quedan fuera (sin policy de delete).
+    """
     b = db.get(Branch, branch_id)
     if not b or b.tenant_id != tenant.id:
         raise NotFoundError("Branch")

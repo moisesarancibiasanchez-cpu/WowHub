@@ -8,11 +8,14 @@ from sqlalchemy import or_, select, func
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
+# HU_38 — RBAC granular con Casbin. Ver app/api/v1/products.py.
+from app.core.security import requires_permission
 from app.database import get_db
-from app.deps import get_tenant_for_membership
+from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.tenant import Tenant
+from app.models.tenant import TenantMembership
 from app.schemas.common import Page
 from app.schemas.customer import (
     CustomerCreate,
@@ -130,11 +133,15 @@ def list_customers(
 
 
 @router.post("", response_model=CustomerOut, status_code=201)
+@requires_permission("customer", "write")
 def create_customer(
     payload: CustomerCreate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — crear cliente requiere ``customer.write``."""
     c = Customer(**payload.model_dump(), tenant_id=str(tenant.id))
     db.add(c)
     db.commit()
@@ -151,12 +158,16 @@ def get_customer(customer_id: UUID, tenant: Tenant = Depends(get_tenant_for_memb
 
 
 @router.patch("/{customer_id}", response_model=CustomerOut)
+@requires_permission("customer", "write")
 def update_customer(
     customer_id: UUID,
     payload: CustomerUpdate,
     tenant: Tenant = Depends(get_tenant_for_membership),
     db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
 ):
+    """HU_38 — actualizar cliente requiere ``customer.write``."""
     c = db.get(Customer, customer_id)
     if not c or c.tenant_id != tenant.id:
         raise NotFoundError("Customer")
@@ -168,7 +179,19 @@ def update_customer(
 
 
 @router.delete("/{customer_id}", status_code=204)
-def delete_customer(customer_id: UUID, tenant: Tenant = Depends(get_tenant_for_membership), db: Session = Depends(get_db)):
+@requires_permission("customer", "delete")
+def delete_customer(
+    customer_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    # HU_38 — ver create_product en products.py.
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """HU_38 — eliminar cliente requiere ``customer.delete``.
+
+    Roles permitidos (matriz default seed): OWNER, ADMIN.
+    STAFF/VIEWER quedan fuera (sin policy de delete).
+    """
     c = db.get(Customer, customer_id)
     if not c or c.tenant_id != tenant.id:
         raise NotFoundError("Customer")

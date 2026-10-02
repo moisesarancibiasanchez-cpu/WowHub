@@ -5,7 +5,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+# HU_38 — RBAC granular con Casbin. Los endpoints de orders ya
+# declaran ``membership`` explícito, así que el decorator
+# ``@requires_permission`` puede resolver el rol sin cambios extra.
 from app.core.errors import NotFoundError
+from app.core.security import requires_permission
 from app.database import get_db
 from app.deps import get_current_membership, get_current_user, get_tenant_for_membership
 from app.models.tenant import Tenant
@@ -33,6 +37,7 @@ def list_orders(
 
 
 @router.post("", response_model=OrderOut, status_code=201)
+@requires_permission("order", "write")
 def create_order(
     tenant_id: UUID,
     payload: OrderCreate,
@@ -81,6 +86,7 @@ def get_order_by_number(
 
 
 @router.post("/{order_id}/transition", response_model=OrderOut)
+@requires_permission("order", "write")
 def transition_order(
     tenant_id: UUID,
     order_id: UUID,
@@ -208,6 +214,7 @@ def orders_sales_7d(
 
 
 @router.post("/{order_id}/cancel", response_model=OrderOut)
+@requires_permission("order", "delete")
 def cancel_order(
     tenant_id: UUID,
     order_id: UUID,
