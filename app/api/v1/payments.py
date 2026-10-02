@@ -196,6 +196,29 @@ async def mercadopago_webhook(
     """
     body_bytes = await request.body()
     secret = os.getenv("MERCADOPAGO_WEBHOOK_SECRET", "")
+    app_env = os.getenv("APP_ENV", "production").lower()
+    if not secret:
+        # FIX CRÍTICO 2026-10-02: en producción sin secret we fail-closed
+        # (403) en vez de aceptar cualquier request. Esto cierra la
+        # vulnerabilidad de spoofing de pagos detectada por el verificador.
+        # En dev/staging se mantiene el comportamiento permisivo (warning).
+        if app_env == "production":
+            from fastapi.responses import JSONResponse
+            logger.error(
+                "MP webhook sin MERCADOPAGO_WEBHOOK_SECRET en producción — "
+                "rechazando request por seguridad"
+            )
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "ok": False,
+                    "code": "mp_webhook_disabled",
+                    "detail": "MERCADOPAGO_WEBHOOK_SECRET no configurado en producción — "
+                              "configura la variable en Railway",
+                },
+            )
+        logger.warning("MP webhook sin secret (dev/staging mode) — procesando sin firma")
+
     if secret:
         # Modo estricto: la firma DEBE ser válida.
         if not _validate_mp_signature(
