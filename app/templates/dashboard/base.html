@@ -80,6 +80,15 @@
     <a href="/dashboard" class="nav-link" data-route="dashboard">
       <span class="ico">⌂</span> Resumen
     </a>
+    {# FIX 2026-10-02 — Link faltante para /dashboard/widgets (HU_34).
+       El usuario reportó "no se visualiza los widgets que puedan moverse"
+       y la causa raíz era que el menú lateral NO lo enlazaba.
+       Lo agregamos justo debajo de "Resumen" porque es la vista de
+       personalización del dashboard principal. #}
+    <a href="/dashboard/widgets" class="nav-link" data-route="widgets"
+       title="Widgets personalizables (drag & drop)">
+      <span class="ico">▤</span> Widgets
+    </a>
     <a href="/dashboard/notifications" class="nav-link" data-route="notifications">
       <span class="ico">🔔</span> Notificaciones
       <span class="nav-badge" id="nav-badge-notif" hidden>0</span>
