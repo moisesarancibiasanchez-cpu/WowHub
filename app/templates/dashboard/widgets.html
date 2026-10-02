@@ -12,6 +12,10 @@
    los MISMOS tipos (`data-widget-type`) que aparecen en el Resumen.
    Cada widget aquí muestra datos reales (vía los mismos endpoints que
    la home), de modo que lo que personalizas se refleja 1-a-1 en el home.
+
+   FIX 2026-10-02b — JS syntax error en margin_pct (línea del "Invalid
+   or unexpected token" que rompía el script entero). Reemplazado por
+   variable local para evitar concatenaciones mal formadas.
    ─────────────────────────────────────────────────────────────────────── #}
 
 <h1>Widgets personalizables</h1>
@@ -247,15 +251,18 @@
       WH.api.get("/api/v1/tenants/" + T + "/opportunities/daily-brief").then(function (d) {
         if (!d) { ai.innerHTML = '<p class="text-muted">Sin datos</p>'; return; }
         var stats = d.stats || {};
+        var marginTxt = (stats.margin_pct != null)
+          ? Math.round(stats.margin_pct) + "%"
+          : "—";
         ai.innerHTML =
           '<div class="widget-kpi">' + htmlEscape(d.greeting || "Hola") + '</div>' +
           '<div style="font-size:12px;color:#6b7280;">' +
             'Ventas hoy: ' + htmlEscape(stats.sales_today || "—") + '<br>' +
             'Pedidos: ' + htmlEscape(stats.orders_today || "—") + '<br>' +
-            'Margen: ' + htmlEscape(stats.margin_pct != null ? Math.round(stats.margin_pct) + '%" : "—") +
+            'Margen: ' + marginTxt +
           '</div>';
       }).catch(function (e) {
-        ai.innerHTML = '<p class="text-muted">Brief no disponible: ' + htmlEscape(e.message || "") + '</p>';
+        ai.innerHTML = '<p class="text-muted">Brief no disponible</p>';
       });
     }
 
