@@ -360,8 +360,14 @@ def dashboard_webhooks(request: Request):
 
 
 # HU_34 — Vista experimental de widgets personalizables (GridStack).
-# Render inicial con los 4 widgets default; el JS carga/save el layout
-# vía GET/PUT /api/v1/dashboard/layout.
+# Render inicial: si el tenant tiene layout guardado en la BD lo usamos
+# (lo que el usuario realmente configuró); si NO, caemos al default.
+# FIX 2026-10-02 — Antes este endpoint hardcodeaba 4 widgets default
+# SIEMPRE, ignorando el layout persistido. Eso hacía que tras recargar
+# la página el usuario viera el layout default aunque hubiera guardado
+# uno distinto — exactamente el síntoma que motivó la queja "no se
+# visualiza los widget que puedan moverse / agrandarse / reubicarse".
+# Ahora leemos de `dashboard_layouts` y solo si NO existe, default.
 @app.get("/dashboard/widgets", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_widgets(request: Request):
     initial = [
@@ -370,6 +376,54 @@ def dashboard_widgets(request: Request):
         {"id": "products", "x": 0, "y": 2, "w": 4, "h": 4, "type": "products"},
         {"id": "ai",       "x": 8, "y": 0, "w": 4, "h": 2, "type": "ai"},
     ]
+    # Intentar cargar el layout guardado del tenant actual.
+    try:
+        from app.database import get_db
+        from app.models.user import User
+        from app.models.dashboard import DashboardLayout
+        from app.security import decode_token
+
+        token = (
+            request.cookies.get("wowhub_access_token")
+            or request.cookies.get("access_token")
+        )
+        if token:
+            claims = decode_token(token)
+            user_id = claims.get("sub") if claims else None
+            if user_id:
+                # Buscamos la primera membresía activa del usuario y
+                # cargamos su layout (no usamos get_tenant_for_membership
+                # porque ese raise está expuesto y queremos fallback
+                # silencioso al default).
+                gen = get_db()
+                db = next(gen)
+                try:
+                    user = db.get(User, user_id)
+                    if user:
+                        memberships = [m for m in user.memberships if m.is_active]
+                        if memberships:
+                            tenant_id = str(memberships[0].tenant_id)
+                            layout = (
+                                db.query(DashboardLayout)
+                                .filter(DashboardLayout.tenant_id == tenant_id)
+                                .one_or_none()
+                            )
+                            if layout and layout.widgets:
+                                initial = layout.widgets
+                finally:
+                    try:
+                        next(gen)
+                    except StopIteration:
+                        pass
+    except Exception as exc:
+        # Cualquier falla cae al default silenciosamente — el usuario
+        # puede seguir arrastrando y el primer PUT va a persistir.
+        import logging
+        logging.getLogger("wowhub.dashboard").warning(
+            "dashboard_widgets: no se pudo cargar layout guardado (%s) — usando default",
+            exc,
+        )
+
     return templates.TemplateResponse(
         request,
         "dashboard/widgets.html",
