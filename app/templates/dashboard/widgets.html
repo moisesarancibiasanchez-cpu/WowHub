@@ -292,13 +292,18 @@
               ((s7 && s7.stats && s7.stats.margin_pct != null) ? Math.round(s7.stats.margin_pct) + "%" : "—") +
             '</div></div>' +
           '</div>';
+      }).catch(function (e) {
+        metr.innerHTML = '<p class="text-muted">Métricas no disponibles</p>';
       });
     }
 
     // orders
     var orders = document.getElementById("widget-body-orders");
     if (orders) {
-      WH.api.get("/api/v1/tenants/" + T + "/orders?page_size=5&status=incoming").then(function (d) {
+      // FIX 03 — antes usábamos status=incoming pero el OrderStatus enum
+      // requiere "recibido". Con status=recibido (RECIBIDO) obtenemos
+      // los pedidos pendientes correctos sin 422.
+      WH.api.get("/api/v1/tenants/" + T + "/orders?page_size=5&status=recibido").then(function (d) {
         var items = (d && (d.items || d)) || [];
         if (!Array.isArray(items) || items.length === 0) {
           orders.innerHTML = '<p class="text-muted">Sin pedidos pendientes ✨</p>'; return;
@@ -308,6 +313,8 @@
             return '<li>#' + htmlEscape(o.short_id || (o.id || "").slice(0,6)) +
               ' — ' + fmtMoney(o.total_cents || 0) + '</li>';
           }).join("") + '</ul>';
+      }).catch(function (e) {
+        orders.innerHTML = '<p class="text-muted">Pedidos no disponibles</p>';
       });
     }
 
@@ -323,6 +330,8 @@
           items.slice(0, 5).map(function (o) {
             return '<li>' + htmlEscape(o.title || o.kind || "Oportunidad") + '</li>';
           }).join("") + '</ul>';
+      }).catch(function (e) {
+        opps.innerHTML = '<p class="text-muted">Oportunidades no disponibles</p>';
       });
     }
 
@@ -338,6 +347,8 @@
           items.slice(0, 5).map(function (p) {
             return '<li>' + htmlEscape(p.name || "—") + ' — ' + fmtMoney(p.margin_cents || p.total_cents || 0) + '</li>';
           }).join("") + '</ul>';
+      }).catch(function (e) {
+        prods.innerHTML = '<p class="text-muted">Productos no disponibles</p>';
       });
     }
 
@@ -355,6 +366,8 @@
             return '<div title="' + (s.date || "") + ': ' + fmtMoney(s.total_cents || 0) +
               '" style="flex:1;background:#3b82f6;height:' + h + 'px;border-radius:1px 1px 0 0;"></div>';
           }).join("") + '</div>';
+      }).catch(function (e) {
+        perf.innerHTML = '<p class="text-muted">Rendimiento no disponible</p>';
       });
     }
 
@@ -369,6 +382,8 @@
           items.slice(0, 5).map(function (a) {
             return '<li>' + htmlEscape(a.title || a.type || "Actividad") + '</li>';
           }).join("") + '</ul>';
+      }).catch(function (e) {
+        act.innerHTML = '<p class="text-muted">Actividad no disponible</p>';
       });
     }
 
