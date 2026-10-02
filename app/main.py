@@ -370,12 +370,14 @@ def dashboard_webhooks(request: Request):
 # Ahora leemos de `dashboard_layouts` y solo si NO existe, default.
 @app.get("/dashboard/widgets", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_widgets(request: Request):
-    initial = [
-        {"id": "stats",    "x": 0, "y": 0, "w": 4, "h": 2, "type": "stats"},
-        {"id": "orders",   "x": 4, "y": 0, "w": 4, "h": 4, "type": "orders"},
-        {"id": "products", "x": 0, "y": 2, "w": 4, "h": 4, "type": "products"},
-        {"id": "ai",       "x": 8, "y": 0, "w": 4, "h": 2, "type": "ai"},
-    ]
+    # FIX 2026-10-02c — Antes este handler tenía una lista hardcodeada de
+    # 4 widgets (`stats`, `orders`, `products`, `ai`) que estaba DUPLICADA
+    # con la de `_default_widgets()` en api/v1/dashboard.py. Resultado:
+    # la API GET /api/v1/dashboard/layout devolvía los 10 widgets nuevos
+    # (correctos), pero la página /dashboard/widgets seguía mostrando 4.
+    # Ahora importamos la única fuente de verdad.
+    from app.api.v1.dashboard import _default_widgets
+    initial = _default_widgets()
     # Intentar cargar el layout guardado del tenant actual.
     try:
         from app.database import get_db
