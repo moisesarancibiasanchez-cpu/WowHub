@@ -563,7 +563,7 @@ class NotificationsEngine:
                 "ni detectar márgenes bajos. Te lleva 2 minutos."
             ),
             action_label="Configurar costos",
-            action_url="/dashboard/admin_costs",
+            action_url="/dashboard/costs",
             entity_type="tenant",
             entity_id="tenant",
             detected_at=_now_iso(),
@@ -593,7 +593,7 @@ class NotificationsEngine:
                 f"Revisá sueldos, arriendo o horas productivas para optimizarlo."
             ),
             action_label="Ver costos",
-            action_url="/dashboard/admin_costs",
+            action_url="/dashboard/costs",
             entity_type="tenant",
             entity_id="tenant",
             detected_at=_now_iso(),
@@ -638,7 +638,7 @@ class NotificationsEngine:
                 "Te recomendamos el tour de 5 pasos."
             ),
             action_label="Empezar tour",
-            action_url="/dashboard/onboarding",
+            action_url="/dashboard/products?onboarding=1",
             entity_type="tenant",
             entity_id="tenant",
             detected_at=_now_iso(),

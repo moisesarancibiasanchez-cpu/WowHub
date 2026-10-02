@@ -32,6 +32,22 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════
+     FIX 2026-10-02 (C1) — CTA "Personalizar mi dashboard"
+     Tras descubrirse el link faltante a /dashboard/widgets, se añadió
+     al sidebar (FIX f2bddb2). Pero la home NO tenía un CTA in-content
+     para invitar al usuario a reordenar/agrandar/achicar widgets.
+     Lo agregamos como banner discreto entre el Daily Brief y las
+     métricas para máxima visibilidad sin interrumpir el flujo.
+     ════════════════════════════════════════════════════════════════ -->
+<div class="card mt-4 dash-personalize-cta" id="dash-personalize-cta">
+  <div class="card-header">
+    <h2 class="card-title">🎛 Personaliza tu dashboard</h2>
+    <a href="/dashboard/widgets" class="btn btn-primary btn-sm">Personalizar widgets</a>
+  </div>
+  <p class="text-muted" style="margin: 0;">Reordena, agranda o achica los widgets a tu gusto.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
      4 MÉTRICAS — Visualización priorizada de KPIs
      Ventas este mes · Utilidad estimada · Clientes activos · Stock valorizado
      (Referencia: WowHub_V8_Costos_Onboarding.html, sección #dashboard .metrics)

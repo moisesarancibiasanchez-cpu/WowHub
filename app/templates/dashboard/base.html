@@ -153,6 +153,27 @@
     <a href="/dashboard/marketplace/" class="nav-link" data-route="marketplace">
       <span class="ico">🧩</span> Marketplace
     </a>
+    {# ── FIX 2026-10-02 (C2) — Links huérfanos al sidebar ──
+       La auditoría LINKS_NAV_AUDIT_2026_10_02 detectó 5 páginas
+       registradas sin link en el sidebar: /dashboard/payments,
+       /dashboard/pipeline, /dashboard/stats, /dashboard/webhooks y
+       /superadmin/marketplace/. Las primeras 4 (de uso frecuente
+       para owner/admin) las añadimos en un nuevo grupo "Avanzado"
+       justo antes de los links gated por rol. SUPERADMIN marketplace
+       ya tiene su acceso vía /admin/superadmin → pestaña Marketplace. ── #}
+    <h4>Avanzado</h4>
+    <a href="/dashboard/stats" class="nav-link" data-route="stats">
+      <span class="ico">📊</span> Estadísticas
+    </a>
+    <a href="/dashboard/pipeline" class="nav-link" data-route="pipeline">
+      <span class="ico">⇆</span> Pipeline
+    </a>
+    <a href="/dashboard/payments" class="nav-link" data-route="payments">
+      <span class="ico">💳</span> Pagos
+    </a>
+    <a href="/dashboard/webhooks" class="nav-link" data-route="webhooks">
+      <span class="ico">🪝</span> Webhooks
+    </a>
     <a href="/admin/ai" class="nav-link" data-route="admin-ai"
        data-requires-role="owner,admin"
        style="display:none;">
