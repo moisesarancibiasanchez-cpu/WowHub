@@ -13,7 +13,7 @@
      Banner superior con saludo, KPIs del día y mensaje IA.
      Sólo se muestra cuando hay datos suficientes.
      ════════════════════════════════════════════════════════════════ -->
-<div id="ai-brief-section" style="display:none;">
+<div id="ai-brief-section" style="display:none;" data-widget-type="ai_brief">
   <section class="daily-brief" id="daily-brief">
     <div class="daily-brief-greet">
       <span class="daily-brief-emoji">👋</span>
@@ -39,7 +39,7 @@
      Lo agregamos como banner discreto entre el Daily Brief y las
      métricas para máxima visibilidad sin interrumpir el flujo.
      ════════════════════════════════════════════════════════════════ -->
-<div class="card mt-4 dash-personalize-cta" id="dash-personalize-cta">
+<div class="card mt-4 dash-personalize-cta" id="dash-personalize-cta" data-widget-type="cta_widgets">
   <div class="card-header">
     <h2 class="card-title">🎛 Personaliza tu dashboard</h2>
     <a href="/dashboard/widgets" class="btn btn-primary btn-sm">Personalizar widgets</a>
@@ -52,7 +52,7 @@
      Ventas este mes · Utilidad estimada · Clientes activos · Stock valorizado
      (Referencia: WowHub_V8_Costos_Onboarding.html, sección #dashboard .metrics)
      ════════════════════════════════════════════════════════════════ -->
-<section class="dash-metrics" id="dash-metrics">
+<section class="dash-metrics" id="dash-metrics" data-widget-type="metrics">
   <div class="metric metric-ventas">
     <div class="metric-top">
       <span>Ventas este mes</span>
@@ -94,7 +94,7 @@
 <section class="dash-main-grid">
 
   <!-- Panel izquierdo: Pedidos y reservas -->
-  <div class="panel" id="panel-pedidos">
+  <div class="panel" id="panel-pedidos" data-widget-type="orders">
     <div class="panel-head">
       <div>
         <h2>📥 Pedidos y reservas</h2>
@@ -122,7 +122,7 @@
   </div>
 
   <!-- Panel derecho: Oportunidades -->
-  <div class="panel" id="panel-oportunidades">
+  <div class="panel" id="panel-oportunidades" data-widget-type="opportunities">
     <div class="panel-head">
       <div>
         <h2>🧠 Oportunidades</h2>
@@ -143,7 +143,7 @@
 <section class="dash-bottom-grid">
 
   <!-- Productos (top ventas / margen) -->
-  <div class="panel dash-products">
+  <div class="panel dash-products" data-widget-type="products">
     <div class="panel-head">
       <div>
         <h2>Productos</h2>
@@ -165,7 +165,7 @@
   </div>
 
   <!-- Rendimiento (bar chart 7 días, ventas vs margen) -->
-  <div class="panel dash-rendimiento">
+  <div class="panel dash-rendimiento" data-widget-type="performance">
     <div class="panel-head">
       <div>
         <h2>Rendimiento del negocio</h2>
@@ -188,7 +188,7 @@
   </div>
 
   <!-- Actividad reciente -->
-  <div class="panel dash-activity">
+  <div class="panel dash-activity" data-widget-type="activity">
     <div class="panel-head">
       <div>
         <h2>Actividad reciente</h2>
@@ -209,7 +209,7 @@
      AI BAR — Banner inferior con CTA a WowHub AI
      (Estilo gradiente oscuro del reference)
      ════════════════════════════════════════════════════════════════ -->
-<div class="dash-ai-bar" id="dash-ai-bar">
+<div class="dash-ai-bar" id="dash-ai-bar" data-widget-type="ai_bar">
   <div>
     <strong>✦ WowHub AI tiene algo para ti</strong>
     <p id="dash-ai-msg">Detecta oportunidades que podrían mejorar tu rentabilidad.</p>
@@ -220,7 +220,7 @@
 <!-- ════════════════════════════════════════════════════════════════
      Página pública — card discreta al final
      ════════════════════════════════════════════════════════════════ -->
-<div class="card mt-4">
+<div class="card mt-4" id="dash-public-url" data-widget-type="public_url">
   <div class="card-header">
     <h2 class="card-title">Tu página pública</h2>
     <a class="btn btn-sm" id="open-public" target="_blank">Abrir ↗</a>
@@ -286,6 +286,28 @@
   $("public-url").textContent = url;
   $("open-public").href = url;
   $("public-url-help").textContent = "Comparte este link con tus clientes:";
+
+  // ── FIX 2026-10-02 (transversalidad HU_34) ─────────────────────────
+  // Antes: la home NO leía dashboard_layouts. Cuando el usuario
+  // guardaba un layout en /dashboard/widgets, la home no se enteraba.
+  // Ahora: aplicamos el layout guardado ANTES de cargar datos,
+  // ocultando bloques cuyo tipo no esté en el array guardado.
+  // Si el guardado falla → fallback silencioso a "mostrar todo".
+  try {
+    const layout = await WH.api.get("/api/v1/dashboard/layout");
+    if (layout && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
+      const visibleTypes = new Set(layout.widgets.map(w => w.type));
+      document.querySelectorAll("[data-widget-type]").forEach(el => {
+        const t = el.getAttribute("data-widget-type");
+        if (!visibleTypes.has(t)) {
+          el.style.display = "none";
+        }
+      });
+    }
+  } catch (e) {
+    // Silencioso: el fallback es no aplicar layout (mostrar todo).
+    console.info("[home] no se pudo aplicar widget layout:", e);
+  }
 
   // ── Carga paralela de KPIs y datos del nuevo layout ──
   try {

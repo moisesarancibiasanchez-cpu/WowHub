@@ -65,26 +65,42 @@ class LayoutOut(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────
 def _default_widgets() -> List[dict[str, Any]]:
-    """Layout default de 4 widgets (12 columnas GridStack, 1 grid row).
+    """Layout default de 10 widgets (transversal con `/dashboard`).
 
-    Geometría:
-        +----+----+----+
-        |stats     | ai |
-        +----+----+----+
-        |orders    |products|
-        |          |        |
-        +----+----+----+
-    Concretamente:
-      - stats    : (0,0,4,2) — KPIs (ventas, margen, etc.)
-      - orders   : (4,0,4,4) — Pedidos en vivo (alto)
-      - products : (0,2,4,4) — Top productos (alto)
-      - ai       : (8,0,4,2) — Resumen IA (compacto)
+    FIX 2026-10-02 — Antes este default solo tenía 4 placeholders
+    (`stats`, `orders`, `products`, `ai`) sin datos. Esto provocaba
+    que la página /dashboard/widgets se viera como "próximamente" y
+    que no hubiera correspondencia con los 11 bloques reales de la
+    página Resumen.
+
+    Ahora el default coincide 1-a-1 con los `data-widget-type` que
+    el home ya tiene:
+        data-widget-type="ai_brief"      → ai_brief  (Daily Brief)
+        data-widget-type="metrics"       → metrics   (4 KPIs)
+        data-widget-type="orders"        → orders    (Pedidos y reservas)
+        data-widget-type="opportunities" → opportunities (Oportunidades)
+        data-widget-type="products"      → products  (Top productos)
+        data-widget-type="performance"   → performance (Bar chart 7d)
+        data-widget-type="activity"      → activity  (Actividad reciente)
+        data-widget-type="ai_bar"        → ai_bar    (Banner AI)
+        data-widget-type="public_url"    → public_url (URL pública)
+        data-widget-type="cta_widgets"   → cta_widgets (CTA personalizar)
+
+    Cuando un tenant nuevo abre /dashboard/widgets por primera vez,
+    ve los 10 widgets con datos reales (en lugar de 4 placeholders).
+    Y el toggle visibility de la home lee este mismo registro.
     """
     return [
-        {"id": "stats",    "x": 0, "y": 0, "w": 4, "h": 2, "type": "stats"},
-        {"id": "orders",   "x": 4, "y": 0, "w": 4, "h": 4, "type": "orders"},
-        {"id": "products", "x": 0, "y": 2, "w": 4, "h": 4, "type": "products"},
-        {"id": "ai",       "x": 8, "y": 0, "w": 4, "h": 2, "type": "ai"},
+        {"id": "ai_brief",      "x": 0,  "y": 0,  "w": 12, "h": 2, "type": "ai_brief"},
+        {"id": "metrics",       "x": 0,  "y": 2,  "w": 12, "h": 2, "type": "metrics"},
+        {"id": "orders",        "x": 0,  "y": 4,  "w": 8,  "h": 4, "type": "orders"},
+        {"id": "opportunities", "x": 8,  "y": 4,  "w": 4,  "h": 4, "type": "opportunities"},
+        {"id": "products",      "x": 0,  "y": 8,  "w": 4,  "h": 4, "type": "products"},
+        {"id": "performance",   "x": 4,  "y": 8,  "w": 4,  "h": 4, "type": "performance"},
+        {"id": "activity",      "x": 8,  "y": 8,  "w": 4,  "h": 4, "type": "activity"},
+        {"id": "ai_bar",        "x": 0,  "y": 12, "w": 12, "h": 1, "type": "ai_bar"},
+        {"id": "public_url",    "x": 0,  "y": 13, "w": 6,  "h": 2, "type": "public_url"},
+        {"id": "cta_widgets",   "x": 6,  "y": 13, "w": 6,  "h": 2, "type": "cta_widgets"},
     ]
 
 

@@ -1,20 +1,24 @@
 {% extends "dashboard/base.html" %}
-{% block dash_title %}Widgets (GridStack){% endblock %}
+{% block dash_title %}Widgets personalizables{% endblock %}
 {% block dash_content %}
 
 {# ── HU_34 — Dashboard personalizable ──────────────────────────────────
-   Vista experimental con GridStack (CDN). Permite arrastrar/redimensionar
-   widgets y guardar el layout vía PUT /api/v1/dashboard/layout.
+   Vista experimental con GridStack (CDN). El usuario puede arrastrar /
+   redimensionar / ocultar widgets. El layout se guarda vía PUT
+   /api/v1/dashboard/layout.
 
-   Esta página NO reemplaza al dashboard clásico (/dashboard) — es una
-   vista adicional que se linkea desde el menú para que el usuario explore
-   la personalización del layout.
+   FIX 2026-10-02 — Transversalidad con /dashboard:
+   Antes: 4 widgets placeholder ("próximamente"). Ahora: 10 widgets con
+   los MISMOS tipos (`data-widget-type`) que aparecen en el Resumen.
+   Cada widget aquí muestra datos reales (vía los mismos endpoints que
+   la home), de modo que lo que personalizas se refleja 1-a-1 en el home.
    ─────────────────────────────────────────────────────────────────────── #}
 
 <h1>Widgets personalizables</h1>
 <p class="sub">
-  Arrastra y redimensiona los widgets. Los cambios se guardan
-  automáticamente en este navegador (botón "Guardar layout").
+  Arrastra, redimensiona u oculta widgets. Los cambios se guardan en
+  tu dashboard (botón "Guardar layout") y se reflejan en
+  <a href="/dashboard">Resumen</a>.
 </p>
 
 <div id="layout-status" class="alert alert-info" style="display:none;"></div>
@@ -24,10 +28,11 @@
   <button id="gs-save" class="btn btn-primary btn-sm">💾 Guardar layout</button>
   <button id="gs-reset" class="btn btn-outline-secondary btn-sm">↺ Restaurar default</button>
   <span id="gs-meta" class="text-muted" style="margin-left: 12px;"></span>
+  <span id="gs-link-home" style="margin-left: 12px;"></span>
 </div>
 
 <!-- GridStack container: 12 columnas -->
-<div class="grid-stack">
+<div class="grid-stack" id="gs-container">
   {% for w in initial_widgets %}
   <div class="grid-stack-item"
        gs-id="{{ w.id }}"
@@ -37,17 +42,49 @@
        gs-h="{{ w.h }}"
        data-type="{{ w.type }}">
     <div class="grid-stack-item-content widget-{{ w.type }}">
-      <div class="widget-title">{{ w.type|capitalize }} — {{ w.id }}</div>
-      <div class="widget-body">
-        {# Contenido placeholder por tipo de widget. #}
-        {% if w.type == "stats" %}
-          <p>📊 Ventas, margen, clientes (próximamente).</p>
+      <div class="widget-title">{{ (w.type or w.id)|replace('_', ' ')|capitalize }}</div>
+      <div class="widget-body" id="widget-body-{{ w.id }}">
+        {# Contenido placeholder por tipo de widget — JS lo reemplaza con datos reales. #}
+        {% if w.type == "ai_brief" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando Daily Brief…</p>
+          </div>
+        {% elif w.type == "metrics" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando métricas…</p>
+          </div>
         {% elif w.type == "orders" %}
-          <p>📥 Pedidos en vivo (próximamente).</p>
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando pedidos…</p>
+          </div>
+        {% elif w.type == "opportunities" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando oportunidades…</p>
+          </div>
         {% elif w.type == "products" %}
-          <p>📦 Top productos (próximamente).</p>
-        {% elif w.type == "ai" %}
-          <p>🤖 Resumen IA del día (próximamente).</p>
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando productos…</p>
+          </div>
+        {% elif w.type == "performance" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando rendimiento…</p>
+          </div>
+        {% elif w.type == "activity" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando actividad…</p>
+          </div>
+        {% elif w.type == "ai_bar" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">WowHub AI</p>
+          </div>
+        {% elif w.type == "public_url" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Tu página pública</p>
+          </div>
+        {% elif w.type == "cta_widgets" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Personaliza tu dashboard</p>
+          </div>
         {% else %}
           <p>Widget {{ w.type }}.</p>
         {% endif %}
@@ -81,32 +118,19 @@
     padding-bottom: 4px;
   }
   .widget-body { font-size: 13px; color: #4b5563; }
+  .widget-placeholder p { margin: 4px 0; }
+  .widget-mini-list { list-style: none; padding: 0; margin: 0; font-size: 12px; }
+  .widget-mini-list li { padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
+  .widget-kpi { font-size: 22px; font-weight: 700; color: #1f2937; margin: 4px 0; }
+  .widget-kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
 </style>
 
 <script>
 (function () {
   "use strict";
 
-  // Inicializar GridStack.
-  // Nota: la API global ``GridStack`` viene del CDN ``gridstack-all.js``.
-  var grid = GridStack.init({
-    column: 12,
-    cellHeight: 70,
-    margin: 6,
-    float: false,
-    animate: true,
-    disableOneColumnMode: false,
-  }, document.querySelector(".grid-stack"));
-
-  var statusEl = document.getElementById("layout-status");
-  var metaEl = document.getElementById("gs-meta");
-
-  // FIX HU_34 — Token robusto.
-  // Antes: leíamos ``document.cookie`` con nombre ``access_token`` (incorrecto).
-  // La cookie real del server es ``wowhub_access_token`` Y es httpOnly, así
-  // que JS nunca puede leerla. Usamos el mismo patrón que el resto del
-  // dashboard (``WH.TokenStore`` con fallback a ``localStorage``) — así
-  // el PUT /api/v1/dashboard/layout pasa el guard JWT correctamente.
+  // FIX HU_34 — Token robusto desde WH.TokenStore/localStorage
+  // (la cookie wowhub_access_token es httpOnly → no accesible por JS).
   function getToken() {
     try {
       if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === "function") {
@@ -116,6 +140,20 @@
     } catch (_) {}
     return localStorage.getItem("wowhub_access_token") || "";
   }
+
+  // ── GridStack init ──
+  var grid = GridStack.init({
+    column: 12,
+    cellHeight: 80,
+    margin: 6,
+    float: false,
+    animate: true,
+    disableOneColumnMode: false,
+  }, document.getElementById("gs-container"));
+
+  var statusEl = document.getElementById("layout-status");
+  var metaEl = document.getElementById("gs-meta");
+  var linkHomeEl = document.getElementById("gs-link-home");
 
   function showStatus(msg, kind) {
     statusEl.className = "alert alert-" + (kind || "info");
@@ -127,10 +165,11 @@
   function refreshMeta() {
     var n = grid.engine.nodes.length;
     metaEl.textContent = n + " widget" + (n === 1 ? "" : "s") + " en el layout.";
+    linkHomeEl.innerHTML =
+      '<a href="/dashboard" class="btn btn-outline-primary btn-sm">Ver en Resumen →</a>';
   }
 
   function widgetsFromGrid() {
-    // Serializa cada nodo al contrato del backend.
     return grid.engine.nodes.map(function (n) {
       var el = n.el;
       return {
@@ -141,6 +180,7 @@
     });
   }
 
+  // ── Save ──
   document.getElementById("gs-save").addEventListener("click", function () {
     var widgets = widgetsFromGrid();
     var token = getToken();
@@ -161,7 +201,7 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     }).then(function (data) {
-      showStatus("Layout guardado (" + data.widgets.length + " widgets).", "success");
+      showStatus("Layout guardado (" + data.widgets.length + " widgets). Aplicado a Resumen ✓", "success");
     }).catch(function (err) {
       showStatus("Error guardando layout: " + err.message, "danger");
     });
@@ -172,7 +212,192 @@
     window.location.reload();
   });
 
+  // ── Carga de datos reales para cada widget type ──
+  // Reutiliza los mismos endpoints que /dashboard (transversalidad).
+  function loadWidgetData() {
+    var T = null;
+    try {
+      var tenant = (window.WH && WH.Auth) ? WH.Auth.tenant() : null;
+      if (tenant && tenant.tenant_id) T = tenant.tenant_id;
+    } catch (_) {}
+    if (!T) {
+      // fallback: leer del DOM
+      var m = (location.pathname || "").match(/\/tenants\/([0-9a-f-]{36})/i);
+      if (m) T = m[1];
+    }
+    if (!T) {
+      console.warn("[widgets] tenant_id no disponible; datos no se cargarán");
+      return;
+    }
+
+    // Render helpers
+    function htmlEscape(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    function fmtMoney(c) {
+      if (c == null) return "$0";
+      return "$" + Math.round(c / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    // ai_brief
+    var ai = document.getElementById("widget-body-ai_brief");
+    if (ai) {
+      WH.api.get("/api/v1/tenants/" + T + "/opportunities/daily-brief").then(function (d) {
+        if (!d) { ai.innerHTML = '<p class="text-muted">Sin datos</p>'; return; }
+        var stats = d.stats || {};
+        ai.innerHTML =
+          '<div class="widget-kpi">' + htmlEscape(d.greeting || "Hola") + '</div>' +
+          '<div style="font-size:12px;color:#6b7280;">' +
+            'Ventas hoy: ' + htmlEscape(stats.sales_today || "—") + '<br>' +
+            'Pedidos: ' + htmlEscape(stats.orders_today || "—") + '<br>' +
+            'Margen: ' + htmlEscape(stats.margin_pct != null ? Math.round(stats.margin_pct) + '%" : "—") +
+          '</div>';
+      }).catch(function (e) {
+        ai.innerHTML = '<p class="text-muted">Brief no disponible: ' + htmlEscape(e.message || "") + '</p>';
+      });
+    }
+
+    // metrics
+    var metr = document.getElementById("widget-body-metrics");
+    if (metr) {
+      Promise.allSettled([
+        WH.api.get("/api/v1/tenants/" + T + "/orders/today-summary"),
+        WH.api.get("/api/v1/tenants/" + T + "/analytics/sales-7d"),
+        WH.api.get("/api/v1/tenants/" + T + "/customers/stats?active_days=90"),
+        WH.api.get("/api/v1/tenants/" + T + "/insumos/stats"),
+      ]).then(function (r) {
+        var sales = r[0].status === "fulfilled" ? r[0].value : null;
+        var s7 = r[1].status === "fulfilled" ? r[1].value : null;
+        var cs = r[2].status === "fulfilled" ? r[2].value : null;
+        var is = r[3].status === "fulfilled" ? r[3].value : null;
+        var ventas = (s7 && s7.series) ? s7.series.reduce(function (a, s) { return a + (s.total_cents || 0); }, 0) : 0;
+        if (sales) ventas += (sales.total_cents || 0);
+        var cli = (cs && typeof cs.active_count === "number") ? cs.active_count : 0;
+        var stock = (is && is.total_stock_value_cents) ? is.total_stock_value_cents : 0;
+        metr.innerHTML =
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
+            '<div><div class="widget-kpi-label">Ventas mes</div><div class="widget-kpi">' + fmtMoney(ventas) + '</div></div>' +
+            '<div><div class="widget-kpi-label">Clientes</div><div class="widget-kpi">' + cli + '</div></div>' +
+            '<div><div class="widget-kpi-label">Stock</div><div class="widget-kpi">' + fmtMoney(stock) + '</div></div>' +
+            '<div><div class="widget-kpi-label">Margen</div><div class="widget-kpi">' +
+              ((s7 && s7.stats && s7.stats.margin_pct != null) ? Math.round(s7.stats.margin_pct) + "%" : "—") +
+            '</div></div>' +
+          '</div>';
+      });
+    }
+
+    // orders
+    var orders = document.getElementById("widget-body-orders");
+    if (orders) {
+      WH.api.get("/api/v1/tenants/" + T + "/orders?page_size=5&status=incoming").then(function (d) {
+        var items = (d && (d.items || d)) || [];
+        if (!Array.isArray(items) || items.length === 0) {
+          orders.innerHTML = '<p class="text-muted">Sin pedidos pendientes ✨</p>'; return;
+        }
+        orders.innerHTML = '<ul class="widget-mini-list">' +
+          items.slice(0, 5).map(function (o) {
+            return '<li>#' + htmlEscape(o.short_id || (o.id || "").slice(0,6)) +
+              ' — ' + fmtMoney(o.total_cents || 0) + '</li>';
+          }).join("") + '</ul>';
+      });
+    }
+
+    // opportunities
+    var opps = document.getElementById("widget-body-opportunities");
+    if (opps) {
+      WH.api.get("/api/v1/tenants/" + T + "/opportunities?limit=5").then(function (d) {
+        var items = (d && (d.items || d)) || [];
+        if (!items.length) {
+          opps.innerHTML = '<p class="text-muted">Sin oportunidades por ahora.</p>'; return;
+        }
+        opps.innerHTML = '<ul class="widget-mini-list">' +
+          items.slice(0, 5).map(function (o) {
+            return '<li>' + htmlEscape(o.title || o.kind || "Oportunidad") + '</li>';
+          }).join("") + '</ul>';
+      });
+    }
+
+    // products
+    var prods = document.getElementById("widget-body-products");
+    if (prods) {
+      WH.api.get("/api/v1/tenants/" + T + "/products?page_size=5&status=active&sort=margin").then(function (d) {
+        var items = (d && (d.items || d)) || [];
+        if (!items.length) {
+          prods.innerHTML = '<p class="text-muted">Sin productos activos.</p>'; return;
+        }
+        prods.innerHTML = '<ul class="widget-mini-list">' +
+          items.slice(0, 5).map(function (p) {
+            return '<li>' + htmlEscape(p.name || "—") + ' — ' + fmtMoney(p.margin_cents || p.total_cents || 0) + '</li>';
+          }).join("") + '</ul>';
+      });
+    }
+
+    // performance
+    var perf = document.getElementById("widget-body-performance");
+    if (perf) {
+      WH.api.get("/api/v1/tenants/" + T + "/analytics/sales-7d").then(function (d) {
+        if (!d || !d.series || !d.series.length) {
+          perf.innerHTML = '<p class="text-muted">Sin datos de rendimiento.</p>'; return;
+        }
+        perf.innerHTML = '<div style="display:flex;align-items:flex-end;gap:2px;height:60px;">' +
+          d.series.map(function (s) {
+            var max = d.series.reduce(function (a, b) { return Math.max(a, b.total_cents || 0); }, 0);
+            var h = max > 0 ? Math.max(2, (s.total_cents || 0) / max * 60) : 2;
+            return '<div title="' + (s.date || "") + ': ' + fmtMoney(s.total_cents || 0) +
+              '" style="flex:1;background:#3b82f6;height:' + h + 'px;border-radius:1px 1px 0 0;"></div>';
+          }).join("") + '</div>';
+      });
+    }
+
+    // activity
+    var act = document.getElementById("widget-body-activity");
+    if (act) {
+      WH.api.get("/api/v1/tenants/" + T + "/analytics/activity?limit=5").then(function (d) {
+        var items = (d && (d.items || d)) || [];
+        if (!items.length) {
+          act.innerHTML = '<p class="text-muted">Sin actividad reciente.</p>'; return; }
+        act.innerHTML = '<ul class="widget-mini-list">' +
+          items.slice(0, 5).map(function (a) {
+            return '<li>' + htmlEscape(a.title || a.type || "Actividad") + '</li>';
+          }).join("") + '</ul>';
+      });
+    }
+
+    // ai_bar
+    var aib = document.getElementById("widget-body-ai_bar");
+    if (aib) {
+      aib.innerHTML = '<a href="/dashboard/ai?context=opportunities" class="btn btn-primary btn-sm">Ver recomendaciones →</a>';
+    }
+
+    // public_url
+    var pu = document.getElementById("widget-body-public_url");
+    if (pu) {
+      try {
+        var tenant = WH.Auth.tenant();
+        if (tenant && tenant.tenant_slug) {
+          var u = location.origin + "/u/" + tenant.tenant_slug;
+          pu.innerHTML = '<a href="' + u + '" target="_blank" class="widget-kpi" style="font-size:14px;">' + u + '</a>';
+        } else {
+          pu.innerHTML = '<p class="text-muted">Sin tenant</p>';
+        }
+      } catch (e) {
+        pu.innerHTML = '<p class="text-muted">No se pudo resolver</p>';
+      }
+    }
+
+    // cta_widgets
+    var cta = document.getElementById("widget-body-cta_widgets");
+    if (cta) {
+      cta.innerHTML =
+        '<p style="margin:0 0 6px 0;">Reordena, agranda u oculta widgets a tu gusto.</p>' +
+        '<a href="/dashboard" class="btn btn-outline-primary btn-sm">Ver en Resumen →</a>';
+    }
+  }
+
   refreshMeta();
+  loadWidgetData();
 })();
 </script>
 
