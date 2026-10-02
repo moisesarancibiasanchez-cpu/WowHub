@@ -27,44 +27,73 @@ def send_campaign(
 ) -> dict:
     """Send email campaign in background.
 
+    FIX 2026-10: antes era un bucle que solo incrementaba ``sent`` sin
+    enviar nada. Ahora:
+      1) Abre sesion de DB y carga Customer por id
+      3) Llama ``send_single_email.send()`` por recipient_id
+      4) Devuelve sent/failed contadores reales
+
+    Para leer el objeto Campaign y renderizar la plantilla Jinja2 desde la
+    DB, ver follow-up. Aqui asumimos subject/body_html ya resueltos.
+
     Args:
         campaign_id: UUID del objeto Campaign en la DB.
-        recipient_ids: Lista de IDs de clientes (Customer.id) a quienes enviar.
-        subject: Override del asunto (opcional, se lee de la campaña si no se pasa).
+        recipient_ids: Lista de IDs de clientes (Customer.id) a enviar.
+        subject: Override del asunto (opcional).
         body_html: Override del cuerpo HTML (opcional).
 
     Returns:
         Dict con campaign_id, enviados, fallidos.
     """
     logger.info(
-        "send_campaign started — campaign=%s, recipients=%d",
+        "send_campaign started - campaign=%s, recipients=%d",
         campaign_id,
         len(recipient_ids),
     )
     try:
-        # TODO: integrar con email_service.py real del tenant
-        # 1. Leer campaña de la DB (campaign_id)
-        # 2. Para cada recipient_id → resolver email
-        # 3. Renderizar plantilla con datos del cliente
-        # 4. Enviar vía el email provider configurado
-        # 5. Registrar delivery en notifications
+        from app.database import SessionLocal
+        from app.models.customer import Customer
+
         sent = 0
         failed = 0
 
-        # Placeholder — reemplazar con lógica real:
-        for rid in recipient_ids:
-            try:
-                # _send_single_email(rid, campaign_id, subject, body_html)
-                sent += 1
-            except Exception:
-                failed += 1
+        eff_subject = subject or ("WowHub - Campana " + campaign_id[:8])
+        eff_body = body_html or "<p>Hola! Gracias por ser parte de WowHub.</p>"
+
+        with SessionLocal() as db:
+            for rid in recipient_ids:
+                try:
+                    customer = db.get(Customer, rid)
+                    if not customer or not getattr(customer, "email", None):
+                        failed += 1
+                        continue
+                    send_single_email.send(
+                        to_email=customer.email,
+                        subject=eff_subject,
+                        body_html=eff_body,
+                        body_text=None,
+                        tenant_id=getattr(customer, "tenant_id", None),
+                    )
+                    sent += 1
+                except Exception as exc:  # noqa: BLE001 - defensivo
+                    logger.warning(
+                        "send_campaign - fallo envio a customer=%s: %s",
+                        rid, exc,
+                    )
+                    failed += 1
 
         result = {"campaign_id": campaign_id, "sent": sent, "failed": failed}
-        logger.info("send_campaign done — campaign=%s, sent=%d, failed=%d", campaign_id, sent, failed)
+        logger.info(
+            "send_campaign done - campaign=%s, sent=%d, failed=%d",
+            campaign_id, sent, failed,
+        )
         return result
 
     except Exception as exc:
-        logger.error("send_campaign failed — campaign=%s, error=%s", campaign_id, exc)
+        logger.error(
+            "send_campaign failed - campaign=%s, error=%s",
+            campaign_id, exc,
+        )
         raise self.retry(exc=exc, countdown=60)
 
 
@@ -119,10 +148,14 @@ def send_bulk_raw(
 ) -> dict:
     """Send the same email to a list of recipients (raw version, no campaign tracking).
 
+    FIX 2026-10: antes era placeholder que solo renderizaba el template y
+    descartaba el resultado. Ahora envia via ``EmailService`` por cada
+    recipient (mismo backend que ``send_single_email``).
+
     Args:
         tenant_id: ID del tenant.
         recipients: Lista de dicts [{email, name, vars}, ...].
-        subject: Asunto común.
+        subject: Asunto comun.
         body_html: Cuerpo HTML (soporta {{variable}} Jinja2).
 
     Returns:
@@ -130,19 +163,46 @@ def send_bulk_raw(
     """
     from jinja2 import Template
 
-    logger.info("send_bulk_raw — tenant=%d, recipients=%d", tenant_id, len(recipients))
+    logger.info(
+        "send_bulk_raw - tenant=%d, recipients=%d",
+        tenant_id, len(recipients),
+    )
+
     sent = 0
     failed = 0
     tmpl = Template(body_html)
 
+    # Lazy import: EmailService carga SMTP/Resend/etc. que pueden no estar
+    # disponibles en CI. Se importa una sola vez.
+    from app.services.email_service import EmailService
+    svc = EmailService()
+
     for r in recipients:
+        to_email = r.get("email") if isinstance(r, dict) else None
+        if not to_email:
+            failed += 1
+            continue
         try:
-            rendered = tmpl.render(**(r.get("vars", {})))
-            # TODO: call real email service
-            _ = rendered  # placeholder
-            sent += 1
-        except Exception:
+            rendered = tmpl.render(**(r.get("vars", {}) if isinstance(r, dict) else {}))
+            ok = svc._backend_send_sync(
+                to=to_email,
+                subject=subject,
+                html=rendered,
+                text=None,
+            )
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+        except Exception as exc:  # noqa: BLE001 - defensivo
+            logger.warning(
+                "send_bulk_raw - fallo envio a %s: %s",
+                to_email, exc,
+            )
             failed += 1
 
-    logger.info("send_bulk_raw done — sent=%d, failed=%d", sent, failed)
+    logger.info(
+        "send_bulk_raw done - tenant=%d, sent=%d, failed=%d",
+        tenant_id, sent, failed,
+    )
     return {"tenant_id": tenant_id, "sent": sent, "failed": failed}
