@@ -1,10 +1,27 @@
 """AuditLog: registro inmutable de acciones para compliance y debugging."""
+from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, Index, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import BaseModel, TenantMixin
+from app.models.base import GUID, BaseModel, TenantMixin
+
+
+def _utcnow_microsecond() -> datetime:
+    """Default Python-side para ``created_at`` con precisión de microsegundo.
+
+    Heredamos ``TimestampMixin.created_at`` con ``server_default=func.now()``,
+    pero eso da precisión de **segundo** en SQLite (``CURRENT_TIMESTAMP``),
+    lo que rompe el orden del hash chain cuando hay varios inserts en el
+    mismo segundo (p.ej. tests, webhooks en ráfaga). En PostgreSQL
+    ``func.now()`` ya devuelve microsegundos, pero tener el default
+    Python-side hace el comportamiento uniforme y robusto entre dialectos.
+
+    El modelo sigue aceptando ``server_default`` para migraciones existentes
+    en PG (el default Python toma precedencia al hacer INSERT desde la app).
+    """
+    return datetime.now(timezone.utc)
 
 
 class AuditLog(BaseModel, TenantMixin):
@@ -17,6 +34,30 @@ class AuditLog(BaseModel, TenantMixin):
         Index("ix_audit_tenant_created_id", "tenant_id", "created_at", "id"),
         Index("ix_audit_prev_hash", "prev_hash"),
         Index("ix_audit_current_hash", "current_hash"),
+    )
+
+    # HU_40 — created_at con default Python-side microsegundo (ver docstring).
+    # Sobrescribe el server_default heredado de TimestampMixin sólo para esta
+    # tabla; el resto de modelos sigue usando ``func.now()``.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utcnow_microsecond,
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    # HU_40 v1.1 (2026-10-02) — ``tenant_id`` es NULLABLE para auditoría de
+    # eventos de sistema que no pertenecen a ningún tenant (login, logout,
+    # password reset, email verification, register sin ``create_tenant``).
+    # Mantenemos la FK a ``tenants.id`` y el index para queries cross-tenant.
+    # El superadmin list query usa ``tenant_id IS NULL OR tenant_id = X``
+    # para incluir eventos globales. La migración de NOT NULL → NULL se
+    # gestiona en la migración ``2026_10_02_0003_audit_tenant_nullable``.
+    tenant_id: Mapped[Optional[str]] = mapped_column(
+        GUID(),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
 
     actor_user_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)

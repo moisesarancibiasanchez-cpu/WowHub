@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.models.audit import AuditLog
@@ -9,6 +10,25 @@ from app.models.user import User
 from app.services import audit_chain
 
 logger = logging.getLogger("wowhub.audit")
+
+
+def request_meta(request: Optional[Request]) -> tuple[Optional[str], Optional[str]]:
+    """Extrae ``(ip, user_agent)`` del request para auditoría.
+
+    - IP: ``request.client.host`` si está disponible, con override por
+      ``X-Forwarded-For`` (primer valor, ya que puede traer ``client, proxy1,
+      proxy2``). Esto es importante porque WowHub se deploya detrás de
+      Railway/Render/etc. que inyectan XFF.
+    - UA: truncado a 500 chars (igual que la columna ``user_agent`` del modelo).
+    """
+    if request is None:
+        return None, None
+    ip = request.client.host if request.client else None
+    xff = request.headers.get("X-Forwarded-For") if request else None
+    if xff:
+        ip = xff.split(",")[0].strip()
+    ua = (request.headers.get("user-agent", "") or "")[:500]
+    return ip, ua
 
 
 class AuditService:

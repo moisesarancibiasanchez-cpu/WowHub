@@ -1,4 +1,5 @@
 """Auth endpoints: register, login, refresh, me, switch tenant."""
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request, Response
@@ -14,9 +15,12 @@ from app.models.user import User
 from app.schemas.auth import (
     MembershipOut, TokenPair, TokenRefresh, UserCreate, UserLogin, UserOut, UserUpdate,
 )
+from app.services.audit_service import AuditService, request_meta
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+logger = logging.getLogger("wowhub.auth")
 
 
 # ── Cookie helpers ─────────────────────────────────────────
@@ -46,7 +50,7 @@ def _clear_access_cookie(response: Response) -> None:
 
 
 @router.post("/register", response_model=TokenPair, status_code=201)
-def register(payload: UserCreate, response: Response, db: Session = Depends(get_db)):
+def register(payload: UserCreate, request: Request, response: Response, db: Session = Depends(get_db)):
     """Registro de usuario. Si `create_tenant=true`, crea también un tenant
     con el usuario como OWNER."""
     svc = AuthService(db)
@@ -67,6 +71,27 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
             tenant_slug=t.slug,
             tenant_display_name=t.display_name,
         )
+    # HU_40 — Auditoría de auth.register (best-effort). Si falla, no rompemos el flow.
+    try:
+        _ip, _ua = request_meta(request)
+        AuditService(db).log(
+            tenant_id=str(membership.tenant_id) if membership else None,
+            actor=user,
+            action="auth.register",
+            resource_type="user",
+            resource_id=str(user.id),
+            method="POST",
+            path=request.url.path,
+            ip=_ip,
+            user_agent=_ua,
+            status_code=201,
+            description=(
+                f"Registro de {user.email}" + (" + tenant creado" if tenant else "")
+            ),
+            extra={"create_tenant": bool(payload.create_tenant)},
+        )
+    except Exception as exc:  # pragma: no cover — defensivo
+        logger.warning("auth.register audit log failed: %s", exc)
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
@@ -77,7 +102,7 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
 
 
 @router.post("/login", response_model=TokenPair)
-def login(payload: UserLogin, response: Response, db: Session = Depends(get_db)):
+def login(payload: UserLogin, request: Request, response: Response, db: Session = Depends(get_db)):
     svc = AuthService(db)
     user, current, _memberships = svc.login(payload.email, payload.password)
     access, refresh, ttl = svc.issue_tokens(user, current)
@@ -96,6 +121,25 @@ def login(payload: UserLogin, response: Response, db: Session = Depends(get_db))
             tenant_slug=t.slug,
             tenant_display_name=t.display_name,
         )
+    # HU_40 — Auditoría de auth.login (best-effort).
+    try:
+        _ip, _ua = request_meta(request)
+        AuditService(db).log(
+            tenant_id=str(current.tenant_id) if current else None,
+            actor=user,
+            action="auth.login",
+            resource_type="user",
+            resource_id=str(user.id),
+            method="POST",
+            path=request.url.path,
+            ip=_ip,
+            user_agent=_ua,
+            status_code=200,
+            description=f"Login de {user.email}",
+            extra={"email": user.email},
+        )
+    except Exception as exc:  # pragma: no cover — defensivo
+        logger.warning("auth.login audit log failed: %s", exc)
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
@@ -107,6 +151,7 @@ def login(payload: UserLogin, response: Response, db: Session = Depends(get_db))
 
 @router.post("/login/form", response_model=TokenPair, include_in_schema=False)
 def login_form(
+    request: Request,
     response: Response,
     username: str = Form(...),
     password: str = Form(...),
@@ -133,6 +178,26 @@ def login_form(
             tenant_slug=t.slug,
             tenant_display_name=t.display_name,
         )
+    # HU_40 — Auditoría de auth.login_form (mismo evento que /login, pero
+    # etiquetado distinto para distinguir el flujo OAuth2/Swagger).
+    try:
+        _ip, _ua = request_meta(request)
+        AuditService(db).log(
+            tenant_id=str(current.tenant_id) if current else None,
+            actor=user,
+            action="auth.login_form",
+            resource_type="user",
+            resource_id=str(user.id),
+            method="POST",
+            path=request.url.path,
+            ip=_ip,
+            user_agent=_ua,
+            status_code=200,
+            description=f"Login (form OAuth2) de {user.email}",
+            extra={"email": user.email, "via": "oauth2_password_form"},
+        )
+    except Exception as exc:  # pragma: no cover — defensivo
+        logger.warning("auth.login_form audit log failed: %s", exc)
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
@@ -172,10 +237,33 @@ def refresh(payload: TokenRefresh, response: Response, db: Session = Depends(get
 
 
 @router.post("/logout", include_in_schema=False)
-def logout(response: Response):
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     """Cierra sesión: limpia la cookie httpOnly. El JS también debe limpiar
-    localStorage. Idempotente (se puede llamar aunque no haya sesión)."""
+    localStorage. Idempotente (se puede llamar aunque no haya sesión).
+
+    HU_40 — audita ``auth.logout`` con IP/UA pero sin actor (no leemos el JWT
+    en este endpoint — el cliente simplemente descarta el token). Esto
+    permite trazabilidad de eventos de cierre de sesión a nivel forense.
+    """
     _clear_access_cookie(response)
+    try:
+        _ip, _ua = request_meta(request)
+        AuditService(db).log(
+            tenant_id=None,  # sin contexto de tenant — el token ya fue descartado
+            actor=None,
+            action="auth.logout",
+            resource_type="session",
+            resource_id=None,
+            method="POST",
+            path=request.url.path,
+            ip=_ip,
+            user_agent=_ua,
+            status_code=200,
+            description="Logout (cierre de sesión)",
+            extra={},
+        )
+    except Exception as exc:  # pragma: no cover — defensivo
+        logger.warning("auth.logout audit log failed: %s", exc)
     return {"ok": True}
 
 
