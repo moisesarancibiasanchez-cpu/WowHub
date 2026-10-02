@@ -218,16 +218,32 @@
 
   // ── Carga de datos reales para cada widget type ──
   // Reutiliza los mismos endpoints que /dashboard (transversalidad).
-  function loadWidgetData() {
+  // FIX 2026-10-02d — loadWidgetData debe esperar a WH.Auth.ensureSession().
+  // Antes: llamaba WH.Auth.tenant() directamente, pero el base.html aún no
+  // había hidratado el tenant desde /api/v1/auth/me/session. Resultado:
+  // T = null → "tenant_id no disponible" → no se cargaba nada.
+  // Ahora: await ensureSession() (que resuelve con {user, tenant}) y
+  // fallback a tenant()/localStorage si por alguna razón esa promesa
+  // no está disponible.
+  async function loadWidgetData() {
     var T = null;
     try {
-      var tenant = (window.WH && WH.Auth) ? WH.Auth.tenant() : null;
-      if (tenant && tenant.tenant_id) T = tenant.tenant_id;
+      if (window.WH && window.WH.Auth && typeof window.WH.Auth.ensureSession === "function") {
+        const s = await window.WH.Auth.ensureSession();
+        if (s && s.tenant && s.tenant.tenant_id) T = s.tenant.tenant_id;
+      }
     } catch (_) {}
+    if (!T && window.WH && window.WH.Auth) {
+      try {
+        var t = window.WH.Auth.tenant();
+        if (t && t.tenant_id) T = t.tenant_id;
+      } catch (_) {}
+    }
     if (!T) {
-      // fallback: leer del DOM
-      var m = (location.pathname || "").match(/\/tenants\/([0-9a-f-]{36})/i);
-      if (m) T = m[1];
+      try {
+        var tok = window.WH && window.WH.TokenStore ? window.WH.TokenStore.get() : null;
+        if (tok && tok.current_tenant && tok.current_tenant.tenant_id) T = tok.current_tenant.tenant_id;
+      } catch (_) {}
     }
     if (!T) {
       console.warn("[widgets] tenant_id no disponible; datos no se cargarán");
