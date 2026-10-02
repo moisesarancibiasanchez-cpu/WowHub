@@ -192,10 +192,61 @@
   const pendingEl   = document.getElementById('kds-pending');
   const stationBtns = document.querySelectorAll('.kds-station-btn');
 
-  let allOrders   = [];
+  let allOrders     = [];
   let activeStation = 'all';
-  let prevCount  = 0;
-  let tickTimers = {};  // id → setInterval id
+  let prevCount     = 0;
+  let currentTenant = null;
+
+  // ── Helpers ─────────────────────────────────────────────────────
+  // Estados terminales que NO deben aparecer en la cola KDS.
+  // HU_21: el server filtra por status in (recibido, confirmado,
+  // en_preparacion) pero el cliente debe defenderse también por si
+  // un endpoint nuevo o un PATCH local inyecta un pedido listo.
+  const TERMINAL_STATUSES = new Set(['listo', 'entregado', 'pagado', 'cancelado', 'LISTO', 'ENTREGADO', 'CANCELADO']);
+
+  function isActive(status) {
+    return !TERMINAL_STATUSES.has(status);
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[c]);
+  }
+
+  // ── Auth helper ─────────────────────────────────────────────────
+  // Usa WH.api si está disponible (inyecta Bearer del TokenStore),
+  // sino cae a fetch con Authorization manual.
+  function getAuthHeaders() {
+    try {
+      const tk = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
+        || localStorage.getItem('wowhub_access_token');
+      if (tk) return { 'Authorization': 'Bearer ' + tk };
+    } catch (_) {}
+    return {};
+  }
+
+  async function apiGet(url) {
+    if (window.WH && window.WH.api && typeof window.WH.api.get === 'function') {
+      return window.WH.api.get(url);
+    }
+    const r = await fetch(url, { headers: getAuthHeaders() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+
+  async function apiPost(url, body) {
+    if (window.WH && window.WH.api && typeof window.WH.api.post === 'function') {
+      return window.WH.api.post(url, body || {});
+    }
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
 
   // ── Audio beep ──────────────────────────────────────────────────
   function beep() {
@@ -254,16 +305,17 @@
   }
 
   // ── Status badge ─────────────────────────────────────────────────
+  // HU_21: el server emite los estados en lowercase español
+  // (recibido, confirmado, en_preparacion, listo) según OrderStatus.
   function statusBadge(status) {
     const map = {
-      RECIBIDO:         { cls: 'status-recibido',         label: 'RECIBIDO' },
-      EN_PREPARACION:   { cls: 'status-en_preparacion',  label: 'EN COCINA' },
-      LISTO:            { cls: 'status-listo',            label: 'LISTO' },
-      EN_PREPARACION:        { cls: 'status-en_preparacion',  label: 'EN COCINA' },
-      RECIBIDO:          { cls: 'status-recibido',         label: 'RECIBIDO' },
+      'recibido':        { cls: 'status-recibido',        label: 'RECIBIDO' },
+      'confirmado':      { cls: 'status-confirmado',      label: 'CONFIRMADO' },
+      'en_preparacion':  { cls: 'status-en_preparacion',  label: 'EN COCINA' },
+      'listo':           { cls: 'status-listo',           label: 'LISTO' },
     };
-    const s = map[status] || { cls: 'status-recibido', label: status || '??' };
-    return `<span class="kds-order-status ${s.cls}">${s.label}</span>`;
+    const s = map[status] || { cls: 'status-recibido', label: status || '—' };
+    return `<span class="kds-order-status ${s.cls}">${escapeHtml(s.label)}</span>`;
   }
 
   // ── "Mark Ready" with accidental tap prevention ──────────────────
@@ -282,16 +334,9 @@
         btn.textContent = '⏳ Actualizando…';
         btn.disabled = true;
         try {
-          await fetch(`/api/v1/orders/${orderId}/status`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-tenant-id': window.__TENANT_ID__ || '',
-              'x-user-id':   window.__USER_ID__   || '',
-              'x-role':      window.__ROLE__      || 'owner',
-            },
-            body: JSON.stringify({ status: 'LISTO' }),
-          });
+          // HU_21 — endpoint dedicado del KDS. El server valida
+          // membresía y transiciona EN_PREPARACION → LISTO (idempotente).
+          await apiPost(`/api/v1/tenants/${currentTenant}/kds/orders/${orderId}/ready`, {});
           btn.textContent = '✓ Listo!';
           // Auto-remove card after 3s
           setTimeout(() => {
@@ -322,11 +367,12 @@
   // ── Render ───────────────────────────────────────────────────────
   function render() {
     const filtered = allOrders.filter(o => {
+      if (!isActive(o.status)) return false;
       if (activeStation === 'all') return true;
       return (o.station || 'all') === activeStation;
     });
 
-    // Sort oldest first
+    // Sort oldest first (FIFO)
     filtered.sort((a, b) => {
       const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
       const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -334,7 +380,6 @@
     });
 
     // Keep empty sentinel
-    const sentinel = grid.querySelector('.kds-empty') || emptyEl;
     grid.innerHTML = '';
     if (filtered.length === 0) {
       grid.appendChild(emptyEl);
@@ -344,37 +389,44 @@
     emptyEl.style.display = 'none';
 
     filtered.forEach((order, idx) => {
-      const mins = elapsed(order.created_at);
+      // HU_21 — preferir age_minutes del server (UTC) si está disponible;
+      // fallback al cálculo local si la respuesta no lo trae (back-compat).
+      const mins = (typeof order.age_minutes === 'number')
+        ? order.age_minutes
+        : elapsed(order.created_at);
       const cls = timerClass(mins);
       const isNew = idx === 0 && mins < 1;
 
       const card = document.createElement('div');
       card.className = `kds-card${isNew ? ' t-new' : ''}`;
-      card.dataset.orderId = order.id;
+      card.dataset.orderId = order.order_id || order.id;
 
       const items = (order.items || [])
         .map(item => `
           <li class="kds-item">
-            <span class="kds-item-qty">${item.quantity ?? 1}x</span>
-            <span class="kds-item-name">${item.product_name || item.name || '—'}</span>
-            ${item.options && Object.keys(item.options).length ? `<span class="kds-item-ops">${Object.entries(item.options).map(([k,v]) => `${k}: ${v}`).join(', ')}</span>` : ''}
+            <span class="kds-item-qty">${escapeHtml(item.quantity ?? 1)}x</span>
+            <span class="kds-item-name">${escapeHtml(item.product_name || item.name || '—')}</span>
+            ${item.options && Object.keys(item.options).length ? `<span class="kds-item-ops">${escapeHtml(Object.entries(item.options).map(([k,v]) => `${k}: ${v}`).join(', '))}</span>` : ''}
           </li>`)
         .join('');
 
+      // El backend ahora emite `order_number` (no `number`).
+      const orderNum = order.order_number || order.number || (order.id || '').slice(-4) || (idx + 1);
+
       card.innerHTML = `
-        <span class="kds-card-timer ${cls}">${fmtMins(mins)}</span>
+        <span class="kds-card-timer ${cls}">${escapeHtml(fmtMins(mins))}</span>
         <div class="kds-card-header">
-          <span class="kds-order-num">#${order.number || order.id?.slice(-4) || idx + 1}</span>
+          <span class="kds-order-num">#${escapeHtml(orderNum)}</span>
           ${statusBadge(order.status)}
         </div>
-        <span class="kds-card-time">${order.created_at ? new Date(order.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-        ${order.station ? `<span class="kds-station-badge">${order.station.replace(/_/g, ' ')}</span>` : ''}
+        <span class="kds-card-time">${order.created_at ? escapeHtml(new Date(order.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })) : ''}</span>
+        ${order.station ? `<span class="kds-station-badge">${escapeHtml(String(order.station).replace(/_/g, ' '))}</span>` : ''}
         <ul class="kds-card-items">${items}</ul>
       `;
 
-      // Only show ready button if in kitchen (not ready yet)
-      if (order.status !== 'LISTO' && order.status !== 'LISTO' && order.status !== 'ready') {
-        card.appendChild(makeReadyBtn(order.id));
+      // Sólo mostrar botón LISTO si el pedido sigue activo.
+      if (isActive(order.status)) {
+        card.appendChild(makeReadyBtn(order.order_id || order.id));
       }
 
       grid.appendChild(card);
@@ -383,10 +435,12 @@
 
   // ── Stats ────────────────────────────────────────────────────────
   function refreshStats() {
-    const activeOrders = allOrders.filter(o => o.status !== 'LISTO' && o.status !== 'LISTO' && o.status !== 'ready');
+    const activeOrders = allOrders.filter(o => isActive(o.status));
     pendingEl.textContent = activeOrders.length;
 
-    const times = activeOrders.map(o => elapsed(o.created_at)).filter(t => t >= 0);
+    const times = activeOrders
+      .map(o => (typeof o.age_minutes === 'number') ? o.age_minutes : elapsed(o.created_at))
+      .filter(t => t >= 0);
     if (times.length > 0) {
       const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
       avgTimeEl.textContent = fmtMins(avg);
@@ -406,9 +460,12 @@
   // ── Timer ticker: update minutes on all cards ───────────────────
   function tickTimers() {
     grid.querySelectorAll('.kds-card').forEach(card => {
-      const order = allOrders.find(o => o.id === card.dataset.orderId);
+      const orderId = card.dataset.orderId;
+      const order = allOrders.find(o => (o.order_id || o.id) === orderId);
       if (!order) return;
-      const mins = elapsed(order.created_at);
+      const mins = (typeof order.age_minutes === 'number')
+        ? order.age_minutes
+        : elapsed(order.created_at);
       const timerEl = card.querySelector('.kds-card-timer');
       if (timerEl) {
         timerEl.textContent = fmtMins(mins);
@@ -419,21 +476,25 @@
   }
 
   // ── Poll orders ─────────────────────────────────────────────────
+  async function resolveTenant() {
+    if (currentTenant) return currentTenant;
+    // El primer poll debe conocer el tenant actual del usuario.
+    // FIX 2026-10-02 — antes se leía window.__TENANT_ID__ que nunca
+    // se definía, por lo que el endpoint fallaba con 403 silencioso.
+    const ms = await apiGet('/api/v1/me/memberships');
+    if (!ms || !ms.length) throw new Error('No perteneces a ningún negocio.');
+    currentTenant = ms[0].tenant_id || (ms[0].id && ms[0].id.split(':')[0]);
+    return currentTenant;
+  }
+
   async function poll() {
     try {
-      const res = await fetch('/api/v1/orders?status=EN_PREPARACION,RECIBIDO&limit=50', {
-        headers: {
-          'x-tenant-id': window.__TENANT_ID__ || '',
-          'x-user-id':   window.__USER_ID__   || '',
-          'x-role':      window.__ROLE__      || 'owner',
-        },
-      });
-      if (!res.ok) return;
-      const orders = await res.json();
-      const newCount = Array.isArray(orders) ? orders.length : (orders.data?.length ?? 0);
-      const incoming = Array.isArray(orders) ? orders : (orders.data ?? []);
+      if (!currentTenant) await resolveTenant();
+      const queueUrl = `/api/v1/tenants/${currentTenant}/kds/queue`;
+      const data = await apiGet(queueUrl);
+      const incoming = (data && Array.isArray(data.queue)) ? data.queue : [];
 
-      // New orders?
+      // New orders? (sonido beep)
       if (incoming.length > prevCount) {
         beep();
       }

@@ -38,6 +38,7 @@ from app.api.v1 import (
     # HU_12 / HU_17 / HU_19 / HU_29 — features nuevas
     variants,          # HU_12 — variantes y modificadores de producto
     order_events,      # HU_17 — timeline del pedido
+    kds,               # HU_21 — KDS (Kitchen Display System) / cola de cocina
     dining_sessions,   # HU_19 — mesero virtual / cuenta dividida
     loyalty_tiers,     # HU_29 — tiers de fidelidad
     sii,               # HU_32 — SII Chile (Libro de Ventas + validador RUT)
@@ -236,6 +237,8 @@ app.include_router(plugins.router, prefix="/api/v1")
 app.include_router(variants.router, prefix="/api/v1")
 # HU_17 — Timeline del pedido (OrderEvent)
 app.include_router(order_events.router, prefix="/api/v1")
+# HU_21 — KDS (Kitchen Display System) — cola de pedidos activos
+app.include_router(kds.router, prefix="/api/v1")
 # HU_19 — Mesero virtual / cuenta dividida (DiningSession)
 app.include_router(dining_sessions.router, prefix="/api/v1")
 # HU_29 — Tiers de fidelidad (Bronce / Plata / Oro / Platino)
