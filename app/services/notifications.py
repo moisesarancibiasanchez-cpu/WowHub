@@ -166,17 +166,42 @@ class NotificationsEngine:
 
         Orden: severidad ascendente (``critical`` primero), dentro de cada
         severidad por ``detected_at`` descendente (más recientes primero).
+
+        FIX 2026-10-02 — Resiliencia: cada regla se ejecuta dentro de un
+        try/except para que una regla que falle (suele ser incompatibilidad
+        cross-DB SQLite/PG, p.ej. comparación UUID vs string, o un valor
+        tz-naive en un cálculo tz-aware) NO tumbe el endpoint entero.
+        Antes: cualquier excepción se propagaba → HTTP 500 para todo el
+        bell badge. Ahora: la regla rota devuelve [] y se loggea el error
+        para diagnóstico. Esto es defensa en profundidad — la causa raíz
+        debe corregirse en cada regla individual.
         """
+        import logging, traceback
+        _log = logging.getLogger("wowhub.notifications")
+
+        def _safe(name: str, fn):
+            try:
+                return fn()
+            except Exception as exc:
+                _log.warning(
+                    "notifications: rule %s failed (%s) — %s",
+                    name, type(exc).__name__, exc,
+                )
+                # Enviamos el traceback completo a Railway logs
+                _log.debug("notifications: %s traceback:\n%s",
+                           name, name, traceback.format_exc())
+                return []
+
         all_notifs: list[Notification] = []
-        all_notifs.extend(self._rule_costs_not_configured())
-        all_notifs.extend(self._rule_high_cost_hour())
-        all_notifs.extend(self._rule_critical_margin())
-        all_notifs.extend(self._rule_low_margin())
-        all_notifs.extend(self._rule_pricing_below_suggested())
-        all_notifs.extend(self._rule_out_of_stock())
-        all_notifs.extend(self._rule_low_stock())
-        all_notifs.extend(self._rule_pending_orders_old())
-        all_notifs.extend(self._rule_system())
+        all_notifs.extend(_safe("costs_not_configured", self._rule_costs_not_configured))
+        all_notifs.extend(_safe("high_cost_hour", self._rule_high_cost_hour))
+        all_notifs.extend(_safe("critical_margin", self._rule_critical_margin))
+        all_notifs.extend(_safe("low_margin", self._rule_low_margin))
+        all_notifs.extend(_safe("pricing_below_suggested", self._rule_pricing_below_suggested))
+        all_notifs.extend(_safe("out_of_stock", self._rule_out_of_stock))
+        all_notifs.extend(_safe("low_stock", self._rule_low_stock))
+        all_notifs.extend(_safe("pending_orders_old", self._rule_pending_orders_old))
+        all_notifs.extend(_safe("system", self._rule_system))
 
         # 1) agrupar por severidad preservando el orden natural
         by_sev: dict[str, list[Notification]] = {s: [] for s in SEVERITIES}

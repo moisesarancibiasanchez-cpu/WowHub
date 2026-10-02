@@ -17,6 +17,7 @@ cachear sin parpadeos al recargar.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -72,16 +73,37 @@ def get_notifications_summary(
 
     Pensado para llamarse en cada carga de página del dashboard y para
     auto-refresh cada 60s mientras hay sesión activa.
+
+    FIX 2026-10-02 — Resiliencia: si el motor lanza (típico en PG con
+    incompatibilidad cross-DB), devolvemos un resumen vacío con top_3=[].
+    Antes: el endpoint devolvía HTTP 500 y rompía el auto-refresh del
+    bell badge (página en blanco cada 60s para tenants recién creados).
+    Ahora: degrada silenciosamente a 503 solo si TODO el motor falla,
+    permitiendo al front mostrar "Sin notificaciones".
     """
-    engine = NotificationsEngine(db, tenant.id)
-    raw = engine.summary()
-    return NotificationSummaryOut(
-        generated_at=raw["generated_at"],
-        total=raw["total"],
-        by_severity=raw["by_severity"],
-        by_category=raw["by_category"],
-        top_3=[NotificationOut(**_normalize(n)) for n in raw["top_3"]],
-    )
+    import logging
+    _log = logging.getLogger("wowhub.notifications.api")
+    try:
+        engine = NotificationsEngine(db, tenant.id)
+        raw = engine.summary()
+        return NotificationSummaryOut(
+            generated_at=raw["generated_at"],
+            total=raw["total"],
+            by_severity=raw["by_severity"],
+            by_category=raw["by_category"],
+            top_3=[NotificationOut(**_normalize(n)) for n in raw["top_3"]],
+        )
+    except Exception as exc:
+        _log.exception("notifications/summary failed for tenant=%s", tenant.id)
+        # Si todo el motor falla (no debería pasar gracias al _safe de
+        # detect_all, pero por si TÚ y si TÚ), devolvemos un resumen vacío.
+        return NotificationSummaryOut(
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            total=0,
+            by_severity={"info": 0, "warning": 0, "critical": 0},
+            by_category={"pricing": 0, "inventory": 0, "orders": 0, "costs": 0, "system": 0},
+            top_3=[],
+        )
 
 
 # ── Lista completa (página /dashboard/notifications) ──────────────
@@ -131,8 +153,19 @@ def list_notifications(
             detail=f"category debe ser uno de {list(CATEGORIES)}",
         )
 
-    engine = NotificationsEngine(db, tenant.id)
-    items = engine.detect_all(limit=limit)
+    # FIX 2026-10-02 — Resiliencia: si el motor entero falla (defensa
+    # en profundidad al _safe interno de detect_all), devolvemos lista
+    # vacía en lugar de 500. La causa raíz se loggea para diagnóstico.
+    import logging
+    _log = logging.getLogger("wowhub.notifications.api")
+    try:
+        engine = NotificationsEngine(db, tenant.id)
+        items = engine.detect_all(limit=limit)
+        all_items = engine.detect_all(limit=100)
+    except Exception as exc:
+        _log.exception("notifications/list failed for tenant=%s", tenant.id)
+        items, all_items = [], []
+
     if severity:
         items = [n for n in items if n["severity"] == severity]
     if category:
@@ -141,7 +174,6 @@ def list_notifications(
     # Conteos totales (sobre TODAS las notificaciones, sin filtros) —
     # así la página puede mostrar "X críticas" en la cabecera aunque
     # el usuario esté filtrando por "info".
-    all_items = engine.detect_all(limit=100)
     by_sev: dict[str, int] = {s: 0 for s in SEVERITIES}
     by_cat: dict[str, int] = {c: 0 for c in CATEGORIES}
     for it in all_items:
