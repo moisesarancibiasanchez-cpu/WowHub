@@ -128,7 +128,18 @@
   .widget-kpi { font-size: 22px; font-weight: 700; color: #1f2937; margin: 4px 0; }
   .widget-kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
 </style>
+{% endblock %}
 
+{# ── FIX 2026-10-02f — Mover este bloque a {% block scripts %} ──────────
+   Antes este <script> estaba dentro de {% block content %}, lo que lo
+   hacía ejecutarse ANTES de que app.js (cargado en el parent base.html)
+   definiera `window.WH`. Resultado: `ReferenceError: WH is not defined`
+   en loadWidgetData() → no se cargaba ningún dato → todos los widgets
+   mostraban "Cargando…" perpetuamente.
+   Ahora el script corre en {% block scripts %}, que se renderiza DESPUÉS
+   de app.js, garantizando que WH esté disponible. ──────────────────── #}
+{% block scripts %}
+{{ super() }}
 <script>
 (function () {
   "use strict";
@@ -433,5 +444,4 @@
   loadWidgetData();
 })();
 </script>
-
 {% endblock %}
