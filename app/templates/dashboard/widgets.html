@@ -101,6 +101,22 @@
   var statusEl = document.getElementById("layout-status");
   var metaEl = document.getElementById("gs-meta");
 
+  // FIX HU_34 — Token robusto.
+  // Antes: leíamos ``document.cookie`` con nombre ``access_token`` (incorrecto).
+  // La cookie real del server es ``wowhub_access_token`` Y es httpOnly, así
+  // que JS nunca puede leerla. Usamos el mismo patrón que el resto del
+  // dashboard (``WH.TokenStore`` con fallback a ``localStorage``) — así
+  // el PUT /api/v1/dashboard/layout pasa el guard JWT correctamente.
+  function getToken() {
+    try {
+      if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === "function") {
+        var v = window.WH.TokenStore.access();
+        if (v) return v;
+      }
+    } catch (_) {}
+    return localStorage.getItem("wowhub_access_token") || "";
+  }
+
   function showStatus(msg, kind) {
     statusEl.className = "alert alert-" + (kind || "info");
     statusEl.textContent = msg;
@@ -127,12 +143,17 @@
 
   document.getElementById("gs-save").addEventListener("click", function () {
     var widgets = widgetsFromGrid();
-    var token = (document.cookie.match(/(?:^|; )access_token=([^;]*)/) || [])[1] || "";
+    var token = getToken();
+    if (!token) {
+      showStatus("No hay sesión activa. Recargá /login.", "danger");
+      return;
+    }
+    showStatus("Guardando…", "info");
     fetch("/api/v1/dashboard/layout", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": token ? ("Bearer " + decodeURIComponent(token)) : "",
+        "Authorization": "Bearer " + token,
       },
       body: JSON.stringify({ widgets: widgets }),
       credentials: "same-origin",
