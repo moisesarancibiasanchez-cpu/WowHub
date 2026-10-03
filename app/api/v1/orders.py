@@ -3,12 +3,13 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 # HU_38 — RBAC granular con Casbin. Los endpoints de orders ya
 # declaran ``membership`` explícito, así que el decorator
 # ``@requires_permission`` puede resolver el rol sin cambios extra.
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.security import requires_permission
 from app.database import get_db
 from app.deps import get_current_membership, get_current_user, get_tenant_for_membership
@@ -19,6 +20,11 @@ from app.models.order import Order, OrderItem, OrderStatus
 from app.schemas.order import OrderCreate, OrderOut, OrderTransition, OrderListItem
 from app.schemas.common import Page
 from app.services.order_service import OrderService
+
+
+# HU_22 — Body para aplicar un cupón/descuento a una orden existente.
+class ApplyDiscountBody(BaseModel):
+    code: str = Field(..., min_length=1, max_length=40, description="Código del cupón/promoción")
 
 router = APIRouter(prefix="/tenants/{tenant_id}/orders", tags=["orders"])
 
@@ -224,6 +230,59 @@ def cancel_order(
 ):
     o = OrderService(db).get(tenant_id, order_id)
     return _to_out(OrderService(db).cancel(o, reason=reason))
+
+
+@router.post("/{order_id}/apply-discount", response_model=OrderOut)
+@requires_permission("order", "write")
+def apply_discount(
+    tenant_id: UUID,
+    order_id: UUID,
+    payload: ApplyDiscountBody,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Aplica un código de promoción/descuento a una orden existente.
+
+    Valida el cupón en la tabla ``promotions`` (HU_22) y recalcula
+    ``discount_cents`` y ``total_cents``. Si la orden ya tenía un
+    descuento previo, lo sobreescribe con el nuevo.
+
+    Restricciones:
+    - Sólo se permite en estados no terminales (no en ENTREGADO /
+      PAGADO / CANCELADO).
+    - Si el código es inválido, devuelve 404.
+    - Si el código está expirado o agotado, devuelve 422.
+    """
+    from app.services.promotion_engine import PromotionEngine
+
+    order = OrderService(db).get(tenant_id, order_id)
+    if order.status in (OrderStatus.ENTREGADO, OrderStatus.PAGADO, OrderStatus.CANCELADO):
+        raise ConflictError(
+            f"No se puede aplicar descuento a un pedido {order.status.value}"
+        )
+
+    code = payload.code.strip().upper()
+    if not code:
+        raise ValidationError("Código de descuento vacío")
+
+    engine = PromotionEngine(db)
+    # `apply_to_order` valida el código (raise NotFoundError/ValidationError
+    # si es inválido o expirado) y devuelve el descuento total en centavos.
+    discount_cents = engine.apply_to_order(order, [code])
+    if discount_cents <= 0:
+        raise ValidationError(
+            f"El cupón '{code}' no aplica descuento a esta orden "
+            "(verifica compra mínima o productos aplicables)"
+        )
+
+    order.discount_cents = discount_cents
+    order.total_cents = max(
+        0,
+        order.subtotal_cents + order.shipping_cents + order.tax_cents - discount_cents,
+    )
+    db.commit()
+    db.refresh(order)
+    return _to_out(order)
 
 
 def _to_out(o: Order) -> OrderOut:
