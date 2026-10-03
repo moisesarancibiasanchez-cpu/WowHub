@@ -263,11 +263,13 @@ class Settings(BaseSettings):
         _is_placeholder("SECRET_KEY", self.secret_key)
         _is_placeholder("JWT_SECRET", self.jwt_secret)
         _is_placeholder("WEBHOOK_SECRET", self.webhook_secret)
-        # HU_39: la clave Fernet es requerida en producción. Si está vacía o
-        # es placeholder, abortamos el arranque: tener columnas cifradas con
-        # una clave derivada de SECRET_KEY en prod significa que cualquier
-        # leak de SECRET_KEY expone TODOS los PII cifrados.
-        _is_placeholder("FIELD_ENCRYPTION_KEY", self.field_encryption_key)
+        # HU_39 — helper Fernet disponible (encrypt_value/decrypt_value) pero
+        # el cifrado NO se aplica a ninguna columna todavía (scope MÍNIMO de
+        # esta HU). Por eso NO exigimos FIELD_ENCRYPTION_KEY en producción:
+        # si lo exigiéramos con código sin usar, abortaríamos el arranque de
+        # instancias que no necesitan encryption. Se exigirá cuando algún
+        # modelo use el helper como columna PII cifrada.
+        # Ver `app/core/encryption.py::decrypt_value` para cuando esté wired.
 
         # En producción el modo debug tampoco es aceptable.
         if offenders:
