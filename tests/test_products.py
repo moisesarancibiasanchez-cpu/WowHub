@@ -295,3 +295,223 @@ def test_product_danger_health_with_low_margin(client):
     # margen: (9990-20441)/9990 = -104.61% → danger
     assert p["current_margin_pct"] < -100
     assert p["health"] == "danger"
+
+
+# ── HU_11 — Margen producto + simulación ─────────────────
+def test_product_margin_endpoint_without_business_costs(client):
+    """HU_11 — GET /margin sin BusinessCosts: degradación elegante.
+
+    Sin Costos configurados, ``compute_for_product`` devuelve el
+    snapshot vacío (cost_real=0, margin=None, health=unknown) — igual
+    que el endpoint ``/pricing`` ya existente. El endpoint debe
+    reportar el ``cost_cents`` y ``price_cents`` crudos del producto
+    más la sugerencia de configurar Costos vía ``health=unknown``.
+    """
+    auth = _bootstrap(client, "shop-margin")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "MG-1", "name": "Cappuccino", "slug": "cap-mg1",
+        "price_cents": 3200, "cost_cents": 1000, "production_time_min": 4,
+        "status": "active",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
+    pid = r.json()["id"]
+
+    # Sin BusinessCosts: derivados en estado empty (mismo patrón que /pricing)
+    r = client.get(f"/api/v1/tenants/{tid}/products/{pid}/margin",
+                   headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["product_id"] == pid
+    assert m["cost_cents"] == 1000     # costo cargado crudo
+    assert m["cost_real_cents"] == 0   # sin Costos → degradación
+    assert m["price_cents"] == 3200
+    assert m["margin_cents"] == 3200   # price - 0
+    assert m["margin_pct"] is None     # sin precio target no se calcula
+    assert m["target_margin_pct"] is None
+    assert m["suggested_price_cents"] == 0
+    assert m["cost_hour_used_cents"] == 0
+    # Sin target → health unknown (mismo que pricing endpoint)
+    assert m["health"] == "unknown"
+    assert m["health_message"] is None
+
+
+def test_product_margin_endpoint_with_business_costs(client):
+    """HU_11 — GET /margin con BusinessCosts: incluye mano de obra + target."""
+    auth = _bootstrap(client, "shop-mg2")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "MG-2", "name": "Latte", "slug": "latte-mg2",
+        "price_cents": 3200, "cost_cents": 1000, "production_time_min": 4,
+        "status": "active",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    pid = r.json()["id"]
+
+    # Configurar Costos: costo_hora 10.000, target 30%
+    client.put(f"/api/v1/tenants/{tid}/costs", json={
+        "owner_salary_cents": 1_000_000, "workers_salary_cents": 0,
+        "rent_cents": 0, "electricity_cents": 0, "water_cents": 0, "gas_cents": 0,
+        "software_cents": 0, "advertising_cents": 0, "payment_commission_cents": 0,
+        "packaging_cents": 0, "maintenance_cents": 0, "depreciation_cents": 0,
+        "productive_hours_per_month": 100,
+        "target_margin_pct": 30,
+        "waste_pct": 0, "is_na": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    r = client.get(f"/api/v1/tenants/{tid}/products/{pid}/margin",
+                   headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    m = r.json()
+    # labor = ceil(4/60 * 10000) = 667; real = 1667
+    assert m["cost_real_cents"] == 1667
+    # margin_cents = 3200 - 1667 = 1533
+    assert m["margin_cents"] == 1533
+    assert abs(m["margin_pct"] - 47.91) < 0.01
+    assert m["target_margin_pct"] == 30
+    assert m["suggested_price_cents"] == 2382
+    assert m["cost_hour_used_cents"] == 10000
+    assert m["health"] == "healthy"
+    assert m["health_message"] == "Saludable"
+
+
+def test_product_margin_not_found(client):
+    """HU_11 — GET /margin sobre producto inexistente → 404."""
+    auth = _bootstrap(client, "shop-mg3")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    fake_pid = "00000000-0000-0000-0000-000000000000"
+    r = client.get(f"/api/v1/tenants/{tid}/products/{fake_pid}/margin",
+                   headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 404
+
+
+def test_product_margin_simulate_lower_cost(client):
+    """HU_11 — POST /margin/simulate con costo más barato."""
+    auth = _bootstrap(client, "shop-sim1")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "SM-1", "name": "Moka", "slug": "moka-sm1",
+        "price_cents": 3200, "cost_cents": 1500, "production_time_min": 0,
+        "status": "active",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    pid = r.json()["id"]
+
+    # Activar Costos para que el snapshot actual no salga vacío
+    client.put(f"/api/v1/tenants/{tid}/costs", json={
+        "owner_salary_cents": 0, "workers_salary_cents": 0,
+        "rent_cents": 0, "electricity_cents": 0, "water_cents": 0, "gas_cents": 0,
+        "software_cents": 0, "advertising_cents": 0, "payment_commission_cents": 0,
+        "packaging_cents": 0, "maintenance_cents": 0, "depreciation_cents": 0,
+        "productive_hours_per_month": 100, "target_margin_pct": 30,
+        "waste_pct": 0, "is_na": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    # Simular costo nuevo = 500 (más barato)
+    r = client.post(f"/api/v1/tenants/{tid}/products/{pid}/margin/simulate",
+                    json={"new_cost_cents": 500},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    s = r.json()
+    # Snapshot actual: real=1500 (sin mano de obra, production_time_min=0)
+    assert s["current"]["cost_real_cents"] == 1500
+    assert s["current"]["margin_cents"] == 1700
+    assert s["current"]["target_margin_pct"] == 30
+    # Proyección: real=500, margin=2700
+    assert s["projected_cost_cents"] == 500
+    assert s["projected_cost_real_cents"] == 500
+    assert s["projected_margin_cents"] == 2700
+    # 2700/3200 * 100 = 84.375%
+    assert abs(s["projected_margin_pct"] - 84.375) < 0.01
+    assert s["projected_health"] == "healthy"
+
+
+def test_product_margin_simulate_higher_cost_danger(client):
+    """HU_11 — POST /margin/simulate con costo casi igual al precio → danger."""
+    auth = _bootstrap(client, "shop-sim2")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "SM-2", "name": "Espresso", "slug": "esp-sm2",
+        "price_cents": 1800, "cost_cents": 500, "production_time_min": 0,
+        "status": "active",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    pid = r.json()["id"]
+
+    # Costos con target 30%
+    client.put(f"/api/v1/tenants/{tid}/costs", json={
+        "owner_salary_cents": 0, "workers_salary_cents": 0,
+        "rent_cents": 0, "electricity_cents": 0, "water_cents": 0, "gas_cents": 0,
+        "software_cents": 0, "advertising_cents": 0, "payment_commission_cents": 0,
+        "packaging_cents": 0, "maintenance_cents": 0, "depreciation_cents": 0,
+        "productive_hours_per_month": 100,
+        "target_margin_pct": 30,
+        "waste_pct": 0, "is_na": {},
+    }, headers={"Authorization": f"Bearer {token}"})
+
+    # Simular costo 1600 (casi el precio): margen = 200/1800 = 11.11%
+    # 11.11% < 50% de 30% (15%) → danger
+    r = client.post(f"/api/v1/tenants/{tid}/products/{pid}/margin/simulate",
+                    json={"new_cost_cents": 1600},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    s = r.json()
+    assert s["projected_cost_real_cents"] == 1600
+    assert s["projected_margin_cents"] == 200
+    assert abs(s["projected_margin_pct"] - 11.11) < 0.01
+    assert s["projected_health"] == "danger"
+
+
+def test_product_margin_simulate_negative_cost_rejected(client):
+    """HU_11 — Pydantic rechaza new_cost_cents negativo."""
+    auth = _bootstrap(client, "shop-sim3")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "SM-3", "name": "Prod", "slug": "prod-sm3",
+        "price_cents": 1000, "cost_cents": 100,
+    }, headers={"Authorization": f"Bearer {token}"})
+    pid = r.json()["id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products/{pid}/margin/simulate",
+                    json={"new_cost_cents": -100},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 422
+
+
+def test_product_margin_simulate_does_not_mutate_product(client):
+    """HU_11 — El simulador NO modifica cost_cents en la DB."""
+    auth = _bootstrap(client, "shop-sim4")
+    token = auth["access_token"]
+    tid = auth["current_tenant"]["tenant_id"]
+
+    r = client.post(f"/api/v1/tenants/{tid}/products", json={
+        "sku": "SM-4", "name": "Prod Y", "slug": "prod-y-sm4",
+        "price_cents": 2000, "cost_cents": 800, "status": "active",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201
+    pid = r.json()["id"]
+    original_cost = r.json()["cost_cents"]
+    assert original_cost == 800
+
+    # Simular costo 100 (mucho más bajo)
+    r = client.post(f"/api/v1/tenants/{tid}/products/{pid}/margin/simulate",
+                    json={"new_cost_cents": 100},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+
+    # Re-leer el producto: cost_cents debe seguir intacto
+    r = client.get(f"/api/v1/tenants/{tid}/products/{pid}",
+                   headers={"Authorization": f"Bearer {token}"})
+    assert r.json()["cost_cents"] == 800

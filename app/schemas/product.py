@@ -97,6 +97,62 @@ class ProductOut(ProductBase):
     health_message: Optional[str] = None
 
 
+# ════════════════════════════════════════════════════════════
+# HU_11 — Margen de producto + simulación
+# ════════════════════════════════════════════════════════════
+class MarginOut(BaseModel):
+    """Snapshot del margen actual de un producto (HU_11).
+
+    Combina el `Product` con el `ProductPricing` derivado de
+    `BusinessCosts` del tenant. Pensado para que la UI de pricing
+    (modal de edición, dashboard) muestre en una sola llamada:
+
+    - costo cargado (insumos) vs costo real (insumos + mano de obra)
+    - margen absoluto (cents) y porcentual
+    - precio sugerido según margen objetivo
+    - estado de salud (healthy / warning / danger / unknown)
+    """
+    product_id: UUID
+    cost_cents: int                       # costo de insumos cargado en el producto
+    cost_real_cents: int                  # costo real (insumos + mano de obra)
+    price_cents: int                      # precio de venta actual
+    margin_cents: int                     # price_cents - cost_real_cents
+    margin_pct: Optional[float]           # (price - cost_real) / price * 100
+    target_margin_pct: Optional[int]      # margen objetivo del tenant
+    suggested_price_cents: int            # precio sugerido según target
+    cost_hour_used_cents: int             # costo_hora usado en el cálculo
+    health: Health
+    health_message: Optional[str]
+
+
+class MarginSimulateIn(BaseModel):
+    """Body para simular un cambio de costo en un producto (HU_11).
+
+    Solo se modifica el costo de insumos (`cost_cents`). La mano de
+    obra se mantiene porque depende de `production_time_min` y
+    `BusinessCosts.cost_hour_cents` — el simulador NO persiste
+    cambios, solo proyecta el margen resultante.
+    """
+    new_cost_cents: int = Field(..., ge=0)
+
+
+class MarginSimulateOut(BaseModel):
+    """Proyección del margen tras aplicar `new_cost_cents` (HU_11).
+
+    Devuelve el snapshot actual (`current`) más la proyección
+    (`projected_*`) para que la UI pueda pintar la comparación
+    lado-a-lado (cuánto margen gano/perdo si cambio el costo).
+    """
+    current: MarginOut
+    projected_cost_cents: int
+    projected_cost_real_cents: int
+    projected_margin_cents: int
+    projected_margin_pct: Optional[float]
+    projected_suggested_price_cents: int
+    projected_health: Health
+    projected_health_message: Optional[str]
+
+
 class ProductListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

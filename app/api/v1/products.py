@@ -4,7 +4,12 @@ Fase 3 (V8): el listado y el detalle ahora incluyen los derivados
 de pricing (costo real, margen, salud). Hay además un endpoint
 ``GET /products/{id}/pricing`` que devuelve el breakdown completo
 para alimentar la calculadora del modal de edición.
+
+HU_11 — Endpoints dedicados de margen y simulación:
+  * ``GET  /products/{id}/margin``             → margen actual
+  * ``POST /products/{id}/margin/simulate``    → simula cambio de costo
 """
+from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -18,10 +23,51 @@ from app.models.product import ProductStatus
 from app.models.tenant import Tenant
 from app.models.tenant import TenantMembership
 from app.schemas.common import Page
-from app.schemas.product import ProductCreate, ProductOut, ProductUpdate, ProductListItem
+from app.schemas.product import (
+    ProductCreate,
+    ProductOut,
+    ProductUpdate,
+    ProductListItem,
+    MarginOut,
+    MarginSimulateIn,
+    MarginSimulateOut,
+)
+from app.services.product_pricing import (
+    ProductPricing,
+    compute_for_product,
+    compute_margin_pct,
+    compute_real_cost,
+    compute_suggested_price,
+    health_for_margin,
+    health_message,
+)
 from app.services.product_service import ProductService
 
 router = APIRouter(prefix="/tenants/{tenant_id}/products", tags=["products"])
+
+
+# ── HU_11 — helper local para armar MarginOut ─────────────
+def _build_margin_out(p, pricing: ProductPricing) -> MarginOut:
+    """Arma un MarginOut desde un Product + ProductPricing.
+
+    Centraliza el cálculo de `margin_cents` para que tanto el GET
+    como el POST /simulate devuelvan exactamente la misma forma.
+    """
+    price = int(p.price_cents or 0)
+    real = int(pricing.cost_real_cents or 0)
+    return MarginOut(
+        product_id=p.id,
+        cost_cents=int(p.cost_cents or 0),
+        cost_real_cents=real,
+        price_cents=price,
+        margin_cents=price - real,
+        margin_pct=pricing.current_margin_pct,
+        target_margin_pct=pricing.target_margin_pct,
+        suggested_price_cents=int(pricing.suggested_price_cents or 0),
+        cost_hour_used_cents=int(pricing.cost_hour_used_cents or 0),
+        health=pricing.health,
+        health_message=pricing.health_message,
+    )
 
 
 @router.get("", response_model=Page[ProductListItem])
@@ -98,6 +144,114 @@ def get_product_pricing(
     svc = ProductService(db)
     p = svc.get(tenant.id, product_id)
     return svc.to_out(p)
+
+
+# ── HU_11 — Margen actual ────────────────────────────────
+@router.get("/{product_id}/margin", response_model=MarginOut)
+def get_product_margin(
+    product_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """HU_11 — Devuelve el margen actual del producto.
+
+    Lee el producto + ``BusinessCosts`` del tenant (si existe) y
+    devuelve el desglose:
+
+    - ``cost_cents``     → costo de insumos cargado
+    - ``cost_real_cents``→ costo real (insumos + mano de obra)
+    - ``price_cents``    → precio de venta
+    - ``margin_cents``   → ``price - cost_real``
+    - ``margin_pct``     → porcentaje de margen
+    - ``suggested_price_cents`` → según margen objetivo del tenant
+    - ``health``         → clasificación (healthy/warning/danger/unknown)
+
+    RBAC: solo requiere acceso al tenant (read via membership).
+    No expone ni modifica datos, por eso NO usa ``@requires_permission``.
+    """
+    svc = ProductService(db)
+    p = svc.get(tenant.id, product_id)
+    cost_hour, target = svc._pricing_for(p.tenant_id)
+    pricing = compute_for_product(
+        p,
+        cost_hour_cents=cost_hour,
+        target_margin_pct=target,
+    )
+    return _build_margin_out(p, pricing)
+
+
+# ── HU_11 — Simulación de cambio de costo ─────────────────
+@router.post("/{product_id}/margin/simulate", response_model=MarginSimulateOut)
+def simulate_product_margin(
+    product_id: UUID,
+    payload: MarginSimulateIn,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """HU_11 — Simula un cambio en el costo de insumos y proyecta el margen.
+
+    Recibe ``{"new_cost_cents": <int>}`` y devuelve dos snapshots:
+
+    - ``current``  → margen vigente (igual a ``GET /margin``).
+    - ``projected_*`` → margen si el producto tuviera
+      ``cost_cents = new_cost_cents``.
+
+    La mano de obra y el costo_hora del tenant se mantienen: el
+    simulador solo varía el componente materiales. El producto NO
+    se modifica en la DB (es un what-if puro).
+
+    RBAC: solo requiere acceso al tenant (read via membership).
+    """
+    svc = ProductService(db)
+    p = svc.get(tenant.id, product_id)
+    cost_hour, target = svc._pricing_for(p.tenant_id)
+
+    # Snapshot actual (reusa la misma lógica del GET /margin)
+    current_pricing = compute_for_product(
+        p,
+        cost_hour_cents=cost_hour,
+        target_margin_pct=target,
+    )
+    current = _build_margin_out(p, current_pricing)
+
+    # Proyección con el nuevo costo de insumos
+    projected_real = compute_real_cost(
+        payload.new_cost_cents,
+        int(p.production_time_min or 0),
+        int(cost_hour or 0),
+    )
+    price = int(p.price_cents or 0)
+    projected_margin_pct = compute_margin_pct(price, projected_real)
+    projected_margin_cents = price - projected_real
+
+    # Precio sugerido + health proyectado (mismo patrón que compute_for_product)
+    if target is None or target <= 0:
+        projected_suggested = 0
+        projected_health = "unknown" if projected_margin_pct is None else (
+            "healthy" if projected_margin_pct >= 0 else "danger"
+        )
+        projected_msg: Optional[str] = None
+    else:
+        projected_suggested = compute_suggested_price(projected_real, target)
+        projected_health = health_for_margin(projected_margin_pct, target)
+        projected_msg = health_message(
+            projected_health,
+            current_margin_pct=projected_margin_pct,
+            target_margin_pct=target,
+            suggested_price_cents=projected_suggested,
+            price_cents=price,
+        )
+
+    return MarginSimulateOut(
+        current=current,
+        projected_cost_cents=payload.new_cost_cents,
+        projected_cost_real_cents=projected_real,
+        projected_margin_cents=projected_margin_cents,
+        projected_margin_pct=projected_margin_pct,
+        projected_suggested_price_cents=projected_suggested,
+        projected_health=projected_health,
+        projected_health_message=projected_msg,
+    )
 
 
 @router.patch("/{product_id}", response_model=ProductOut)
