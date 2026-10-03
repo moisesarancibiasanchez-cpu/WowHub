@@ -92,6 +92,26 @@ def register(payload: UserCreate, request: Request, response: Response, db: Sess
         )
     except Exception as exc:  # pragma: no cover — defensivo
         logger.warning("auth.register audit log failed: %s", exc)
+        # FIX 2026-10-03 — Si el commit del audit log falla, la sesión de
+        # SQLAlchemy queda en estado PendingRollbackError. Cualquier intento
+        # posterior de leer atributos del modelo (ej. UserOut.model_validate)
+        # falla con "PendingRollbackError". Forzamos rollback aquí para que
+        # el resto del flujo pueda leer user/tenant sin error de transacción.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        # Después del rollback perdemos el objeto user del contexto de sesión.
+        # Necesitamos refrescarlo desde la DB para que UserOut.model_validate
+        # no falle al extraer atributos.
+        try:
+            db.refresh(user)
+            if tenant:
+                db.refresh(tenant)
+            if membership:
+                db.refresh(membership)
+        except Exception as exc2:
+            logger.warning("auth.register refresh after rollback failed: %s", exc2)
     return TokenPair(
         access_token=access,
         refresh_token=refresh,
@@ -140,6 +160,14 @@ def login(payload: UserLogin, request: Request, response: Response, db: Session 
         )
     except Exception as exc:  # pragma: no cover — defensivo
         logger.warning("auth.login audit log failed: %s", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        try:
+            db.refresh(user)
+        except Exception as exc2:
+            logger.warning("auth.login refresh after rollback failed: %s", exc2)
     return TokenPair(
         access_token=access,
         refresh_token=refresh,

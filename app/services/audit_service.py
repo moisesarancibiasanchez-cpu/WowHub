@@ -66,15 +66,19 @@ class AuditService:
             description=description,
             extra=extra or {},
         )
-        self.db.add(log)
-        # HU_40 — calcular hash chain (best-effort). Si falla, NO rompemos
-        # el insert: el registro queda con prev_hash/current_hash NULL y
-        # puede rellenarse después con `POST /api/v1/audit/backfill-chain`.
+        # FIX 2026-10-03 — Calcular hash chain ANTES del insert.
+        # Antes: se hacía flush() + UPDATE del log con prev_hash/current_hash.
+        # El trigger ``audit_logs_no_update`` (BEFORE UPDATE) rechazaba la UPDATE
+        # con RAISE EXCEPTION, dejando la sesión SQLAlchemy en estado
+        # PendingRollbackError. Cualquier intento posterior de leer
+        # atributos del modelo (ej. UserOut.model_validate) fallaba.
+        # Solución: pre-computar prev_hash/current_hash y hacer UN solo
+        # INSERT. Sin UPDATE.
         try:
-            self.db.flush()  # asegura log.id antes de leer el último hash
-            self._attach_chain_hash(log)
+            self._compute_chain_hash(log)
         except Exception as exc:
-            logger.warning("audit_chain: hash computation failed (id=%s): %s", getattr(log, "id", None), exc)
+            logger.warning("audit_chain: hash computation failed (action=%s): %s", action, exc)
+        self.db.add(log)
         self.db.commit()
         self.db.refresh(log)
         return log
@@ -88,15 +92,18 @@ class AuditService:
         return list(self.db.execute(q).scalars())
 
     # ── HU_40 — Hash chain helpers ──────────────────────────────────
-    def _attach_chain_hash(self, log: AuditLog) -> None:
-        """Calcula y persiste prev_hash/current_hash en la fila recién creada.
+    def _compute_chain_hash(self, log: AuditLog) -> None:
+        """Calcula y asigna prev_hash/current_hash en la fila ANTES del INSERT.
 
-        1. Lee el último ``current_hash`` del tenant (excluyendo esta fila).
+        1. Lee el último ``current_hash`` del tenant.
         2. Construye el payload canónico vía ``audit_chain.payload_from_record``.
         3. Calcula ``current_hash = SHA-256(prev_hash || canonical_json(payload))``.
 
-        Best-effort: cualquier excepción se propaga al caller que la envuelve
-        en try/except para no romper el insert del audit log.
+        FIX 2026-10-03 — Antes: el hash se asignaba tras el INSERT y la sesión
+        intentaba UPDATE → trigger audit_logs_no_update rechazaba la UPDATE →
+        PendingRollbackError → register/login devolvían 500. Ahora: el hash
+        se calcula y asigna aquí, antes del INSERT. La sesión hace UN solo
+        INSERT, sin UPDATE. Compatible con el trigger append-only.
         """
         from sqlalchemy import select  # import local para no tocar imports del módulo
 
@@ -108,10 +115,7 @@ class AuditService:
             prev_hash = (
                 self.db.execute(
                     select(AuditLog.current_hash)
-                    .where(
-                        AuditLog.tenant_id == tenant_id,
-                        AuditLog.id != log.id,
-                    )
+                    .where(AuditLog.tenant_id == tenant_id)
                     .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
                     .limit(1)
                 ).scalar()
