@@ -17,4 +17,5 @@ from app.api.v1 import (  # noqa: F401
     dashboard,  # HU_34 — Dashboard personalizable (GridStack widgets)
     status,  # HU_49 — Status page público (uptime + historial)
     ocr,  # HU_33 — OCR de comprobantes (recibos, facturas, payment proof)
+    reports,  # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
 )
