@@ -149,6 +149,39 @@ def create_customer(
     return to_out(c)
 
 
+@router.get("/segments")
+def customers_segments(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """HU_26 — Segmentación RFM persistente (vista agregada por buckets).
+
+    Recorre todos los clientes del tenant y los agrupa en 5 categorías
+    según el spec:
+      - ``vip``        → lifetime_value >= $1M CLP
+      - ``recurrente`` → 3+ pedidos
+      - ``regular``    → 1-2 pedidos
+      - ``nuevo``      → sin pedidos
+      - ``inactivo``   → sin pedidos en los últimos 90 días
+
+    Devuelve una lista ``[{name, count, criteria}, ...]`` con el conteo
+    por bucket y el criterio legible. El cálculo es al vuelo (no requiere
+    migraciones ni columna ``rfm_segment`` en la tabla ``customers``).
+    """
+    rows = db.execute(
+        select(Customer).where(Customer.tenant_id == tenant.id)
+    ).scalars().all()
+
+    counts: dict[str, int] = {k: 0 for k in _SEG_ORDER}
+    for c in rows:
+        counts[_classify_for_segment_listing(c)] += 1
+
+    return [
+        {"name": name, "count": counts[name], "criteria": _SEG_CRITERIA[name]}
+        for name in _SEG_ORDER
+    ]
+
+
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: UUID, tenant: Tenant = Depends(get_tenant_for_membership), db: Session = Depends(get_db)):
     c = db.get(Customer, customer_id)
@@ -266,6 +299,54 @@ def customers_stats(
         "with_email": int(with_email),
         "with_phone": int(with_phone),
     }
+
+
+# ── HU_26 — Segmentación RFM persistente ────────────────────
+# Umbrales del spec para el endpoint de list-buckets (NO tocan
+# compute_segmento, que usa thresholds distintos para /insights).
+SEG_VIP_LIFETIME_CENTS = 100_000_000  # 1 millón CLP en centavos
+SEG_RECURRENTE_MIN_ORDERS = 3
+SEG_REGULAR_MAX_ORDERS = 2
+SEG_INACTIVE_DAYS = 90
+
+# Criterios legibles que se exponen al cliente del API.
+# Se mantienen en español para alinear con el resto del dashboard.
+_SEG_CRITERIA = {
+    "vip":        f"lifetime_value >= $1M CLP (total_spent_cents >= {SEG_VIP_LIFETIME_CENTS})",
+    "recurrente": f"orders >= {SEG_RECURRENTE_MIN_ORDERS}",
+    "regular":    f"orders entre 1 y {SEG_REGULAR_MAX_ORDERS}",
+    "nuevo":      "sin pedidos (total_orders == 0)",
+    "inactivo":   f"sin pedidos en los últimos {SEG_INACTIVE_DAYS} días",
+}
+
+# Orden canónico de los buckets para la respuesta.
+_SEG_ORDER = ["vip", "recurrente", "regular", "nuevo", "inactivo"]
+
+
+def _classify_for_segment_listing(c: Customer) -> str:
+    """Devuelve el bucket RFM-like del spec de HU_26.
+
+    Es mutuamente excluyente y NO comparte lógica con ``compute_segmento``
+    (que usa thresholds distintos para ``/insights`` y ``/stats``).
+    Orden de evaluación:
+      1. inactivo  — tiene órdenes pero la última es > SEG_INACTIVE_DAYS
+      2. nuevo     — sin órdenes
+      3. vip       — gastó >= 1M CLP lifetime
+      4. recurrente— 3+ órdenes
+      5. regular   — 1-2 órdenes
+    """
+    days = days_since(c.last_order_at)
+    if c.total_orders > 0 and days is not None and days > SEG_INACTIVE_DAYS:
+        return "inactivo"
+    if c.total_orders == 0:
+        return "nuevo"
+    if c.total_spent_cents >= SEG_VIP_LIFETIME_CENTS:
+        return "vip"
+    if c.total_orders >= SEG_RECURRENTE_MIN_ORDERS:
+        return "recurrente"
+    if c.total_orders >= 1:
+        return "regular"
+    return "nuevo"
 
 
 @router.get("/{customer_id}/insights", response_model=CustomerInsightsOut)
