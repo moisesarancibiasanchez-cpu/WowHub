@@ -45,7 +45,10 @@ jobs:
       - name: Run full test suite
         env:
           # DB en memoria para no tocar SQLite del runner.
-          DATABASE_URL: sqlite:///:memory:
+          # FIX HU_48 2026-10-03: comillar `sqlite:///:memory:` para que el YAML
+          # sea estrictamente válido (yamllint/pyyaml marcaban "mapping values
+          # are not allowed here" en la línea 48 por la secuencia `://`).
+          DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
           JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
           # Apagar middleware pesado (rate limit + audit) para que la suite
@@ -91,7 +94,7 @@ jobs:
 
       - name: Run F0 pipeline
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
           JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
           RATE_LIMIT_ENABLED: "false"
@@ -144,7 +147,7 @@ jobs:
 
       - name: Smoke-test FastAPI app + F0 router
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           APP_ENV: development
           SECRET_KEY: ci-secret-key-min-32-chars-ok-ci
           JWT_SECRET: ci-jwt-secret-min-32-chars-ok-ci
