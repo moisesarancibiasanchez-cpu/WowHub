@@ -295,47 +295,43 @@
   // reordenándolos según el orden de guardado en dashboard_layouts.
   // Si el guardado falla → fallback silencioso a "mostrar todo".
   let appliedLayoutTypes = null;
+  let appliedLayoutOrder = null;
   try {
     const layout = await WH.api.get("/api/v1/dashboard/layout");
     if (layout && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
       const visibleTypes = new Set(layout.widgets.map(w => w.type));
       appliedLayoutTypes = visibleTypes;
-      // 1) Ocultar widgets no guardados
+      // 1) Visibilidad explícita: si está en el layout, mostrar; si no,
+      // ocultar. Esto sobreescribe el display:none por defecto del HTML
+      // para widgets que necesitan data (ej. #ai-brief-section que tiene
+      // style="display:none" por defecto). Así, si el usuario guardó
+      // ai_brief en su layout, lo verá (el JS posterior lo seguirá
+      // ocultando si su data load falla — pero al menos aparece el contenedor).
       document.querySelectorAll("[data-widget-type]").forEach(el => {
         const t = el.getAttribute("data-widget-type");
-        if (!visibleTypes.has(t)) {
+        if (visibleTypes.has(t)) {
+          el.style.display = "";
+        } else {
           el.style.display = "none";
         }
       });
-      // 2) Reordenar widgets según el orden de guardado. Usamos un
-      // contenedor padre común (main, main > div o body). El bucle
-      // reordena in-place usando `el.nextElementSibling` para no
-      // destruir otros elementos fuera de data-widget-type.
-      const allWidgets = Array.from(layout.widgets)
-        .map(w => document.querySelector(`[data-widget-type="${w.type}"]`))
-        .filter(Boolean);
-      const seen = new Set();
-      allWidgets.forEach(el => {
-        // Sólo mover si no está ya en posición correcta
-        const prev = el.previousElementSibling;
-        if (!prev || !seen.has(prev)) {
-          // Encontrar el último sibling que SÍ esté en seen y mover
-          // el actual a continuación de él.
-          let anchor = null;
-          let cursor = el.parentElement.firstElementChild;
-          while (cursor && cursor !== el) {
-            if (seen.has(cursor)) anchor = cursor;
-            cursor = cursor.nextElementSibling;
-          }
-          if (anchor) {
-            el.parentElement.insertBefore(el, anchor.nextElementSibling);
-          } else {
-            // Mover al inicio del contenedor
-            el.parentElement.insertBefore(el, el.parentElement.firstElementChild);
-          }
-        }
-        seen.add(el);
+      // 2) Reordenar: usamos CSS order en el body si es flex, o
+      // reordenamos los hijos del main. Aquí movemos los widgets
+      // dentro del contenedor padre común (.dashboard-page-content o main).
+      // Como los widgets están en sub-contenedores (.dash-main-grid,
+      // .dash-bottom-grid), hacemos un reorden "soft" usando CSS order:
+      // cada widget recibe style.order = posición en saved layout.
+      appliedLayoutOrder = layout.widgets.map((w, i) => ({ type: w.type, order: i }));
+      appliedLayoutOrder.forEach(({ type, order }) => {
+        const el = document.querySelector(`[data-widget-type="${type}"]`);
+        if (el) el.style.order = String(order);
       });
+      // Activar flex en el contenedor padre para que order funcione.
+      const pageContent = document.querySelector(".dash-content") || document.querySelector("main");
+      if (pageContent) {
+        pageContent.style.display = "flex";
+        pageContent.style.flexDirection = "column";
+      }
     }
   } catch (e) {
     // Silencioso: el fallback es no aplicar layout (mostrar todo).
