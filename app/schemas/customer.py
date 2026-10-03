@@ -55,8 +55,18 @@ class CustomerOut(CustomerBase):
 
 
 class CustomerInsightsOut(BaseModel):
-    """Insights IA derivados del historial de un cliente (Fase 3 V8 P0.3)."""
+    """Insights IA derivados del historial de un cliente (Fase 3 V8 P0.3 + HU_25 perfil 360).
+
+    HU_25 — perfil 360° del cliente: expone un objeto ``customer`` con los datos
+    básicos + ``last_order_at`` (timestamp crudo) para que el front pueda formatear
+    la fecha directamente sin recalcularla.
+    """
     customer_id: UUID
+    # HU_25 — datos básicos del cliente (full_name, email, phone, segmento, etc.)
+    customer: Optional[CustomerOut] = None
+    # HU_25 — fecha cruda del último pedido (ISO string). Complementa nil
+    # ``days_since_last_order`` (que es derivado y puede ser 0).
+    last_order_at: Optional[str] = None
     lifetime_value_cents: int
     avg_ticket_cents: int
     total_orders: int

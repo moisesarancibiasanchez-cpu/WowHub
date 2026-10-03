@@ -349,6 +349,11 @@ def customer_insights(
 
     return CustomerInsightsOut(
         customer_id=c.id,
+        # HU_25 — perfil 360°: incluir objeto customer + last_order_at crudo
+        # para que el front pueda mostrar nombre, email, fecha sin hacer
+        # un segundo GET a /customers/{id}.
+        customer=to_out(c),
+        last_order_at=c.last_order_at,
         lifetime_value_cents=c.total_spent_cents,
         avg_ticket_cents=avg_ticket,
         total_orders=c.total_orders,
