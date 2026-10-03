@@ -291,17 +291,50 @@
   // Antes: la home NO leía dashboard_layouts. Cuando el usuario
   // guardaba un layout en /dashboard/widgets, la home no se enteraba.
   // Ahora: aplicamos el layout guardado ANTES de cargar datos,
-  // ocultando bloques cuyo tipo no esté en el array guardado.
+  // ocultando bloques cuyo tipo no esté en el array guardado Y
+  // reordenándolos según el orden de guardado en dashboard_layouts.
   // Si el guardado falla → fallback silencioso a "mostrar todo".
+  let appliedLayoutTypes = null;
   try {
     const layout = await WH.api.get("/api/v1/dashboard/layout");
     if (layout && Array.isArray(layout.widgets) && layout.widgets.length > 0) {
       const visibleTypes = new Set(layout.widgets.map(w => w.type));
+      appliedLayoutTypes = visibleTypes;
+      // 1) Ocultar widgets no guardados
       document.querySelectorAll("[data-widget-type]").forEach(el => {
         const t = el.getAttribute("data-widget-type");
         if (!visibleTypes.has(t)) {
           el.style.display = "none";
         }
+      });
+      // 2) Reordenar widgets según el orden de guardado. Usamos un
+      // contenedor padre común (main, main > div o body). El bucle
+      // reordena in-place usando `el.nextElementSibling` para no
+      // destruir otros elementos fuera de data-widget-type.
+      const allWidgets = Array.from(layout.widgets)
+        .map(w => document.querySelector(`[data-widget-type="${w.type}"]`))
+        .filter(Boolean);
+      const seen = new Set();
+      allWidgets.forEach(el => {
+        // Sólo mover si no está ya en posición correcta
+        const prev = el.previousElementSibling;
+        if (!prev || !seen.has(prev)) {
+          // Encontrar el último sibling que SÍ esté en seen y mover
+          // el actual a continuación de él.
+          let anchor = null;
+          let cursor = el.parentElement.firstElementChild;
+          while (cursor && cursor !== el) {
+            if (seen.has(cursor)) anchor = cursor;
+            cursor = cursor.nextElementSibling;
+          }
+          if (anchor) {
+            el.parentElement.insertBefore(el, anchor.nextElementSibling);
+          } else {
+            // Mover al inicio del contenedor
+            el.parentElement.insertBefore(el, el.parentElement.firstElementChild);
+          }
+        }
+        seen.add(el);
       });
     }
   } catch (e) {
@@ -310,19 +343,29 @@
   }
 
   // ── Carga paralela de KPIs y datos del nuevo layout ──
+  // FIX 2026-10-02c — Antes la home llamaba 9 endpoints SIEMPRE, incluso
+  // para widgets ocultados por el usuario vía /dashboard/widgets. Eso
+  // gastaba bandwidth y producía errores 500/422 visibles en consola
+  // por sección oculta. Aquí: si el bloque padre está display:none,
+  // NO llamamos su endpoint (0 bandwidth + 0 errores asociados).
+  function isVisible(type) {
+    if (!appliedLayoutTypes) return true;
+    return appliedLayoutTypes.has(type);
+  }
   try {
     const T = tenant.tenant_id;
-    const results = await Promise.allSettled([
-      WH.api.get(`/api/v1/tenants/${T}/orders/today-summary`),                 // 0  ventas hoy
-      WH.api.get(`/api/v1/tenants/${T}/opportunities/daily-brief`),           // 1  brief (margin, AI msg)
-      WH.api.get(`/api/v1/tenants/${T}/customers?page_size=1`),                // 2  total clientes
-      WH.api.get(`/api/v1/tenants/${T}/customers/stats?active_days=90`),       // 3  clientes activos
-      WH.api.get(`/api/v1/tenants/${T}/insumos/stats`),                        // 4  stock valorizado
-      WH.api.get(`/api/v1/tenants/${T}/analytics/sales-7d`),                   // 5  serie 7 días
-      WH.api.get(`/api/v1/tenants/${T}/orders?page_size=8&status=incoming`),  // 6  pedidos entrantes
-      WH.api.get(`/api/v1/tenants/${T}/bookings?status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=5`), // 7  reservas próximas
-      WH.api.get(`/api/v1/tenants/${T}/products?page_size=20&status=active&sort=margin`),  // 8  productos top
-    ]);
+    const fetches = [
+      isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/orders/today-summary`)                  : Promise.resolve(null),  // 0
+      isVisible("ai_brief")    ? WH.api.get(`/api/v1/tenants/${T}/opportunities/daily-brief`)            : Promise.resolve(null),  // 1
+      isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/customers?page_size=1`)                 : Promise.resolve(null),  // 2
+      isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/customers/stats?active_days=90`)        : Promise.resolve(null),  // 3
+      isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/insumos/stats`)                         : Promise.resolve(null),  // 4
+      isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/analytics/sales-7d`)                    : Promise.resolve(null),  // 5
+      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/orders?page_size=8&status=incoming`)   : Promise.resolve(null),  // 6
+      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/bookings?status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=5`) : Promise.resolve(null),  // 7
+      isVisible("products")    ? WH.api.get(`/api/v1/tenants/${T}/products?page_size=20&status=active&sort=margin`) : Promise.resolve(null),  // 8
+    ];
+    const results = await Promise.allSettled(fetches);
 
     const get = (i) => (results[i] && results[i].status === "fulfilled") ? results[i].value : null;
     const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
