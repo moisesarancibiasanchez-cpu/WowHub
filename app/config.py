@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str | None = None
     stripe_publishable_key: str | None = None
 
+    # ── HU_16 — WhatsApp Business (pedidos multi-canal) ───────────────
+    # App secret del webhook de WhatsApp Cloud API. Si está vacío, el endpoint
+    # `POST /api/v1/webhooks/whatsapp` devuelve 503 explícito (fail-closed,
+    # igual que Stripe): aceptar 200 sin verificar firma sería fail-open.
+    whatsapp_business_token: str | None = None
+
     # Webhooks
     webhook_secret: str = "change-me-webhook-secret-min-32-chars-ok"
     webhook_max_retries: int = 5

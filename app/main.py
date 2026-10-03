@@ -43,6 +43,7 @@ from app.api.v1 import (
     loyalty_tiers,     # HU_29 — tiers de fidelidad
     sii,               # HU_32 — SII Chile (Libro de Ventas + validador RUT)
     webhook_stripe,    # HU_23 — Stripe webhook (público, sin auth) — /api/v1/webhook/stripe
+    webhook_whatsapp,  # HU_16 — WhatsApp Business webhook (público, sin auth) — /api/v1/webhooks/whatsapp
     audit_chain,       # HU_40 — Audit hash chain (backfill + verify, superadmin only)
     rbac,              # HU_38 — RBAC granular con Casbin (5 endpoints superadmin)
     dashboard,         # HU_34 — Dashboard personalizable (GridStack widgets)
@@ -247,6 +248,8 @@ app.include_router(loyalty_tiers.router, prefix="/api/v1")
 app.include_router(sii.router, prefix="/api/v1")
 # HU_23 — Stripe webhook (público, sin auth)
 app.include_router(webhook_stripe.router, prefix="/api/v1")
+# HU_16 — WhatsApp Business webhook (público, sin auth)
+app.include_router(webhook_whatsapp.router, prefix="/api/v1")
 # HU_40 — Audit hash chain (superadmin only): backfill + verify
 app.include_router(audit_chain.router, prefix="/api/v1")
 # HU_38 — RBAC granular con Casbin (superadmin only): 5 endpoints
