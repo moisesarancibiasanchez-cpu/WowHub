@@ -28,6 +28,7 @@ from app.models.business_costs import BusinessCosts
 from app.models.tenant import Tenant
 from app.schemas.business_costs import (
     BusinessCostsBreakdown,
+    BusinessCostsLineItem,
     BusinessCostsUpdate,
     PricingSuggestionRequest,
     PricingSuggestionResponse,
@@ -127,6 +128,29 @@ class CostsService:
             "packaging_cents", "maintenance_cents", "depreciation_cents",
         )
 
+        # HU_10 — Breakdown por línea (promedio ponderado V8). Sin tabla
+        # nueva: derivamos de los 13 campos monetarios existentes en
+        # ``BusinessCosts``. ``percent_weight`` se calcula contra el
+        # ``total_fixed_cents`` cacheado (defensivo: si total=0, weight=0).
+        total_fixed = int(bc.total_fixed_cents or 0)
+        meta_by_key = {f["key"]: f for f in COST_FIELDS_META if f["currency_kind"] == "money"}
+        items: list[BusinessCostsLineItem] = []
+        for key in BusinessCosts.MONEY_FIELDS:
+            na = bool(is_na.get(key))
+            amount = 0 if na else int(getattr(bc, key) or 0)
+            weight = round((amount / total_fixed) * 100, 2) if total_fixed > 0 else 0.0
+            meta = meta_by_key.get(key, {})
+            items.append(
+                BusinessCostsLineItem(
+                    line_key=key,
+                    label=meta.get("label", key),
+                    section=meta.get("section", "otros"),
+                    amount_cents=amount,
+                    percent_weight=weight,
+                    is_na=na,
+                )
+            )
+
         return BusinessCostsBreakdown(
             tenant_id=bc.tenant_id,
             currency=t.currency or "CLP",
@@ -140,6 +164,7 @@ class CostsService:
             version=bc.version,
             updated_at=bc.updated_at,
             is_configured=bc.version > 1,  # versión 1 = defaults; >1 = editó
+            items=items,
         )
 
     # ── Pricing suggestion (usado por productos / AI) ─────

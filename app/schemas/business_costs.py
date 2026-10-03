@@ -99,11 +99,33 @@ class BusinessCostsRead(BusinessCostsBase):
     updated_at: datetime
 
 
+class BusinessCostsLineItem(BaseModel):
+    """Una línea individual del breakdown (HU_10 — promedio ponderado V8).
+
+    Deriva de los campos monetarios de ``BusinessCosts`` ya existente; no
+    requiere tabla nueva (``cost_lines_v8``). El endpoint existente
+    ``GET /tenants/{tid}/costs/breakdown`` devuelve esta lista en ``items``.
+    """
+    line_key: str = Field(..., description="Nombre del campo en BusinessCosts (ej. rent_cents).")
+    label: str = Field(..., description="Etiqueta legible para UI (ej. 'Arriendo').")
+    section: str = Field(..., description="Sección: personal | basicos | otros.")
+    amount_cents: int = Field(..., ge=0, description="Monto mensual en cents (0 si NA).")
+    percent_weight: float = Field(
+        0.0, ge=0, le=100,
+        description="Peso relativo sobre el total fijo (%). 0 si total=0.",
+    )
+    is_na: bool = Field(False, description="True si el tenant marcó esta línea como 'No aplica'.")
+
+
 class BusinessCostsBreakdown(BaseModel):
     """Lectura derivada: totales por sección + costo hora + métricas auxiliares.
 
     Pensado para alimentar widgets del dashboard y el panel de
     `costos.html` sin obligar al front a recalcular.
+
+    HU_10 — incluye además la lista plana de líneas (``items``) con su
+    peso relativo (%). Permite al frontend mostrar gráficos de torta /
+    barras y calcular promedio ponderado sin agregar una tabla nueva.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -127,6 +149,12 @@ class BusinessCostsBreakdown(BaseModel):
     is_configured: bool = Field(
         ...,
         description="True si el tenant ya completó al menos un PUT inicial.",
+    )
+
+    # HU_10 — Breakdown por línea (promedio ponderado V8)
+    items: list[BusinessCostsLineItem] = Field(
+        default_factory=list,
+        description="Líneas individuales con line_key, percent_weight y amount_cents.",
     )
 
 
