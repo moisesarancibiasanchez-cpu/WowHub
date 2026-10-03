@@ -86,6 +86,21 @@ class Settings(BaseSettings):
     # Poner en True sólo en desarrollo local.
     storage_public: bool = True
 
+    # ── HU_39 — Encriptación de campos sensibles (Fernet / AES-128-CBC + HMAC) ──
+    # Clave Fernet (32 bytes) codificada en base64 url-safe (44 chars). Se aplica
+    # a columnas con datos personales (teléfono, dirección, email secundario, etc.)
+    # mediante ``app.core.encryption.encrypt_value`` / ``decrypt_value``.
+    #
+    # En DESARROLLO / TESTING: si está vacía se deriva determinísticamente de
+    # ``SECRET_KEY`` vía HKDF-SHA256, así no hace falta configurar nada extra
+    # para que los tests pasen. Los datos cifrados en dev NO se pueden descifrar
+    # en producción (claves distintas) — eso es intencional.
+    #
+    # En PRODUCCIÓN: REQUERIDA y ABORTA el arranque si está vacía o es
+    # placeholder (mismo fail-fast que SECRET_KEY/JWT_SECRET/WEBHOOK_SECRET).
+    # Generar con: ``python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"``
+    field_encryption_key: str = ""
+
     # ── Nuevas settings (v0.2.0) ──────────────────────────
     # Email
     email_backend: str = "log"  # log | console | smtp | resend
@@ -248,6 +263,11 @@ class Settings(BaseSettings):
         _is_placeholder("SECRET_KEY", self.secret_key)
         _is_placeholder("JWT_SECRET", self.jwt_secret)
         _is_placeholder("WEBHOOK_SECRET", self.webhook_secret)
+        # HU_39: la clave Fernet es requerida en producción. Si está vacía o
+        # es placeholder, abortamos el arranque: tener columnas cifradas con
+        # una clave derivada de SECRET_KEY en prod significa que cualquier
+        # leak de SECRET_KEY expone TODOS los PII cifrados.
+        _is_placeholder("FIELD_ENCRYPTION_KEY", self.field_encryption_key)
 
         # En producción el modo debug tampoco es aceptable.
         if offenders:
