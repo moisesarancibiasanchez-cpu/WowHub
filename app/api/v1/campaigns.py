@@ -12,7 +12,9 @@ Reglas de seguridad:
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -23,6 +25,8 @@ from app.database import get_db
 from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.tenant import Tenant, TenantMembership
 from app.schemas.analytics import (
+    CampaignABTestCreate,
+    CampaignABTestResponse,
     CampaignCreate,
     CampaignResponse,
     CampaignResult,
@@ -209,3 +213,77 @@ def preview_campaign(
         "preview_html": preview_html,
         "sample_recipients": candidates[:PREVIEW_SAMPLE_SIZE],
     }
+
+
+# ── Campaigns A/B test (HU_27) ────────────────────────────────
+@router.post(
+    "/{campaign_id}/ab-test",
+    response_model=CampaignABTestResponse,
+    summary="Registrar variantes A/B de una campaña",
+)
+def register_ab_test(
+    campaign_id: str,
+    payload: CampaignABTestCreate,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Registra dos variantes de asunto (A y B) para una campaña.
+
+    Las campañas en WowHub son envíos fire-and-fortes (sin tabla persistente
+    de campañas), por lo que ``campaign_id`` se trata como un identificador
+    lógico provisto por el cliente (p. ej. un slug). El endpoint:
+
+    1. Valida ``variant_a``/``variant_b`` y ``split`` (vía Pydantic).
+    2. Genera un ``test_id`` estable (SHA-256 sobre tenant + variantes +
+       split + campaign_id + timestamp minuto) para idempotencia operativa.
+    3. Proyecta cuántos destinatarios quedarían en cada variante según el
+       segmento "all" con opt-in de marketing (mismo filtro que ``send_campaign``).
+    4. NO envía nada; sólo registra las variantes en logs para auditoría.
+
+    Para ejecutar el envío final el Asistente IA debe llamar a
+    ``POST /campaigns`` con el asunto correspondiente.
+    """
+    # 1) Calcular test_id estable (idempotencia operativa por minuto)
+    minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+    seed = (
+        f"{tenant.id}|{campaign_id}|{payload.variant_a}|{payload.variant_b}|"
+        f"{payload.split}|{minute_bucket}"
+    )
+    test_id = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
+
+    # 2) Proyección de destinatarios (sin persistir; sólo lectura de segmentos)
+    analytics = AnalyticsService(db)
+    seg = analytics.customer_segments(
+        tenant.id,
+        segment="all",
+        limit=MAX_RECIPIENTS_PER_CAMPAIGN,
+    )
+    candidates: list[CustomerSegmentItem] = [
+        CustomerSegmentItem(**item) for item in seg["items"]
+        if item.get("accepts_marketing") and item.get("email")
+    ]
+    total = len(candidates)
+    # Aproximación determinista: round hacia abajo para A, el resto para B
+    n_a = int(round(total * payload.split))
+    n_a = min(n_a, total)
+    n_b = total - n_a
+
+    logger.info(
+        "[CAMPAIGN-AB-TEST] tenant=%s user=%s campaign=%s test=%s "
+        "variant_a=%r variant_b=%r split=%s projected_a=%d projected_b=%d",
+        tenant.id, membership.user_id, campaign_id, test_id,
+        payload.variant_a, payload.variant_b, payload.split, n_a, n_b,
+    )
+
+    return CampaignABTestResponse(
+        test_id=test_id,
+        campaign_id=campaign_id,
+        variant_a=payload.variant_a,
+        variant_b=payload.variant_b,
+        split=payload.split,
+        name=payload.name,
+        projected_targets_a=n_a,
+        projected_targets_b=n_b,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )

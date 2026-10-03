@@ -110,3 +110,45 @@ class CampaignResponse(BaseModel):
     campaign: CampaignResult
     preview_html: Optional[str] = None
     sample_recipients: list[CustomerSegmentItem] = Field(default_factory=list)
+
+
+# ── Campaigns A/B test (HU_27) ────────────────────────────────
+class CampaignABTestCreate(BaseModel):
+    """Cuerpo del POST /campaigns/{id}/ab-test.
+
+    Permite definir dos variantes de asunto (A y B) y el porcentaje
+    del tráfico que verá cada una. El endpoint valida y guarda las
+    variantes, devolviendo un identificador estable (test_id) y una
+    proyección de destinatarios por variante según el segmento actual.
+    """
+
+    variant_a: str = Field(..., min_length=2, max_length=200,
+                           description="Asunto variante A.")
+    variant_b: str = Field(..., min_length=2, max_length=200,
+                           description="Asunto variante B.")
+    split: float = Field(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Proporción (0.0–1.0) del tráfico que verá la variante A. "
+                    "El resto verá la variante B.",
+    )
+    name: Optional[str] = Field(
+        None,
+        max_length=120,
+        description="Nombre lógico del test (para auditoría).",
+    )
+
+
+class CampaignABTestResponse(BaseModel):
+    """Respuesta del POST /campaigns/{id}/ab-test."""
+
+    test_id: str = Field(..., description="Identificador estable (hex) del test A/B.")
+    campaign_id: str = Field(..., description="Identificador lógico de campaña recibido.")
+    variant_a: str
+    variant_b: str
+    split: float
+    name: Optional[str] = None
+    projected_targets_a: int
+    projected_targets_b: int
+    created_at: str
