@@ -1049,6 +1049,33 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
     )
 
 
+# FIX 2026-10-03 — Captura excepciones no manejadas y loggea traceback
+# completo para diagnóstico. Sin esto, /api/v1/auth/register devolvía
+# 500 sin detalle y no podíamos saber qué fallaba en producción.
+import logging
+import traceback as _tb
+_app_logger = logging.getLogger("wowhub.app")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    _app_logger.error(
+        "Unhandled exception in %s %s: %s\n%s",
+        request.method, request.url.path, exc, _tb.format_exc(),
+    )
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal error: {type(exc).__name__}: {str(exc)[:300]}"},
+        )
+    return templates.TemplateResponse(
+        request,
+        "public/error.html",
+        {"settings": settings, "detail": str(exc), "status": 500},
+        status_code=500,
+    )
+
+
 @app.get("/health", tags=["meta"])
 def health():
     """Health check — alimenta el uptime monitor (HU_49)."""
