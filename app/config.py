@@ -62,7 +62,10 @@ class Settings(BaseSettings):
     # Auth
     jwt_secret: str = "change-me-jwt-secret-min-32-chars-random-ok"
     jwt_algorithm: str = "HS256"
-    jwt_access_ttl_minutes: int = 60
+    # Access token de corta duración (HU_03): reducido de 60 → 15 min para
+    # acotar ventana de exposición ante robo de token. Rotación de refresh
+    # token queda fuera de scope de esta HU.
+    jwt_access_ttl_minutes: int = 15
     jwt_refresh_ttl_days: int = 14
 
     # CORS
