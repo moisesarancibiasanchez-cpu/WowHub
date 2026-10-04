@@ -88,122 +88,123 @@
 </section>
 
 <!-- ════════════════════════════════════════════════════════════════
-     MAIN GRID — 2 columnas: Pedidos y reservas | Oportunidades
-     (1.55fr / 1fr; en mobile se apila)
+     MAIN GRID — anclas vacías (HU_34 · trade-off CSS Grid fix).
+     Antes estos `<section>` envolvían `orders` + `opportunities`
+     (2-col) y `products` + `performance` + `activity` (3-col), pero
+     eso LIMITABA el reorden: un widget del `.dash-main-grid` solo
+     podía reordenarse con widgets del mismo grid (no cruzar entre
+     grids distintos). Ahora los widgets viven como hijos directos de
+     `.dash-content`, y `.dash-content` es UN grid de 12 columnas con
+     `grid-template-areas` que define el layout por defecto. Los
+     sub-grids se mantienen como anclas DOM vacías (con
+     `display:contents`) para no romper selectores legacy.
      ════════════════════════════════════════════════════════════════ -->
-<section class="dash-main-grid">
+<section class="dash-main-grid dash-grid-anchor" aria-hidden="true"></section>
 
-  <!-- Panel izquierdo: Pedidos y reservas -->
-  <div class="panel" id="panel-pedidos" data-widget-type="orders">
-    <div class="panel-head">
-      <div>
-        <h2>📥 Pedidos y reservas</h2>
-        <p>Pedidos que requieren atención y próximas reservas</p>
-      </div>
-      <a class="link-btn" href="/dashboard/orders">Ver pedidos →</a>
+<!-- Panel izquierdo: Pedidos y reservas (hijo directo de .dash-content) -->
+<div class="panel" id="panel-pedidos" data-widget-type="orders">
+  <div class="panel-head">
+    <div>
+      <h2>📥 Pedidos y reservas</h2>
+      <p>Pedidos que requieren atención y próximas reservas</p>
     </div>
-
-    <div class="incoming-list" id="incoming-list">
-      <p class="text-muted text-center" style="margin: 24px 0;">Cargando pedidos…</p>
-    </div>
-
-    <div class="incoming-divider">
-      <div class="panel-head">
-        <div>
-          <h2 style="font-size:15px;">Reservas próximas</h2>
-          <p>Vista rápida del módulo Reservas</p>
-        </div>
-        <a class="link-btn" href="/dashboard/bookings">Ver →</a>
-      </div>
-      <div id="reservations-mini">
-        <p class="text-muted text-center" style="margin: 12px 0;">Cargando reservas…</p>
-      </div>
-    </div>
+    <a class="link-btn" href="/dashboard/orders">Ver pedidos →</a>
   </div>
 
-  <!-- Panel derecho: Oportunidades -->
-  <div class="panel" id="panel-oportunidades" data-widget-type="opportunities">
-    <div class="panel-head">
-      <div>
-        <h2>🧠 Oportunidades</h2>
-        <p id="opps-subtitle">WowHub encontró cosas que deberías revisar</p>
-      </div>
-    </div>
-    <div class="opps" id="dash-opps">
-      <p class="text-muted text-center" style="margin: 24px 0;">Cargando oportunidades…</p>
-    </div>
+  <div class="incoming-list" id="incoming-list">
+    <p class="text-muted text-center" style="margin: 24px 0;">Cargando pedidos…</p>
   </div>
 
-</section>
-
-<!-- ════════════════════════════════════════════════════════════════
-     BOTTOM GRID — 3 columnas: Productos | Rendimiento | Actividad
-     (1.15fr / 1fr / 1fr; en tablet 2-col, en mobile 1-col)
-     ════════════════════════════════════════════════════════════════ -->
-<section class="dash-bottom-grid">
-
-  <!-- Productos (top ventas / margen) -->
-  <div class="panel dash-products" data-widget-type="products">
+  <div class="incoming-divider">
     <div class="panel-head">
       <div>
-        <h2>Productos</h2>
-        <p>Rentabilidad y rendimiento</p>
+        <h2 style="font-size:15px;">Reservas próximas</h2>
+        <p>Vista rápida del módulo Reservas</p>
       </div>
+      <a class="link-btn" href="/dashboard/bookings">Ver →</a>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Ventas</th>
-          <th>Margen</th>
-        </tr>
-      </thead>
-      <tbody id="dash-products-body">
-        <tr><td colspan="3" class="text-muted text-center" style="padding: 24px 8px;">Cargando productos…</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Rendimiento (bar chart 7 días, ventas vs margen) -->
-  <div class="panel dash-rendimiento" data-widget-type="performance">
-    <div class="panel-head">
-      <div>
-        <h2>Rendimiento del negocio</h2>
-        <p>Ventas y utilidad de los últimos 7 días</p>
-      </div>
-      <a class="link-btn" href="/dashboard/orders">Ver análisis →</a>
-    </div>
-    <div class="dash-bar-legend">
-      <span><span class="lg-dot lg-sales"></span> Ventas</span>
-      <span><span class="lg-dot lg-profit"></span> Utilidad</span>
-    </div>
-    <div class="dash-bars-wrap">
-      <div class="dash-bars" id="dash-bars">
-        <!-- barras inyectadas por JS -->
-      </div>
-      <div class="dash-bar-labels" id="dash-bar-labels">
-        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
-      </div>
+    <div id="reservations-mini">
+      <p class="text-muted text-center" style="margin: 12px 0;">Cargando reservas…</p>
     </div>
   </div>
+</div>
 
-  <!-- Actividad reciente -->
-  <div class="panel dash-activity" data-widget-type="activity">
-    <div class="panel-head">
-      <div>
-        <h2>Actividad reciente</h2>
-        <p>Últimos movimientos</p>
-      </div>
-      <button class="link-btn" id="activity-refresh" type="button" aria-label="Refrescar actividad" style="background:none;border:0;cursor:pointer;font-family:inherit;">↻ Refrescar</button>
+<!-- Panel derecho: Oportunidades (hijo directo de .dash-content) -->
+<div class="panel" id="panel-oportunidades" data-widget-type="opportunities">
+  <div class="panel-head">
+    <div>
+      <h2>🧠 Oportunidades</h2>
+      <p id="opps-subtitle">WowHub encontró cosas que deberías revisar</p>
     </div>
-    <ul class="activity-feed" id="activity-feed" style="margin: 0; padding: 0;">
-      <li class="activity-empty">
-        <p class="text-muted text-center" style="margin: 16px 0;">Cargando actividad…</p>
-      </li>
-    </ul>
   </div>
+  <div class="opps" id="dash-opps">
+    <p class="text-muted text-center" style="margin: 24px 0;">Cargando oportunidades…</p>
+  </div>
+</div>
 
-</section>
+<!-- Ancla vacía del bottom grid (ver comentario arriba) -->
+<section class="dash-bottom-grid dash-grid-anchor" aria-hidden="true"></section>
+
+<!-- Productos (top ventas / margen) — hijo directo de .dash-content -->
+<div class="panel dash-products" data-widget-type="products">
+  <div class="panel-head">
+    <div>
+      <h2>Productos</h2>
+      <p>Rentabilidad y rendimiento</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th>Ventas</th>
+        <th>Margen</th>
+      </tr>
+    </thead>
+    <tbody id="dash-products-body">
+      <tr><td colspan="3" class="text-muted text-center" style="padding: 24px 8px;">Cargando productos…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Rendimiento (bar chart 7 días, ventas vs margen) — hijo directo de .dash-content -->
+<div class="panel dash-rendimiento" data-widget-type="performance">
+  <div class="panel-head">
+    <div>
+      <h2>Rendimiento del negocio</h2>
+      <p>Ventas y utilidad de los últimos 7 días</p>
+    </div>
+    <a class="link-btn" href="/dashboard/orders">Ver análisis →</a>
+  </div>
+  <div class="dash-bar-legend">
+    <span><span class="lg-dot lg-sales"></span> Ventas</span>
+    <span><span class="lg-dot lg-profit"></span> Utilidad</span>
+  </div>
+  <div class="dash-bars-wrap">
+    <div class="dash-bars" id="dash-bars">
+      <!-- barras inyectadas por JS -->
+    </div>
+    <div class="dash-bar-labels" id="dash-bar-labels">
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+    </div>
+  </div>
+</div>
+
+<!-- Actividad reciente — hijo directo de .dash-content -->
+<div class="panel dash-activity" data-widget-type="activity">
+  <div class="panel-head">
+    <div>
+      <h2>Actividad reciente</h2>
+      <p>Últimos movimientos</p>
+    </div>
+    <button class="link-btn" id="activity-refresh" type="button" aria-label="Refrescar actividad" style="background:none;border:0;cursor:pointer;font-family:inherit;">↻ Refrescar</button>
+  </div>
+  <ul class="activity-feed" id="activity-feed" style="margin: 0; padding: 0;">
+    <li class="activity-empty">
+      <p class="text-muted text-center" style="margin: 16px 0;">Cargando actividad…</p>
+    </li>
+  </ul>
+</div>
 
 <!-- ════════════════════════════════════════════════════════════════
      AI BAR — Banner inferior con CTA a WowHub AI
@@ -315,36 +316,29 @@
           el.style.display = "none";
         }
       });
-      // 2) Reordenar — FIX 2026-10-03 (HU_34 · Bug #4, refinado).
-      // ANTES (v1): `style.order` con `display:flex` en `.dash-content` →
-      // CSS `order` no escapa el contenedor grid padre (.dash-main-grid 2-col
-      // y .dash-bottom-grid 3-col), así que reordenaba dentro de cada grid
-      // pero NO entre grids.
-      // v2 (appendChild al wrapper): rompía el 2-col / 3-col visual
-      // (todos los widgets apilados verticalmente).
-      // v3 (esta): reordenamos DENTRO del contenedor padre real de cada
-      // widget. Si un widget vive en `.dash-main-grid` (2-col) o
-      // `.dash-bottom-grid` (3-col), lo movemos al final de ESE grid
-      // concreto → preserva la grilla visual Y permite reordenar entre
-      // grids iterando con appendChild en el wrapper común. Trade-off:
-      // un widget que vive en `.dash-main-grid` solo puede reordenarse
-      // con widgets del mismo grid (no cruzar entre grids distintos) POR
-      // la naturaleza del grid CSS. Esto es una limitación del modelo de
-      // HU_34 — aceptada y documentada para v134.2.
+      // 2) Reordenar — FIX 2026-10-04 (HU_34 · Bug #4, fix definitivo).
+      // Historia del trade-off CSS Grid:
+      //   v1 (style.order + display:flex en .dash-content): `order` no escapa
+      //       el contenedor grid padre, reordenaba solo dentro de cada grid.
+      //   v2 (appendChild al wrapper común): rompía el 2-col / 3-col visual
+      //       (todos los widgets apilados verticalmente).
+      //   v3 (appendChild al sub-grid del widget): preservaba la grilla
+      //       visual pero LIMITABA el reorden entre widgets del mismo grid.
+      //   v4 (esta — refactor CSS Grid Areas): los 10 widgets son ahora
+      //       hijos DIRECTOS de `.dash-content`. `.dash-content` es UN grid
+      //       de 12 columnas con `grid-template-areas` que define el layout
+      //       por defecto. Un solo `wrapper.appendChild(el)` reordena
+      //       CUALQUIER par de widgets entre sí, y la grilla visual se
+      //       mantiene intacta vía `grid-area` por widget.
       appliedLayoutOrder = layout.widgets.map((w, i) => ({ type: w.type, order: i }));
       const wrapper = document.querySelector(".dash-content") || document.querySelector("main");
       if (wrapper) {
         appliedLayoutOrder.forEach(({ type }) => {
           const el = document.querySelector(`[data-widget-type="${type}"]`);
           if (!el) return;
-          // Determinar el contenedor de reordenación:
-          // - Si el widget vive dentro de un sub-grid (.dash-main-grid /
-          //   .dash-bottom-grid / .dash-metrics-row), reordenar DENTRO del
-          //   sub-grid (preserva la grilla visual).
-          // - Si vive directo en `.dash-content`/`main`, reordenar ahí.
-          const subgrid = el.closest(".dash-main-grid, .dash-bottom-grid, .dash-metrics-row");
-          const target = subgrid || wrapper;
-          target.appendChild(el);
+          // Hijos directos de `.dash-content` → un solo appendChild reordena
+          // cualquier par entre sí (sin restricción de sub-grid).
+          wrapper.appendChild(el);
         });
       }
     }

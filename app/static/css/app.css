@@ -219,7 +219,28 @@
      MODO TEST (html.no-ai-sidebar): el AI sidebar está
      oculto (?no_ai=1 en la URL), entonces el contenido
      puede expandirse al 100% del main para confirmar si
-     el AI era el responsable del centrado/aprovechamiento. */
+     el AI era el responsable del centrado/aprovechamiento.
+
+     FIX 2026-10-04 (HU_34 · trade-off CSS Grid):
+     `.dash-content` ahora es UN `display: grid` de 12 columnas
+     con `grid-template-areas` que define el layout por defecto
+     de los 10 widgets. Los antiguos sub-grids `.dash-main-grid`
+     (2-col) y `.dash-bottom-grid` (3-col) se mantienen como
+     anclas DOM vacías con `display:contents`. Cada widget ocupa
+     su área vía `grid-area`. Esto permite reordenar CUALQUIER par
+     de widgets entre sí (vía `appendChild` en JS) sin perder la
+     grilla visual. Ver `app/templates/dashboard/index.html`
+     comentario "MAIN GRID — anclas vacías" para más contexto. */
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-areas:
+    "ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief"
+    "metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics"
+    "orders      orders      orders      orders      orders      orders      orders      orders      opportunities opportunities opportunities opportunities"
+    "products    products    performance performance performance performance activity     activity     activity     activity     activity     activity"
+    "ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar"
+    "cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets public_url  public_url  public_url  public_url  public_url  public_url";
+  gap: 16px;
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
@@ -228,6 +249,62 @@
 html.no-ai-sidebar .dash-content,
 .no-ai-sidebar .dash-content {
   max-width: 100%;
+}
+
+/* ── HU_34 · trade-off CSS Grid fix (2026-10-04) ────────────────────
+   Los 10 widgets del Resumen viven como hijos DIRECTOS de
+   `.dash-content`. Cada uno ocupa su `grid-area` correspondiente
+   (mismo nombre que `data-widget-type`), de modo que el layout
+   por defecto se preserva y el JS puede reordenarlos libremente
+   vía `wrapper.appendChild(el)` sin perder la grilla visual. */
+.dash-content > [data-widget-type="ai_brief"]      { grid-area: ai_brief; }
+.dash-content > [data-widget-type="metrics"]       { grid-area: metrics; }
+.dash-content > [data-widget-type="orders"]        { grid-area: orders; }
+.dash-content > [data-widget-type="opportunities"] { grid-area: opportunities; }
+.dash-content > [data-widget-type="products"]      { grid-area: products; }
+.dash-content > [data-widget-type="performance"]   { grid-area: performance; }
+.dash-content > [data-widget-type="activity"]      { grid-area: activity; }
+.dash-content > [data-widget-type="ai_bar"]        { grid-area: ai_bar; }
+.dash-content > [data-widget-type="public_url"]    { grid-area: public_url; }
+.dash-content > [data-widget-type="cta_widgets"]   { grid-area: cta_widgets; }
+
+/* Anclas DOM vacías (HU_34): los antiguos sub-grids `.dash-main-grid`
+   y `.dash-bottom-grid` ya no envuelven widgets. Con
+   `display:contents` no generan caja → no ocupan celdas del grid de
+   `.dash-content` ni añaden márgenes visuales. Se preservan como
+   anclas para no romper selectores / CSS legacy que las apunten. */
+.dash-content > .dash-grid-anchor,
+.dash-content > .dash-main-grid,
+.dash-content > .dash-bottom-grid {
+  display: contents;
+}
+
+/* Reset de márgenes verticales cuando los widgets viven como grid items
+   directos del nuevo `.dash-content` (HU_34 · trade-off CSS Grid fix).
+   Antes estos márgenes (`mt-4`, `margin: 16px 0`, `margin-top: 16px`)
+   servían el layout en flujo de bloque. Ahora `.dash-content` es un grid
+   con `gap:16px` que ya provee el espaciado. Sin este reset, los widgets
+   tendrían doble espaciado (gap + margin). */
+.dash-content > .dash-metrics  { margin: 0; }
+.dash-content > .dash-ai-bar   { margin: 0; }
+.dash-content > [data-widget-type="public_url"]  { margin-top: 0; }
+.dash-content > [data-widget-type="cta_widgets"] { margin-top: 0; }
+
+/* ≤1100px (tablet): cada widget en su propia fila (12 cols). */
+@media (max-width: 1100px) {
+  .dash-content {
+    grid-template-areas:
+      "ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief    ai_brief"
+      "metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics     metrics"
+      "orders      orders      orders      orders      orders      orders      orders      orders      orders      orders      orders      orders"
+      "opportunities opportunities opportunities opportunities opportunities opportunities opportunities opportunities opportunities opportunities opportunities opportunities"
+      "products    products    products    products    products    products    products    products    products    products    products    products"
+      "performance performance performance performance performance performance performance performance performance performance performance performance"
+      "activity    activity    activity    activity    activity    activity    activity    activity    activity    activity    activity    activity"
+      "ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar      ai_bar"
+      "cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets"
+      "public_url  public_url  public_url  public_url  public_url  public_url  public_url  public_url  public_url  public_url  public_url  public_url";
+  }
 }
 
 /* Banner de impersonación */
