@@ -360,7 +360,10 @@
     // products
     var prods = document.getElementById("widget-body-products");
     if (prods) {
-      WH.api.get("/api/v1/tenants/" + T + "/products?page_size=5&status=active&sort=margin").then(function (d) {
+      // FIX 2026-10-03 (HU_34 · Bug #3): /products acepta `order_by` con regex
+  // ^(position|name|price|created|sold)$ (ver app/api/v1/products.py:83).
+  // "sort=margin" violaba el contrato y devolvía 422. "sold" ordena por más vendidos.
+      WH.api.get("/api/v1/tenants/" + T + "/products?page_size=5&status=active&order_by=sold").then(function (d) {
         var items = (d && (d.items || d)) || [];
         if (!items.length) {
           prods.innerHTML = '<p class="text-muted">Sin productos activos.</p>'; return;

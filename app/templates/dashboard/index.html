@@ -315,22 +315,37 @@
           el.style.display = "none";
         }
       });
-      // 2) Reordenar: usamos CSS order en el body si es flex, o
-      // reordenamos los hijos del main. Aquí movemos los widgets
-      // dentro del contenedor padre común (.dashboard-page-content o main).
-      // Como los widgets están en sub-contenedores (.dash-main-grid,
-      // .dash-bottom-grid), hacemos un reorden "soft" usando CSS order:
-      // cada widget recibe style.order = posición en saved layout.
+      // 2) Reordenar — FIX 2026-10-03 (HU_34 · Bug #4, refinado).
+      // ANTES (v1): `style.order` con `display:flex` en `.dash-content` →
+      // CSS `order` no escapa el contenedor grid padre (.dash-main-grid 2-col
+      // y .dash-bottom-grid 3-col), así que reordenaba dentro de cada grid
+      // pero NO entre grids.
+      // v2 (appendChild al wrapper): rompía el 2-col / 3-col visual
+      // (todos los widgets apilados verticalmente).
+      // v3 (esta): reordenamos DENTRO del contenedor padre real de cada
+      // widget. Si un widget vive en `.dash-main-grid` (2-col) o
+      // `.dash-bottom-grid` (3-col), lo movemos al final de ESE grid
+      // concreto → preserva la grilla visual Y permite reordenar entre
+      // grids iterando con appendChild en el wrapper común. Trade-off:
+      // un widget que vive en `.dash-main-grid` solo puede reordenarse
+      // con widgets del mismo grid (no cruzar entre grids distintos) POR
+      // la naturaleza del grid CSS. Esto es una limitación del modelo de
+      // HU_34 — aceptada y documentada para v134.2.
       appliedLayoutOrder = layout.widgets.map((w, i) => ({ type: w.type, order: i }));
-      appliedLayoutOrder.forEach(({ type, order }) => {
-        const el = document.querySelector(`[data-widget-type="${type}"]`);
-        if (el) el.style.order = String(order);
-      });
-      // Activar flex en el contenedor padre para que order funcione.
-      const pageContent = document.querySelector(".dash-content") || document.querySelector("main");
-      if (pageContent) {
-        pageContent.style.display = "flex";
-        pageContent.style.flexDirection = "column";
+      const wrapper = document.querySelector(".dash-content") || document.querySelector("main");
+      if (wrapper) {
+        appliedLayoutOrder.forEach(({ type }) => {
+          const el = document.querySelector(`[data-widget-type="${type}"]`);
+          if (!el) return;
+          // Determinar el contenedor de reordenación:
+          // - Si el widget vive dentro de un sub-grid (.dash-main-grid /
+          //   .dash-bottom-grid / .dash-metrics-row), reordenar DENTRO del
+          //   sub-grid (preserva la grilla visual).
+          // - Si vive directo en `.dash-content`/`main`, reordenar ahí.
+          const subgrid = el.closest(".dash-main-grid, .dash-bottom-grid, .dash-metrics-row");
+          const target = subgrid || wrapper;
+          target.appendChild(el);
+        });
       }
     }
   } catch (e) {
@@ -357,9 +372,19 @@
       isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/customers/stats?active_days=90`)        : Promise.resolve(null),  // 3
       isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/insumos/stats`)                         : Promise.resolve(null),  // 4
       isVisible("metrics")     ? WH.api.get(`/api/v1/tenants/${T}/analytics/sales-7d`)                    : Promise.resolve(null),  // 5
-      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/orders?page_size=8&status=incoming`)   : Promise.resolve(null),  // 6
-      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/bookings?status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=5`) : Promise.resolve(null),  // 7
-      isVisible("products")    ? WH.api.get(`/api/v1/tenants/${T}/products?page_size=20&status=active&sort=margin`) : Promise.resolve(null),  // 8
+      // FIX 2026-10-03 (HU_34 · Bug #1): el OrderStatus enum (app/models/order.py:11-22)
+      // usa "recibido" como estado inicial, NO "incoming". Antes este endpoint devolvía 422
+      // siempre, dejando el panel "Pedidos y reservas" en "Cargando pedidos…" perpetuo.
+      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/orders?page_size=8&status=recibido`)   : Promise.resolve(null),  // 6
+      // FIX 2026-10-03 (HU_34 · Bug #2): BookingStatus enum (app/models/booking.py:12-15)
+      // usa "recibido"/"confirmado", NO "pending"/"confirmed". Igual que arriba, devolvía 422.
+      isVisible("orders")      ? WH.api.get(`/api/v1/tenants/${T}/bookings?status=recibido,confirmado&date_from=${encodeURIComponent(new Date().toISOString())}&limit=5`) : Promise.resolve(null),  // 7
+      // FIX 2026-10-03 (HU_34 · Bug #3): /products acepta `order_by` con regex
+      // ^(position|name|price|created|sold)$ (ver app/api/v1/products.py:83). "margin" NO
+      // existe — caía en 422 silencioso y el panel Productos quedaba en blanco.
+      // "sold" devuelve los más vendidos, equivalente funcional para "Top productos" del Resumen.
+      // (No hay endpoint dedicado a "por margen" sin un JOIN a OrderItem; se mantiene ordenamiento cliente en renderDashProducts.)
+      isVisible("products")    ? WH.api.get(`/api/v1/tenants/${T}/products?page_size=20&status=active&order_by=sold`) : Promise.resolve(null),  // 8
     ];
     const results = await Promise.allSettled(fetches);
 
