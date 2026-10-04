@@ -206,31 +206,33 @@
   background: var(--bg);
 }
 .dash-content {
-  /* Centrar el contenido principal con un ancho máximo que
-     haga VISIBLE la distribución simétrica del espacio.
-     Historia:
-     - v1: max-width:1280px (casi igual al espacio disponible
-       en 1920px → solo ~6px por lado, invisible).
-     - v2: max-width:960px → en 1920px quedan ~166px a cada
-       lado, distribuyendo los ~360px de espacio vacío del
-       AI sidebar simétricamente a izquierda y derecha.
-     En pantallas chicas (≤960px) ocupa el 100% del main.
+  /* FIX 2026-10-04 (HU_34 · width bug reportado):
+     ANTES el .dash-content tenia `max-width: 960px` con la intención
+     original de "mostrar visualmente" el centrado del AI sidebar.
+     PERO eso provocaba que el contenido (Resumen + Widgets) ocupara
+     SOLO el ~50% del espacio disponible en pantallas >=1280px (un
+     usuario con pantalla 1920px veia 960px de contenido con ~480px
+     de hueco inutilizable a cada lado).
+     Ademas, el grid de Widgets vivia dentro de .dash-content → solo
+     podia usar 960px para arrastrar/redimensionar widgets (apretado
+     e inutilizable en pantallas grandes).
 
-     MODO TEST (html.no-ai-sidebar): el AI sidebar está
-     oculto (?no_ai=1 en la URL), entonces el contenido
-     puede expandirse al 100% del main para confirmar si
-     el AI era el responsable del centrado/aprovechamiento.
+     FIX:
+     - Eliminado `max-width`. `.dash-content` ahora ocupa el 100% del
+       espacio restante despues del sidebar (dash-side).
+     - Padding lateral (24px) para evitar que el contenido toque los
+       bordes en pantallas grandes.
+     - En el modo test (html.no-ai-sidebar): el AI sidebar esta oculto,
+       asi que el contenido aprovecha TODO el ancho del main.
 
      FIX 2026-10-04 (HU_34 · trade-off CSS Grid):
-     `.dash-content` ahora es UN `display: grid` de 12 columnas
-     con `grid-template-areas` que define el layout por defecto
-     de los 10 widgets. Los antiguos sub-grids `.dash-main-grid`
-     (2-col) y `.dash-bottom-grid` (3-col) se mantienen como
-     anclas DOM vacías con `display:contents`. Cada widget ocupa
-     su área vía `grid-area`. Esto permite reordenar CUALQUIER par
-     de widgets entre sí (vía `appendChild` en JS) sin perder la
-     grilla visual. Ver `app/templates/dashboard/index.html`
-     comentario "MAIN GRID — anclas vacías" para más contexto. */
+     `.dash-content` es UN `display: grid` de 12 columnas con
+     `grid-template-areas` que define el layout por defecto de los
+     10 widgets. Los antiguos sub-grids `.dash-main-grid` (2-col) y
+     `.dash-bottom-grid` (3-col) se mantienen como anclas DOM vacias
+     con `display:contents`. Cada widget ocupa su area via `grid-area`.
+     Esto permite reordenar CUALQUIER par de widgets entre si (via
+     `appendChild` en JS) sin perder la grilla visual. */
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   grid-template-areas:
@@ -242,8 +244,6 @@
     "cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets cta_widgets public_url  public_url  public_url  public_url  public_url  public_url";
   gap: 16px;
   width: 100%;
-  max-width: 960px;
-  margin: 0 auto;
   box-sizing: border-box;
 }
 html.no-ai-sidebar .dash-content,
