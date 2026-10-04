@@ -62,7 +62,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 revision = "2026_10_03_0001"
-down_revision = "2026_10_02_0004"
+down_revision = "2026_10_02_0003"
 branch_labels = None
 depends_on = None
 
