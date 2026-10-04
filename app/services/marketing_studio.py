@@ -50,7 +50,6 @@ from app.services.llm_client import (
     LLMClient,
     LLMFallback,
     LLMMessage,
-    get_circuit,
 )
 
 logger = logging.getLogger("wowhub.ai.marketing")
@@ -324,12 +323,16 @@ class MarketingStudio:
         self, req: MarketingRequest, ctx: MarketingContext
     ) -> MarketingResponse:
         """Llama al LLM y parsea el JSON estructurado. Si el LLM
-        no está disponible → LLMFallback → caller usa fallback."""
-        if not settings.llm_enabled:
-            raise LLMFallback("LLM no configurado", code="not_configured")
-        if not get_circuit().can_pass():
-            raise LLMFallback("Circuit breaker abierto", code="circuit_open")
+        no está disponible → LLMFallback → caller usa fallback.
 
+        NOTA: NO validamos aquí `settings.llm_enabled` ni el circuit
+        breaker — esas validaciones las hace `LLMClient.generate` (el
+        cliente real). Esto permite que los tests inyecten un mock del
+        LLM sin necesidad de monkeypatchear `settings.llm_enabled` y
+        aún así lleguen al path parseado. La producción sigue
+        protegida porque la llamada real a `LLMClient.generate` lanza
+        `LLMFallback` cuando no hay API key o el circuit está abierto.
+        """
         messages = self._build_messages(req, ctx)
         # Temperature más alta = más creatividad. Cap a 1.2 para
         # que el LLM no se desboque.

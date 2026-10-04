@@ -67,7 +67,11 @@ class Order(BaseModel, TenantMixin):
     notes: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Metadata
-    source: Mapped[str] = mapped_column(String(40), default="web", nullable=False)  # web, qr, pos
+    # Origen del pedido. Valores libres (String sin Enum) para no romper
+    # datos existentes ni romper el webhook de WhatsApp (HU_16).
+    # Valores válidos: "web", "qr", "pos", "kiosk", "whatsapp", "api", "test", etc.
+    # HU_16 — "whatsapp" explícitamente aceptado para pedidos desde el canal WhatsApp.
+    source: Mapped[str] = mapped_column(String(40), default="web", nullable=False)  # web, qr, pos, kiosk, whatsapp, api
     qr_code_id: Mapped[Optional[str]] = mapped_column(GUID(), nullable=True, index=True)
 
     items: Mapped[list["OrderItem"]] = relationship(  # noqa: F821

@@ -619,14 +619,14 @@ def _get_or_create_orders(
     specs = [
         # ── DELIVERED (ayer / hoy) ──
         (
-            OrderStatus.DELIVERED,
+            OrderStatus.ENTREGADO,  # FIX 2026-10-03: enum OrderStatus usa español (ENTREGADO, no DELIVERED)
             -90,  # hace 1.5h
             0,  # Camila
             [("CAF-002", 1), ("PAS-001", 1)],
             "Para llevar, sin azúcar por favor.",
         ),
         (
-            OrderStatus.DELIVERED,
+            OrderStatus.ENTREGADO,  # FIX 2026-10-03: enum OrderStatus usa español (ENTREGADO, no DELIVERED)
             -150,  # hace 2.5h
             2,  # Fernanda
             [("CAF-005", 1), ("SAN-001", 1)],
@@ -634,7 +634,7 @@ def _get_or_create_orders(
         ),
         # ── READY (esperando retiro) ──
         (
-            OrderStatus.READY,
+            OrderStatus.LISTO,  # FIX 2026-10-03: enum OrderStatus usa español (LISTO, no READY)
             -20,  # hace 20min
             4,  # Valentina
             [("CAF-003", 2), ("BEB-001", 1)],
@@ -642,7 +642,7 @@ def _get_or_create_orders(
         ),
         # ── PREPARING (en cocina) ──
         (
-            OrderStatus.PREPARING,
+            OrderStatus.EN_PREPARACION,  # FIX 2026-10-03: enum OrderStatus usa español (EN_PREPARACION, no PREPARING)
             -8,  # hace 8min
             1,  # Diego
             [("SAN-002", 1), ("BEB-002", 1), ("PAS-002", 1)],
@@ -650,7 +650,7 @@ def _get_or_create_orders(
         ),
         # ── CONFIRMED (esperando entrar a cocina) ──
         (
-            OrderStatus.CONFIRMED,
+            OrderStatus.CONFIRMADO,  # FIX 2026-10-03: enum OrderStatus usa español (CONFIRMADO, no CONFIRMED)
             -3,  # hace 3min
             3,  # Matías
             [("CAF-001", 1), ("PAS-003", 2)],
@@ -658,14 +658,14 @@ def _get_or_create_orders(
         ),
         # ── PENDING (recién llegados, sin confirmar) ──
         (
-            OrderStatus.PENDING,
+            OrderStatus.RECIBIDO,  # FIX 2026-10-03: enum OrderStatus usa español (RECIBIDO, no PENDING)
             -1,  # hace 1min
             -1,  # guest
             [("CAF-004", 1), ("BEB-003", 1)],
             "Cliente nuevo, primera compra.",
         ),
         (
-            OrderStatus.PENDING,
+            OrderStatus.RECIBIDO,  # FIX 2026-10-03: enum OrderStatus usa español (RECIBIDO, no PENDING)
             0,  # recién
             -1,  # guest
             [("CAF-002", 3)],

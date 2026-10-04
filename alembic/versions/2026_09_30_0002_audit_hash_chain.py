@@ -173,5 +173,20 @@ def downgrade() -> None:
     op.execute(text("DROP INDEX IF EXISTS ix_audit_tenant_created_id"))
 
     # 3) columnas.
-    op.execute(text("ALTER TABLE audit_logs DROP COLUMN IF EXISTS current_hash"))
-    op.execute(text("ALTER TABLE audit_logs DROP COLUMN IF EXISTS prev_hash"))
+    # FIX cross-DB: SQLite NO soporta ``ALTER TABLE ... DROP COLUMN IF EXISTS``
+    # (sólo ``DROP COLUMN`` sin IF EXISTS y sólo desde 3.35). Branch por dialecto.
+    if bind.dialect.name == "postgresql":
+        op.execute(text("ALTER TABLE audit_logs DROP COLUMN IF EXISTS current_hash"))
+        op.execute(text("ALTER TABLE audit_logs DROP COLUMN IF EXISTS prev_hash"))
+    else:
+        # SQLite: try/except por columna. Si ya no existe (downgrade parcial previo),
+        # capturamos y seguimos. Si existe, ``DROP COLUMN`` la elimina (recrea tabla).
+        from sqlalchemy.exc import OperationalError
+        for col in ("current_hash", "prev_hash"):
+            try:
+                op.execute(text(f"ALTER TABLE audit_logs DROP COLUMN {col}"))
+            except OperationalError as exc:
+                logger.warning(
+                    "audit_hash_chain.downgrade: DROP COLUMN %s ya no existe (SQLite): %s",
+                    col, exc,
+                )

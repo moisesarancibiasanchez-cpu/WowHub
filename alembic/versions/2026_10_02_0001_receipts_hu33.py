@@ -56,15 +56,15 @@ CREATE TABLE IF NOT EXISTS receipts (
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     provider VARCHAR(40) NOT NULL DEFAULT 'mock',
     raw_text VARCHAR(8000),
-    items_json JSON NOT NULL DEFAULT '[]'::json,
+    items_json JSON NOT NULL DEFAULT '[]',
     total_cents INTEGER NOT NULL DEFAULT 0,
     currency VARCHAR(8) NOT NULL DEFAULT 'CLP',
     confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     error_message VARCHAR(2000),
     entity_type VARCHAR(40),
     entity_id VARCHAR(64),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_receipts_tenant
         FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 )

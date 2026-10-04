@@ -58,6 +58,11 @@ INTERNAL_MODELS_ALLOWLIST: frozenset[str] = frozenset({
     "BusinessCosts",     # fuente de verdad de costos por tenant;
                          #   el form V8_Costos_Onboarding.html escribe
                          #   vía PUT /api/v1/costs/, no localStorage.
+    # HU_31 follow-up — historial de ejecuciones del catálogo de reportes.
+    # El frontend NO siembra filas de report_runs en localStorage; las
+    # crea el backend en cada GET /reports (HU_31). Por eso entra al
+    # allowlist en vez de KEY_TO_MODEL.
+    "ReportRun",
 })
 
 

@@ -88,7 +88,8 @@ class TestBookingCRUD:
     def test_create_booking_success(self, client):
         token, tid, _ = _bootstrap(client, "bk-create")
         b = _create_booking(client, token, tid)
-        assert b["status"] == "pending"
+        # El enum BookingStatus usa valores en español: PENDING="recibido"
+        assert b["status"] == "recibido"
         assert b["customer_name"] == "Juan Pérez"
         assert b["price_cents"] == 0
         assert b["currency"] == "CLP"
@@ -125,13 +126,13 @@ class TestBookingCRUD:
             headers={"Authorization": f"Bearer {token}"},
         )
         r = client.get(
-            f"/api/v1/tenants/{tid}/bookings?status=canceled",
+            f"/api/v1/tenants/{tid}/bookings?status=cancelado",
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
         data = r.json()
         assert len(data) == 1
-        assert data[0]["status"] == "canceled"
+        assert data[0]["status"] == "cancelado"
 
     def test_get_booking_detail(self, client):
         token, tid, _ = _bootstrap(client, "bk-detail")
@@ -157,12 +158,13 @@ class TestBookingCRUD:
         b = _create_booking(client, token, tid)
         r = client.patch(
             f"/api/v1/tenants/{tid}/bookings/{b['id']}",
-            json={"status": "confirmed", "notes": "Cliente VIP"},
+            json={"status": "confirmado", "notes": "Cliente VIP"},
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
         data = r.json()
-        assert data["status"] == "confirmed"
+        # CONFIRMED="confirmado" en BookingStatus
+        assert data["status"] == "confirmado"
         assert data["notes"] == "Cliente VIP"
 
     def test_delete_booking(self, client):
@@ -343,7 +345,8 @@ class TestBookingStateActions:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
-        assert r.json()["status"] == "confirmed"
+        # CONFIRMED="confirmado" en BookingStatus
+        assert r.json()["status"] == "confirmado"
 
     def test_complete_booking(self, client):
         token, tid, _ = _bootstrap(client, "bk-comp")
@@ -364,7 +367,8 @@ class TestBookingStateActions:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
-        assert r.json()["status"] == "canceled"
+        # CANCELED="cancelado" en BookingStatus
+        assert r.json()["status"] == "cancelado"
         assert "cliente no puede" in r.json()["notes"]
 
     def test_no_show_booking(self, client):
@@ -523,7 +527,8 @@ class TestPublicBooking:
         )
         assert r.status_code == 201
         data = r.json()
-        assert data["status"] == "pending"
+        # status PENDING="recibido" en BookingStatus
+        assert data["status"] == "recibido"
         # Email enmascarado (juan.perez → j********z@example.com)
         assert data["customer_email_masked"] == "j********z@example.com"
         # No se filtra el email crudo
@@ -564,7 +569,8 @@ class TestPublicBooking:
             params={"booking_id": data["id"], "cancel_token": data["cancel_token"]},
         )
         assert r.status_code == 200
-        assert r.json()["status"] == "canceled"
+        # CANCELED="cancelado" en BookingStatus
+        assert r.json()["status"] == "cancelado"
 
     def test_public_cancel_with_invalid_token_rejected(self, client):
         _token, _tid, slug = _bootstrap(client, "bk-pub5")

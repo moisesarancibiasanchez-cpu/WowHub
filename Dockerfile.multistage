@@ -1,0 +1,113 @@
+# syntax=docker/dockerfile:1.6
+# ─── WowHub · Dockerfile.multistage (HU_48 follow-up) ──────────────────
+# Variante multi-stage del Dockerfile single-stage actual.
+#
+# Stage 1 `builder`: compila e instala TODAS las dependencias Python en un
+#   virtualenv en /install. Incluye build-essential, gcc y libpq-dev (solo
+#   necesarios para compilar paquetes como bcrypt/psycopg2 al instalar).
+#
+# Stage 2 `runtime`: hereda SOLO /install (binarios Python) + código.
+#   SIN gcc, SIN build-essential, SIN libpq-dev. Solo libpq5 (runtime) y
+#   curl (healthcheck). Imagen más pequeña y superficie de ataque reducida:
+#   CVEs en toolchain de compilación NO llegan a producción.
+#
+# USO LOCAL:
+#   docker build -f Dockerfile.multistage -t wowhub:multistage .
+#   docker run --rm -p 8000:8000 --env-file .env wowhub:multistage
+#
+# RAILWAY: NO desplegado por defecto. railway.json apunta a `Dockerfile`.
+# Para activarlo, editar railway.json →
+#   "build": { "builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.multistage" }
+# Pendiente de commit "docker: habilitar multi-stage build (HU_48)".
+#
+# NOTAS:
+# - requirements.txt ya incluye psycopg2-binary; el Dockerfile original
+#   además instala `psycopg[binary]>=3.1.0` porque entrypoint.sh hace
+#   `import psycopg` (API v3). Mantenemos esa doble instalación.
+# - El virtualenv /install se copia tal cual a runtime. PATH=/install/bin
+#   primero para que `python`/`pip`/scripts entry-point apunten al venv.
+# - El usuario `wowhub` no-root se crea al final; data/storage se le ceden.
+
+# ─── Stage 1 · builder ──────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Dependencias de compilación. Quedan SOLO en esta imagen; no se copian
+# a runtime (ahorro de ~200-300 MB comprimidos y menor superficie CVE).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Metadata primero: cache de Docker layer se preserva al modificar solo código.
+COPY pyproject.toml ./
+COPY requirements.txt ./
+
+# Instalar TODAS las deps en un virtualenv /install (lo copiaremos a runtime).
+# Misma secuencia exacta que el Dockerfile single-stage actual.
+RUN python -m venv /install && \
+    /install/bin/pip install --upgrade pip && \
+    /install/bin/pip install --no-cache-dir -r requirements.txt && \
+    /install/bin/pip install --no-cache-dir \
+        "gunicorn>=21.2.0" \
+        "psycopg[binary]>=3.1.0" \
+        "prometheus-fastapi-instrumentator>=7.0.0"
+
+# ─── Stage 2 · runtime ──────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/install/bin:${PATH}" \
+    PORT=8000
+
+# Solo deps de runtime. NO build-essential, NO libpq-dev, NO gcc.
+#   libpq5 → cliente Postgres runtime (para psycopg2-binary y psycopg 3.x).
+#   curl   → healthcheck (/health).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar el virtualenv completo del builder (binarios Python + site-packages).
+COPY --from=builder /install /install
+
+WORKDIR /app
+
+# Copiar código de la app (idéntico al Dockerfile single-stage — HU_48 no
+# toca la app; solo cambia cómo se compila la imagen).
+COPY app ./app
+COPY scripts ./scripts
+COPY alembic ./alembic
+COPY alembic.ini ./
+# NOTA: NO copiar `templates` aquí — viven en `app/templates` (51 archivos)
+# y ya vienen incluidas por `COPY app ./app`. Una línea
+# `COPY templates ./templates` rompe el build con
+# "failed to calculate checksum ... /templates: not found".
+# Los .json de i18n también viven en `app/i18n` y llegan por la misma vía.
+
+# Entrypoint (AÚN como root, para poder hacer chmod +x).
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    mkdir -p /app/data /app/storage && \
+    chown -R root:root /app
+
+# AHORA cambiar a usuario no-root y ceder ownership de dirs escribibles.
+RUN useradd --create-home --shell /bin/bash wowhub && \
+    chown -R wowhub:wowhub /app/data /app/storage
+USER wowhub
+
+EXPOSE 8000
+
+# Healthcheck (Render y Railway usan healthCheckPath / healthcheckPath).
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=40s \
+    CMD curl -fsS http://localhost:${PORT}/health || exit 1
+
+# Arranque.
+CMD ["/app/entrypoint.sh"]

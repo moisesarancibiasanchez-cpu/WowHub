@@ -61,12 +61,12 @@ def upgrade() -> None:
     _add_column_if_not_exists(
         "tenant_site_configs",
         "social_links",
-        "JSON NOT NULL DEFAULT '[]'::json",
+        "JSON NOT NULL DEFAULT '[]'",
     )
     _add_column_if_not_exists(
         "tenant_site_configs",
         "blocks",
-        "JSON NOT NULL DEFAULT '[]'::json",
+        "JSON NOT NULL DEFAULT '[]'",
     )
     logger.info("HU_42 — tenant_site_configs: +social_links, +blocks")
 

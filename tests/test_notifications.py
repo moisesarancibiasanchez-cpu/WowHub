@@ -160,7 +160,7 @@ def test_costs_not_configured_appears_when_version_is_1(db_session):
     assert n.severity == "info"
     assert n.category == "costs"
     assert "costos" in n.title.lower() or "configurá" in n.title.lower()
-    assert n.action_url == "/dashboard/admin_costs"
+    assert n.action_url == "/dashboard/costs"
     assert n.entity_type == "tenant"
 
 
@@ -263,7 +263,8 @@ def test_low_stock_silent_when_above_threshold(db_session):
 def test_pending_orders_old_triggers(db_session):
     """N6 — Pedido PENDING > 24h → warning."""
     t = _make_tenant(db_session)
-    _make_order(db_session, str(t.id), status="pending", age_hours=48)
+    # FIX 2026-10-03: OrderStatus.PENDING no existe; el enum usa "recibido".
+    _make_order(db_session, str(t.id), status="recibido", age_hours=48)
     from app.services.notifications import NotificationsEngine
     engine = NotificationsEngine(db_session, t.id)
     notifs = engine._rule_pending_orders_old()
@@ -275,7 +276,8 @@ def test_pending_orders_old_triggers(db_session):
 def test_pending_orders_silent_when_recent(db_session):
     """Pedido PENDING de hace 1h no alerta."""
     t = _make_tenant(db_session)
-    _make_order(db_session, str(t.id), status="pending", age_hours=1)
+    # FIX 2026-10-03: OrderStatus.PENDING no existe; el enum usa "recibido".
+    _make_order(db_session, str(t.id), status="recibido", age_hours=1)
     from app.services.notifications import NotificationsEngine
     engine = NotificationsEngine(db_session, t.id)
     assert engine._rule_pending_orders_old() == []
@@ -284,7 +286,8 @@ def test_pending_orders_silent_when_recent(db_session):
 def test_pending_orders_silent_when_paid(db_session):
     """Pedido DELIVERED aunque sea viejo no alerta (ya se procesó)."""
     t = _make_tenant(db_session)
-    _make_order(db_session, str(t.id), status="delivered", age_hours=48)
+    # FIX 2026-10-03: OrderStatus.DELIVERED no existe; el enum usa "entregado".
+    _make_order(db_session, str(t.id), status="entregado", age_hours=48)
     from app.services.notifications import NotificationsEngine
     engine = NotificationsEngine(db_session, t.id)
     assert engine._rule_pending_orders_old() == []

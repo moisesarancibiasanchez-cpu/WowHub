@@ -73,14 +73,18 @@ def test_seed_file_exists_and_is_valid_python():
     assert SEED_SCRIPT.exists(), f"script no encontrado: {SEED_SCRIPT}"
     # Validar sintaxis
     import ast
-    with open(SEED_SCRIPT) as f:
+    # FIX 2026-10-03: forzar encoding UTF-8. En Windows el default es
+    # cp1252 y seed_demo.py contiene tildes/ñ que revientan con
+    # UnicodeDecodeError al leerlo.
+    with open(SEED_SCRIPT, encoding="utf-8") as f:
         source = f.read()
     ast.parse(source)  # raises SyntaxError si está mal
 
 
 def test_seed_has_all_v8_functions():
     """El script debe contener las 5 funciones de seed V8."""
-    source = SEED_SCRIPT.read_text()
+    # FIX 2026-10-03: encoding UTF-8 explícito (Windows default = cp1252).
+    source = SEED_SCRIPT.read_text(encoding="utf-8")
     required_funcs = [
         "_get_or_create_business_costs",
         "_get_or_create_orders",
@@ -94,7 +98,8 @@ def test_seed_has_all_v8_functions():
 
 def test_seed_imports_all_required_models():
     """El script debe importar todos los modelos necesarios para V8."""
-    source = SEED_SCRIPT.read_text()
+    # FIX 2026-10-03: encoding UTF-8 explícito (Windows default = cp1252).
+    source = SEED_SCRIPT.read_text(encoding="utf-8")
     required_models = [
         "BusinessCosts",
         "Order",
@@ -115,7 +120,8 @@ def test_seed_imports_all_required_models():
 
 def test_seed_sets_feature_flags():
     """El seed debe activar los feature flags de V8 en el tenant settings."""
-    source = SEED_SCRIPT.read_text()
+    # FIX 2026-10-03: encoding UTF-8 explícito (Windows default = cp1252).
+    source = SEED_SCRIPT.read_text(encoding="utf-8")
     flags = [
         "feature_costs_enabled",
         "feature_kanban_enabled",

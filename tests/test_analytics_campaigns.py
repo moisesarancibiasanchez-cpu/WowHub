@@ -203,7 +203,7 @@ def _make_orders_for_active_customers(
             tenant_id=str(tenant.id),
             number=f"ORD-{c.id.hex[:6]}",
             customer_id=str(c.id),
-            status=OrderStatus.DELIVERED,
+            status=OrderStatus.ENTREGADO,
             subtotal_cents=1000,
             total_cents=1000,
             currency="CLP",

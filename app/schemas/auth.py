@@ -5,13 +5,19 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.encrypted_fields import PhoneEncrypted
 from app.models.user import UserRole
 
 
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str = Field(..., min_length=2, max_length=120)
-    phone: Optional[str] = Field(None, max_length=40)
+    # HU_39 follow-up — phone pasa por ``PhoneEncrypted`` (cifra al insertar,
+    # descifra al leer con fallback). ``max_length`` se valida DENTRO del
+    # BeforeValidator (Fernet produce tokens ~100 chars; aplicar
+    # ``Field(max_length=40)`` aquí fallaría sobre el ciphertext). Ver
+    # ``app/core/encrypted_fields.py`` para el detalle de la activación real.
+    phone: Optional[PhoneEncrypted] = None
 
 
 class UserCreate(UserBase):
@@ -40,7 +46,10 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=120)
-    phone: Optional[str] = Field(None, max_length=40)
+    # HU_39 follow-up — ver comentario en ``UserBase.phone``. Aplicamos el
+    # mismo tipo cifrado a ``UserUpdate`` para mantener consistencia en
+    # input (PATCH /auth/me).
+    phone: Optional[PhoneEncrypted] = None
     avatar_url: Optional[str] = None
     default_role: Optional[UserRole] = None
 

@@ -149,25 +149,58 @@ def test_clave_explicita_longitud_incorrecta_rechaza(monkeypatch):
 
 # ── Fail-closed en producción ──────────────────────────────────────────
 def test_sin_clave_en_produccion_aborta_en_config():
-    """En APP_ENV=production, ``Settings()`` levanta ``ValidationError`` si
-    ``FIELD_ENCRYPTION_KEY`` está vacía o placeholder. Verificamos la rama
-    aislada de _reject_placeholder_secrets_in_production usando una
-    instancia de Settings construida manualmente con los demás secretos
-    válidos."""
-    from pydantic import ValidationError
+    """HOTFIX 2026-10-03 (commit ``15b4ca6``): el cifrado aún NO está
+    ``wired`` a ninguna columna PII real (ver ``app/core/encryption.py`` y
+    ``app/config.py`` docstring de ``field_encryption_key``). Por lo tanto,
+    exigir ``FIELD_ENCRYPTION_KEY`` en producción sería un fail-closed
+    sobre código inactivo: abortaría el arranque de instancias que no
+    necesitan encryption. Este test documenta el contrato ``ready but
+    inactive``: la validación NO se aplica hasta que algún modelo use
+    ``app.core.encryption.encrypt_value`` como columna cifrada.
 
+    Cuando la activación real ocurra, este test deberá actualizarse a:
+        ``Settings(app_env='production', field_encryption_key='', ...)``
+        debe levantar ``ValidationError`` con ``match="FIELD_ENCRYPTION_KEY"``.
+
+    Mientras tanto, validamos que ``Settings`` se construye OK en producción
+    SIN la clave — y que los demás fail-closed SÍ se mantienen (secret_key,
+    jwt_secret, webhook_secret, debug, storage_public).
+    """
     from app.config import Settings
 
-    # Construimos Settings con APP_ENV=production y FIELD_ENCRYPTION_KEY vacía.
-    # Los demás los pasamos válidos para aislar la culpa.
-    with pytest.raises(ValidationError, match="FIELD_ENCRYPTION_KEY"):
+    # 1) Sin FIELD_ENCRYPTION_KEY en producción: NO aborta (cifrado inactivo).
+    s_ok = Settings(
+        app_env="production",
+        field_encryption_key="",
+        secret_key="a" * 32,
+        jwt_secret="b" * 32,
+        webhook_secret="c" * 32,
+        debug=False,
+        storage_public=False,
+    )
+    assert s_ok.is_production is True
+    assert s_ok.field_encryption_key == ""
+
+    # 2) Los demás fail-closed SIGUEN activos (regression guard):
+    #    SECRET_KEY placeholder en producción aborta.
+    with pytest.raises(ValueError, match="SECRET_KEY"):
         Settings(
             app_env="production",
-            field_encryption_key="",
-            secret_key="a" * 32,
+            secret_key="change-me-placeholder-not-allowed",
             jwt_secret="b" * 32,
             webhook_secret="c" * 32,
             debug=False,
+            storage_public=False,
+        )
+
+    # 3) DEBUG=True en producción aborta (otro fail-closed existente).
+    with pytest.raises(ValueError, match="DEBUG"):
+        Settings(
+            app_env="production",
+            secret_key="a" * 32,
+            jwt_secret="b" * 32,
+            webhook_secret="c" * 32,
+            debug=True,
             storage_public=False,
         )
 

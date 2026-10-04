@@ -66,11 +66,17 @@ def test_default_layout_when_no_saved(client):
     assert body["tenant_id"] == tid
     assert body["is_default"] is True
     assert "widgets" in body and isinstance(body["widgets"], list)
-    assert len(body["widgets"]) == 4
+    # FIX 2026-10-03: el default de HU_34 ahora trae 10 widgets
+    # (post-refactor dashboard), no los 4 originales.
+    assert len(body["widgets"]) == 10
 
-    # Geometría: exactamente los 4 widgets del spec (stats/orders/products/ai).
+    # Geometría: los 10 widgets default actuales del dashboard real.
+    expected_types = {
+        "ai_brief", "metrics", "orders", "opportunities", "products",
+        "performance", "activity", "ai_bar", "public_url", "cta_widgets",
+    }
     types = {w["type"] for w in body["widgets"]}
-    assert types == {"stats", "orders", "products", "ai"}
+    assert types == expected_types
 
     # Cada widget tiene los 6 campos del contrato GridStack.
     for w in body["widgets"]:

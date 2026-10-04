@@ -22,6 +22,11 @@ class OrderCreate(BaseModel):
     customer_email: Optional[str] = None
     shipping_address: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = None
+    # Origen del pedido. String libre (max 40 chars) — valores conocidos:
+    # "web" (default), "qr", "pos", "kiosk", "api", "test".
+    # HU_16 — "whatsapp" es válido para pedidos creados desde el webhook
+    # /webhooks/whatsapp. NO se valida contra un Enum cerrado para mantener
+    # compatibilidad con canales nuevos y con datos históricos.
     source: str = Field("web", max_length=40)
     qr_code_id: Optional[UUID] = None
     promotion_codes: list[str] = Field(default_factory=list)

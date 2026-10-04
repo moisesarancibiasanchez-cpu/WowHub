@@ -57,3 +57,5 @@ from app.models.rbac import RBACPolicy, RBACGrouping  # noqa: F401
 from app.models.dashboard import DashboardLayout  # noqa: F401
 # HU_33 — Receipt OCR (comprobantes/tickets) — 1 fila por imagen procesada
 from app.models.receipt import Receipt, ReceiptStatus  # noqa: F401
+# HU_31 follow-up — Historial de ejecuciones de reportes (last_run_at real)
+from app.models.report_run import ReportRun  # noqa: F401
