@@ -127,7 +127,7 @@ def test_report_link_requires_both_paths() -> None:
         ReportLink(markdown="/x.md")  # type: ignore[call-arg]
     link = ReportLink(markdown="/x.md", json="/x.json")
     assert link.markdown == "/x.md"
-    assert link.json == "/x.json"
+    assert link.json_path == "/x.json"
 
 
 # ── 2. OpenAPI: cada endpoint declara su response_model y los errores ──────

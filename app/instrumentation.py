@@ -206,6 +206,12 @@ def instrument_app(app) -> None:
 
     FIX 2026-09-27: también registra el `Instrumentator` de Prometheus, que
     es lo que realmente expone `/metrics`.
+
+    FIX 2026-10-03: salta limpiamente `SQLAlchemyInstrumentor().instrument()`
+    cuando la versión de SQLAlchemy instalada queda fuera del rango
+    soportado por `opentelemetry-instrumentation-sqlalchemy`. La librería
+    loggea un ERROR antes de lanzar la excepción, así que envolver en
+    try/except no era suficiente: había que evitar la llamada.
     """
     if OTEL_AVAILABLE:
         try:
@@ -213,8 +219,34 @@ def instrument_app(app) -> None:
             from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
             FastAPIInstrumentor.instrument_app(app)
-            SQLAlchemyInstrumentor().instrument()
-            logger.info("FastAPI + SQLAlchemy auto-instrumented with OpenTelemetry")
+
+            # FIX 2026-10-03: chequeo de versión explícito. La rama except
+            # no silenciaba el ERROR que emite `opentelemetry.instrumentation.
+            # instrumentor` antes de lanzar, así que la salida del boot
+            # quedaba contaminada aunque el warning local fuera correcto.
+            # Comprobamos la versión instalada y omitimos el instrumentor
+            # cuando no es compatible, evitando el log ruidoso.
+            try:
+                import sqlalchemy as _sa
+                _sa_major_minor = tuple(
+                    int(p) for p in _sa.__version__.split(".")[:2]
+                )
+                _sqla_too_new = _sa_major_minor >= (2, 1)
+            except Exception:  # noqa: BLE001
+                _sqla_too_new = False
+
+            if _sqla_too_new:
+                logger.warning(
+                    "SQLAlchemy %s no soportado por opentelemetry-instrumentation-"
+                    "sqlalchemy (requiere <2.1.0). Auto-instrumentación de "
+                    "SQLAlchemy omitida; trazas de FastAPI siguen activas.",
+                    _sa.__version__,
+                )
+            else:
+                SQLAlchemyInstrumentor().instrument()
+                logger.info("SQLAlchemy auto-instrumented with OpenTelemetry")
+
+            logger.info("FastAPI auto-instrumented with OpenTelemetry")
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"OpenTelemetry auto-instrumentation failed: {exc}")
 

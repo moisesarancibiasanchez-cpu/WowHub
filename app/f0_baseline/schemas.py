@@ -34,9 +34,21 @@ class PackageInfo(BaseModel):
 
 
 class ReportLink(BaseModel):
-    """Path a un artefacto (markdown + json)."""
+    """Path a un artefacto (markdown + json).
+
+    FIX 2026-10-03: el campo `json` sombreaba `BaseModel.json()` y
+    Pydantic emitía un UserWarning en cada import. Renombramos el
+    atributo a `json_path` y conservamos el alias JSON `"json"` para
+    no romper el contrato del response (los routers `/f0/hu01` y
+    `/f0/hu02` siguen emitiendo la clave `"json"`).
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
     markdown: str = Field(..., description="Ruta al .md bajo reports/f0_baseline/")
-    json: str = Field(..., description="Ruta al .json bajo reports/f0_baseline/")
+    json_path: str = Field(
+        ..., alias="json",
+        description="Ruta al .json bajo reports/f0_baseline/",
+    )
 
 
 # ── /f0/ — índice ────────────────────────────────────────────────

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.ai import (
     AgentKind, ConversationStatus, LogStatus, MessageRole,
@@ -430,9 +430,16 @@ class ImagePromptRequest(BaseModel):
     El usuario pasa el copy ya generado y le pedimos al LLM que
     proponga una imagen para acompañarlo. Si el LLM no está disponible,
     el servicio devuelve un prompt construido localmente (fallback).
+
+    FIX 2026-10-03: el campo `copy` sombreaba `BaseModel.copy()` y
+    Pydantic emitía un UserWarning en cada import. Renombramos el
+    atributo a `copy_text` y conservamos el alias JSON `"copy"` para
+    no tocar el contrato de la API.
     """
-    copy: str = Field(
-        ..., min_length=10, max_length=2000,
+    model_config = ConfigDict(populate_by_name=True)
+
+    copy_text: str = Field(
+        ..., alias="copy", min_length=10, max_length=2000,
         description="Copy de marketing ya generado (la variante visualizada).",
     )
     intent: MarketingIntent = Field(

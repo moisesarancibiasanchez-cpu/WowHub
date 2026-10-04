@@ -521,7 +521,7 @@ def _fallback_image_prompt(payload: ImagePromptRequest) -> ImagePromptResponse:
     """
     import re
     # Quitar hashtags y URLs
-    clean = re.sub(r"#\w+", "", payload.copy)
+    clean = re.sub(r"#\w+", "", payload.copy_text)
     clean = re.sub(r"https?://\S+", "", clean)
     # Tomar las primeras 8 palabras "significativas" (largas)
     words = [w for w in re.findall(r"\b[A-Za-zÀ-ÿ]{4,}\b", clean)][:8]
@@ -572,7 +572,7 @@ async def post_marketing_image_prompt(
             "composicion. No incluyas hashtags ni URLs."
         )
         user_prompt = (
-            f"Copy de marketing:\n{payload.copy}\n\n"
+            f"Copy de marketing:\n{payload.copy_text}\n\n"
             f"Canal: {payload.intent.value}\n"
             f"Tono: {payload.tone.value}\n"
             f"Audiencia: {payload.audience.value}\n"

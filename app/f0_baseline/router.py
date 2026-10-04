@@ -63,6 +63,27 @@ INTERNAL_MODELS_ALLOWLIST: frozenset[str] = frozenset({
     # crea el backend en cada GET /reports (HU_31). Por eso entra al
     # allowlist en vez de KEY_TO_MODEL.
     "ReportRun",
+    # ── Modelos API-served (frontend usa /api/v1/... no localStorage) ──
+    # Cada uno se sirve vía endpoints REST y el frontend nunca persiste
+    # filas en localStorage. Auditoría 2026-10-03: los 15 modelos
+    # huérfanos detectados por ``test_no_orphan_models_in_metadata``
+    # caben todos acá. Si en el futuro alguno pasa a sembrarse en
+    # localStorage, moverlo a ``KEY_TO_MODEL``.
+    "DashboardLayout",        # layout persistido por /api/v1/dashboard/layout (HU_31)
+    "DiningSession",          # mesas/comandas: backend KDS, no localStorage (HU_25)
+    "DiningSessionItem",      # join child de DiningSession
+    "LoyaltyTier",            # niveles del programa de fidelización (HU_22)
+    "MarketplacePlugin",      # catálogo de plugins del marketplace
+    "Modifier",               # modificadores de producto (HU_31 variants)
+    "ModifierOption",         # opciones de modificador (HU_31 variants)
+    "OrderEvent",             # eventos server-side de la orden (HU_31)
+    "PluginSubscription",     # suscripción tenant↔plugin (HU_31 marketplace)
+    "ProductModifierGroup",   # grupo de modificadores por producto (HU_31)
+    "ProductVariant",         # variantes de producto (HU_31)
+    "RBACGrouping",           # agrupamiento de policies RBAC (HU_38)
+    "RBACPolicy",             # policies RBAC, config server-side (HU_38)
+    "Receipt",                # comprobantes emitidos, server-side only
+    "TenantSiteConfig",       # config de sitio por tenant, vía /api/v1/site (HU_42)
 })
 
 

@@ -55,6 +55,7 @@ dev = [
     "ruff>=0.3.0",
     "faker>=24.0.0",
     "resend>=0.7.0",                 # backend de email opcional
+    "fakeredis[lua]>=2.23.0",        # Redis mock para tests rate_limit (HU seguridad)
 ]
 e2e = [
     "playwright>=1.42.0",
