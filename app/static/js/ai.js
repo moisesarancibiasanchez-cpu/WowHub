@@ -9,6 +9,12 @@
 (function () {
   "use strict";
 
+  // FIX 2026-10-04 — El AI sidebar flotante se eliminó del dashboard
+  // (base.html). Este JS solo debe correr cuando existe el sidebar
+  // (vista dedicada /dashboard/ai). En cualquier otra página,
+  // retornamos inmediatamente sin inicializar nada.
+  if (!document.getElementById("ai-sidebar")) return;
+
   // ── Estado ─────────────────────────────────────
   const state = {
     conversationId: null,

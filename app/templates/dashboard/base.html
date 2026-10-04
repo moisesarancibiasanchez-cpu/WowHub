@@ -197,16 +197,24 @@
     </div>
   </main>
 </div>
-{# ── Sidebar derecho: Asistente IA — SIEMPRE visible ────
-   IMPORTANTE: este include debe estar FUERA de .dash-layout.
-   El AI sidebar es `position: fixed`; si vive dentro del
-   flex container, el algoritmo flex le reserva 360px (igual
-   que si fuera un hijo real) y, sumado al `padding-right:360px`
-   en `main`, roba ~720px del contenido central. En pantallas
-   de 1024-1366px eso colapsa la columna central a 30-60px.
-   FIX: se omite cuando la página ES la AI completa
-   (evita doble panel en /dashboard/ai). ── #}
-{% if not hide_ai_panel %}{% include "dashboard/_ai_panel.html" %}{% endif %}
+{# ── FIX 2026-10-04 — Eliminado sidebar derecho del Asistente IA ──
+   ANTES el AI sidebar (include _ai_panel.html) ocupaba 360px
+   fijos a la derecha del viewport. El comentario original decia
+   "roba ~720px del contenido central" (360 fixed + 360 padding-
+   right en main). En la realidad observada, el MAIN quedaba
+   reducido a ~50% del ancho de pantalla y Widgets personalizables
+   quedaba inutilizable para arrastrar/redimensionar.
+
+   FIX: el sidebar del Asistente IA se ELIMINA por completo.
+   La pagina completa de IA sigue accesible en /dashboard/ai
+   (vista completa del chat, sin sidebar fijo). Los context chips
+   (ai-context.js) siguen disponibles en cualquier pagina del
+   dashboard para enviar contexto al chat con un click.
+
+   NOTA: el chat IA sigue siendo accesible via /dashboard/ai
+   (vista dedicada). El boton flotante del sidebar es lo que
+   se elimino. ── #}
+{# AI sidebar ELIMINADO. Ver comentario FIX 2026-10-04 arriba. #}
 {% endblock %}
 
 {% block scripts %}

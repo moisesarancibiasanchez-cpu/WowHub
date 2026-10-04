@@ -42,16 +42,20 @@
   font-size: 14px;
 }
 
-/* El main debe tener padding-right para que el contenido central no
-   quede oculto detrás del AI sidebar (que es `position: fixed`).
-   IMPORTANTE: NO agregar padding-right a .dash-layout.
-   El AI sidebar está fuera de .dash-layout (ver dashboard/base.html).
-   Si .dash-layout también recibe padding-right, se duplican los 360px
-   y el contenido central queda colapsado a 30-50px en pantallas
-   chicas. Solo necesitamos el padding en <main>. */
+/* FIX 2026-10-04 — AI sidebar flotante ELIMINADO del dashboard.
+   El padding-right en main era para que el contenido central no
+   quedara oculto detrás del sidebar flotante de 360px. Como el
+   sidebar ya no se renderiza en el dashboard (solo existe en la
+   vista dedicada /dashboard/ai), este padding es innecesario
+   y robaba 360px valiosos del viewport.
+
+   Lo comentamos (no eliminamos) por si en el futuro se reactiva
+   el sidebar flotante via override de plantilla.
+
 body:has(.ai-sidebar) main {
   padding-right: var(--ai-width);
 }
+*/
 
 /* ── Encabezado ─────────────────────────────────────────── */
 .ai-sidebar-head {
