@@ -26,6 +26,7 @@ from app.api.v1 import (
     site_config,  # platform admin (singleton)
     insumos, costs,  # V8
     tenant_site_config,  # V134.2: tenant-scoped site config
+    sites,  # HU_42: /api/v1/sites (flat path, tenant from JWT)
     ai, admin_ai, superadmin,
     loyalty,
     analytics, campaigns,
@@ -200,6 +201,7 @@ app.include_router(branch_products.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")  # platform admin
 app.include_router(tenant_site_config.router, prefix="/api/v1")  # V134.2: per-tenant site-config
+app.include_router(sites.router, prefix="/api/v1")  # HU_42: /api/v1/sites (flat, tenant from JWT)
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(superadmin.router, prefix="/api/v1")
