@@ -320,11 +320,19 @@ def main() -> int:
 
         if state == "empty":
             print("[bootstrap_migrate] DB vacia — corro 'alembic upgrade head'")
-            return run(["alembic", "upgrade", "head"])
+            rc = run(["alembic", "upgrade", "head"])
+            if rc != 0:
+                print("[bootstrap_migrate] head ambiguous — corro 'alembic upgrade heads'")
+                rc = run(["alembic", "upgrade", "heads"])
+            return rc
 
         if state == "alembic":
             print("[bootstrap_migrate] DB gestionada por Alembic — corro 'alembic upgrade head'")
-            return run(["alembic", "upgrade", "head"])
+            rc = run(["alembic", "upgrade", "head"])
+            if rc != 0:
+                print("[bootstrap_migrate] head ambiguo (branch detectado) — corro 'alembic upgrade heads'")
+                return run(["alembic", "upgrade", "heads"])
+            return rc
 
         # state == "legacy"
         sentinel = _first_table_from_initial_migration()
