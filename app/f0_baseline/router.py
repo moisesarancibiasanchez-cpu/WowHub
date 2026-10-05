@@ -50,6 +50,8 @@ INTERNAL_MODELS_ALLOWLIST: frozenset[str] = frozenset({
     "Tenant",            # raíz SaaS — el tenant es la base de la jerarquía
     "User",              # usuario global, no por tenant
     "AuthToken",         # sesión, no persistida en localStorage del cliente
+    "RefreshToken",      # refresh tokens JWT, server-side only (HU_03)
+    "TokenBlacklist",    # revocación de access tokens, server-side only (HU_03)
     "AuditLog",          # log de plataforma, solo escritura server-side
     "LegalConsent",      # consentimiento legal, no es objeto de UI
     "SiteConfig",        # config global, leída vía /config no localStorage
