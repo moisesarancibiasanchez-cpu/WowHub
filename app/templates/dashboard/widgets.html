@@ -103,7 +103,21 @@
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 
 <style>
-  .grid-stack { background: #f5f6f8; padding: 12px; border-radius: 8px; min-height: 400px; }
+  /* FIX 2026-10-04 — El GridStack vive dentro de .dash-content que es
+     'display:grid' con 12-col grid-template-areas (HU_34). Sin este
+     override, el .grid-stack se vuelve un grid item limitado a un
+     area (1/12 del ancho) y los widgets quedan inutilizables para
+     arrastrar/redimensionar. Lo sacamos del grid yendo este nodo
+     'display:block' con min-width:0 para que ocupe el 100% del main. */
+  .dash-content { display: block; }
+  .grid-stack {
+    background: #f5f6f8;
+    padding: 12px;
+    border-radius: 8px;
+    min-height: 400px;
+    width: 100%;
+    min-width: 0;
+  }
   .grid-stack-item-content {
     inset: 0;
     background: #fff;
