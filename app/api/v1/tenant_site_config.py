@@ -24,7 +24,7 @@ router = APIRouter(prefix="/tenants/{tenant_id}", tags=["SiteConfig"])
 logger = logging.getLogger("wowhub.api.site_config")
 
 
-def _get_tenant_or_404(db: Session, tenant_id: int) -> Tenant:
+def _get_tenant_or_404(db: Session, tenant_id: UUID) -> Tenant:
     t = db.get(Tenant, tenant_id)
     if not t:
         from fastapi import HTTPException
@@ -34,7 +34,7 @@ def _get_tenant_or_404(db: Session, tenant_id: int) -> Tenant:
 
 @router.get("/site-config", response_model=TenantSiteConfigOut)
 def get_tenant_site_config(
-    tenant_id: int,
+    tenant_id: UUID,
     db: Session = Depends(get_db),
 ):
     """Obtiene la configuración pública del tenant.
@@ -49,7 +49,7 @@ def get_tenant_site_config(
 
 @router.patch("/site-config", response_model=TenantSiteConfigOut)
 def update_tenant_site_config(
-    tenant_id: int,
+    tenant_id: UUID,
     data: TenantSiteConfigUpdate,
     db: Session = Depends(get_db),
 ):
