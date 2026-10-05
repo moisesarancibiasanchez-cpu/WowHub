@@ -1,58 +1,41 @@
 """HU_39 follow-up — Tipos Pydantic con cifrado transparente para PII (HU_39).
 
-Este módulo expone ``PhoneEncrypted``: un tipo compuesto
-``Annotated[Optional[str], BeforeValidator(_encrypt_phone),
-AfterValidator(_decrypt_phone_with_fallback)]`` que aplica cifrado Fernet
-sobre el campo ``phone`` de ``User`` de forma transparente al consumir /
-producir JSON en la API.
+Este módulo expone tres tipos compuestos Pydantic v2 con ``Annotated``:
 
-Diseño
-------
-* ``_encrypt_phone(plaintext)``: cifra con Fernet. Valida longitud máxima
-  ANTES de cifrar (40 chars) para preservar el contrato de la API. ``None``
-  y string vacío pasan sin tocar. Si el valor YA parece un token Fernet
+* ``PhoneEncryptedIn``  — input:  ``BeforeValidator(_encrypt_phone)``  únicamente.
+  Aplica ``_encrypt_phone`` al valor recibido (plaintext → ciphertext Fernet).
+  Se usa en schemas de **escritura** (UserCreate, UserUpdate).
+
+* ``PhoneEncryptedOut`` — output: ``AfterValidator(_decrypt_phone_with_fallback)``
+  únicamente.  Aplica ``_decrypt_phone_with_fallback`` al valor leído de la BD
+  (ciphertext Fernet → plaintext).  Se usa en schemas de **lectura** (UserOut).
+
+* ``PhoneEncrypted``    — bidireccional (ambos validators).  Mantenido para
+  backwards-compatibility; en los schemas activos se usan ``*In`` / ``*Out``.
+
+Diseño de los validators
+-------------------------
+* ``_encrypt_phone(plaintext)``: cifra con Fernet.  Valida longitud máxima
+  ANTES de cifrar (40 chars) para preservar el contrato de la API.  ``None``
+  y string vacío pasan sin tocar.  Si el valor YA parece un token Fernet
   (``is_encrypted``), NO lo re-cifra (idempotencia sobre lecturas ORM
   post-activación).
 * ``_decrypt_phone_with_fallback(ciphertext)``: detecta heurísticamente si
-  el valor parece un token Fernet. Si NO parece token, lo retorna tal cual
-  (plaintext legacy). Si Fernet falla, retorna el ciphertext original
+  el valor parece un token Fernet.  Si NO parece token, lo retorna tal cual
+  (plaintext legacy).  Si Fernet falla, retorna el ciphertext original
   (fail-soft para no romper el SELECT).
-* ``PhoneEncrypted``: combina ``BeforeValidator`` (cifra al insertar) y
-  ``AfterValidator`` (descifra al leer) en un solo tipo reutilizable.
 
-Uso típico en ``app/schemas/auth.py``::
+Activación real del cifrado (HU_39 follow-up, 2026-10-04)
+---------------------------------------------------------
+La migración ``2026_10_04_hu39_encrypt_phone`` aplica en orden:
 
-    from app.core.encrypted_fields import PhoneEncrypted
-
-    class UserBase(BaseModel):
-        email: EmailStr
-        full_name: str
-        phone: Optional[PhoneEncrypted] = None
-
-Notas — comportamiento actual vs. activación real
--------------------------------------------------
-Aplicar ``PhoneEncrypted`` al schema **plumba la infra** pero NO cambia el
-data flow efectivo, porque Pydantic aplica ``BeforeValidator`` +
-``AfterValidator`` sobre el mismo valor: lo que el ``BeforeValidator``
-cifra, el ``AfterValidator`` lo vuelve a descifrar — neto: plaintext en
-el payload / ORM read. Esto es INTENCIONAL: permite tener el helper listo
-sin alterar la columna ``String(40)`` existente ni el contrato de la API.
-
-La activación REAL del cifrado (DB almacena ciphertext Fernet) requiere, en
-un fix separado:
-
-1. Ampliar ``users.phone`` de ``String(40)`` a ``String(255)`` (sin migration
-   = metadata-only para SQLite; para PostgreSQL requiere migración explícita).
+1. ``ALTER TABLE users ALTER COLUMN phone TYPE VARCHAR(255)`` (PostgreSQL).
 2. Backfill de filas existentes a ciphertext Fernet.
-3. Definir ``PhoneEncryptedIn`` (sólo ``BeforeValidator``) y
-   ``PhoneEncryptedOut`` (sólo ``AfterValidator``) por separado y aplicarlos
-   selectivamente: input schemas usan ``PhoneEncryptedIn``, output schemas
-   usan ``PhoneEncryptedOut``.
-4. Garantizar que el ``FIELD_ENCRYPTION_KEY`` esté configurado en producción
-   (el helper ya tiene fail-closed en ``app/core/encryption.py``).
+3. ``PhoneEncryptedIn`` aplicado a schemas de INPUT.
+4. ``PhoneEncryptedOut`` aplicado a schemas de OUTPUT.
 
-HU_39 referencia: ``app/core/encryption.py::encrypt_value`` /
-``decrypt_value`` / ``is_encrypted``.
+Ver ``app/core/encryption.py::encrypt_value`` / ``decrypt_value`` /
+``is_encrypted`` para los helpers de cifrado de bajo nivel.
 """
 from __future__ import annotations
 
@@ -145,5 +128,22 @@ def _decrypt_phone_with_fallback(v: Optional[str]) -> Optional[str]:
 PhoneEncrypted = Annotated[
     Optional[str],
     BeforeValidator(_encrypt_phone),
+    AfterValidator(_decrypt_phone_with_fallback),
+]
+
+# ── Tipos separados para INPUT / OUTPUT ──────────────────────────────────────
+# ``PhoneEncryptedIn`` se aplica en schemas de ESCRITURA (UserCreate, UserUpdate).
+# Cifra el plaintext antes de enviar a la BD; si recibe un ciphertext Fernet
+# (caso de ``model_validate`` desde ORM), lo deja intacto (idempotencia).
+PhoneEncryptedIn = Annotated[
+    Optional[str],
+    BeforeValidator(_encrypt_phone),
+]
+
+# ``PhoneEncryptedOut`` se aplica en schemas de LECTURA (UserOut).
+# Descifra el ciphertext Fernet de la BD antes de serializar a JSON;
+# si recibe plaintext legacy, lo retorna tal cual (fail-soft).
+PhoneEncryptedOut = Annotated[
+    Optional[str],
     AfterValidator(_decrypt_phone_with_fallback),
 ]

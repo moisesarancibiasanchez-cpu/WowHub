@@ -5,24 +5,23 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.core.encrypted_fields import PhoneEncrypted
+from app.core.encrypted_fields import PhoneEncryptedIn, PhoneEncryptedOut
 from app.models.user import UserRole
 
 
 class UserBase(BaseModel):
+    """Campos compartidos entre creación y lectura (sin phone — va por separado)."""
     email: EmailStr
     full_name: str = Field(..., min_length=2, max_length=120)
-    # HU_39 follow-up — phone pasa por ``PhoneEncrypted`` (cifra al insertar,
-    # descifra al leer con fallback). ``max_length`` se valida DENTRO del
-    # BeforeValidator (Fernet produce tokens ~100 chars; aplicar
-    # ``Field(max_length=40)`` aquí fallaría sobre el ciphertext). Ver
-    # ``app/core/encrypted_fields.py`` para el detalle de la activación real.
-    phone: Optional[PhoneEncrypted] = None
 
 
 class UserCreate(UserBase):
     """Registro de un nuevo user (puede incluir tenant inicial o no)."""
     password: str = Field(..., min_length=8, max_length=128)
+    # HU_39 follow-up: ``PhoneEncryptedIn`` cifra el plaintext antes de enviar
+    # a la BD. Si recibe un token Fernet (model_validate desde ORM), lo deja
+    # intacto. La validación de ``max_length=40`` vive DENTRO del validator.
+    phone: Optional[PhoneEncryptedIn] = None
     # Si se quiere crear un tenant al mismo tiempo:
     create_tenant: bool = False
     tenant_legal_name: Optional[str] = Field(None, max_length=200)
@@ -45,22 +44,26 @@ class UserLogin(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    """Actualización parcial del perfil (PATCH /auth/me)."""
     full_name: Optional[str] = Field(None, min_length=2, max_length=120)
-    # HU_39 follow-up — ver comentario en ``UserBase.phone``. Aplicamos el
-    # mismo tipo cifrado a ``UserUpdate`` para mantener consistencia en
-    # input (PATCH /auth/me).
-    phone: Optional[PhoneEncrypted] = None
+    # HU_39 follow-up: ``PhoneEncryptedIn`` para cifrar al escribir.
+    phone: Optional[PhoneEncryptedIn] = None
     avatar_url: Optional[str] = None
     default_role: Optional[UserRole] = None
 
 
 class UserOut(UserBase):
+    """Respuesta JSON con datos del usuario (lectura desde BD)."""
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     is_active: bool
     is_superuser: bool
     default_role: UserRole
+    # HU_39 follow-up: ``PhoneEncryptedOut`` descifra el ciphertext Fernet
+    # de la BD antes de serializar a JSON. Si el valor es plaintext legacy,
+    # lo retorna tal cual (fail-soft).
+    phone: Optional[PhoneEncryptedOut] = None
     avatar_url: Optional[str] = None
     created_at: datetime
 
