@@ -59,3 +59,6 @@ from app.models.dashboard import DashboardLayout  # noqa: F401
 from app.models.receipt import Receipt, ReceiptStatus  # noqa: F401
 # HU_31 follow-up — Historial de ejecuciones de reportes (last_run_at real)
 from app.models.report_run import ReportRun  # noqa: F401
+# HU_03 — RefreshToken persistence + rotation y TokenBlacklist para access tokens
+from app.models.refresh_token import RefreshToken, RefreshTokenRevokeReason  # noqa: F401
+from app.models.token_blacklist import TokenBlacklist  # noqa: F401
