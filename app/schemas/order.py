@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.order import OrderStatus
+from app.models.order import OrderSource, OrderStatus
 
 
 class OrderItemIn(BaseModel):
@@ -22,12 +22,23 @@ class OrderCreate(BaseModel):
     customer_email: Optional[str] = None
     shipping_address: Optional[str] = Field(None, max_length=500)
     notes: Optional[str] = None
-    # Origen del pedido. String libre (max 40 chars) — valores conocidos:
-    # "web" (default), "qr", "pos", "kiosk", "api", "test".
-    # HU_16 — "whatsapp" es válido para pedidos creados desde el webhook
-    # /webhooks/whatsapp. NO se valida contra un Enum cerrado para mantener
-    # compatibilidad con canales nuevos y con datos históricos.
-    source: str = Field("web", max_length=40)
+    # HU_16 — Origen del pedido validado contra OrderSource Enum.
+    # El webhook /webhooks/whatsapp puede enviar "whatsapp" directamente.
+    source: OrderSource = Field(default=OrderSource.WEB)
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def source_from_str(cls, v):
+        if isinstance(v, OrderSource):
+            return v
+        if isinstance(v, str):
+            # Aceptar el valor string del webhook de WhatsApp.
+            try:
+                return OrderSource(v)
+            except ValueError:
+                pass
+        # Fallback: coercionar a string y validar.
+        return OrderSource(str(v))
     qr_code_id: Optional[UUID] = None
     promotion_codes: list[str] = Field(default_factory=list)
     items: list[OrderItemIn] = Field(..., min_length=1)
@@ -71,7 +82,7 @@ class OrderListItem(BaseModel):
     total_cents: int
     currency: str
     item_count: int = 0
-    source: str
+    source: OrderSource
     created_at: datetime
 
 
@@ -96,7 +107,7 @@ class OrderOut(BaseModel):
     customer_email: Optional[str] = None
     shipping_address: Optional[str] = None
     notes: Optional[str] = None
-    source: str
+    source: OrderSource
     qr_code_id: Optional[UUID] = None
     items: list[OrderItemOut]
     created_at: datetime

@@ -22,6 +22,22 @@ class OrderStatus(str, enum.Enum):
     PAGADO = "pagado"  # nuevo: pago confirmado post-entrega
 
 
+class OrderSource(str, enum.Enum):
+    """Origen del pedido (HU_16).
+
+    Valores conocidos: web, qr, pos, kiosk, whatsapp, api, test.
+    Se almacenan como strings en la BD (SQLAlchemy Enum con valores
+    string → la BD guarda el valor, no el nombre del member).
+    """
+    WEB = "web"
+    QR = "qr"
+    POS = "pos"
+    KIOSK = "kiosk"
+    WHATSAPP = "whatsapp"
+    API = "api"
+    TEST = "test"
+
+
 class Order(BaseModel, TenantMixin):
     __tablename__ = "orders"
 
@@ -67,11 +83,16 @@ class Order(BaseModel, TenantMixin):
     notes: Mapped[str] = mapped_column(Text, nullable=True)
 
     # Metadata
-    # Origen del pedido. Valores libres (String sin Enum) para no romper
-    # datos existentes ni romper el webhook de WhatsApp (HU_16).
-    # Valores válidos: "web", "qr", "pos", "kiosk", "whatsapp", "api", "test", etc.
-    # HU_16 — "whatsapp" explícitamente aceptado para pedidos desde el canal WhatsApp.
-    source: Mapped[str] = mapped_column(String(40), default="web", nullable=False)  # web, qr, pos, kiosk, whatsapp, api
+    # HU_16 — Origen del pedido validado contra OrderSource Enum.
+    # Los valores conocidos son web, qr, pos, kiosk, whatsapp, api, test.
+    # El Enum se declara con valores string (miembros en mayúsculas) para que
+    # SQLAlchemy almacene el valor, no el nombre del member — así la BD
+    # conserva datos existentes ('web', 'whatsapp', etc.) sin migración.
+    source: Mapped[OrderSource] = mapped_column(
+        Enum(OrderSource, name="order_source"),
+        default=OrderSource.WEB,
+        nullable=False,
+    )
     qr_code_id: Mapped[Optional[str]] = mapped_column(GUID(), nullable=True, index=True)
 
     items: Mapped[list["OrderItem"]] = relationship(  # noqa: F821
