@@ -105,7 +105,23 @@ def _default_widgets() -> List[dict[str, Any]]:
 
 
 def _load_or_default(db: Session, tenant_id) -> tuple[List[dict[str, Any]], Optional[DashboardLayout]]:
-    """Devuelve (widgets, fila_layout). Si no hay fila, widgets=default, fila=None."""
+    """Devuelve (widgets, fila_layout). Si no hay fila, widgets=default, fila=None.
+
+    FIX 2026-10-04 — Migración de tipos legacy en lectura:
+    El refactor de HU_34 renombró `stats` → `metrics` y `ai` → `ai_brief`.
+    Los tenants que guardaron layout con los nombres viejos (4 widgets
+    placeholder pre-HU_34) tenían guardado `stats`/`ai` en su fila de
+    `dashboard_layouts`, lo que causaba que el Resumen (`/dashboard`) NO
+    renderizara esos bloques (sus `data-widget-type` son `metrics`/
+    `ai_brief`, no los nombres legacy).
+
+    FIX: al leer, normalizamos los tipos legacy al nuevo namespace.
+    - `stats` → `metrics`
+    - `ai`    → `ai_brief`
+
+    La normalización es SOLO en lectura — NO tocamos la fila persistida
+    (se reescribirá automáticamente en el próximo PUT del usuario).
+    """
     layout = (
         db.query(DashboardLayout)
         .filter(DashboardLayout.tenant_id == str(tenant_id))
@@ -117,6 +133,9 @@ def _load_or_default(db: Session, tenant_id) -> tuple[List[dict[str, Any]], Opti
     # Defensive: si la fila existe pero la lista está vacía, devolvemos default.
     if not widgets:
         return _default_widgets(), layout
+    # Migración de tipos legacy (stats/ai → metrics/ai_brief).
+    _LEGACY_TYPE_MAP = {"stats": "metrics", "ai": "ai_brief"}
+    widgets = [{**w, "type": _LEGACY_TYPE_MAP.get(w.get("type"), w.get("type"))} for w in widgets]
     return widgets, layout
 
 

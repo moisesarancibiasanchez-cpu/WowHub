@@ -420,7 +420,17 @@ def dashboard_widgets(request: Request):
                                 .one_or_none()
                             )
                             if layout and layout.widgets:
-                                initial = layout.widgets
+                                # FIX 2026-10-04 — Misma migración legacy que en
+                                # api/v1/dashboard.py:_load_or_default: si el tenant
+                                # guardo layout con tipos 'stats'/'ai' (HU_34 v1),
+                                # los renombramos a 'metrics'/'ai_brief' para que
+                                # coincidan con los data-widget-type del Resumen.
+                                widgets_saved = layout.widgets
+                                _LEGACY = {"stats": "metrics", "ai": "ai_brief"}
+                                initial = [
+                                    {**w, "type": _LEGACY.get(w.get("type"), w.get("type"))}
+                                    for w in widgets_saved
+                                ]
                 finally:
                     try:
                         next(gen)

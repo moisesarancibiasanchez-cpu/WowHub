@@ -92,6 +92,12 @@ def test_save_layout(client, db_session):
 
     payload = {
         "widgets": [
+            # FIX 2026-10-04 — Migración de tipos legacy.
+            # ANTES el test usaba 'stats' y 'ai' (tipos placeholder pre-HU_34).
+            # Como _load_or_default ahora normaliza 'stats'→'metrics' y
+            # 'ai'→'ai_brief' en lectura, el round-trip PUT→GET refleja los
+            # nuevos nombres. Usamos los legacy para verificar que la
+            # normalización funciona, y luego assertamos los nombres nuevos.
             {"id": "stats",    "x": 0, "y": 0, "w": 6, "h": 2, "type": "stats"},
             {"id": "orders",   "x": 6, "y": 0, "w": 6, "h": 3, "type": "orders"},
             {"id": "products", "x": 0, "y": 2, "w": 6, "h": 3, "type": "products"},
@@ -112,7 +118,11 @@ def test_save_layout(client, db_session):
     # El primer widget refleja la posición custom enviada.
     assert body["widgets"][0]["x"] == 0
     assert body["widgets"][0]["w"] == 6
+    # FIX 2026-10-04 — El PUT persiste los nombres legacy ('stats', 'ai')
+    # tal cual. La normalización al namespace nuevo (metrics, ai_brief)
+    # solo aplica en LECTURA (GET). Ver test_get_layout_returns_saved.
     assert body["widgets"][0]["type"] == "stats"
+    assert body["widgets"][3]["type"] == "ai"
 
     # La fila quedó persistida en la DB.
     from app.models.dashboard import DashboardLayout
@@ -163,8 +173,12 @@ def test_get_layout_returns_saved(client):
     assert by_id["ai"]["h"] == 1
     assert by_id["orders"]["w"] == 5
     assert by_id["orders"]["h"] == 4
-    assert by_id["stats"]["type"] == "stats"
+    # FIX 2026-10-04 — Tipos legacy normalizados en lectura.
+    # 'stats' → 'metrics', 'ai' → 'ai_brief'.
+    assert by_id["stats"]["type"] == "metrics"
+    assert by_id["ai"]["type"] == "ai_brief"
     assert by_id["products"]["type"] == "products"
+    assert by_id["orders"]["type"] == "orders"
 
     # updated_at queda seteado.
     assert body["updated_at"] is not None
