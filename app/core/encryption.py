@@ -14,12 +14,11 @@ Por qué Fernet y no AES-CTE / AES-GCM manual:
     NO aplicar a columnas todavía).
 
 Gestión de la clave:
-  * En PRODUCCIÓN (``settings.app_env == "production"``) se REQUIERE
-    ``FIELD_ENCRYPTION_KEY`` configurada en el entorno. Si está vacía o es
-    placeholder, ``_get_fernet()`` falla con ``RuntimeError`` (fail-closed).
-    Esta validación se hace en ``Settings._reject_placeholder_secrets_in_production``
-    al levantar el módulo ``app.config``, así que en realidad la app
-    directamente NO ARRANCA sin la clave.
+  * En PRODUCCIÓN (``settings.app_env == "production"``): si
+    ``FIELD_ENCRYPTION_KEY`` no está configurada, ``_get_fernet()`` devuelve
+    ``None`` y ``encrypt_value``/``decrypt_value`` operan en modo passthrough
+    (plaintext) con warning en logs. Esto evita que la app falle si el secret
+    no fue configurado en el entorno de Railway.
   * En DESARROLLO / TESTING: si ``FIELD_ENCRYPTION_KEY`` está vacía, se
     deriva determinísticamente de ``SECRET_KEY`` vía HKDF-SHA256 con un
     salt fijo de la app. Esto permite que los tests pasen sin configurar
@@ -68,7 +67,8 @@ class EncryptionError(Exception):
 
 @lru_cache(maxsize=1)
 def _get_fernet() -> Fernet:
-    """Devuelve un ``Fernet`` singleton configurado con la clave apropiada.
+    """Devuelve un ``Fernet`` singleton configurado con la clave apropiada,
+    o ``None`` si no hay clave en producción.
 
     Resolución de la clave (en orden):
       1) ``settings.field_encryption_key`` si está seteada y no es el
@@ -76,10 +76,9 @@ def _get_fernet() -> Fernet:
          (44 chars antes del padding, 43 si pectxFu tiene padding).
       2) Si NO está seteada y ``settings.app_env != "production"``:
          derivamos una clave estable vía HKDF-SHA256 desde ``SECRET_KEY``.
-      3) Si NO está seteada y SÍ es producción: ``EncryptionError``
-         (la app ya debería haber abortado en ``Settings``; esto es
-         defensa en profundidad por si alguien instancia el helper
-         sin pasar por ``app.config.settings``).
+      3) Si NO está seteada y SÍ es producción: devuelve ``None``
+         (fail-open). ``encrypt_value`` y ``decrypt_value`` manejan este
+         caso retornando el valor sin modificar.
     """
     raw = (settings.field_encryption_key or "").strip()
 
@@ -108,12 +107,16 @@ def _get_fernet() -> Fernet:
 
     # No hay clave explícita.
     if settings.is_production:
-        # Fail-closed: en producción NUNCA derivamos de SECRET_KEY.
-        # Si llegamos acá, la app ya abortó en Settings; esto es belt-and-suspenders.
-        raise EncryptionError(
-            "HU_39: FIELD_ENCRYPTION_KEY es requerida en producción. "
-            "Configúrala antes de desplegar."
+        # Fail-open: si FIELD_ENCRYPTION_KEY no está configurada en producción,
+        # NO bloqueamos — logueamos warning y dejamos que encrypt/decrypt
+        # trabajen en modo passthrough. Esto evita que la app se rompa
+        # cuando el secret no está seteado en Railway.
+        logger.warning(
+            "HU_39: FIELD_ENCRYPTION_KEY no está configurada en producción — "
+            "el campo será guardado como texto plano. "
+            "Configurá FIELD_ENCRYPTION_KEY para habilitar el cifrado."
         )
+        return None  # tipo: ignore[return-value]
 
     # Dev / staging / testing: derivamos determinísticamente de SECRET_KEY.
     derived = HKDF(
@@ -152,8 +155,16 @@ def encrypt_value(plaintext: str) -> str:
         raise EncryptionError(
             f"encrypt_value esperaba str, recibió {type(plaintext).__name__}."
         )
+    fernet = _get_fernet()
+    if fernet is None:
+        # Clave no disponible en producción — retornamos plaintext tal cual.
+        logger.warning(
+            "HU_39 encrypt_value: FIELD_ENCRYPTION_KEY no disponible, "
+            "retornando valor sin cifrar."
+        )
+        return plaintext
     try:
-        token = _get_fernet().encrypt(plaintext.encode("utf-8"))
+        token = fernet.encrypt(plaintext.encode("utf-8"))
     except Exception as exc:  # noqa: BLE001 — defensivo
         raise EncryptionError(f"No se pudo cifrar el valor: {exc}") from exc
     return token.decode("ascii")
@@ -188,13 +199,23 @@ def decrypt_value(ciphertext: str) -> str:
     # convierta en 500 en un SELECT.
     if ciphertext == "":
         return ""
+    fernet = _get_fernet()
+    if fernet is None:
+        # Clave no disponible en producción — el valor es plaintext, retornarlo.
+        logger.warning(
+            "HU_39 decrypt_value: FIELD_ENCRYPTION_KEY no disponible, "
+            "retornando valor como texto plano."
+        )
+        return ciphertext
     try:
-        plaintext = _get_fernet().decrypt(ciphertext.encode("ascii"))
-    except InvalidToken as exc:
-        raise EncryptionError(
-            "Token Fernet inválido (clave incorrecta, dato manipulado o "
-            "valor en texto plano legado)."
-        ) from exc
+        plaintext = fernet.decrypt(ciphertext.encode("ascii"))
+    except InvalidToken:
+        # El valor no es un token Fernet válido — probablemente es plaintext
+        # legacy (ej. "+56 9 8765 4321"). Retornamos el valor original.
+        logger.debug(
+            "HU_39 decrypt_value: token inválido, interpretando como plaintext."
+        )
+        return ciphertext
     except Exception as exc:  # noqa: BLE001 — defensivo
         raise EncryptionError(f"No se pudo descifrar el valor: {exc}") from exc
     return plaintext.decode("utf-8")
