@@ -12,7 +12,7 @@ Protegido por rol `UserRole.OWNER` o `UserRole.ADMIN`.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
@@ -21,6 +21,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.time import now_chile, today_start_chile
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.ai import (
@@ -129,7 +130,7 @@ def get_overview(
         # (no es un error, simplemente no tiene datos para mostrar).
         return AIOverviewOut(
             last_24h=MetricDailyOut(
-                day=datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0),
+                day=today_start_chile(),
                 agent=AgentKind.MARKETING,
                 requests=0, success=0, fallback=0, errors=0,
                 timeouts=0, rate_limited=0, tokens_in=0, tokens_out=0,
@@ -148,7 +149,7 @@ def get_overview(
     # Convertir a UUID para todas las queries (PostgreSQL requiere UUID nativo)
     tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
 
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = today_start_chile()
     last_24h = None
     try:
         last_24h = db.execute(
@@ -263,7 +264,7 @@ def get_metrics(
     if not tenant_ids:
         return []
     tenant_uuids = [UUID(t) if isinstance(t, str) else t for t in tenant_ids]
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = now_chile() - timedelta(days=days)
     stmt = (
         select(AIMetricDaily)
         .where(

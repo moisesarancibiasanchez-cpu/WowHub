@@ -9,13 +9,14 @@ listos para serializar (con str() aplicado a UUIDs y datetime).
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Optional
 from uuid import UUID
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from app.core.time import now_chile
 from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.product import Product, ProductStatus
@@ -52,7 +53,7 @@ class AnalyticsService:
         - top_selling   → top N por unidades vendidas en `days_top` días
         """
         tid = str(tenant_id)
-        now = datetime.now(timezone.utc)
+        now = now_chile()
 
         base_q = select(Product).where(
             Product.tenant_id == tid,
@@ -248,7 +249,7 @@ class AnalyticsService:
         - no_orders  → clientes que nunca han comprado
         """
         tid = str(tenant_id)
-        now = datetime.now(timezone.utc)
+        now = now_chile()
 
         # Base: clientes activos
         base_q = select(Customer).where(
@@ -378,7 +379,7 @@ class AnalyticsService:
         self, tid: str, *, days_inactive: int, days_new: int
     ) -> dict[str, Any]:
         """Resumen rápido de la base de clientes."""
-        now = datetime.now(timezone.utc)
+        now = now_chile()
         all_active = self.db.execute(
             select(func.count(Customer.id)).where(
                 Customer.tenant_id == tid,

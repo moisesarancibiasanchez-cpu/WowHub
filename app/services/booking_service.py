@@ -34,6 +34,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.core.time import CL_TZ, now_chile, today_start_chile
 from app.models.booking import Booking, BookingStatus
 from app.models.branch import Branch
 from app.models.customer import Customer
@@ -71,7 +72,7 @@ def _parse_hhmm(s: str) -> time:
 def _fmt_when(dt: datetime) -> str:
     """Formato humano para emails ('Lunes 16 de agosto, 15:30')."""
     dt = _ensure_aware(dt)
-    local = dt.astimezone()  # hora local del server
+    local = dt.astimezone(CL_TZ)  # hora Chile (America/Santiago)
     dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     meses = [
         "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -514,8 +515,8 @@ class BookingService:
     # ── Métricas ─────────────────────────────────────────
     def stats(self) -> BookingStats:
         from sqlalchemy import func
-        now = datetime.now(timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        now = now_chile()
+        today_start = today_start_chile()
         today_end = today_start + timedelta(days=1)
 
         # Conteos por status

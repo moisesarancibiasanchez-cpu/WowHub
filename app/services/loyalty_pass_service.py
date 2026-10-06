@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.time import today_start_chile
 from app.models.customer import Customer
 from app.models.loyalty_pass import (
     CustomerPass, LoyaltyCampaign, PassSource, PassStamp, PassStatus,
@@ -430,7 +431,7 @@ class LoyaltyPassService:
         c = self.get_campaign(campaign_id)
         if not c:
             raise HTTPException(404, "Campaña no encontrada")
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = today_start_chile()
         stamps_today = self.db.execute(
             select(func.count()).select_from(PassStamp).where(
                 PassStamp.tenant_id == self.tenant_id,

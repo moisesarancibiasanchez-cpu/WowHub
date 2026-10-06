@@ -18,7 +18,6 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Optional
 from uuid import UUID, uuid4
 
@@ -26,6 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.time import now_chile, today_start_chile
 from app.models.ai import (
     AgentKind, AIConversation, AIMessage, AILog, AIMetricDaily, AITrace,
     ConversationStatus, LogStatus, MessageRole,
@@ -55,7 +55,7 @@ def check_daily_limit(db: Session, user_id: str) -> int:
     """Devuelve el conteo de mensajes de hoy del usuario. Lanza si excede."""
     if settings.ai_daily_message_limit <= 0:
         return 0
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = today_start_chile()
     stmt = (
         select(func.count(AIMessage.id))
         .where(
@@ -148,7 +148,7 @@ def save_message(
     )
     db.add(m)
     conversation.message_count = (conversation.message_count or 0) + 1
-    conversation.last_message_at = datetime.now(timezone.utc)
+    conversation.last_message_at = now_chile()
     db.flush()
     return m
 
@@ -233,7 +233,7 @@ def update_metric_daily(
     La fila se busca por (day, tenant_id, agent) para que cada tenant tenga
     su propio contador.
     """
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = today_start_chile()
     stmt = select(AIMetricDaily).where(
         AIMetricDaily.day == today,
         AIMetricDaily.agent == agent,

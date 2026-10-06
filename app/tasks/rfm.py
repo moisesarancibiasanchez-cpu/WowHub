@@ -8,7 +8,7 @@ Ejecutar análisis RFM:
     run_rfm_analysis.delay(tenant_id=tenant_id, branch_id=None)
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
 
 from celery import Task
@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.celery_app import celery_app
+from app.core.time import now_chile
 from app.database import SessionLocal
 
 logger = logging.getLogger("wowhub.tasks.rfm")
@@ -43,7 +44,7 @@ def run_rfm_analysis(
         "run_rfm_analysis — tenant=%d, branch=%s, lookback=%d",
         tenant_id, branch_id, lookback_days,
     )
-    cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+    cutoff = now_chile() - timedelta(days=lookback_days)
 
     try:
         with SessionLocal() as db:
@@ -70,7 +71,7 @@ def run_rfm_analysis(
 
             # Calculate RFM scores (1-5 each, 5=best)
             scores = []
-            now = datetime.now(timezone.utc)
+            now = now_chile()
             total_customers = len(rows)
 
             if total_customers == 0:

@@ -8,6 +8,7 @@ from sqlalchemy import or_, select, func
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFoundError
+from app.core.time import now_chile
 # HU_38 — RBAC granular con Casbin. Ver app/api/v1/products.py.
 from app.core.security import requires_permission
 from app.database import get_db
@@ -248,8 +249,9 @@ def customers_stats(
     - `by_segment`: { segment_name: count } para mostrar desglose
     - `with_email`, `with_phone`: para el CTA de "completar datos"
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import timedelta
     from sqlalchemy import func as _func, select as _select
+    from app.core.time import now_chile
     total = db.execute(
         _select(_func.count(Customer.id)).where(Customer.tenant_id == tenant.id)
     ).scalar_one() or 0
@@ -258,7 +260,7 @@ def customers_stats(
     # Lo medimos contra la tabla de Orders, no contra `last_order_at` (que
     # puede no estar actualizado en tenants viejos). Si no hay orders
     # la subquery devuelve 0 — está bien, es un tenant sin ventas.
-    threshold = datetime.now(timezone.utc) - timedelta(days=active_days)
+    threshold = now_chile() - timedelta(days=active_days)
     from app.models.order import Order
     active_q = (
         _select(_func.count(_func.distinct(Order.customer_id)))

@@ -119,15 +119,16 @@ def get_activity_feed(
       - action_url:  link a la página relevante del dashboard
       - occurred_at: ISO 8601 UTC
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     from sqlalchemy import select as _select
+    from app.core.time import now_chile
     from app.models.order import Order
     from app.models.customer import Customer
     from app.models.booking import Booking
     from app.models.quote import Quote
     from app.models.loyalty_pass import CustomerPass
 
-    now = datetime.now(timezone.utc)
+    now = now_chile()
     cutoff = now - timedelta(days=days)
     events = []
 
@@ -364,16 +365,17 @@ def _build_sales_series(
     Helper interno compartido por ``/sales-7d`` (HU_30, back-compat) y
     ``/sales-trend`` (HU_35, con presets y anomalías).
     """
-    from datetime import datetime, time, timedelta, timezone
+    from datetime import timedelta
     from sqlalchemy import func as _func, select as _select
+    from app.core.time import now_chile, today_start_chile
     from app.models.order import Order, OrderStatus
 
     if period not in _PERIOD_PRESETS:
         period = "7d"
     window_days = _PERIOD_PRESETS[period]
 
-    now = datetime.now(timezone.utc)
-    today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    now = now_chile()
+    today_start = today_start_chile()
     start_window = today_start - timedelta(days=window_days - 1)
     # Período anterior: mismo número de días, inmediatamente antes.
     prev_start = start_window - timedelta(days=window_days)

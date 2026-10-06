@@ -134,10 +134,10 @@ def orders_today_summary(
     cuenta pedidos que NO están cancelados (status != 'canceled').
     Es una agregación ligera: una sola query SQL con SUM/COUNT.
     """
-    from datetime import datetime, time, timezone
     from sqlalchemy import func as _func, select as _select
-    now = datetime.now(timezone.utc)
-    start_of_day = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    from app.core.time import now_chile, today_start_chile
+    now = now_chile()
+    start_of_day = today_start_chile()
     # Pedidos del día excluyendo cancelados
     q = (
         _select(
@@ -171,10 +171,11 @@ def orders_sales_7d(
     aparecen con `total_cents=0` y `orders_count=0` para mantener la
     serie continua y lista para graficar.
     """
-    from datetime import datetime, time, timedelta, timezone
+    from datetime import timedelta
     from sqlalchemy import func as _func, select as _select
-    now = datetime.now(timezone.utc)
-    today_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    from app.core.time import now_chile, today_start_chile
+    now = now_chile()
+    today_start = today_start_chile()
     start_window = today_start - timedelta(days=6)  # 7 días contando hoy
     # Agrupar por día con date_trunc (compatible con PostgreSQL y SQLite)
     q = (

@@ -26,8 +26,10 @@ import logging
 import threading
 import time
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Literal
+
+from app.core.time import now_chile
 
 logger = logging.getLogger("wowhub.uptime")
 
@@ -139,7 +141,7 @@ class UptimeMonitor:
         with self._lock:
             total = 0
             ok = 0
-            now = datetime.now(timezone.utc).date()
+            now = now_chile().date()
             for i in range(days):
                 d = (now - timedelta(days=i)).isoformat()
                 bucket = self._by_day.get(d)
@@ -157,7 +159,7 @@ class UptimeMonitor:
         days = max(1, min(days, _HISTORY_DAYS))
         with self._lock:
             out = []
-            now = datetime.now(timezone.utc).date()
+            now = now_chile().date()
             for i in range(days):
                 d = (now - timedelta(days=i)).isoformat()
                 bucket = self._by_day.get(d)
