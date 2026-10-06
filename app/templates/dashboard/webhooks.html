@@ -80,7 +80,17 @@ async function loadWebhooks() {
     </div>`).join("") :
     '<p class="text-muted text-center" style="padding:40px;">Aún no tienes webhooks. Crea uno.</p>';
 
-  const deliveries = await WH.api.get(`/api/v1/tenants/${currentTenantId}/webhooks/deliveries?limit=20`);
+  // El endpoint real requiere webhook_id; agregamos entregas de todos los webhooks del tenant.
+  const allDeliveries = [];
+  for (const wh of items) {
+    try {
+      const whDeliveries = await WH.api.get(`/api/v1/tenants/${currentTenantId}/webhooks/${wh.id}/deliveries?limit=20`);
+      for (const d of whDeliveries) allDeliveries.push(d);
+    } catch (_) { /* ignorar webhooks sin entregas / errores parciales */ }
+  }
+  // Ordenar por fecha desc y recortar a 20 más recientes.
+  allDeliveries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const deliveries = allDeliveries.slice(0, 20);
   document.getElementById("deliveries-list").innerHTML = deliveries.length ? deliveries.map(d => `
     <div style="padding: 8px; border-bottom: 1px solid var(--border); font-size: 12px;">
       <span class="badge">${d.status_code || "—"}</span>
