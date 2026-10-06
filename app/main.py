@@ -93,6 +93,53 @@ templates.env.globals["_t"] = _t
 templates.env.globals["settings"] = settings
 
 
+# ── Context processor: inyecta estado de onboarding en todos los templates ──
+def _onboarding_processor(request: Request) -> dict:
+    """Lee el estado de onboarding del tenant actual y lo inyecta en el context.
+    Retorna dict vacío si no hay sesión auth o no se puede determinar el tenant."""
+    onboarding_state = {
+        "is_completed": True,
+        "current_step": "complete",
+        "completed_steps": [],
+        "wow_score": 0,
+    }
+    try:
+        token = (
+            request.cookies.get("wowhub_access_token")
+            or request.cookies.get("access_token")
+        )
+        if not token:
+            return {"onboarding": onboarding_state}
+        from app.security import decode_token
+        from app.models.onboarding import OnboardingState
+        from sqlalchemy import select
+
+        claims = decode_token(token)
+        if not claims:
+            return {"onboarding": onboarding_state}
+        tenant_id = claims.get("tenant_id") or claims.get("tid")
+        if not tenant_id:
+            return {"onboarding": onboarding_state}
+        # Import delayed to avoid circular
+        from app.database import SessionLocal
+        with SessionLocal() as db:
+            stmt = select(OnboardingState).where(OnboardingState.tenant_id == str(tenant_id))
+            state = db.execute(stmt).scalar_one_or_none()
+            if state:
+                onboarding_state = {
+                    "is_completed": state.is_completed,
+                    "current_step": state.current_step,
+                    "completed_steps": state.completed_steps or [],
+                    "wow_score": state.wow_score,
+                }
+    except Exception:
+        pass
+    return {"onboarding": onboarding_state}
+
+
+templates.template_context_processors.append(_onboarding_processor)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -452,6 +499,12 @@ def dashboard_widgets(request: Request):
         "dashboard/widgets.html",
         {"settings": settings, "initial_widgets": initial},
     )
+
+
+# HU_04 — Onboarding Wizard de 5 pasos
+@app.get("/dashboard/onboarding", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_onboarding(request: Request):
+    return templates.TemplateResponse(request, "dashboard/onboarding.html", {"settings": settings})
 
 
 @app.get("/dashboard/ai", response_class=HTMLResponse, include_in_schema=False)

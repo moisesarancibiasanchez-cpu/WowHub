@@ -192,6 +192,18 @@
   <!-- ── Contenido central ──────────────────────────────────── -->
   <main class="dash-main">
     <div class="dash-content">
+      {# ── HU_04: Exponer onboarding al frontend (lectura en JS + redirect) ── #}
+      <script>window.__onboarding = {{ onboarding | tojson | safe }};</script>
+      {# ── Redirect al wizard de onboarding si no está completo ── #}
+      <script>
+        (function checkOnboarding() {
+          var ob = window.__onboarding;
+          var path = location.pathname || "";
+          if (ob && ob.is_completed === false && path !== "/dashboard/onboarding") {
+            location.href = "/dashboard/onboarding";
+          }
+        })();
+      </script>
       {% block dash_content %}
 {% endblock %}
     </div>
