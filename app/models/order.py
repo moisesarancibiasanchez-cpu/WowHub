@@ -43,22 +43,18 @@ class Order(BaseModel, TenantMixin):
 
     # Numeración amigable
     number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    # FIXME 2026-10-06 (recovery): revertido de ``String(40)`` → ``Enum`` tras
+    # el 502 en producción causado por la migración ``2026_10_06_0003``. Esa
+    # migración intentaba convertir el PG ENUM a VARCHAR(40) para alinear con
+    # los valores lowercase en español del modelo, pero falló en el arranque
+    # (el entrypoint aborta con ``set -e`` → 502 Bad Gateway). Restauramos el
+    # estado del commit ``089910c`` (anterior al fix roto). El bug real de
+    # queries con ``status='cancelado'`` (HTTP 500 en /stats/overview,
+    # /opportunities, /analytics/...) se aborda en un PR separado, ya con
+    # pruebas contra PG real.
     status: Mapped[OrderStatus] = mapped_column(
-        # FIX 2026-10-06 (production 500): antes era
-        # ``Enum(OrderStatus, name="order_status")``, pero el PG ENUM solo
-        # contenía PENDING/CONFIRMED/PREPARING/READY/DELIVERED/CANCELED (los
-        # nombres viejos de la migración inicial), NO los valores lowercase
-        # en español del modelo (recibido, confirmado, ...). Eso hacía que
-        # cada ``Order.status != OrderStatus.CANCELADO`` (que pasa "cancelado")
-        # lanzara ``invalid input value for enum order_status: 'cancelado'``.
-        # Endpoints rotos: /stats/overview, /opportunities,
-        # /opportunities/daily-brief, /analytics/{sales-trend,sales-7d,
-        # customer-segments}.
-        # Solución: VARCHAR(40) (alineado con HU_45 — flexibilidad) + migración
-        # ``2026_10_06_0003`` que traduce los valores pre-existentes al
-        # vocabulario nuevo y elimina el tipo ``order_status``.
-        String(40),
-        default=OrderStatus.RECIBIDO.value,
+        Enum(OrderStatus, name="order_status"),
+        default=OrderStatus.RECIBIDO,
         nullable=False,
         index=True,
     )
