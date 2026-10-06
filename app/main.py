@@ -138,7 +138,7 @@ def _onboarding_processor(request: Request) -> dict:
     return {"onboarding": onboarding_state}
 
 
-templates.template_context_processors.append(_onboarding_processor)
+templates.context_processors.append(_onboarding_processor)
 
 
 @asynccontextmanager
