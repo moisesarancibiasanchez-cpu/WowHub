@@ -426,6 +426,28 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString("es-CL", { year: "numeric", month: "short", day: "numeric" });
 }
 
+// ── fmtTime: formateo de fechas con TZ fija America/Santiago ────
+// WowHub opera exclusivamente en Chile. Si formateamos con
+// `new Date(iso).toLocaleString("es-CL", ...)`, el navegador usa su TZ
+// local — un visitante con PC en UTC verá fechas desfasadas.
+//
+// Esta helper fuerza `timeZone: 'America/Santiago'` en todas las
+// llamadas, independiente del browser. Acepta ISO 8601 (string) o Date.
+// `opts` se mergea con `timeZone`; si pasás `timeZone`, sobrescribís.
+//
+// Ejemplos:
+//   fmtTime("2026-10-01T23:30:00Z")                                  // "01/10/2026, 20:30:00"
+//   fmtTime(iso, { dateStyle: "short", timeStyle: "short" })         // "01/10/26, 20:30"
+//   fmtTime(iso, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+//   fmtTime(iso, { dateStyle: "medium", timeStyle: "medium" })       // sólo fecha+hora corta
+const CL_TZ = "America/Santiago";
+function fmtTime(iso, opts = {}) {
+  if (!iso) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("es-CL", { timeZone: CL_TZ, ...opts });
+}
+
 // ── Utilidades compartidas ─────────────────────────────────
 // `escapeHtml` es la versión segura para insertar texto en HTML. La
 // diferencia con `escapeAttr` (que escapa también `"` y `'`) es que esta
@@ -687,5 +709,5 @@ window.WH = {
   api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore,
   formatMoney, formatDate, startAutoRefresh,
   escapeHtml, escapeAttr, debounce, Modal, Confirm,
-  Notifications,
+  Notifications, fmtTime, CL_TZ,
 };

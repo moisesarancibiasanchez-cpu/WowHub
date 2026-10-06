@@ -212,6 +212,17 @@
   let _selected = null; // { starts_at, ends_at }
   let _lastBooking = null;
 
+  // fmtTime local: este template NO carga app.js (es público), por lo que
+  // replicamos el helper aquí. Fuerza `timeZone: 'America/Santiago'`
+  // independientemente del browser del visitante.
+  const CL_TZ = 'America/Santiago';
+  function fmtTime(iso, opts) {
+    if (!iso) return '';
+    const d = iso instanceof Date ? iso : new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('es-CL', Object.assign({ timeZone: CL_TZ }, opts || {}));
+  }
+
   const alertEl = document.getElementById('alert');
   function showAlert(msg, kind){
     alertEl.textContent = msg;
@@ -279,8 +290,8 @@
     let count = 0;
     for (const s of slots) {
       const d = new Date(s.starts_at);
-      const time = d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-      const dateLbl = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' });
+      const time = fmtTime(d, { hour: '2-digit', minute: '2-digit' });
+      const dateLbl = fmtTime(d, { weekday: 'short', day: 'numeric' });
       if (s.available) {
         html.push(`<div class="slot" data-starts="${s.starts_at}" data-ends="${s.ends_at}">
           <div class="time">${time}</div>
@@ -313,7 +324,7 @@
       ends_at: el.dataset.ends,
     };
     const d = new Date(_selected.starts_at);
-    document.getElementById('sum_when').textContent = d.toLocaleString('es-CL', {
+    document.getElementById('sum_when').textContent = fmtTime(d, {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -370,7 +381,7 @@
     document.getElementById('ok_id').textContent = _lastBooking.id.slice(0, 8).toUpperCase();
     document.getElementById('ok_name').textContent = _lastBooking.customer_name;
     const d = new Date(_lastBooking.starts_at);
-    document.getElementById('ok_when').textContent = d.toLocaleString('es-CL', {
+    document.getElementById('ok_when').textContent = fmtTime(d, {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });

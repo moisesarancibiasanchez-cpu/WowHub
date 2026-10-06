@@ -542,7 +542,7 @@ function renderUpcomingReservations(data) {
   }
   list.innerHTML = arr.slice(0, 4).map(b => {
     const dt = new Date(b.scheduled_at || b.start_at || b.date);
-    const when = isNaN(dt.getTime()) ? "" : dt.toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    const when = isNaN(dt.getTime()) ? "" : WH.fmtTime(dt, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
     const customer = escapeHtml(b.customer_name || b.customer?.full_name || "Cliente");
     const service  = escapeHtml(b.service_name || b.service || "Reserva");
     const status   = (b.status || "recibido").toLowerCase();
@@ -694,7 +694,7 @@ function relTime(iso) {
   if (diff < 3600)  return "hace " + Math.floor(diff / 60) + "m";
   if (diff < 86400) return "hace " + Math.floor(diff / 3600) + "h";
   if (diff < 604800) return "hace " + Math.floor(diff / 86400) + "d";
-  return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  return WH.fmtTime(d, { day: "2-digit", month: "short" });
 }
 
 // ──────────────────────────────────────────────────────────────

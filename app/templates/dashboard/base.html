@@ -523,7 +523,7 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
     if (diff < 3600)  return "hace " + Math.floor(diff / 60) + " min";
     if (diff < 86400) return "hace " + Math.floor(diff / 3600) + " h";
     if (diff < 604800) return "hace " + Math.floor(diff / 86400) + " d";
-    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+    return WH.fmtTime(d, { day: "2-digit", month: "short" });
   }
 
   function renderList(top3) {

@@ -143,7 +143,7 @@ function renderKanban() {
               <div class="order-num">${o.order_number || o.number || (o.id || "").slice(0,8)}</div>
               <div class="customer">${o.customer_name || "—"}</div>
               <div class="total">${fmtMoney(o.total_cents)}</div>
-              <div class="meta">${(o.items || []).length} items · ${new Date(o.created_at).toLocaleString("es-CL")}</div>
+              <div class="meta">${(o.items || []).length} items · ${WH.fmtTime(o.created_at)}</div>
             </div>
           `).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}
         </div>
@@ -160,7 +160,7 @@ async function openOrder(id) {
       <div class="flex" style="justify-content: space-between; align-items: start; margin-bottom: 12px;">
         <div>
           <strong>${o.customer_name || "—"}</strong>${o.customer_phone ? " · " + o.customer_phone : ""}${o.customer_email ? "<br>" + o.customer_email : ""}
-          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${new Date(o.created_at).toLocaleString("es-CL")} · ${o.source || "web"}</div>
+          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${WH.fmtTime(o.created_at)} · ${o.source || "web"}</div>
         </div>
         <span class="badge badge-${(o.status || "recibido").toLowerCase()}">${(o.status || "recibido").toUpperCase()}</span>
       </div>

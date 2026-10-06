@@ -206,7 +206,7 @@ async function loadQuotes() {
             <td>${q.recipient_name}${q.recipient_email ? `<br><span class="text-muted" style="font-size:11px;">${q.recipient_email}</span>` : ""}</td>
             <td><strong>${fmtMoney(q.total_cents)}</strong></td>
             <td><span class="badge badge-${q.status}">${STATUS_LABELS[q.status] || q.status}</span></td>
-            <td><span class="text-muted" style="font-size:12px;">${new Date(q.created_at).toLocaleDateString("es-CL")}</span></td>
+            <td><span class="text-muted" style="font-size:12px;">${WH.fmtTime(q.created_at, { year: "numeric", month: "2-digit", day: "2-digit" })}</span></td>
             <td>
               <button class="btn btn-sm" onclick="viewQuote('${q.id}')">Ver</button>
             </td>
@@ -327,7 +327,7 @@ async function viewQuote(id) {
       <div>
         <h4 style="margin: 0 0 4px;">${q.title}</h4>
         <div class="text-muted" style="font-size: 13px;">Para: <strong>${q.recipient_name}</strong>${q.recipient_email ? " · " + q.recipient_email : ""}${q.recipient_phone ? " · " + q.recipient_phone : ""}</div>
-        <div class="text-muted" style="font-size: 12px; margin-top: 6px;">Creada: ${new Date(q.created_at).toLocaleString("es-CL")}${q.valid_until ? " · Válida hasta: " + new Date(q.valid_until).toLocaleDateString("es-CL") : ""}</div>
+        <div class="text-muted" style="font-size: 12px; margin-top: 6px;">Creada: ${WH.fmtTime(q.created_at)}${q.valid_until ? " · Válida hasta: " + WH.fmtTime(q.valid_until, { year: "numeric", month: "2-digit", day: "2-digit" }) : ""}</div>
       </div>
       <span class="badge badge-${q.status}">${STATUS_LABELS[q.status] || q.status}</span>
     </div>

@@ -196,7 +196,7 @@
   function fmtDate(s){
     if(!s) return '—';
     const d = new Date(s);
-    return d.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
+    return WH.fmtTime(d, { dateStyle: 'short', timeStyle: 'short' });
   }
   function fmtMoney(cents, ccy){
     const n = (cents/100).toLocaleString('es-CL', { minimumFractionDigits: 0 });
