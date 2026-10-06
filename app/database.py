@@ -25,6 +25,10 @@ if settings.is_sqlite:
         poolclass=StaticPool if is_memory else None,
     )
 else:
+    # PostgreSQL: forzar timezone de la conexión a America/Santiago para que
+    # NOW(), CURRENT_TIMESTAMP y CAST(timestamp AT TIME ZONE ...) devuelvan
+    # hora chilena. Combinado con TZ=America/Santiago en el contenedor, hace
+    # que "hoy" en SQL sea coherente con la lógica de negocio Python.
     engine = create_engine(
         settings.database_url,
         echo=settings.debug,
@@ -32,6 +36,7 @@ else:
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
+        connect_args={"options": "-c timezone=America/Santiago"},
     )
 
 SessionLocal = sessionmaker(

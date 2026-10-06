@@ -19,6 +19,10 @@ tenacity>=8.2.3
 psycopg2-binary>=2.9.0
 pillow>=10.2.0
 python-dateutil>=2.8.2
+# ZoneInfo / TZ CL: base de tzdata completa para `zoneinfo.ZoneInfo("America/Santiago")`
+# El slim image de python:3.12 incluye un set mínimo de zonas; tzdata garantiza
+# cobertura actualizada en deploy (incluye DST Chile 2019/2026).
+tzdata>=2024.1
 
 # ── Observabilidad: Sentry + OpenTelemetry + Prometheus ──────────
 sentry-sdk[fastapi]>=2.0.0

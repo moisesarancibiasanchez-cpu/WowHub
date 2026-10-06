@@ -34,7 +34,8 @@ FROM python:3.12-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TZ=America/Santiago
 
 # Dependencias de compilación. Quedan SOLO en esta imagen; no se copian
 # a runtime (ahorro de ~200-300 MB comprimidos y menor superficie CVE).
@@ -65,7 +66,8 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/install/bin:${PATH}" \
-    PORT=8000
+    PORT=8000 \
+    TZ=America/Santiago
 
 # Solo deps de runtime. NO build-essential, NO libpq-dev, NO gcc.
 #   libpq5 → cliente Postgres runtime (para psycopg2-binary y psycopg 3.x).
