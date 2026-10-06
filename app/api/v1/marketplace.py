@@ -91,7 +91,12 @@ def _resolve_tenant(request: Request, db: Session, user: User) -> UUID:
         )
         if not membership:
             raise HTTPException(status_code=400, detail="No tenant found for user")
-        tenant_id = UUID(membership.tenant_id)
+        # FIX 2026-10-06 (production 500): con PostgreSQL + GUID type,
+        # ``membership.tenant_id`` ya es un objeto UUID (no str). Llamar
+        # ``UUID(uuid_obj)`` falla porque ``UUID.__init__`` internamente
+        # hace ``hex.replace(...)`` y ``uuid_obj.hex`` es otro UUID, no
+        # un string ⇒ ``AttributeError: 'UUID' object has no attribute 'replace'``.
+        tenant_id = UUID(str(membership.tenant_id))
 
     # Validación de pertenencia — la parte que faltaba en el código original.
     member = (
