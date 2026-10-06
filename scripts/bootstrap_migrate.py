@@ -300,8 +300,29 @@ def run(cmd: list[str]) -> int:
     de Windows del venv) no está en PATH cuando se invoca desde un script.
     `sys.executable -m alembic` sí funciona, y garantiza la misma versión
     de Python y el mismo venv.
+
+    FIX 2026-10-06: la salida de Alembic (stdout+stderr) se captura y se
+    re-emite con prefijo ``[alembic]`` para que Railway muestre qué
+    migración falló cuando el entrypoint aborta con `set -e`. Antes, la
+    salida se perdía en el buffer de subprocess.call y el operador veía
+    sólo ``FALLO CRÍTICO: bootstrap_migrate salió con código 1`` sin pista
+    de la causa raíz.
     """
-    return subprocess.call([sys.executable, "-m", *cmd])
+    print(f"[bootstrap_migrate] ejecutando: {' '.join(cmd)}", flush=True)
+    proc = subprocess.run(
+        [sys.executable, "-m", *cmd],
+        capture_output=True,
+        text=True,
+    )
+    out = (proc.stdout or "").rstrip()
+    err = (proc.stderr or "").rstrip()
+    if out:
+        for line in out.splitlines():
+            print(f"[alembic] {line}", flush=True)
+    if err:
+        for line in err.splitlines():
+            print(f"[alembic:err] {line}", flush=True)
+    return proc.returncode
 
 
 def main() -> int:
