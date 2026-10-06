@@ -325,13 +325,49 @@ def run(cmd: list[str]) -> int:
     return proc.returncode
 
 
+def _swallow(stage: str, rc: int) -> int:
+    """Safety net 2026-10-06: no abortar el arranque si una migración falla.
+
+    WowHub production fue 502 Bad Gateway porque el entrypoint usa ``set -e``
+    y este script devolvía ``rc != 0`` ante cualquier fallo de Alembic.
+    Aquí logueamos loud y devolvemos ``0`` para que ``uvicorn`` arranque. El
+    fix real del problema subyacente (enum mismatch, schema drift, etc.)
+    viene en un commit posterior; por ahora, prioridad es que uvicorn
+    escuche y la API responda aunque la migración esté rota.
+
+    Caso de éxito (``rc == 0``): la función es un no-op.
+    """
+    if rc == 0:
+        return rc
+    print(
+        f"[bootstrap_migrate] WARNING: {stage} salió con rc={rc}. "
+        "CONTINUING APP STARTUP despite migration failure (safety net).",
+        flush=True,
+    )
+    return 0
+
+
 def main() -> int:
-    eng = _engine()
-    # NOTA: NO llamamos `eng.dispose()` al salir de `with eng.connect()`.
-    # El engine se mantiene vivo durante toda la ejecución porque el branch
-    # `legacy` lo reutiliza para inspeccionar la DB con `_highest_fully_applied_revision`.
-    # Cerrarlo prematuramente dejaba las conexiones en estado disposed y
-    # `inspect(conn)` crasheaba con `ResourceClosedError`.
+    """SAFETY NET (2026-10-06).
+
+    Este script es best-effort: si una migración falla, logueamos loud y
+    devolvemos ``0`` para que el entrypoint no aborte uvicorn con
+    ``set -e``. Railway's 502 Bad Gateway fue causado por el entrypoint
+    saliendo con código != 0 cuando Alembic encontraba un error
+    recuperable (p.ej. enum mismatch en una tabla existente). El fix real
+    del problema subyacente puede llegar en un commit posterior; por
+    ahora, prioridad es que uvicorn arranque y la API responda.
+    """
+    try:
+        eng = _engine()
+    except SystemExit as exc:
+        print(
+            f"[bootstrap_migrate] WARNING: no se pudo construir engine "
+            f"(SystemExit code={exc.code}). "
+            "CONTINUING APP STARTUP despite bootstrap failure (safety net).",
+            flush=True,
+        )
+        return 0
 
     try:
         with eng.connect() as conn:
@@ -345,14 +381,16 @@ def main() -> int:
             if rc != 0:
                 print("[bootstrap_migrate] head ambiguous — corro 'alembic upgrade heads'")
                 rc = run(["alembic", "upgrade", "heads"])
-            return rc
+            return _swallow("'alembic upgrade head'", rc)
 
         if state == "alembic":
             print("[bootstrap_migrate] DB gestionada por Alembic — corro 'alembic upgrade head'")
             rc = run(["alembic", "upgrade", "head"])
             if rc != 0:
                 print("[bootstrap_migrate] head ambiguo (branch detectado) — corro 'alembic upgrade heads'")
-                return run(["alembic", "upgrade", "heads"])
+                return _swallow(
+                    "'alembic upgrade heads'", run(["alembic", "upgrade", "heads"])
+                )
             return rc
 
         # state == "legacy"
@@ -385,7 +423,7 @@ def main() -> int:
                 f"(DB con '{sentinel}' pero sin tablas de ninguna migración).",
                 file=sys.stderr,
             )
-            return 1
+            return _swallow("bootstrap detection (no migration aplicable)", 1)
 
         if target != _head_revision(migs):
             # La DB tiene las tablas de la inicial pero NO las de las migraciones
@@ -401,8 +439,10 @@ def main() -> int:
                     f"[bootstrap_migrate] ERROR: 'alembic stamp {target}' salió con código {rc1}",
                     file=sys.stderr,
                 )
-                return rc1
-            return run(["alembic", "upgrade", "head"])
+                return _swallow(f"'alembic stamp {target}'", rc1)
+            return _swallow(
+                "'alembic upgrade head'", run(["alembic", "upgrade", "head"])
+            )
 
         # La DB tiene TODAS las tablas de la head. Stamp a head directamente.
         print(
@@ -410,9 +450,22 @@ def main() -> int:
             f"('{sentinel}' + tablas de la migración head). "
             f"Sello a '{target}' (head). No hay nada que aplicar."
         )
-        return run(["alembic", "stamp", target])
+        return _swallow(
+            f"'alembic stamp {target}'", run(["alembic", "stamp", target])
+        )
+    except Exception as exc:
+        print(
+            f"[bootstrap_migrate] WARNING: excepción no esperada "
+            f"{type(exc).__name__}: {exc}. "
+            "CONTINUING APP STARTUP despite bootstrap failure (safety net).",
+            flush=True,
+        )
+        return 0
     finally:
-        eng.dispose()
+        try:
+            eng.dispose()
+        except Exception:
+            pass
 
 
 def _head_revision(migs: dict[str, dict]) -> str | None:
