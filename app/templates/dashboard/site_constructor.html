@@ -1,9 +1,10 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Constructor de Sitio — WowHub{% endblock %}
-{% block content %}
+{% block dash_content %}
 {# Extract tenant_id from URL path: /dashboard/site-constructor/{id} #}
 <script>window.__WOWHUB_TENANT_ID = {{ tenant_id | default('null') }};</script>
 <input type="hidden" id="js_tenant_id" value="{{ tenant_id | default('') }}" />
+<section class="dash-page" style="padding: 24px;">
 <h1>🖥️ Constructor de Sitio</h1>
 <p style="color:var(--color-text-muted); margin-bottom:24px;">Personalizá tu sitio público.</p>
 <div id="alert-container"></div>
@@ -97,6 +98,7 @@
   <button class="btn btn-secondary" onclick="loadConfig()">Descartar cambios</button>
   <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar</button>
 </div>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>
