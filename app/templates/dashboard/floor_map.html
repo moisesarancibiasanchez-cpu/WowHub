@@ -48,22 +48,29 @@
   /* ── Canvas / Grid ─────────────────────────────────────────── */
   .fm-canvas-wrap {
     position: relative;
-    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
   }
   .fm-canvas {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 90px);
-    grid-auto-rows: 90px;
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, 100px);
+    grid-auto-rows: 100px;
+    gap: 12px;
     padding: 16px;
     min-height: 400px;
+    /* Wood-tile floor pattern */
+    background:
+      linear-gradient(135deg, #f0e6d2 25%, transparent 25%),
+      linear-gradient(225deg, #f0e6d2 25%, transparent 25%),
+      linear-gradient(45deg, #f0e6d2 25%, transparent 25%),
+      linear-gradient(315deg, #f0e6d2 25%, #e8dcc8 25%);
+    background-size: 40px 40px;
+    background-color: #e8dcc8;
   }
   .fm-table-cell {
     border: 2px solid var(--border-strong);
-    border-radius: 6px;
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -72,18 +79,32 @@
     position: relative;
     font-size: 12px;
     font-weight: 600;
-    gap: 4px;
-    transition: border-color .2s, transform .1s;
+    gap: 2px;
+    transition: border-color .2s, transform .15s, box-shadow .2s;
     background: var(--bg-elev);
     min-width: 0;
+    /* 3D depth */
+    box-shadow:
+      0 4px 6px rgba(0,0,0,0.15),
+      inset 0 1px 0 rgba(255,255,255,0.2);
   }
-  .fm-table-cell:hover { border-color: var(--accent); transform: scale(1.03); }
-  .fm-table-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .fm-table-cell.status-available  { background: var(--ok-bg); border-color: var(--ok); color: var(--ok-ink); }
-  .fm-table-cell.status-occupied   { background: var(--err-bg); border-color: var(--err); color: var(--err-ink); }
-  .fm-table-cell.status-reserved   { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
-  .fm-table-icon { font-size: 22px; line-height: 1; }
-  .fm-table-num  { font-size: 11px; opacity: .8; }
+  .fm-table-cell:hover { border-color: var(--accent); transform: scale(1.04) translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2); }
+  .fm-table-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 4px 6px rgba(0,0,0,0.15); }
+  .fm-table-cell.status-available  { background: #d4edda; border-color: #28a745; color: #155724; }
+  .fm-table-cell.status-occupied   { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+  .fm-table-cell.status-reserved   { background: #fff3cd; border-color: #ffc107; color: #856404; }
+  .fm-table-cell.status-needs_attention {
+    background: #ffe5d0;
+    border-color: #ff6b35;
+    color: #8b2500;
+    animation: attention-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes attention-pulse {
+    0%, 100% { box-shadow: 0 4px 6px rgba(0,0,0,0.15), 0 0 8px rgba(255,107,53,0.5); }
+    50% { box-shadow: 0 4px 6px rgba(0,0,0,0.15), 0 0 22px rgba(255,107,53,0.9); }
+  }
+  .fm-table-icon { line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .fm-table-num  { font-size: 11px; opacity: .85; text-align: center; }
   .fm-table-del {
     position: absolute; top: 4px; right: 4px;
     background: var(--err); color: #fff;
@@ -103,23 +124,42 @@
     min-height: 90px;
   }
 
+  /* ── Tooltip ───────────────────────────────────────────────── */
+  .table-tooltip {
+    position: fixed;
+    background: rgba(30, 20, 10, 0.92);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    pointer-events: none;
+    z-index: 99999;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: opacity .15s;
+  }
+  .table-tooltip strong { color: #f0c060; font-size: 13px; }
+
   /* ── Config panel ──────────────────────────────────────────── */
   .fm-cfg-group { margin-bottom: 14px; }
   .fm-cfg-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
-  .fm-status-btns { display: flex; gap: 6px; }
+  .fm-status-btns { display: flex; gap: 6px; flex-wrap: wrap; }
   .fm-status-btn {
     flex: 1; padding: 6px 4px; border: 1px solid var(--border);
     border-radius: 4px; background: none; cursor: pointer;
-    font-size: 12px; text-align: center;
+    font-size: 11px; text-align: center;
     transition: background .15s, border-color .15s;
   }
   .fm-status-btn.active { font-weight: 700; }
-  .fm-status-btn[data-status="available"]  { color: var(--ok); }
-  .fm-status-btn[data-status="available"].active  { background: var(--ok-bg); border-color: var(--ok); }
-  .fm-status-btn[data-status="occupied"]   { color: var(--err); }
-  .fm-status-btn[data-status="occupied"].active   { background: var(--err-bg); border-color: var(--err); }
-  .fm-status-btn[data-status="reserved"]   { color: var(--warn); }
-  .fm-status-btn[data-status="reserved"].active  { background: var(--warn-bg); border-color: var(--warn); }
+  .fm-status-btn[data-status="available"]  { color: #28a745; }
+  .fm-status-btn[data-status="available"].active  { background: #d4edda; border-color: #28a745; }
+  .fm-status-btn[data-status="occupied"]   { color: #dc3545; }
+  .fm-status-btn[data-status="occupied"].active   { background: #f8d7da; border-color: #dc3545; }
+  .fm-status-btn[data-status="reserved"]   { color: #856404; }
+  .fm-status-btn[data-status="reserved"].active  { background: #fff3cd; border-color: #ffc107; }
+  .fm-status-btn[data-status="needs_attention"]   { color: #ff6b35; }
+  .fm-status-btn[data-status="needs_attention"].active  { background: #ffe5d0; border-color: #ff6b35; }
 
   /* ── Palette drag ghost ─────────────────────────────────────── */
   .drag-ghost { opacity: .6; }
@@ -183,7 +223,7 @@
           <div style="font-size:11px; color:var(--fg-muted);">6 personas</div>
         </div>
       </div>
-      <div class="fm-palette-item" draggable="true" data-shape="round"   data-default-capacity="2">
+      <div class="fm-palette-item" draggable="true" data-shape="low"   data-default-capacity="2">
         <div class="palette-shape shape-round" style="width:22px;height:22px;border-width:1px;"></div>
         <div>
           <div style="font-weight:600;">Baja</div>
@@ -230,6 +270,7 @@
             <button class="fm-status-btn" data-status="available">Libre</button>
             <button class="fm-status-btn" data-status="occupied">Ocupada</button>
             <button class="fm-status-btn" data-status="reserved">Reservada</button>
+            <button class="fm-status-btn" data-status="needs_attention">⚠️ Atención</button>
           </div>
         </div>
         <div class="fm-cfg-group">
@@ -238,6 +279,7 @@
             <option value="round">Redonda</option>
             <option value="square">Cuadrada</option>
             <option value="rect">Rectangular</option>
+            <option value="low">Baja (bar)</option>
           </select>
         </div>
         <button class="btn btn-ghost btn-sm" id="fm-remove-btn" style="width:100%; margin-top:8px; color:var(--err);">
@@ -270,6 +312,82 @@
   let selectedId = null;
   let nextId = 1;
 
+  // ── State colours ───────────────────────────────────────────────
+  const stateColors = {
+    available:     { bg: '#d4edda', border: '#28a745', label: 'Libre' },
+    occupied:      { bg: '#f8d7da', border: '#dc3545', label: 'Ocupada' },
+    reserved:      { bg: '#fff3cd', border: '#ffc107', label: 'Reservada' },
+    needs_attention: { bg: '#ffe5d0', border: '#ff6b35', label: 'Atención' },
+  };
+
+  // ── SVG icons for table shapes (realistic wood-style) ──────────
+  const shapeIcons = {
+    // Mesa redonda 4 personas
+    round: `<svg viewBox="0 0 80 80" width="56" height="56">
+      <circle cx="40" cy="40" r="30" fill="#8B7355" stroke="#5D4037" stroke-width="3"/>
+      <circle cx="40" cy="40" r="25" fill="#D2B48C"/>
+      <circle cx="40" cy="5" r="8" fill="#A0522D"/>
+      <circle cx="40" cy="75" r="8" fill="#A0522D"/>
+      <circle cx="5" cy="40" r="8" fill="#A0522D"/>
+      <circle cx="75" cy="40" r="8" fill="#A0522D"/>
+    </svg>`,
+    // Mesa cuadrada 4 personas
+    square: `<svg viewBox="0 0 80 80" width="56" height="56">
+      <rect x="10" y="10" width="60" height="60" rx="5" fill="#8B7355" stroke="#5D4037" stroke-width="3"/>
+      <rect x="15" y="15" width="50" height="50" rx="3" fill="#D2B48C"/>
+      <rect x="0" y="20" width="12" height="12" rx="2" fill="#A0522D"/>
+      <rect x="68" y="20" width="12" height="12" rx="2" fill="#A0522D"/>
+      <rect x="0" y="48" width="12" height="12" rx="2" fill="#A0522D"/>
+      <rect x="68" y="48" width="12" height="12" rx="2" fill="#A0522D"/>
+    </svg>`,
+    // Mesa rectangular 6 personas
+    rect: `<svg viewBox="0 0 120 60" width="86" height="43">
+      <rect x="5" y="10" width="110" height="40" rx="5" fill="#8B7355" stroke="#5D4037" stroke-width="3"/>
+      <rect x="10" y="15" width="100" height="30" rx="3" fill="#D2B48C"/>
+      <circle cx="20" cy="5" r="7" fill="#A0522D"/>
+      <circle cx="40" cy="5" r="7" fill="#A0522D"/>
+      <circle cx="80" cy="5" r="7" fill="#A0522D"/>
+      <circle cx="100" cy="5" r="7" fill="#A0522D"/>
+      <circle cx="20" cy="55" r="7" fill="#A0522D"/>
+      <circle cx="40" cy="55" r="7" fill="#A0522D"/>
+      <circle cx="80" cy="55" r="7" fill="#A0522D"/>
+      <circle cx="100" cy="55" r="7" fill="#A0522D"/>
+    </svg>`,
+    // Mesa baja 2 personas (bar)
+    low: `<svg viewBox="0 0 60 60" width="46" height="46">
+      <ellipse cx="30" cy="30" rx="25" ry="15" fill="#8B7355" stroke="#5D4037" stroke-width="3"/>
+      <ellipse cx="30" cy="28" rx="20" ry="11" fill="#D2B48C"/>
+      <ellipse cx="30" cy="5" rx="10" ry="5" fill="#A0522D"/>
+      <ellipse cx="30" cy="55" rx="10" ry="5" fill="#A0522D"/>
+    </svg>`,
+  };
+
+  // ── Tooltip helpers ─────────────────────────────────────────────
+  let activeTooltip = null;
+  function showTooltip(cell, table) {
+    hideTooltip();
+    const tip = document.createElement('div');
+    tip.className = 'table-tooltip';
+    tip.innerHTML = `<strong>${table.name}</strong><br>Estado: ${stateColors[table.status]?.label || table.status}<br>Capacidad: ${table.capacity} persona${table.capacity !== 1 ? 's' : ''}`;
+    document.body.appendChild(tip);
+    activeTooltip = tip;
+    positionTooltip(tip, cell);
+  }
+  function positionTooltip(tip, cell) {
+    const rect = cell.getBoundingClientRect();
+    tip.style.left = (rect.left + rect.width / 2 - tip.offsetWidth / 2) + 'px';
+    tip.style.top = (rect.top - tip.offsetHeight - 8) + 'px';
+    if (parseInt(tip.style.top) < 4) {
+      tip.style.top = (rect.bottom + 8) + 'px';
+    }
+  }
+  function hideTooltip() {
+    if (activeTooltip) {
+      activeTooltip.remove();
+      activeTooltip = null;
+    }
+  }
+
   // ── Toast ──────────────────────────────────────────────────────
   function showToast(msg, duration = 2500) {
     toastEl.textContent = msg;
@@ -296,17 +414,18 @@
         cell.className = `fm-table-cell status-${t.status}${t.id === selectedId ? ' selected' : ''}`;
         cell.dataset.id = t.id;
 
-        // Shape icon
-        let icon = '';
-        if (t.shape === 'round')  icon = '⭘';
-        if (t.shape === 'square') icon = '◼';
-        if (t.shape === 'rect')   icon = '▬';
+        // Shape icon via SVG
+        const icon = shapeIcons[t.shape] || shapeIcons.square;
         cell.innerHTML = `
           <span class="fm-table-icon">${icon}</span>
           <span class="fm-table-num">${t.name}</span>
           <span class="fm-table-num" style="font-size:10px;">${t.capacity}p</span>
           <button class="fm-table-del" title="Eliminar">×</button>
         `;
+
+        // Hover tooltip
+        cell.addEventListener('mouseenter', () => showTooltip(cell, t));
+        cell.addEventListener('mouseleave', hideTooltip);
 
         // Click to select
         cell.addEventListener('click', (e) => {
