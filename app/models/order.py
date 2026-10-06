@@ -44,8 +44,21 @@ class Order(BaseModel, TenantMixin):
     # Numeración amigable
     number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, name="order_status"),
-        default=OrderStatus.RECIBIDO,
+        # FIX 2026-10-06 (production 500): antes era
+        # ``Enum(OrderStatus, name="order_status")``, pero el PG ENUM solo
+        # contenía PENDING/CONFIRMED/PREPARING/READY/DELIVERED/CANCELED (los
+        # nombres viejos de la migración inicial), NO los valores lowercase
+        # en español del modelo (recibido, confirmado, ...). Eso hacía que
+        # cada ``Order.status != OrderStatus.CANCELADO`` (que pasa "cancelado")
+        # lanzara ``invalid input value for enum order_status: 'cancelado'``.
+        # Endpoints rotos: /stats/overview, /opportunities,
+        # /opportunities/daily-brief, /analytics/{sales-trend,sales-7d,
+        # customer-segments}.
+        # Solución: VARCHAR(40) (alineado con HU_45 — flexibilidad) + migración
+        # ``2026_10_06_0003`` que traduce los valores pre-existentes al
+        # vocabulario nuevo y elimina el tipo ``order_status``.
+        String(40),
+        default=OrderStatus.RECIBIDO.value,
         nullable=False,
         index=True,
     )

@@ -112,9 +112,9 @@ class StatsService:
             "period_days": days,
             "orders": {
                 "total": orders.total_orders or 0,
-                "recibido": orders.pending or 0,
-                "entregado": orders.delivered or 0,
-                "cancelado": orders.canceled or 0,
+                "recibido": orders.recibido or 0,
+                "entregado": orders.entregado or 0,
+                "cancelado": orders.cancelado or 0,
             },
             "revenue": {
                 "total_cents": int(orders.total_revenue_cents or 0),
