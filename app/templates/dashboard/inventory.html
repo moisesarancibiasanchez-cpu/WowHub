@@ -235,8 +235,8 @@ async function saveStock() {
           stock: newStock, low_stock_threshold: threshold,
         });
       } else {
-        await WH.api.post(`/api/v1/tenants/${currentTenantId}/branches/${branchId}/products`, {
-          product_id: productId, stock: newStock, low_stock_threshold: threshold,
+        await WH.api.post(`/api/v1/tenants/${currentTenantId}/branch-products`, {
+          branch_id: branchId, product_id: productId, stock: newStock, low_stock_threshold: threshold,
         });
       }
     } else {
