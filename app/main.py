@@ -51,6 +51,7 @@ from app.api.v1 import (
     status,            # HU_49 — Status page público (uptime monitor)
     ocr,               # HU_33 — OCR de comprobantes (HU_33)
     reports,           # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
+    admin_observability,  # HU_07 — Admin observability dashboard (Otel + Sentry + Prom)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -312,6 +313,8 @@ app.include_router(status.router, prefix="/api/v1")
 app.include_router(ocr.router, prefix="/api/v1")
 # HU_31 — Reportes programables (catálogo + scheduling)
 app.include_router(reports.router, prefix="/api/v1")
+# HU_07 — Dashboard admin de observabilidad (Otel + Sentry + Prom)
+app.include_router(admin_observability.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
@@ -583,6 +586,50 @@ def admin_ai_page(request: Request):
     return templates.TemplateResponse(
         request,
         "dashboard/admin_ai.html",
+        {"settings": settings, "user_role": role.value},
+    )
+
+
+# ── HU_07 — Admin Observability Dashboard ───────────────────────────────────────
+@app.get("/dashboard/admin-observability", response_class=HTMLResponse, include_in_schema=False)
+def admin_observability_page(request: Request):
+    """Dashboard de observabilidad: OpenTelemetry traces + Sentry errors + Prometheus.
+
+    Requiere rol OWNER o ADMIN — si no, redirige a /dashboard/login."""
+    from app.database import SessionLocal
+    from app.security import decode_token
+
+    token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
+    auth_header = request.headers.get("authorization", "")
+    if not token and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+
+    with SessionLocal() as db:
+        from app.models.user import User
+        user = db.get(User, user_id)
+        if not user:
+            return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
+        role = getattr(user, "default_role", None) or getattr(user, "role", None)
+        if role not in (UserRole.OWNER, UserRole.ADMIN):
+            return RedirectResponse(
+                url="/dashboard?reason=admin_forbidden",
+                status_code=302,
+            )
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard/admin_observability.html",
         {"settings": settings, "user_role": role.value},
     )
 
