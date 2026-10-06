@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Widgets personalizables{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 
 {# ── HU_34 — Dashboard personalizable ──────────────────────────────────
    Vista experimental con GridStack (CDN). El usuario puede arrastrar /
@@ -97,6 +98,7 @@
   </div>
   {% endfor %}
 </div>
+</section>
 
 {# ── GridStack via CDN (no requiere npm install) ─────────────────────── #}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css">

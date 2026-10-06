@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Resumen{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 <h1>Hola, <span id="user-name">cargando…</span></h1>
 <p class="sub">Este es tu panel. Empieza creando productos y categorías, o explora las funciones del menú.</p>
 
@@ -229,6 +230,7 @@
   <p class="text-muted" id="public-url-help">Cargando…</p>
   <code id="public-url" style="font-size: 14px;"></code>
 </div>
+</section>
 {% endblock %}
 
 {% block dash_scripts %}
