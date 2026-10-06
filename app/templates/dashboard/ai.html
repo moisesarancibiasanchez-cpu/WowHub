@@ -35,6 +35,7 @@
 
 {# Banner contextual — sólo aparece si la URL trae ?context=… #}
 {% if ai_context %}
+<section class="dash-page" style="padding: 0;">
 <div class="ai-context-banner" id="ai-context-banner"
      data-context="{{ ai_context|e }}"
      style="
@@ -50,6 +51,7 @@
           style="margin-left:auto; background:transparent; border:0; cursor:pointer; font-size:18px; color:#92400e;"
           aria-label="Cerrar">×</button>
 </div>
+</section>
 {% endif %}
 {% endblock %}
 

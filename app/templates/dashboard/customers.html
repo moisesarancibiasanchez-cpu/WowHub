@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Clientes{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 <div class="row-between">
   <div>
     <h1>Clientes</h1>
@@ -276,4 +277,5 @@ document.getElementById("filter-segmento").addEventListener("change", load);
   await load();
 })();
 </script>
+</section>
 {% endblock %}

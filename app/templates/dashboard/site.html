@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Apariencia del sitio{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 <div class="row-between">
   <div>
     <h1>Apariencia del sitio</h1>
@@ -188,4 +189,5 @@ document.querySelectorAll("[data-action='set-theme']").forEach(btn => {
 
 load();
 </script>
+</section>
 {% endblock %}

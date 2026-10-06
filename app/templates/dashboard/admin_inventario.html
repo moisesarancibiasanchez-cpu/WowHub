@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Inventario · Insumos{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 <div class="row-between">
   <div>
     <h1>Inventario de Insumos</h1>
@@ -395,4 +396,5 @@ document.getElementById("filter-low").addEventListener("change", load);
   await Promise.all([load(), loadStats()]);
 })();
 </script>
+</section>
 {% endblock %}

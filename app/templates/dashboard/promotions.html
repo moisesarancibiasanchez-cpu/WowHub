@@ -1,6 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Promociones{% endblock %}
 {% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
 <div class="row-between">
   <div>
     <h1>Promociones</h1>
@@ -225,4 +226,5 @@ document.getElementById("modal-save").addEventListener("click", async () => {
   await load();
 })();
 </script>
+</section>
 {% endblock %}
