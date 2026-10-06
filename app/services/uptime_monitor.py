@@ -26,7 +26,7 @@ import logging
 import threading
 import time
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from app.core.time import now_chile
@@ -108,7 +108,9 @@ class UptimeMonitor:
         Llamar manualmente desde ``/health`` o desde Celery beat para
         inyectar checks adicionales al historial.
         """
-        now = datetime.now(timezone.utc)
+        # Usar Chile-time para day_key: debe coincidir con las lookups de
+        # uptime_pct()/history() que también usan now_chile().date().
+        now = now_chile()
         day_key = now.date().isoformat()
         with self._lock:
             if day_key not in self._by_day:
