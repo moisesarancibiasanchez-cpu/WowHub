@@ -251,6 +251,32 @@ html.no-ai-sidebar .dash-content,
   max-width: 100%;
 }
 
+/* ── Dash-page: wrapper for dashboard sub-pages ───────────────
+   FIX 2026-10-06 (HU width bug):
+   ANTES las páginas del dashboard (inventory, orders, pipeline,
+   quotes, payments, stats, webhooks, floor_map, costs, landing)
+   envolvían su contenido en `<section class="container">` o
+   `<div class="route-costs">` sin nombre de grid-area.
+
+   PROBLEMA:
+   1. `.container` tiene `max-width: 1280px` (var(--maxw)) en
+      tokens.css → capaba el contenido en pantallas grandes.
+   2. `.dash-content` es un `display: grid` de 12 columnas. Los
+      hijos sin `grid-area` asignada van a UNA celda (~1/12 del
+      ancho) por auto-flow. Resultado: el contenido usaba solo
+      ~8-50% del main.
+
+   FIX:
+   `.dash-page` spanning todas las 12 columnas (`grid-column: 1/-1`)
+   sin max-width y con padding lateral consistente. Las páginas
+   envuelven su contenido en este wrapper en lugar de `container`. */
+.dash-page {
+  width: 100%;
+  max-width: none;
+  grid-column: 1 / -1;   /* span full 12-col grid of .dash-content */
+  box-sizing: border-box;
+}
+
 /* ── HU_34 · trade-off CSS Grid fix (2026-10-04) ────────────────────
    Los 10 widgets del Resumen viven como hijos DIRECTOS de
    `.dash-content`. Cada uno ocupa su `grid-area` correspondiente

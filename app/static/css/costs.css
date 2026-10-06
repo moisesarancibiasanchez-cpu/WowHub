@@ -11,9 +11,16 @@
  * ============================================================= */
 
 /* ── Resumen de tarjetas ─────────────────────────────────── */
+/* FIX 2026-10-06 (HU width bug):
+   ANTES: `repeat(auto-fit, minmax(220px, 1fr))` — en pantallas
+   anchas (>=1280px) las 3 cards solo ocupaban ~660px porque
+   auto-fit respeta el minmax(220px) sin estirar. Eso dejaba un
+   ~50% de hueco a la derecha del resumen.
+   FIX: `repeat(3, 1fr)` estira las 3 cards al ancho disponible.
+   En responsive (≤720px) la media-query del final sigue usando 1fr. */
 .costs-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   margin-bottom: 18px;
 }
@@ -405,6 +412,10 @@
 }
 
 /* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  /* 3 cards → 1 column cuando no caben 3 razonablemente */
+  .costs-summary { grid-template-columns: 1fr; }
+}
 @media (max-width: 720px) {
   .cost-hour-hero { padding: 16px 18px; }
   .cost-hour-hero .price { font-size: 28px; }
