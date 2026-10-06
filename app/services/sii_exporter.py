@@ -15,13 +15,14 @@ sólo los headers + una fila de totales en cero (fail-soft).
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
+from datetime import datetime
 from io import StringIO
 from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.time import CL_TZ
 from app.models.order import Order, OrderStatus
 from app.services.sii_validator import format_rut
 
@@ -70,13 +71,18 @@ def _to_doc_type(order: Order) -> str:
 
 
 def _to_cl_date(dt: Optional[datetime]) -> str:
-    """YYYY-MM-DD en zona horaria local Chile (sin tz conversion para MVP)."""
+    """YYYY-MM-DD en zona horaria local Chile (America/Santiago).
+
+    Para el SII la fecha civil del documento debe corresponder al día
+    calendario chileno en que se realizó la venta, no al día UTC. Por
+    ejemplo, una venta creada a las 23:30 CLT del 14/sep es fecha SII
+    ``2026-09-14`` (no ``2026-09-15`` aunque UTC ya esté en el día siguiente).
+    """
     if dt is None:
         return ""
-    # Si tiene tz, convertimos a UTC y formateamos — el SII espera la fecha
-    # del documento, que ya fue seteada al momento de la venta.
+    # Si tiene tz, convertimos a America/Santiago y quitamos tz para strftime.
     if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt.astimezone(CL_TZ).replace(tzinfo=None)
     return dt.strftime("%Y-%m-%d")
 
 
