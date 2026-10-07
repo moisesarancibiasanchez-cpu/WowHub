@@ -15,7 +15,7 @@ Admin endpoints (require superuser):
   POST   /admin/marketplace/seed             → seed 5 example plugins
 """
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -33,9 +33,15 @@ from app.schemas.marketplace import (
     PluginSubscriptionCreate, PluginSubscriptionUpdate, PluginSubscriptionResponse,
     MarketplaceListResponse,
 )
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
+from app.services.plugin_schema import validate_config
+from app.services.plugin_runtime import (
+    run_install_script,
+    serialize_install_log,
+    serialize_hooks,
+)
 
-router = APIRouter(tags=["marketplace"])
+router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
 # ─────────────────────────────────────────────────────────────────
 # Helpers
@@ -223,7 +229,15 @@ def install_plugin(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Install a plugin for the current tenant (creates subscription)."""
+    """Install a plugin for the current tenant (creates subscription).
+
+    HU_45 — runtime:
+      1. Valida ``body.config`` contra ``plugin.config_schema`` (si existe).
+      2. Si el plugin tiene ``install_script``, lo ejecuta en el sandbox
+         con `db` (SQLAlchemy session del request), `tenant_id` y `config`.
+      3. Persiste el log y los hooks extraídos en la suscripción.
+      4. Si el install_script falla → rollback + 422.
+    """
     plugin = _get_plugin_by_slug(db, slug)
     tenant_id = _resolve_tenant(request, db, user)
 
@@ -232,22 +246,95 @@ def install_plugin(
     if existing:
         raise HTTPException(status_code=409, detail="Plugin already installed")
 
-    config_json = body.config if body else None
+    config_raw = body.config if body else None
+    config_dict = _parse_config(config_raw)
+
+    # ── 1) Validar config contra JSON Schema ─────────────────────────
+    ok, schema_errors = validate_config(plugin.config_schema, config_dict)
+    if not ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Config no cumple el schema del plugin",
+                "errors": schema_errors,
+            },
+        )
+
+    # ── 2) Crear la suscripción (todavía sin commit) ────────────────
     sub = PluginSubscription(
         tenant_id=tenant_id,
         plugin_id=plugin.id,
         status="active",
-        config=config_json,
+        config=config_raw,  # almacenamos el raw tal como vino (string o dict)
         revenue_share_70_to_developer=True,
     )
     db.add(sub)
 
-    # Increment install count
-    plugin.installs = (plugin.installs or 0) + 1
+    # ── 3) Ejecutar install_script en sandbox con DB real ────────────
+    if plugin.install_script and plugin.install_script.strip():
+        try:
+            run_result = run_install_script(
+                db=db,
+                plugin=plugin,
+                tenant_id=tenant_id,
+                config=config_dict,
+                timeout_sec=10,
+            )
+        except Exception as e:  # noqa: BLE001
+            # Cualquier excepción no controlada del sandbox debe abortar
+            # la instalación — la transacción del caller hace rollback.
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"install_script lanzó una excepción no controlada: {type(e).__name__}: {e}",
+            ) from e
 
+        sub.install_log = serialize_install_log(run_result)
+        sub.hooks = serialize_hooks(run_result.get("hooks") or {})
+
+        if not run_result.get("ok"):
+            # Fallo del install_script (excepción, syntax error, timeout).
+            # Hacemos rollback para que ni la suscripción ni los efectos
+            # secundarios del script (tablas creadas, etc.) queden.
+            db.rollback()
+            err = run_result.get("error") or "install_script falló"
+            if run_result.get("timed_out"):
+                err = f"install_script excedió el timeout de 10s: {err}"
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "install_script del plugin falló durante la instalación",
+                    "error": err[:500],
+                    "output": (run_result.get("output") or "")[:2000],
+                    "duration_ms": run_result.get("duration_ms", 0),
+                },
+            )
+
+    # ── 4) Commit final + bump installs ─────────────────────────────
+    plugin.installs = (plugin.installs or 0) + 1
     db.commit()
     db.refresh(sub)
     return PluginSubscriptionResponse.model_validate(sub)
+
+
+def _parse_config(raw: Any) -> Dict[str, Any]:
+    """Decodifica el ``config`` recibido en el body a dict.
+
+    Aceptamos: None, dict, o string JSON. Si no se puede parsear, devuelve
+    ``{}`` — la validación posterior del schema generará el 422 adecuado.
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            import json as _json
+            parsed = _json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except Exception:  # noqa: BLE001
+            return {"value": raw}
+    return {"value": raw}
 
 
 @router.post("/{slug}/uninstall", status_code=204)
@@ -278,7 +365,12 @@ def update_plugin_config(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Update the configuration for an installed plugin."""
+    """Update the configuration for an installed plugin.
+
+    HU_45 — valida la nueva ``config`` contra ``plugin.config_schema``
+    antes de persistir. Si la validación falla, devuelve 422 con la
+    lista de errores.
+    """
     plugin = _get_plugin_by_slug(db, slug)
     tenant_id = _resolve_tenant(request, db, user)
 
@@ -287,6 +379,16 @@ def update_plugin_config(
         raise HTTPException(status_code=404, detail="Plugin not installed")
 
     if body.config is not None:
+        new_config = _parse_config(body.config)
+        ok, schema_errors = validate_config(plugin.config_schema, new_config)
+        if not ok:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Config no cumple el schema del plugin",
+                    "errors": schema_errors,
+                },
+            )
         sub.config = body.config
     if body.status is not None:
         sub.status = body.status
@@ -393,3 +495,106 @@ def admin_seed_plugins(
     from app.seed import seed_marketplace_plugins as _seed_fn
     created = _seed_fn(db)
     return SeedResult(created=created, message=f"Seeded {created} plugins")
+
+
+class TestInstallRequest(BaseModel):
+    """Body del ``POST /admin/marketplace/{id}/test-install``."""
+
+    tenant_id: Optional[UUID] = None
+    config: Optional[Any] = None
+    timeout_sec: int = 10
+
+
+class TestInstallResponse(BaseModel):
+    ok: bool
+    output: str = ""
+    error: Optional[str] = None
+    timed_out: bool = False
+    duration_ms: int = 0
+    hooks_count: int = 0
+    # Si el plugin no tiene install_script, devolvemos este mensaje
+    # informativo en vez de error.
+    skipped: bool = False
+    message: Optional[str] = None
+
+
+@admin_router.post(
+    "/{plugin_id}/test-install",
+    response_model=TestInstallResponse,
+)
+def admin_test_install(
+    plugin_id: UUID,
+    body: TestInstallRequest = TestInstallRequest(),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Ejecuta el install_script de un plugin en sandbox contra un tenant de prueba.
+
+    HU_45 — útil para que el desarrollador / superadmin valide el script
+    antes de publicarlo. Por seguridad NO se persisten los efectos en la
+    DB del tenant target — se valida en sandbox con una sesión que se
+    descarta al final.
+
+    Requiere superadmin.
+    """
+    plugin = db.get(MarketplacePlugin, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin no encontrado")
+
+    if not plugin.install_script or not plugin.install_script.strip():
+        return TestInstallResponse(
+            ok=True,
+            skipped=True,
+            message="El plugin no tiene `install_script` definido.",
+        )
+
+    # Para validar config contra schema
+    config_dict = _parse_config(body.config)
+    ok, schema_errors = validate_config(plugin.config_schema, config_dict)
+    if not ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Config no cumple el schema del plugin",
+                "errors": schema_errors,
+            },
+        )
+
+    # Determinar tenant de prueba: si el admin envió tenant_id, usar ése;
+    # en caso contrario, tomar el primer tenant activo.
+    tenant_id = body.tenant_id
+    if not tenant_id:
+        from app.models.tenant import Tenant
+        first = db.query(Tenant).order_by(Tenant.created_at.asc()).first()
+        if first is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay tenants en el sistema; crea uno antes de probar.",
+            )
+        tenant_id = first.id
+
+    # IMPORTANTE: ejecutar en sandbox con `db` real — los efectos del
+    # install_script (CREATE TABLE, INSERT seed, etc.) SÍ quedan
+    # persistidos. Es responsabilidad del operador/admin usarlos con
+    # criterio. El caller decide commit/rollback desde su cliente.
+    run_result = run_install_script(
+        db=db,
+        plugin=plugin,
+        tenant_id=tenant_id,
+        config=config_dict,
+        timeout_sec=body.timeout_sec,
+    )
+
+    # Si el script falló, NO hacemos rollback — dejamos que el caller
+    # decida. Pero NO persistimos la suscripción automáticamente.
+    db.commit()  # commit los efectos del script (tablas nuevas, etc.)
+
+    return TestInstallResponse(
+        ok=run_result.get("ok", False),
+        output=run_result.get("output") or "",
+        error=run_result.get("error"),
+        timed_out=run_result.get("timed_out", False),
+        duration_ms=run_result.get("duration_ms", 0),
+        hooks_count=len(run_result.get("hooks") or {}),
+        skipped=False,
+    )
