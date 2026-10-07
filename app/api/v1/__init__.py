@@ -15,6 +15,7 @@ from app.api.v1 import (  # noqa: F401
     audit_chain,  # HU_40 — Audit hash chain (backfill + verify)
     rbac,  # HU_38 — RBAC granular con Casbin (superadmin endpoints)
     dashboard,  # HU_34 — Dashboard personalizable (GridStack widgets)
+    tables,  # HU_19 — Mesero virtual: mesas con sesión activa
     status,  # HU_49 — Status page público (uptime + historial)
     ocr,  # HU_33 — OCR de comprobantes (recibos, facturas, payment proof)
     reports,  # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)

@@ -73,6 +73,9 @@ class PluginSubscriptionResponse(PluginSubscriptionBase):
     installed_at: datetime
     canceled_at: Optional[datetime] = None
     revenue_share_70_to_developer: bool
+    # HU_45 — campos de runtime
+    install_log: Optional[str] = None  # JSON con output/error/duration
+    hooks: Optional[str] = None  # JSON: {event_name: source_code}
     plugin: Optional[MarketplacePluginResponse] = None
 
     model_config = {"from_attributes": True}

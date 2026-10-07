@@ -13,8 +13,10 @@ from app.core.time import now_chile
 from app.core.security import requires_permission
 from app.database import get_db
 from app.deps import get_current_membership, get_tenant_for_membership
+from app.models.branch import Branch
 from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
+from app.models.payment import Payment
 from app.models.tenant import Tenant
 from app.models.tenant import TenantMembership
 from app.schemas.common import Page
@@ -24,6 +26,8 @@ from app.schemas.customer import (
     CustomerOut,
     CustomerUpdate,
 )
+from app.schemas.order_list import CustomerOrderListItem, CustomerTimelineEvent
+from app.services.plugin_hooks import trigger_hooks
 
 router = APIRouter(prefix="/tenants/{tenant_id}/customers", tags=["customers"])
 
@@ -101,6 +105,13 @@ def to_out(c: Customer) -> CustomerOut:
         last_order_at=c.last_order_at,
         avg_ticket_cents=avg_ticket,
         days_since_last_order=days,
+        # HU_26 — campos RFM persistentes (None si nunca se corrió el cálculo).
+        rfm_segment=c.rfm_segment,
+        r_score=c.r_score,
+        f_score=c.f_score,
+        m_score=c.m_score,
+        rfm_cell=c.rfm_cell,
+        rfm_updated_at=c.rfm_updated_at,
         created_at=c.created_at,
     )
 
@@ -147,6 +158,18 @@ def create_customer(
     db.add(c)
     db.commit()
     db.refresh(c)
+    # HU_45 — Hook: notificar a plugins del tenant.
+    trigger_hooks(
+        db=db,
+        tenant_id=tenant.id,
+        event="on_customer_created",
+        payload={
+            "customer_id": str(c.id),
+            "tenant_id": str(tenant.id),
+            "full_name": c.full_name,
+            "email": c.email,
+        },
+    )
     return to_out(c)
 
 
@@ -181,6 +204,317 @@ def customers_segments(
         {"name": name, "count": counts[name], "criteria": _SEG_CRITERIA[name]}
         for name in _SEG_ORDER
     ]
+
+
+# ── HU_26 — RFM real (persistente en columnas ``customers.rfm_*``) ──
+# Endpoints nuevos para el cálculo y exposición de la segmentación RFM
+# basada en quintiles (ver ``app.tasks.rfm``). Las rutas viven bajo
+# ``/rfm/`` para no colisionar con el endpoint legacy ``/segments`` de
+# arriba (que devuelve los 5 buckets del spec V8 P0.3 — vip/recurrente/
+# regular/nuevo/inactivo) ni con ``/{customer_id}``.
+@router.post("/rfm/recalculate")
+@requires_permission("customer", "write")
+def recalculate_rfm(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    lookback_days: int = Query(365, ge=30, le=730,
+                               description="Ventana hacia atrás en días para R/F/M (default 365)."),
+    # HU_38 — ver create_product en products.py. RBAC granular:
+    # recalcular RFM requiere ``customer.write`` (no es de solo lectura).
+    membership: TenantMembership = Depends(get_current_membership),
+):
+    """Recalcula los segmentos RFM de todos los clientes del tenant.
+
+    Útil para refrescar la matriz tras un cambio grande (campaña masiva,
+    fin de mes, etc.). El cálculo es SÍNCRONO para no depender de la
+    cola Celery — puede tardar algunos segundos en tenants con miles
+    de clientes.
+
+    Devuelve el resumen con conteos por segmento y el total actualizado.
+    """
+    # Importación local para no introducir un ciclo de imports al cargar
+    # este módulo (rfm importa modelos, que importan otros modelos).
+    from app.tasks.rfm import compute_rfm_for_tenant_sync
+
+    summary = compute_rfm_for_tenant_sync(
+        db=db,
+        tenant_id=tenant.id,
+        lookback_days=lookback_days,
+    )
+    return {
+        "tenant_id": str(tenant.id),
+        "lookback_days": lookback_days,
+        "segments": summary["segments"],
+        "total_customers": summary["total_customers"],
+        "updated": summary["updated"],
+    }
+
+
+@router.get("/rfm/segments")
+def rfm_segments_distribution(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """Distribución de clientes por segmento RFM (persistente).
+
+    Devuelve ``{segment_name: count, ...}``. Si nunca se corrió el
+    cálculo RFM (``rfm_segment`` es NULL en todos los clientes), todos
+    los conteos serán 0 — el frontend debe mostrar un CTA "Recalcular".
+    """
+    from sqlalchemy import func as _func
+
+    rows = db.execute(
+        select(Customer.rfm_segment, _func.count(Customer.id))
+        .where(Customer.tenant_id == tenant.id)
+        .group_by(Customer.rfm_segment)
+    ).all()
+    # Inicializar todos los segmentos canónicos en 0 para que el front
+    # no tenga que hardcodear las claves.
+    from app.tasks.rfm import RFM_SEGMENTS
+    dist: dict[str, int] = {seg: 0 for seg in RFM_SEGMENTS}
+    for seg, n in rows:
+        key = seg or "unclassified"
+        dist[key] = dist.get(key, 0) + int(n)
+    return dist
+
+
+@router.get("/rfm/matrix")
+def rfm_matrix(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+):
+    """Matriz RFM 5x5 con el conteo de clientes en cada celda.
+
+    Devuelve ``{r: int, f: int, m: int: count, ...}`` para todas las
+    celdas que tengan al menos un cliente. Las celdas vacías NO se
+    incluyen (el frontend debe rellenar huecos con 0 al pintar el grid).
+    """
+    rows = db.execute(
+        select(
+            Customer.r_score,
+            Customer.f_score,
+            Customer.m_score,
+            func.count(Customer.id),
+        )
+        .where(Customer.tenant_id == tenant.id)
+        .where(Customer.r_score.isnot(None))
+        .where(Customer.f_score.isnot(None))
+        .where(Customer.m_score.isnot(None))
+        .group_by(Customer.r_score, Customer.f_score, Customer.m_score)
+    ).all()
+    matrix: dict[str, int] = {}
+    for r, f, m, n in rows:
+        # Clave tipo "5-5-4" — más fácil de parsear desde el JS que una
+        # tupla anidada {"r":5,"f":5,"m":4}.
+        key = f"{int(r)}-{int(f)}-{int(m)}"
+        matrix[key] = int(n)
+    return matrix
+
+
+@router.get("/rfm/top")
+def rfm_top_customers(
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    segment: str = Query("champions",
+                         description="Segmento RFM a listar (default 'champions')."),
+    limit: int = Query(10, ge=1, le=50,
+                       description="Cantidad máxima de clientes a retornar (default 10)."),
+):
+    """Lista los clientes top de un segmento RFM (default: ``champions``).
+
+    Ordena por score total descendente (R+F+M). Útil para el dashboard
+    RFM ("Top champions", "At risk", etc.).
+    """
+    rows = db.execute(
+        select(Customer)
+        .where(Customer.tenant_id == tenant.id)
+        .where(Customer.rfm_segment == segment)
+        .order_by(
+            (Customer.r_score + Customer.f_score + Customer.m_score).desc(),
+            Customer.total_spent_cents.desc(),
+        )
+        .limit(limit)
+    ).scalars().all()
+    return [to_out(c).model_dump(mode="json") for c in rows]
+
+
+# ── HU_25 — Customer 360° ────────────────────────────────────
+# Endpoints que viven bajo ``/{customer_id}/...`` DEBEN declararse ANTES del
+# catch-all ``/{customer_id}`` (línea más abajo) para evitar que path params
+# del estilo ``orders`` se intenten parsear como UUID.
+# En la práctica FastAPI prioriza segmentos literales sobre path params, pero
+# mantener el orden explícito es defensivo y deja claro el contrato.
+
+@router.get("/{customer_id}/orders", response_model=Page[CustomerOrderListItem])
+def customer_orders(
+    customer_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status_filter: Optional[str] = Query(
+        None, alias="status",
+        description="Filtrar por estado (ej. 'pagado', 'cancelado'). "
+                    "Default = todos.",
+    ),
+):
+    """HU_25 — Pedidos paginados de un cliente (perfil 360°).
+
+    Devuelve la lista cronológica inversa de pedidos del cliente con un resumen
+    condensado (primeros 3 productos, nombre de la sucursal). Pensado para la
+    tabla del dashboard customer_360.html. La carga de items usa ``selectinload``
+    para evitar N+1 en el JOIN.
+    """
+    # Verificar tenant isolation ANTES de calcular total — un cliente de otro
+    # tenant debe ser indistinguible de uno que no existe.
+    c = db.get(Customer, customer_id)
+    if not c or c.tenant_id != tenant.id:
+        raise NotFoundError("Customer")
+
+    page, page_size = max(1, page), max(1, min(100, page_size))
+    offset = (page - 1) * page_size
+
+    base = select(Order).where(
+        Order.customer_id == customer_id,
+        Order.tenant_id == tenant.id,
+    )
+    if status_filter:
+        base = base.where(Order.status == status_filter)
+    base = base.order_by(Order.created_at.desc())
+
+    total = db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar() or 0
+
+    rows = list(
+        db.execute(base.offset(offset).limit(page_size).execution_options(populate_existing=True)).scalars()
+    )
+
+    # Hidratar nombres de sucursal en bloque (1 query en vez de N).
+    branch_ids = {o.branch_id for o in rows if o.branch_id}
+    branch_name_by: dict[str, str] = {}
+    if branch_ids:
+        branch_rows = db.execute(
+            select(Branch.id, Branch.name).where(Branch.id.in_(branch_ids))
+        ).all()
+        for bid, bname in branch_rows:
+            branch_name_by[bid] = bname
+
+    items: list[CustomerOrderListItem] = []
+    for o in rows:
+        # Snapshot de items: nombres de los primeros 3 productos + conteo total.
+        item_names = [it.product_name for it in (o.items or [])][:3]
+        items.append(
+            CustomerOrderListItem(
+                id=o.id,
+                short_id=o.number,
+                status=o.status.value if hasattr(o.status, "value") else str(o.status),
+                total_cents=int(o.total_cents or 0),
+                created_at=o.created_at,
+                source=o.source.value if hasattr(o.source, "value") else str(o.source),
+                branch_name=branch_name_by.get(o.branch_id),
+                items_count=len(o.items or []),
+                items_summary=item_names,
+            )
+        )
+
+    return Page.build([i.model_dump(mode="json") for i in items], int(total), page, page_size)
+
+
+@router.get("/{customer_id}/timeline", response_model=list[CustomerTimelineEvent])
+def customer_timeline(
+    customer_id: UUID,
+    tenant: Tenant = Depends(get_tenant_for_membership),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """HU_25 — Línea de tiempo cronológica del cliente.
+
+    Combina eventos de 4 fuentes:
+      - ``customer`` → alta del cliente (created_at)
+      - ``order``    → pedidos del cliente
+      - ``payment``  → pagos confirmados ligados a esos pedidos
+      - ``rfm``      → última corrida de recálculo RFM del cliente
+
+    Devuelve los ``limit`` eventos más recientes ordenados desc por fecha.
+    """
+    c = db.get(Customer, customer_id)
+    if not c or c.tenant_id != tenant.id:
+        raise NotFoundError("Customer")
+
+    events: list[CustomerTimelineEvent] = []
+
+    # 1. Evento de alta del cliente
+    events.append(CustomerTimelineEvent(
+        type="customer",
+        date=c.created_at,
+        title="Cliente registrado",
+        detail=f"Alta en el sistema: {c.full_name}",
+        amount_cents=None,
+    ))
+
+    # 2. Pedidos (limit +1 por si hay pagos)
+    order_rows = list(
+        db.execute(
+            select(Order)
+            .where(Order.customer_id == customer_id, Order.tenant_id == tenant.id)
+            .order_by(Order.created_at.desc())
+            .limit(limit)
+        ).scalars()
+    )
+    order_ids = [o.id for o in order_rows]
+    for o in order_rows:
+        events.append(CustomerTimelineEvent(
+            type="order",
+            date=o.created_at,
+            title=f"Pedido {o.number} · {o.status.value if hasattr(o.status, 'value') else str(o.status)}",
+            detail=f"Total ${o.total_cents / 100:,.0f} CLP".replace(",", "."),
+            amount_cents=int(o.total_cents or 0),
+        ))
+
+    # 3. Pagos ligados a esos pedidos (subset)
+    if order_ids:
+        pay_rows = list(
+            db.execute(
+                select(Payment)
+                .where(
+                    Payment.order_id.in_(order_ids),
+                    Payment.tenant_id == tenant.id,
+                )
+                .order_by(Payment.paid_at.desc().nullslast(), Payment.created_at.desc())
+                .limit(limit)
+            ).scalars()
+        )
+        for p in pay_rows:
+            date = p.paid_at or p.created_at
+            method = p.method.value if hasattr(p.method, "value") else str(p.method)
+            status_val = p.status.value if hasattr(p.status, "value") else str(p.status)
+            events.append(CustomerTimelineEvent(
+                type="payment",
+                date=date,
+                title=f"Pago {status_val} · {method}",
+                detail=f"Monto ${p.amount_cents / 100:,.0f} CLP".replace(",", "."),
+                amount_cents=int(p.amount_cents or 0),
+            ))
+
+    # 4. RFM (evento único, sólo si el cliente tiene rfm_updated_at)
+    if c.rfm_updated_at:
+        try:
+            from datetime import datetime as _dt
+            rfm_date = _dt.fromisoformat(str(c.rfm_updated_at).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            rfm_date = c.created_at
+        events.append(CustomerTimelineEvent(
+            type="rfm",
+            date=rfm_date,
+            title="Recálculo RFM",
+            detail=f"Celda {c.rfm_cell or '—'} → segmento {c.rfm_segment or '—'}",
+            amount_cents=None,
+        ))
+
+    # Ordenar cronológicamente DESC y truncar a ``limit``.
+    events.sort(key=lambda e: e.date, reverse=True)
+    return events[:limit] if len(events) > limit else events
 
 
 @router.get("/{customer_id}", response_model=CustomerOut)

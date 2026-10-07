@@ -1,0 +1,420 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}RFM · Clientes{% endblock %}
+{% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
+
+<div class="row-between">
+  <div>
+    <h1>Segmentación RFM</h1>
+    <p class="sub">Recency · Frequency · Monetary — quintiles 1-5 sobre tus clientes.</p>
+  </div>
+  <div class="row" style="gap:8px; align-items:center;">
+    <span class="text-muted" id="rfm-updated-at" style="font-size:13px;">—</span>
+    <button class="btn btn-primary" id="recalc-btn">⚡ Recalcular RFM</button>
+  </div>
+</div>
+
+<!-- ── Sección 1: Distribución por segmento ─────────────────── -->
+<h2 style="margin-top: 24px; font-size: 18px;">Distribución por segmento</h2>
+<div class="rfm-seg-grid" id="seg-grid">
+  <div class="text-muted" style="padding: 20px;">Cargando…</div>
+</div>
+
+<!-- ── Sección 2: Matriz RFM 5x5 (heatmap) ──────────────────── -->
+<h2 style="margin-top: 28px; font-size: 18px;">Matriz RFM (5×5)</h2>
+<p class="text-muted" style="margin-top: -4px;">
+  Filas = <strong>R</strong>ecency (↑ mejor), columnas = <strong>F</strong>requency × <strong>M</strong>onetary agrupados.
+  Verde oscuro = más clientes, claro = menos.
+</p>
+<div class="rfm-matrix-wrap">
+  <div class="rfm-matrix" id="rfm-matrix"></div>
+  <div class="rfm-matrix-legend">
+    <span class="text-dim" style="font-size: 12px;">0</span>
+    <span class="rfm-legend-bar"></span>
+    <span class="text-dim" style="font-size: 12px;">más →</span>
+  </div>
+</div>
+
+<!-- ── Sección 3: Top champions ──────────────────────────────── -->
+<h2 style="margin-top: 28px; font-size: 18px;">🏆 Top champions</h2>
+<div class="table-wrap" style="margin-top: 8px;">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Celda RFM</th>
+        <th>Pedidos</th>
+        <th>Gastado</th>
+        <th>Última compra</th>
+      </tr>
+    </thead>
+    <tbody id="top-champions">
+      <tr><td colspan="5" class="text-center text-muted" style="padding: 20px;">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Sección 4: En riesgo ───────────────────────────────── -->
+<h2 style="margin-top: 28px; font-size: 18px;">⚠️ En riesgo (at_risk + hibernating)</h2>
+<div class="table-wrap" style="margin-top: 8px;">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Celda RFM</th>
+        <th>Segmento</th>
+        <th>Pedidos</th>
+        <th>Gastado</th>
+        <th>Última compra</th>
+      </tr>
+    </thead>
+    <tbody id="at-risk">
+      <tr><td colspan="6" class="text-center text-muted" style="padding: 20px;">Cargando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</section>
+{% endblock %}
+
+{% block dash_scripts %}
+<style>
+.rfm-seg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.rfm-seg-card {
+  padding: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.rfm-seg-card .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rfm-seg-card .count {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.rfm-seg-card .pct {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.rfm-seg-card .swatch {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  background: var(--seg-color, var(--accent));
+}
+
+/* Colores por segmento (alineado con la taxonomía RFM). */
+.rfm-seg-card[data-seg="champions"]      { --seg-color: #16a673; }
+.rfm-seg-card[data-seg="loyal"]          { --seg-color: #1f9aa8; }
+.rfm-seg-card[data-seg="potential"]      { --seg-color: #6c5ce7; }
+.rfm-seg-card[data-seg="new"]            { --seg-color: #1f5fb0; }
+.rfm-seg-card[data-seg="about_to_sleep"] { --seg-color: #e9a820; }
+.rfm-seg-card[data-seg="at_risk"]        { --seg-color: #e25353; }
+.rfm-seg-card[data-seg="hibernating"]    { --seg-color: #8a4baf; }
+.rfm-seg-card[data-seg="lost"]           { --seg-color: #73809a; }
+
+.rfm-matrix-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.rfm-matrix {
+  display: grid;
+  /* 1 columna para el header vertical + 5 columnas M */
+  grid-template-columns: 24px repeat(5, 56px);
+  grid-template-rows: 24px repeat(5, 56px);
+  gap: 4px;
+  font-size: 11px;
+}
+.rfm-matrix .cell {
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: default;
+  transition: transform 80ms ease;
+}
+.rfm-matrix .cell:hover {
+  transform: scale(1.06);
+  z-index: 2;
+  box-shadow: var(--shadow);
+}
+.rfm-matrix .cell.has-data {
+  background: hsl(150 60% 92%);  /* fallback claro */
+}
+.rfm-matrix .cell.empty {
+  color: var(--fg-dim);
+  background: transparent;
+}
+.rfm-matrix .cell.mm1 { background: hsl(150, 60%, 96%); }
+.rfm-matrix .cell.mm2 { background: hsl(150, 65%, 90%); }
+.rfm-matrix .cell.mm3 { background: hsl(150, 70%, 82%); }
+.rfm-matrix .cell.mm4 { background: hsl(150, 70%, 72%); }
+.rfm-matrix .cell.mm5 { background: hsl(150, 70%, 60%); color: #fff; }
+.rfm-matrix .axis-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+.rfm-matrix .axis-y {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.rfm-matrix-legend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.rfm-legend-bar {
+  display: block;
+  width: 16px;
+  height: 80px;
+  background: linear-gradient(180deg,
+    hsl(150, 60%, 96%),
+    hsl(150, 65%, 90%),
+    hsl(150, 70%, 82%),
+    hsl(150, 70%, 72%),
+    hsl(150, 70%, 60%));
+  border-radius: 4px;
+}
+</style>
+
+<script>
+let tenant = WH.Auth.tenant();
+
+// Taxonomía canónica de segmentos (alineada con app.tasks.rfm.RFM_SEGMENTS).
+const SEGMENTS = [
+  { id: "champions",      label: "🏆 Champions",        blurb: "Compran reciente, frecuente y gastan mucho." },
+  { id: "loyal",          label: "🤝 Loyal",            blurb: "Frecuentes y gastan mucho." },
+  { id: "potential",      label: "🌱 Potential",        blurb: "Recientes con frecuencia media, listos para subir." },
+  { id: "new",            label: "🆕 New",              blurb: "Acaban de comprar por primera vez." },
+  { id: "about_to_sleep", label: "😴 About to sleep", blurb: "Antes compraban, están por dormirse." },
+  { id: "at_risk",        label: "⚠️ At risk",          blurb: "Solían comprar, ahora ausentes." },
+  { id: "hibernating",    label: "🥶 Hibernating",      blurb: "Muy dormidos, difíciles de recuperar." },
+  { id: "lost",           label: "💀 Lost",             blurb: "Sin actividad reciente." },
+];
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+function fmt(c) {
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format((c || 0) / 100);
+}
+function fmtDate(iso) {
+  if (!iso) return '<span class="text-dim">—</span>';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '<span class="text-dim">—</span>';
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  } catch (_) { return '<span class="text-dim">—</span>'; }
+}
+
+// ── Sección 1 — pintar tarjetas de segmento ─────────────────────
+function renderSegments(distribution, total) {
+  const grid = document.getElementById("seg-grid");
+  const totalC = total || 1;
+  grid.innerHTML = SEGMENTS.map(seg => {
+    const count = distribution[seg.id] || 0;
+    const pct = total > 0 ? (count * 100 / totalC).toFixed(1) : "0.0";
+    return `
+      <div class="rfm-seg-card" data-seg="${seg.id}" title="${esc(seg.blurb)}">
+        <span class="swatch"></span>
+        <span class="label">${esc(seg.label)}</span>
+        <span class="count">${count}</span>
+        <span class="pct">${pct}% del total</span>
+      </div>
+    `;
+  }).join("");
+}
+
+// ── Sección 2 — pintar matriz 5x5 ─────────────────────────────
+// Layout: filas = R (1=peor abajo, 5=mejor arriba), columnas = M (1=izq, 5=der),
+// color = cantidad normalizada por columna (F no se muestra, se resume en el color).
+function renderMatrix(matrix) {
+  const wrap = document.getElementById("rfm-matrix");
+  // Calcular max para escalar colores.
+  let maxCount = 0;
+  for (const k in matrix) maxCount = Math.max(maxCount, matrix[k]);
+  const safeMax = Math.max(maxCount, 1);
+
+  let html = "";
+
+  // Header M (eje horizontal)
+  html += `<div></div>`; // esquina vacía arriba-izquierda
+  html += `<div class="axis-label" style="grid-column: 2 / span 5;">M (1 ←→ 5)</div>`;
+  // No queremos que esa fila "axis-label" cuente para el grid; truco: poner un
+  // grid adicional de 7×7 donde las celdas reales van en filas 2..6 y cols 2..6.
+  // Más simple: armar el grid a mano celda por celda.
+
+  // Limpiamos y rehacemos con un layout más explícito:
+  wrap.innerHTML = "";
+  wrap.style.gridTemplateColumns = "24px repeat(5, 56px)";
+  wrap.style.gridTemplateRows = "24px repeat(5, 56px)";
+
+  // Celda esquina
+  const corner = document.createElement("div");
+  wrap.appendChild(corner);
+
+  // Cabecera horizontal M=1..5
+  for (let m = 1; m <= 5; m++) {
+    const el = document.createElement("div");
+    el.className = "axis-label";
+    el.textContent = m;
+    wrap.appendChild(el);
+  }
+
+  // Filas R=5..1 (de arriba a abajo, mejor a peor)
+  for (let r = 5; r >= 1; r--) {
+    // Etiqueta de fila
+    const lbl = document.createElement("div");
+    lbl.className = "axis-label";
+    lbl.textContent = r;
+    wrap.appendChild(lbl);
+
+    // Celdas M=1..5 (con F implícito en el color del máximo por columna)
+    for (let m = 1; m <= 5; m++) {
+      const cell = document.createElement("div");
+      const key = `${r}-${m}`;
+      const count = matrix[key] || 0;
+
+      // El bucket de color va por quintiles del conteo (1..5).
+      // Si no hay datos en la columna entera, la celda queda "empty".
+      let maxInRow = 0;
+      for (let mm = 1; mm <= 5; mm++) {
+        const v = matrix[`${r}-${mm}`] || 0;
+        if (v > maxInRow) maxInRow = v;
+      }
+      const intensity = maxInRow > 0 ? Math.max(1, Math.ceil(count * 5 / maxInRow)) : 0;
+
+      if (count > 0) {
+        cell.className = `cell has-data mm${intensity}`;
+        cell.textContent = count;
+        cell.title = `R=${r}, F total=${maxInRow}, M=${m} → ${count} cliente${count !== 1 ? "s" : ""}`;
+      } else {
+        cell.className = "cell empty";
+        cell.textContent = "0";
+        cell.title = `R=${r}, M=${m} — sin clientes`;
+      }
+      wrap.appendChild(cell);
+    }
+  }
+}
+
+// ── Sección 3 — pintar lista de clientes ──────────────────────
+function renderCustomerList(rows, tbodyId, extraCol) {
+  const tbody = document.getElementById(tbodyId);
+  if (!rows || rows.length === 0) {
+    const cols = extraCol ? 6 : 5;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-muted" style="padding: 20px;">Sin clientes en este segmento. Recalcula RFM para actualizar.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(c => {
+    const cells = [
+      `<td><strong>${esc(c.full_name)}</strong>${c.email ? `<br><small class="text-dim">${esc(c.email)}</small>` : ""}</td>`,
+      `<td><span class="badge badge-info">${esc(c.rfm_cell || "—")}</span></td>`,
+    ];
+    if (extraCol) cells.splice(2, 0, `<td><span class="badge badge-warn">${esc(c.rfm_segment || "—")}</span></td>`);
+    cells.push(`<td>${c.total_orders || 0}</td>`);
+    cells.push(`<td>${fmt(c.total_spent_cents || 0)}</td>`);
+    cells.push(`<td>${fmtDate(c.last_order_at)}</td>`);
+    return `<tr>${cells.join("")}</tr>`;
+  }).join("");
+}
+
+// ── Carga principal ──────────────────────────────────────────
+async function load() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    document.getElementById("seg-grid").innerHTML =
+      `<div class="text-muted">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</div>`;
+    return;
+  }
+
+  try {
+    // 1. Distribución
+    const distribution = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/rfm/segments`);
+    const total = Object.values(distribution).reduce((a, b) => a + (b || 0), 0);
+    renderSegments(distribution, total);
+
+    // rfm_updated_at más reciente del segmento dominante.
+    document.getElementById("rfm-updated-at").textContent =
+      total > 0 ? `Total clientes: ${total}` : "Sin datos RFM. Recalcula para empezar.";
+
+    // 2. Matriz
+    const matrix = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/rfm/matrix`);
+    renderMatrix(matrix);
+
+    // 3. Top champions
+    const champions = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/rfm/top?segment=champions&limit=10`);
+    renderCustomerList(champions, "top-champions", false);
+
+    // 4. At risk (mezcla at_risk + hibernating)
+    const atRisk = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/rfm/top?segment=at_risk&limit=5`);
+    const hibernating = await WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/rfm/top?segment=hibernating&limit=5`);
+    renderCustomerList([...atRisk, ...hibernating], "at-risk", true);
+
+  } catch (err) {
+    WH.Toast.show(err.message || "Error cargando RFM", "error");
+    console.error("load RFM error", err);
+  }
+}
+
+// ── Recalcular ───────────────────────────────────────────────
+document.getElementById("recalc-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("recalc-btn");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "⏳ Calculando…";
+  try {
+    const result = await WH.api.post(
+      `/api/v1/tenants/${tenant.tenant_id}/customers/rfm/recalculate?lookback_days=365`,
+      {}
+    );
+    WH.Toast.show(`RFM recalculado · ${result.updated} clientes`);
+    await load();
+  } catch (err) {
+    WH.Toast.show(err.message || "Error recalculando RFM", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
+(async function init() {
+  await load();
+})();
+</script>
+{% endblock %}

@@ -35,12 +35,13 @@ Retorna `{"output": str, "error": str | None, "timed_out": bool,
 from __future__ import annotations
 
 import io
+import linecache
 import logging
 import signal
 import sys
 import threading
 import time as _time  # se inyecta al sandbox para time.sleep
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from RestrictedPython import compile_restricted
 from RestrictedPython.PrintCollector import PrintCollector
@@ -239,6 +240,7 @@ def run_plugin(
     plugin_code: str,
     context: Dict[str, Any] | None = None,
     timeout_sec: int = 10,
+    db: Any = None,
 ) -> Dict[str, Any]:
     """Compila y ejecuta `plugin_code` en el sandbox.
 
@@ -249,22 +251,41 @@ def run_plugin(
             globals del sandbox. `payload` es accesible como variable
             `payload`.
         timeout_sec: límite de wall-clock en segundos. Default 10.
+        db: sesión de SQLAlchemy opcional. Si se entrega, se inyecta como
+            `db` en el globals del sandbox para que el plugin pueda
+            ejecutar SQL (HU_45 — install_script necesita crear tablas,
+            seed, etc.). El commit/rollback NO se hace dentro del sandbox;
+            la capa externa controla la transacción.
 
     Returns:
         dict con keys: `output` (str), `error` (str | None),
-        `timed_out` (bool), `duration_ms` (int).
+        `timed_out` (bool), `duration_ms` (int), `hooks` (dict) — los
+        hooks registrados por el plugin durante la ejecución (vacío si
+        ninguno).
     """
     context = context or {}
     tenant_id = context.get("tenant_id")
     tenant_name = context.get("tenant_name")
     plugin_slug = context.get("plugin_slug", "anon")
     payload = context.get("payload", {})
+    plugin_config = context.get("config") or {}
 
     # Compilar en modo restringido
+    plugin_filename = f"<plugin:{plugin_slug}>"
+    # Inyectar el source al `linecache` para que `inspect.getsource(fn)`
+    # funcione para los hooks registrados por el plugin (HU_45 — el
+    # runtime necesita extraer la fuente de cada hook para serializarlo).
+    linecache.cache[plugin_filename] = (
+        len(plugin_code),
+        None,
+        [line + "\n" for line in plugin_code.splitlines()],
+        plugin_filename,
+    )
+
     try:
         code = compile_restricted(
             plugin_code,
-            filename=f"<plugin:{plugin_slug}>",
+            filename=plugin_filename,
             mode="exec",
         )
     except SyntaxError as e:
@@ -273,6 +294,7 @@ def run_plugin(
             "error": f"SyntaxError: {e}",
             "timed_out": False,
             "duration_ms": 0,
+            "hooks": {},
         }
 
     # Crear contexto
@@ -322,10 +344,16 @@ def run_plugin(
             # API explícita del plugin
             "ctx": plugin_ctx,
             "payload": payload,
+            "config": plugin_config,
             # Módulos curados — `time` se permite porque `time.sleep` libera
             # el GIL y permite al timeout interrumpir en Windows.
             "time": safe_time,
         }
+        # Inyectar `db` (sesión SQLAlchemy) sólo si se entregó. El plugin
+        # no puede crear una sesión propia — siempre trabaja sobre la
+        # transacción del caller (HU_45 — install_script).
+        if db is not None:
+            sandbox_globals["db"] = db
 
         # Métrica de duración
         started = _time.perf_counter()
@@ -402,6 +430,7 @@ def run_plugin(
         "error": error,
         "timed_out": timed_out,
         "duration_ms": duration_ms,
+        "hooks": dict(plugin_ctx.hooks),
     }
 
 

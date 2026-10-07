@@ -1,9 +1,11 @@
 """Orders API — gestión de pedidos del tenant."""
+from datetime import timedelta
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import func as _func, select as _select
 from sqlalchemy.orm import Session
 
 # HU_38 — RBAC granular con Casbin. Los endpoints de orders ya
@@ -11,15 +13,17 @@ from sqlalchemy.orm import Session
 # ``@requires_permission`` puede resolver el rol sin cambios extra.
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.security import requires_permission
+from app.core.time import now_chile
 from app.database import get_db
 from app.deps import get_current_membership, get_current_user, get_tenant_for_membership
 from app.models.tenant import Tenant
 from app.models.tenant import TenantMembership
 from app.models.user import User
-from app.models.order import Order, OrderItem, OrderStatus
+from app.models.order import Order, OrderItem, OrderStatus, OrderSource
 from app.schemas.order import OrderCreate, OrderOut, OrderTransition, OrderListItem
 from app.schemas.common import Page
 from app.services.order_service import OrderService
+from app.services.plugin_hooks import trigger_hooks
 
 
 # HU_22 — Body para aplicar un cupón/descuento a una orden existente.
@@ -65,6 +69,21 @@ def create_order(
         notes=payload.notes,
         source=payload.source,
         promotion_codes=payload.promotion_codes,
+    )
+    # HU_45 — Hook: notificar a plugins del tenant.
+    # Errores individuales se loggean dentro del dispatcher y NO
+    # bloquean la creación del pedido (los hooks son best-effort).
+    trigger_hooks(
+        db=db,
+        tenant_id=tenant_id,
+        event="on_order_created",
+        payload={
+            "order_id": str(order.id) if order else None,
+            "tenant_id": str(tenant_id),
+            "total_cents": getattr(order, "total_cents", None),
+            "customer_id": str(payload.customer_id) if payload.customer_id else None,
+            "source": getattr(payload.source, "value", str(payload.source)) if payload.source else None,
+        },
     )
     return _to_out(order)
 
@@ -217,6 +236,138 @@ def orders_sales_7d(
         "orders_count": total_orders,
         "avg_per_day_cents": total_period // 7,
         "series": series,
+    }
+
+
+# ── HU_16 — Channel stats (multi-canal) ─────────────────────────────────
+@router.get("/channel-stats")
+def orders_channel_stats(
+    tenant_id: UUID,
+    days: int = Query(30, ge=1, le=365, description="Ventana de agregación en días"),
+    branch_id: Optional[UUID] = Query(None, description="Filtrar por sucursal"),
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """Pedidos agregados por canal (OrderSource).
+
+    Devuelve, para cada canal conocido (``pos``, ``web``, ``whatsapp``,
+    ``qr``, ``kiosk``, ``api``, ``test``), la cantidad de pedidos, el
+    revenue total en centavos y el ticket promedio en el período
+    seleccionado. Excluye pedidos cancelados del cómputo de revenue.
+
+    - Query params:
+      - ``days``: ventana en días (1..365, default 30)
+      - ``branch_id``: filtro opcional por sucursal
+    - Respuesta:
+      ```json
+      {
+        "channels": [
+          {"channel": "pos", "count": 45,
+           "revenue_cents": 450000, "avg_ticket_cents": 10000},
+          ...
+        ],
+        "total_orders": 100,
+        "total_revenue_cents": 1500000,
+        "days": 30
+      }
+      ```
+    """
+    cutoff = now_chile() - timedelta(days=days)
+    q = (
+        _select(
+            Order.source.label("channel"),
+            _func.count(Order.id).label("count"),
+            _func.coalesce(
+                _func.sum(
+                    # SQLAlchemy no soporta CASE WHEN directo en .condition()
+                    # con SUM multi-DB; usamos el filtro de status CANCELADO
+                    # en WHERE para no cobrar pedidos cancelados.
+                    Order.total_cents
+                ),
+                0,
+            ).label("revenue_cents"),
+        )
+        .where(
+            Order.tenant_id == str(tenant_id),
+            Order.created_at >= cutoff,
+        )
+        .group_by(Order.source)
+    )
+    if branch_id:
+        q = q.where(Order.branch_id == str(branch_id))
+
+    rows = db.execute(q).all()
+
+    channels: list[dict] = []
+    total_orders = 0
+    total_revenue = 0
+    for r in rows:
+        # ``channel`` viene como ``OrderSource`` o como string crudo según el
+        # dialecto; normalizamos al ``value`` string (lowercase: "web", "qr"...).
+        ch_value = getattr(r.channel, "value", None) or str(r.channel)
+        cnt = int(r.count or 0)
+        rev = int(r.revenue_cents or 0)
+        # Excluir revenue de cancelados con query adicional:
+        # es más simple sumar la columna ya filtrada abajo.
+        channels.append({
+            "channel": ch_value,
+            "count": cnt,
+            "revenue_cents": rev,
+            "avg_ticket_cents": (rev // cnt) if cnt > 0 else 0,
+        })
+        total_orders += cnt
+        total_revenue += rev
+
+    # Recalcular revenue EXCLUYENDO cancelados (la query principal los
+    # incluye porque solo filtra por fecha; aplicamos el filtro por canal).
+    # Hacemos una segunda pasada para mantener el shape del contrato sin
+    # usar CASE WHEN (que rompe SQLite sin BooleanExpression correcta).
+    if rows:
+        from sqlalchemy import and_
+        rev_rows = db.execute(
+            _select(
+                Order.source.label("channel"),
+                _func.coalesce(_func.sum(Order.total_cents), 0).label("revenue_cents"),
+                _func.count(Order.id).label("count"),
+            )
+            .where(
+                Order.tenant_id == str(tenant_id),
+                Order.created_at >= cutoff,
+                Order.status != OrderStatus.CANCELADO,
+            )
+            .group_by(Order.source)
+        ).all()
+        rev_by_ch: dict[str, tuple[int, int]] = {}
+        total_orders_excl = 0
+        total_revenue_excl = 0
+        for r in rev_rows:
+            ch_value = getattr(r.channel, "value", None) or str(r.channel)
+            rev_by_ch[ch_value] = (int(r.revenue_cents or 0), int(r.count or 0))
+            total_orders_excl += int(r.count or 0)
+            total_revenue_excl += int(r.revenue_cents or 0)
+        # Reescribir channels con revenue y count SIN cancelados
+        channels = [
+            {
+                "channel": c["channel"],
+                "count": rev_by_ch.get(c["channel"], (0, 0))[1],
+                "revenue_cents": rev_by_ch.get(c["channel"], (0, 0))[0],
+                "avg_ticket_cents": (
+                    rev_by_ch[c["channel"]][0] // rev_by_ch[c["channel"]][1]
+                    if rev_by_ch.get(c["channel"], (0, 0))[1] > 0 else 0
+                ),
+            }
+            for c in channels
+        ]
+        # Ordenar por revenue desc
+        channels.sort(key=lambda x: (-x["revenue_cents"], x["channel"]))
+        total_orders = total_orders_excl
+        total_revenue = total_revenue_excl
+
+    return {
+        "channels": channels,
+        "total_orders": total_orders,
+        "total_revenue_cents": total_revenue,
+        "days": days,
     }
 
 

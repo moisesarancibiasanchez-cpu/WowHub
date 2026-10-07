@@ -73,7 +73,23 @@ class PluginContext:
     """API explícita que el plugin puede invocar desde su sandbox.
 
     Instanciar con: `PluginContext(tenant_id=str(uuid), tenant_name="...")`.
+
+    HU_45 — Hooks: el plugin puede registrar hooks via
+    ``ctx.register_hook(event_name, callable)``. El callable debe estar
+    definido en el propio install_script. El runtime (no el sandbox)
+    extrae la fuente del callable via ``linecache`` y la persiste en la
+    tabla ``plugin_subscriptions.hooks`` (columna JSON).
     """
+
+    # Set de eventos que el dispatcher acepta. Cualquier hook registrado
+    # fuera de esta lista se ignora silenciosamente al persistir para
+    # evitar typos.
+    ALLOWED_HOOKS = frozenset({
+        "on_order_created",
+        "on_order_paid",
+        "on_customer_created",
+        "on_payment_received",
+    })
 
     def __init__(
         self,
@@ -86,7 +102,32 @@ class PluginContext:
         self.storage = _PluginStorage()
         self.tenant = _PluginTenant(tenant_id=tenant_id, name=tenant_name)
         self._plugin_slug = plugin_slug
+        # Registro de hooks: nombre_evento → callable (definido en el
+        # install_script). NO se serializa como callable; el runtime
+        # extrae la fuente vía inspect.getsource (que funciona porque el
+        # sandbox pobló el linecache con el código fuente).
+        self.hooks: Dict[str, Any] = {}
 
     @property
     def plugin_slug(self) -> str:
         return self._plugin_slug
+
+    def register_hook(self, event: str, fn: Any) -> None:
+        """Registra un hook para un evento del ciclo de vida.
+
+        Args:
+            event: nombre del evento (uno de ``ALLOWED_HOOKS``).
+            fn: callable definido en el install_script.
+
+        Raises:
+            TypeError: si ``fn`` no es callable.
+            ValueError: si ``event`` no está en ``ALLOWED_HOOKS``.
+        """
+        if event not in self.ALLOWED_HOOKS:
+            raise ValueError(
+                f"Hook event '{event}' no soportado. "
+                f"Eventos válidos: {sorted(self.ALLOWED_HOOKS)}"
+            )
+        if not callable(fn):
+            raise TypeError("El hook debe ser callable")
+        self.hooks[event] = fn

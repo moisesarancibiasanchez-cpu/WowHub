@@ -41,6 +41,7 @@ from app.api.v1 import (
     order_events,      # HU_17 — timeline del pedido
     kds,               # HU_21 — KDS (Kitchen Display System) / cola de cocina
     dining_sessions,   # HU_19 — mesero virtual / cuenta dividida
+    tables,            # HU_19 — Mesero virtual: mesas con sesión activa
     loyalty_tiers,     # HU_29 — tiers de fidelidad
     sii,               # HU_32 — SII Chile (Libro de Ventas + validador RUT)
     webhook_stripe,    # HU_23 — Stripe webhook (público, sin auth) — /api/v1/webhook/stripe
@@ -293,6 +294,7 @@ app.include_router(order_events.router, prefix="/api/v1")
 app.include_router(kds.router, prefix="/api/v1")
 # HU_19 — Mesero virtual / cuenta dividida (DiningSession)
 app.include_router(dining_sessions.router, prefix="/api/v1")
+app.include_router(tables.router, prefix="/api/v1")  # HU_19 — Mesero virtual: mesas con sesión
 # HU_29 — Tiers de fidelidad (Bronce / Plata / Oro / Platino)
 app.include_router(loyalty_tiers.router, prefix="/api/v1")
 # HU_32 — SII Chile: Libro de Ventas + validador RUT
@@ -388,6 +390,23 @@ def dashboard_customers(request: Request):
     return templates.TemplateResponse(request, "dashboard/customers.html", {"settings": settings})
 
 
+@app.get("/dashboard/customers/rfm", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_customers_rfm(request: Request):
+    """HU_26 — Dashboard RFM con matriz 5x5 y distribución por segmento."""
+    return templates.TemplateResponse(request, "dashboard/customers_rfm.html", {"settings": settings})
+
+
+@app.get("/dashboard/customer-360", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_customer_360(request: Request):
+    """HU_25 — Perfil 360° de un cliente.
+
+    El ID del cliente viaja por query string ``?id=<uuid>`` para evitar
+    routing param collisions con el resto de rutas del dashboard
+    (``/customers``, ``/customers/rfm``, etc.). El JS resuelve el id al iniciar.
+    """
+    return templates.TemplateResponse(request, "dashboard/customer_360.html", {"settings": settings})
+
+
 @app.get("/dashboard/landing", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_landing(request: Request):
     return templates.TemplateResponse(request, "dashboard/landing.html", {"settings": settings})
@@ -403,6 +422,13 @@ def dashboard_site(request: Request):
 @app.get("/dashboard/orders", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_orders(request: Request):
     return templates.TemplateResponse(request, "dashboard/orders.html", {"settings": settings})
+
+
+# HU_16 — Dashboard "Canales" (multi-canal POS / Web / WhatsApp / QR).
+# Renderiza dashboard/channels.html con barras de revenue y top productos.
+@app.get("/dashboard/channels", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_channels(request: Request):
+    return templates.TemplateResponse(request, "dashboard/channels.html", {"settings": settings})
 
 
 @app.get("/dashboard/payments", response_class=HTMLResponse, include_in_schema=False)
@@ -944,6 +970,17 @@ def dashboard_floor_map(request: Request):
     return templates.TemplateResponse(
         request, "dashboard/floor_map.html",
         {"settings": settings, "body_class": "route-floor-map"},
+    )
+
+
+# ── Mesero Virtual (HU_19) ────────────────────────────────────────
+@app.get("/dashboard/mesero", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_mesero(request: Request):
+    """Vista del mesero virtual: estado de mesas en tiempo real con
+    gestión de sesiones (abrir, agregar items, dividir cuenta, cerrar)."""
+    return templates.TemplateResponse(
+        request, "dashboard/mesero.html",
+        {"settings": settings, "body_class": "route-mesero"},
     )
 
 

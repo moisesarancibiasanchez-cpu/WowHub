@@ -17,6 +17,7 @@ from app.models.tenant import Tenant, TenantMembership
 from app.schemas.common import Page
 from app.schemas.payment import PaymentConfirm, PaymentCreate, PaymentListItem, PaymentOut
 from app.services.payment_service import PaymentService
+from app.services.plugin_hooks import trigger_hooks
 
 logger = logging.getLogger("wowhub.payments_api")
 router = APIRouter(tags=["payments"])
@@ -92,6 +93,21 @@ def confirm_payment(
     """Confirma/rechaza un pago manual desde el dashboard."""
     payment = PaymentService(db).get(tenant_id, payment_id)
     payment = PaymentService(db).confirm_manual(payment, paid=payload.paid, notes=payload.notes)
+    # HU_45 — Hook: pago recibido (sólo si fue confirmado, no si fue rechazado).
+    if payload.paid:
+        trigger_hooks(
+            db=db,
+            tenant_id=tenant_id,
+            event="on_payment_received",
+            payload={
+                "payment_id": str(payment.id),
+                "order_id": str(payment.order_id),
+                "tenant_id": str(tenant_id),
+                "amount_cents": payment.amount_cents,
+                "currency": payment.currency,
+                "method": str(payment.method) if payment.method else None,
+            },
+        )
     return _to_out(payment)
 
 

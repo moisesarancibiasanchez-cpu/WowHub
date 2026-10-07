@@ -138,6 +138,12 @@ class Settings(BaseSettings):
     # `POST /api/v1/webhooks/whatsapp` devuelve 503 explícito (fail-closed,
     # igual que Stripe): aceptar 200 sin verificar firma sería fail-open.
     whatsapp_business_token: str | None = None
+    # HU_16 — Secret alternativo para webhook Twilio-compatible (form-encoded,
+    # X-Twilio-Signature HMAC-SHA1). Si está vacío + APP_ENV=production → 503.
+    # Lección CVSS 9.1: NUNCA fail-open en producción. Si ambos están
+    # configurados, este gana para el path Twilio y ``whatsapp_business_token``
+    # sigue aplicando para el path WhatsApp Cloud API (JSON body).
+    whatsapp_webhook_secret: str | None = None
 
     # Webhooks
     webhook_secret: str = "change-me-webhook-secret-min-32-chars-ok"

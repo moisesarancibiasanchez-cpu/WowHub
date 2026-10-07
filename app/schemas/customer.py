@@ -53,6 +53,16 @@ class CustomerOut(CustomerBase):
     days_since_last_order: Optional[int] = None
     created_at: datetime
 
+    # HU_26 — Segmentación RFM persistente.
+    # ``None`` hasta la primera corrida del cálculo RFM (la migración
+    # ``2026_10_07_0001`` agrega estas columnas a ``customers``).
+    rfm_segment: Optional[str] = None
+    r_score: Optional[int] = None
+    f_score: Optional[int] = None
+    m_score: Optional[int] = None
+    rfm_cell: Optional[str] = None
+    rfm_updated_at: Optional[str] = None
+
 
 class CustomerInsightsOut(BaseModel):
     """Insights IA derivados del historial de un cliente (Fase 3 V8 P0.3 + HU_25 perfil 360).

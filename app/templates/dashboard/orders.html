@@ -87,6 +87,22 @@ async function loadOrders() {
   renderKanban();
 }
 
+// ── HU_16 — Mapeo canal → icono + color. Coincide con OrderSource enum
+// (web, qr, pos, kiosk, whatsapp, api, test). Si llega un canal nuevo, caemos
+// a "web" como default visible.
+const CHANNEL_META = {
+  web:      { icon: "🌐", label: "Web",      color: "#3b82f6" },
+  pos:      { icon: "🖥️", label: "POS",      color: "#8b5cf6" },
+  qr:       { icon: "📷", label: "QR",       color: "#f59e0b" },
+  kiosk:    { icon: "🏬", label: "Kiosko",   color: "#ec4899" },
+  whatsapp: { icon: "📱", label: "WhatsApp", color: "#22c55e" },
+  api:      { icon: "🔌", label: "API",      color: "#64748b" },
+  test:     { icon: "🧪", label: "Test",     color: "#94a3b8" },
+};
+function channelMeta(src) {
+  return CHANNEL_META[String(src || "web").toLowerCase()] || CHANNEL_META.web;
+}
+
 function filteredOrders() {
   const s = currentFilter.search.toLowerCase();
   return orders.filter(o => {
@@ -151,6 +167,8 @@ function renderKanban() {
               },
             };
             const esc = (s) => String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+            // ── HU_16 — Channel badge por pedido (icono + label) ──
+            const chMeta = channelMeta(o.source);
             return `
             <div class="kanban-card" onclick="openOrder('${o.id}')">
               <div style="display:flex; justify-content:space-between; align-items:start; gap:6px;">
@@ -166,6 +184,9 @@ function renderKanban() {
               <div class="customer">${esc(o.customer_name || "—")}</div>
               <div class="total">${fmtMoney(o.total_cents)}</div>
               <div class="meta">${(o.items || []).length} items · ${esc(WH.fmtTime(o.created_at))}</div>
+              <div class="ch-badge" style="background:${chMeta.color}22; color:${chMeta.color}; border:1px solid ${chMeta.color}55; display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:2px 8px; border-radius:999px; margin-top:6px;" title="Canal de origen">
+                <span aria-hidden="true">${chMeta.icon}</span>${chMeta.label}
+              </div>
             </div>
           `;
           }).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}

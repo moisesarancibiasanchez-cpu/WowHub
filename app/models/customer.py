@@ -32,3 +32,18 @@ class Customer(BaseModel, TenantMixin):
     # según puntos y last_order_at. Valores sugeridos: "nuevo", "regular",
     # "vip", "inactivo", "recurrente". Default "nuevo" cuando recién se crea.
     segmento: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+
+    # HU_26 — Segmentación RFM real (recency / frequency / monetary quintiles)
+    # ---------------------------------------------------------------------
+    # Estas columnas se rellenan por la tarea Celery ``app.tasks.rfm.run_rfm_analysis``
+    # (o su equivalente síncrono ``compute_rfm_for_tenant_sync``) y se exponen en
+    # ``CustomerOut`` para el dashboard RFM. Persistirlas en la tabla evita
+    # recalcular la matriz 5x5 cada vez que se lista un cliente.
+    rfm_segment: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
+    r_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    f_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    m_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Celda RFM concatenada (ej. "555" para champions perfectos, "111" para lost).
+    rfm_cell: Mapped[Optional[str]] = mapped_column(String(8), nullable=True, index=True)
+    # Timestamp ISO de la última corrida RFM que escribió estos valores.
+    rfm_updated_at: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)

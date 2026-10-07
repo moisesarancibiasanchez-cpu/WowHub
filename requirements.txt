@@ -49,6 +49,10 @@ flower>=2.0.0
 # Aislamiento in-process de código de plugin. Compila en modo restringido
 # y aplica whitelist de builtins + guards (`_getattr_`, `_getitem_`, etc.).
 RestrictedPython>=6.0
+# Validación del `config_schema` declarado por cada plugin antes de
+# instalar o actualizar la config del tenant. Usado por
+# `app/services/plugin_schema.py`.
+jsonschema>=4.0
 
 # ── HU_23 — Stripe (pasarela de pagos unificada) ────────────────
 # SDK oficial de Stripe. Import dentro de los métodos (lazy) para que un
