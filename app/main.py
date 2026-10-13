@@ -1,4 +1,4 @@
-"""App principal FastAPI — incluye API, UI server-rendered, y redirect de QR."""
+"""App principal FastAPI — incluye API, UI server-rendered, y redirect de QR. v134.3-e824251-fix"""
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
