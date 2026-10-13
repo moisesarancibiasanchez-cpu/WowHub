@@ -348,6 +348,29 @@ def login_dashboard_alias(request: Request):
     return RedirectResponse(url=target, status_code=301)
 
 
+# ── Alias audit fixes (2026-10-12) ─────────────────────────────────
+# CRITICAL-1: /system/status → /api/v1/system/status
+@app.get("/system/status", include_in_schema=False)
+def system_status_alias():
+    """Alias: /system/status → /api/v1/system/status (audit fix 2026-10-12)."""
+    return RedirectResponse(url="/api/v1/system/status", status_code=301)
+
+
+# HIGH-1: /api/v1/dashboard/widgets → /api/v1/dashboard/layout
+@app.api_route("/api/v1/dashboard/widgets", methods=["GET", "PUT"],
+               include_in_schema=False)
+def dashboard_widgets_alias(request: Request):
+    """Alias: /api/v1/dashboard/widgets → /api/v1/dashboard/layout (audit fix 2026-10-12)."""
+    return RedirectResponse(url="/api/v1/dashboard/layout", status_code=301)
+
+
+# HIGH-2: /api/v1/stats → /api/v1/superadmin/stats
+@app.get("/api/v1/stats", include_in_schema=False)
+def api_stats_alias():
+    """Alias: /api/v1/stats → /api/v1/superadmin/stats (audit fix 2026-10-12)."""
+    return RedirectResponse(url="/api/v1/superadmin/stats", status_code=301)
+
+
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 def register_page(request: Request):
     return templates.TemplateResponse(request, "auth/register.html", {"settings": settings})
