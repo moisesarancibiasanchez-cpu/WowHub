@@ -110,6 +110,25 @@
   .sa-modal-close { float: right; cursor: pointer; opacity: 0.5; font-size: 1.2rem; }
   .sa-modal-close:hover { opacity: 1; }
 
+  /* ── Test-install log (HU_45) ──────────────────────── */
+  .sa-log-pre {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 7px;
+    padding: 0.8rem 1rem;
+    margin-top: 0.6rem;
+    color: #c0c0d0;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.78rem;
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .sa-status-ok { color: #00d4a8; font-weight: 600; }
+  .sa-status-err { color: #ff7070; font-weight: 600; }
+  .sa-status-skip { color: #ffb454; font-weight: 600; }
+
   /* ── Toast ────────────────────────────────────────────── */
   .sa-toast {
     position: fixed; bottom: 2rem; right: 2rem;
@@ -171,6 +190,25 @@
       </thead>
       <tbody id="sa-tbody"></tbody>
     </table>
+  </div>
+</div>
+
+<!-- ── Test Install Modal (HU_45) ────────────────────────────── -->
+<div class="sa-modal-overlay" id="sa-test-modal">
+  <div class="sa-modal" style="max-width: 640px;">
+    <span class="sa-modal-close" onclick="hideTestModal()">✕</span>
+    <h3>🧪 Test Install — <span id="sa-test-plugin-name">plugin</span></h3>
+    <p style="color: #888; font-size: 0.85rem; margin-bottom: 1rem;">
+      HU_45 — ejecuta el <code>install_script</code> del plugin en sandbox contra
+      el primer tenant activo del sistema. Los efectos del script
+      (CREATE TABLE, INSERT seed, etc.) SÍ quedan persistidos.
+    </p>
+    <div id="sa-test-body">
+      <p style="color: #888;">⏳ Ejecutando...</p>
+    </div>
+    <div class="sa-form-actions" style="margin-top: 1rem;">
+      <button type="button" class="sa-btn" onclick="hideTestModal()">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -316,6 +354,7 @@ function renderTable(plugins) {
       </td>
       <td>
         <button class="sa-btn" onclick="editPlugin('${p.id}')">Editar</button>
+        <button class="sa-btn" onclick="testInstallPlugin('${p.id}', '${p.slug}')" title="HU_45 — Ejecuta install_script en sandbox contra el primer tenant activo">🧪 Test install</button>
         <button class="sa-btn sa-btn-danger" onclick="deletePlugin('${p.id}', '${p.slug}')">Eliminar</button>
         <span class="sa-toggle ${p.is_active ? 'on' : 'off'}" onclick="toggleActive('${p.id}', ${!p.is_active})" title="Activar/Inactivar"></span>
       </td>
@@ -409,6 +448,51 @@ async function toggleActive(id, newState) {
     if (!res.ok) { showToast('Error', 'error'); return; }
     loadPlugins();
   } catch (e) { showToast('Error de conexión', 'error'); }
+}
+
+// ── HU_45 — Test install ──────────────────────────────────────
+async function testInstallPlugin(pluginId, pluginName) {
+  document.getElementById('sa-test-plugin-name').textContent = pluginName;
+  document.getElementById('sa-test-body').innerHTML = '<p style="color:#888;">⏳ Ejecutando...</p>';
+  document.getElementById('sa-test-modal').classList.add('show');
+  try {
+    const res = await fetch(`${API}/${pluginId}/test-install`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ timeout_sec: 10 }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      document.getElementById('sa-test-body').innerHTML = `
+        <p class="sa-status-err">✗ HTTP ${res.status}</p>
+        <pre class="sa-log-pre">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+      `;
+      return;
+    }
+    let statusHtml;
+    if (data.skipped) {
+      statusHtml = `<p class="sa-status-skip">⚠ ${escapeHtml(data.message || 'Saltado')}</p>`;
+    } else if (data.ok) {
+      statusHtml = `<p class="sa-status-ok">✓ OK — ${data.duration_ms} ms · ${data.hooks_count} hook(s) extraído(s)</p>`;
+    } else {
+      statusHtml = `<p class="sa-status-err">✗ Falló — ${data.duration_ms} ms${data.timed_out ? ' (timeout)' : ''}</p>`;
+    }
+    document.getElementById('sa-test-body').innerHTML = `
+      ${statusHtml}
+      ${data.output ? `<h4 style="margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color:#a78bfa;">Output</h4><pre class="sa-log-pre">${escapeHtml(data.output)}</pre>` : ''}
+      ${data.error ? `<h4 style="margin: 0.8rem 0 0.3rem; font-size: 0.85rem; color:#ff7070;">Error</h4><pre class="sa-log-pre">${escapeHtml(data.error)}</pre>` : ''}
+    `;
+  } catch (e) {
+    document.getElementById('sa-test-body').innerHTML = `<p class="sa-status-err">Error de conexión: ${escapeHtml(String(e))}</p>`;
+  }
+}
+
+function hideTestModal() {
+  document.getElementById('sa-test-modal').classList.remove('show');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 async function seedPlugins() {

@@ -17,6 +17,12 @@
    FIX 2026-10-02b — JS syntax error en margin_pct (línea del "Invalid
    or unexpected token" que rompía el script entero). Reemplazado por
    variable local para evitar concatenaciones mal formadas.
+
+   FIX 2026-10-06 — Migrado a 24 columnas GridStack y agregados 2 widgets
+   nuevos: ``inventory_alerts`` (alertas de stock bajo vía
+   /analytics/inventory?category=low_stock) y ``campaigns_active``
+   (campañas de fidelización activas vía /loyalty/campaigns con
+   filtro is_active en cliente).
    ─────────────────────────────────────────────────────────────────────── #}
 
 <h1>Widgets personalizables</h1>
@@ -36,7 +42,7 @@
   <span id="gs-link-home" style="margin-left: 12px;"></span>
 </div>
 
-<!-- GridStack container: 12 columnas -->
+<!-- GridStack container: 24 columnas (FIX 2026-10-06) -->
 <div class="grid-stack" id="gs-container">
   {% for w in initial_widgets %}
   <div class="grid-stack-item"
@@ -81,6 +87,14 @@
         {% elif w.type == "ai_bar" %}
           <div class="widget-placeholder">
             <p class="text-muted">WowHub AI</p>
+          </div>
+        {% elif w.type == "inventory_alerts" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando alertas de stock…</p>
+          </div>
+        {% elif w.type == "campaigns_active" %}
+          <div class="widget-placeholder">
+            <p class="text-muted">Cargando campañas…</p>
           </div>
         {% elif w.type == "public_url" %}
           <div class="widget-placeholder">
@@ -173,8 +187,11 @@
   }
 
   // ── GridStack init ──
+  // FIX 2026-10-06 — Ampliado de 12 → 24 columnas GridStack para
+  // permitir anchos intermedios (4, 6, 8, 12, 16, 20) y añadir los
+  // widgets nuevos ``inventory_alerts`` y ``campaigns_active``.
   var grid = GridStack.init({
-    column: 12,
+    column: 24,
     cellHeight: 80,
     margin: 6,
     float: false,
@@ -264,13 +281,11 @@
         T = mems[0].tenant_id;
       }
     } catch (e) {
-      console.warn("[widgets] /me/memberships failed:", e);
+      // silently skip — widget data won't load
     }
     if (!T) {
-      console.warn("[widgets] tenant_id no disponible; datos no se cargarán");
       return;
     }
-    console.info("[widgets] tenant_id resuelto vía /me/memberships: " + T);
 
     // Render helpers
     function htmlEscape(s) {
@@ -432,6 +447,78 @@
     var aib = document.getElementById("widget-body-ai_bar");
     if (aib) {
       aib.innerHTML = '<a href="/dashboard/ai?context=opportunities" class="btn btn-primary btn-sm">Ver recomendaciones →</a>';
+    }
+
+    // FIX 2026-10-06 — inventory_alerts (HU_34 · 24-col).
+    // Consume /analytics/inventory con category=low_stock (única ruta
+    // server-side con ese filtro; /products no lo soporta). Muestra
+    // top 5 productos con stock <= low_stock_threshold ordenados por
+    // stock ascendente.
+    var invA = document.getElementById("widget-body-inventory_alerts");
+    if (invA) {
+      WH.api.get("/api/v1/tenants/" + T + "/analytics/inventory?category=low_stock&limit=5")
+        .then(function (d) {
+          var items = (d && d.items) || [];
+          if (!items.length) {
+            invA.innerHTML = '<p class="text-muted">Sin alertas de stock bajo ✨</p>';
+            return;
+          }
+          var summary = (d && d.summary && typeof d.summary.low_stock === "number")
+            ? d.summary.low_stock : items.length;
+          invA.innerHTML =
+            '<div class="widget-kpi-label">Alertas de stock bajo: ' + summary + '</div>' +
+            '<ul class="widget-mini-list">' +
+              items.slice(0, 5).map(function (p) {
+                var stock = (p.stock == null) ? 0 : p.stock;
+                var thr = (p.low_stock_threshold == null) ? 5 : p.low_stock_threshold;
+                return '<li>' +
+                  '<strong>' + htmlEscape(p.name || "—") + '</strong> ' +
+                  '<span style="color:#dc2626;">(' + stock + '/' + thr + ')</span>' +
+                '</li>';
+              }).join("") +
+            '</ul>';
+        })
+        .catch(function () {
+          invA.innerHTML = '<p class="text-muted">Alertas no disponibles</p>';
+        });
+    }
+
+    // FIX 2026-10-06 — campaigns_active (HU_34 · 24-col).
+    // Consume /loyalty/campaigns (la API NO acepta ?status=active; usa
+    // include_inactive=false por default y devuelve solo is_active=true).
+    // Filtramos adicionalmente por is_active y starts_at/ends_at por
+    // seguridad (campañas con ventana temporal vencida deben ocultarse).
+    var camp = document.getElementById("widget-body-campaigns_active");
+    if (camp) {
+      WH.api.get("/api/v1/tenants/" + T + "/loyalty/campaigns")
+        .then(function (d) {
+          var items = Array.isArray(d) ? d : [];
+          var now = Date.now();
+          var active = items.filter(function (c) {
+            if (c.is_active === false) return false;
+            if (c.starts_at && new Date(c.starts_at).getTime() > now) return false;
+            if (c.ends_at && new Date(c.ends_at).getTime() < now) return false;
+            return true;
+          });
+          if (!active.length) {
+            camp.innerHTML = '<p class="text-muted">Sin campañas activas ✨</p>';
+            return;
+          }
+          camp.innerHTML =
+            '<div class="widget-kpi-label">Campañas activas: ' + active.length + '</div>' +
+            '<ul class="widget-mini-list">' +
+              active.slice(0, 5).map(function (c) {
+                var passes = (c.total_passes == null) ? 0 : c.total_passes;
+                return '<li>' +
+                  '<strong>' + htmlEscape(c.name || "—") + '</strong> ' +
+                  '<span style="color:#6b7280;">· ' + passes + ' pases</span>' +
+                '</li>';
+              }).join("") +
+            '</ul>';
+        })
+        .catch(function () {
+          camp.innerHTML = '<p class="text-muted">Campañas no disponibles</p>';
+        });
     }
 
     // public_url

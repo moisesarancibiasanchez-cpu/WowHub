@@ -59,6 +59,10 @@ class PluginSubscription(Base):
     status = Column(String(20), default="active")  # active, suspended, canceled
     config = Column(Text, nullable=True)  # JSON config for this tenant
 
+    # HU_45 — runtime del plugin
+    install_log = Column(Text, nullable=True)  # JSON con output/duration/error del install_script
+    hooks = Column(Text, nullable=True)  # JSON: {event_name: source_code}
+
     installed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     canceled_at = Column(DateTime, nullable=True)
 

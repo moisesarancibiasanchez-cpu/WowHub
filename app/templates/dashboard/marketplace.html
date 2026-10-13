@@ -309,6 +309,84 @@
     font-size: 0.85rem;
   }
   .mp-page-btn.active { background: rgba(124,92,255,0.2); color: #a78bfa; border-color: rgba(124,92,255,0.3); }
+
+  /* ── Install log (HU_45) ────────────────────────────────── */
+  .mp-log-toggle {
+    margin-top: 0.6rem;
+    background: rgba(124,92,255,0.06);
+    border: 1px solid rgba(124,92,255,0.18);
+    border-radius: 6px;
+    color: #a78bfa;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .mp-log-toggle:hover { background: rgba(124,92,255,0.15); }
+  .mp-log-pre {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    color: #c0c0d0;
+    max-height: 160px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+  }
+  .mp-log-status {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    margin-right: 0.4rem;
+  }
+  .mp-log-status.ok { background: rgba(0,212,168,0.15); color: #00d4a8; }
+  .mp-log-status.err { background: rgba(255,80,80,0.15); color: #ff7070; }
+
+  /* ── Install modal w/ config_schema (HU_45) ─────────────── */
+  .mp-config-field { margin-bottom: 0.75rem; text-align: left; }
+  .mp-config-field label {
+    display: block;
+    font-size: 0.78rem;
+    color: #a0a0b0;
+    margin-bottom: 0.3rem;
+  }
+  .mp-config-field label .req { color: #ff7070; margin-left: 0.2rem; }
+  .mp-config-field input,
+  .mp-config-field select,
+  .mp-config-field textarea {
+    width: 100%;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    color: #e0e0e0;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .mp-config-field input:focus,
+  .mp-config-field select:focus { border-color: rgba(124,92,255,0.4); }
+  .mp-config-field .hint { font-size: 0.72rem; color: #666; margin-top: 0.2rem; }
+  .mp-config-field .err-msg { font-size: 0.72rem; color: #ff7070; margin-top: 0.2rem; }
+  .mp-config-error {
+    background: rgba(255,80,80,0.1);
+    border: 1px solid rgba(255,80,80,0.3);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 0.8rem;
+    color: #ff7070;
+    font-size: 0.8rem;
+    text-align: left;
+    white-space: pre-wrap;
+    max-height: 140px;
+    overflow-y: auto;
+  }
 </style>
 
 <!-- ── Hero ──────────────────────────────────────────────── -->
@@ -365,13 +443,15 @@
   <p>No se encontraron plugins.</p>
 </div>
 
-<!-- ── Install confirmation modal ────────────────────────── -->
+<!-- ── Install confirmation modal (HU_45 — config_schema form) ─ -->
 <div class="mp-modal-overlay" id="mp-modal">
-  <div class="mp-modal">
+  <div class="mp-modal" style="max-width: 520px;">
     <div style="font-size: 2.5rem; margin-bottom: 0.75rem;" id="mp-modal-icon">🧩</div>
     <h3 id="mp-modal-title">Instalar Plugin</h3>
-    <p id="mp-modal-desc">¿Quieres instalar este plugin en tu cuenta?</p>
-    <div class="mp-modal-actions">
+    <p id="mp-modal-desc" style="margin-bottom: 1rem;">¿Quieres instalar este plugin en tu cuenta?</p>
+    <div id="mp-config-schema"></div>
+    <div id="mp-config-error" class="mp-config-error" style="display:none;"></div>
+    <div class="mp-modal-actions" style="margin-top: 0.5rem;">
       <button class="mp-btn mp-btn-cancel" id="mp-modal-cancel">Cancelar</button>
       <button class="mp-btn mp-btn-install" id="mp-modal-confirm">Instalar</button>
     </div>
@@ -431,13 +511,19 @@ function categoryLabel(cat) {
   return map[cat] || cat || '';
 }
 
-function renderPluginCard(plugin, featured = false) {
-  const isInstalled = installedSlugs.has(plugin.slug);
+function renderPluginCard(plugin, featured = false, forceInstalled = false) {
+  const isInstalled = forceInstalled || installedSlugs.has(plugin.slug);
   const btnClass = isInstalled ? 'mp-btn-installed' : 'mp-btn-install';
   const btnText = isInstalled ? '✓ Instalado' : 'Instalar';
   const installBtn = isInstalled
     ? `<button class="mp-btn ${btnClass}" disabled>${btnText}</button>`
     : `<button class="mp-btn ${btnClass}" onclick="showInstallModal('${plugin.slug}', '${plugin.name}')">${btnText}</button>`;
+
+  // HU_45 — install log collapsible si está disponible
+  let installLogSection = '';
+  if (isInstalled && plugin.install_log) {
+    installLogSection = renderInstallLog(plugin.install_log);
+  }
 
   const card = `
     <div class="mp-card">
@@ -454,8 +540,42 @@ function renderPluginCard(plugin, featured = false) {
         <span class="mp-installs">${plugin.installs || 0} instalaciones · <span class="mp-stars">${stars(plugin.rating)}</span></span>
         ${installBtn}
       </div>
+      ${installLogSection}
     </div>`;
   return card;
+}
+
+// ── Install log render (HU_45) ───────────────────────────────
+function renderInstallLog(rawLog) {
+  let log;
+  try { log = JSON.parse(rawLog); }
+  catch (e) { return ''; }
+  if (!log || typeof log !== 'object') return '';
+  const id = 'log-' + Math.random().toString(36).slice(2, 9);
+  const statusClass = log.ok ? 'ok' : 'err';
+  const statusText = log.ok ? '✓ OK' : '✗ Error';
+  const lines = [];
+  lines.push(`<span class="mp-log-status ${statusClass}">${statusText}</span>`);
+  lines.push(`<strong>${log.duration_ms || 0} ms</strong> · ${log.hooks_count || 0} hook(s)`);
+  if (log.timed_out) lines.push(' · ⏱ timeout');
+  let body = '';
+  if (log.output) body += log.output + '\n';
+  if (log.error) body += '\n[ERROR] ' + log.error;
+  body = body || '(sin output)';
+  // Escapamos antes de inyectar en HTML
+  const safeBody = body.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return `
+    <button class="mp-log-toggle" onclick="toggleInstallLog('${id}', this)">📋 Ver log de instalación</button>
+    <pre class="mp-log-pre" id="${id}" style="display:none;">${lines.join(' · ')}\n${safeBody}</pre>
+  `;
+}
+
+function toggleInstallLog(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? '📋 Ver log de instalación' : '📋 Ocultar log';
 }
 
 function renderPagination(total, page, pages) {
@@ -493,6 +613,12 @@ async function loadPlugins(page = 1) {
     }
     grid.style.display = 'grid';
     empty.style.display = 'none';
+
+    // HU_45 — cachear lista completa para que showInstallModal encuentre
+    // config_schema. Sólo los plugins en la página actual se cachean.
+    window.__mpAllPlugins = (window.__mpAllPlugins || []).concat(
+      data.items.filter(p => !window.__mpAllPlugins?.some(x => x.slug === p.slug))
+    );
 
     data.items.forEach(p => { grid.innerHTML += renderPluginCard(p); });
 
@@ -534,18 +660,166 @@ async function loadMyPlugins() {
       </div>`;
       return;
     }
-    list.innerHTML = '<div class="mp-grid">' + subs.map(s => renderPluginCard(s.plugin || {})).join('') + '</div>';
+    list.innerHTML = '<div class="mp-grid">' + subs.map(s => {
+      // HU_45 — pasamos install_log de la suscripción al card
+      const cardData = Object.assign({}, s.plugin || {}, {
+        install_log: s.install_log || null,
+      });
+      return renderPluginCard(cardData, false, true);
+    }).join('') + '</div>';
   } catch (e) {
     list.innerHTML = '<p style="color:#ff7070;">Error de conexión.</p>';
   }
 }
 
 // ── Install modal ──────────────────────────────────────────────────
+let pendingPlugin = null;
+let pendingConfigSchema = null;
 function showInstallModal(slug, name) {
   pendingSlug = slug;
+  pendingPlugin = null;
+  pendingConfigSchema = null;
+  // Buscar el plugin completo (con config_schema) en el cache
+  const all = window.__mpAllPlugins || [];
+  pendingPlugin = all.find(p => p.slug === slug) || null;
+  if (pendingPlugin && pendingPlugin.config_schema) {
+    try { pendingConfigSchema = JSON.parse(pendingPlugin.config_schema); }
+    catch (e) { pendingConfigSchema = null; }
+  }
   document.getElementById('mp-modal-title').textContent = `Instalar ${name}`;
-  document.getElementById('mp-modal-desc').textContent = 'El plugin se agregará a tu cuenta. ¿Continuar?';
+  document.getElementById('mp-modal-desc').textContent = pendingConfigSchema
+      ? 'Configura los parámetros del plugin antes de instalar.'
+      : 'El plugin se agregará a tu cuenta. ¿Continuar?';
+  renderConfigSchemaForm(pendingConfigSchema);
+  clearConfigError();
   document.getElementById('mp-modal').classList.add('show');
+}
+
+// ── Render config_schema form (HU_45) ──────────────────────────────
+function renderConfigSchemaForm(schema) {
+  const root = document.getElementById('mp-config-schema');
+  if (!schema || !schema.properties) {
+    root.innerHTML = '';
+    return;
+  }
+  const required = new Set(schema.required || []);
+  let html = '';
+  for (const [key, prop] of Object.entries(schema.properties)) {
+    const isReq = required.has(key);
+    const label = prop.title || key;
+    const desc = prop.description || '';
+    const type = prop.type || 'string';
+    let input = '';
+    if (prop.enum) {
+      const opts = prop.enum.map(v => `<option value="${String(v).replace(/"/g,'&quot;')}">${v}</option>`).join('');
+      input = `<select id="mp-cfg-${key}" name="${key}"><option value="">Seleccionar…</option>${opts}</select>`;
+    } else if (type === 'boolean') {
+      input = `<select id="mp-cfg-${key}" name="${key}">
+        <option value="false">No</option>
+        <option value="true">Sí</option>
+      </select>`;
+    } else if (type === 'number' || type === 'integer') {
+      const min = prop.minimum != null ? `min="${prop.minimum}"` : '';
+      const max = prop.maximum != null ? `max="${prop.maximum}"` : '';
+      input = `<input type="number" id="mp-cfg-${key}" name="${key}" ${min} ${max} step="${type==='integer' ? '1' : 'any'}">`;
+    } else if (type === 'array' || type === 'object') {
+      input = `<textarea id="mp-cfg-${key}" name="${key}" rows="2" placeholder='${prop.examples ? JSON.stringify(prop.examples) : '{}'}'></textarea>`;
+    } else {
+      const minlen = prop.minLength != null ? `minlength="${prop.minLength}"` : '';
+      const maxlen = prop.maxLength != null ? `maxlength="${prop.maxLength}"` : '';
+      input = `<input type="text" id="mp-cfg-${key}" name="${key}" ${minlen} ${maxlen}>`;
+    }
+    html += `<div class="mp-config-field">
+      <label for="mp-cfg-${key}">${label}${isReq ? '<span class="req">*</span>' : ''}</label>
+      ${input}
+      ${desc ? `<div class="hint">${desc}</div>` : ''}
+      <div class="err-msg" id="mp-cfg-err-${key}" style="display:none;"></div>
+    </div>`;
+  }
+  root.innerHTML = html;
+}
+
+// ── Client-side validation (best-effort, server revalida) ───────────
+function validateConfigClientSide(schema) {
+  clearConfigError();
+  if (!schema || !schema.properties) return true;
+  const errors = [];
+  const required = new Set(schema.required || []);
+  for (const [key, prop] of Object.entries(schema.properties)) {
+    const el = document.getElementById(`mp-cfg-${key}`);
+    if (!el) continue;
+    const v = el.value;
+    const errEl = document.getElementById(`mp-cfg-err-${key}`);
+    const type = prop.type || 'string';
+    // Required
+    if (required.has(key) && (v === '' || v == null)) {
+      if (errEl) { errEl.textContent = 'Campo obligatorio'; errEl.style.display='block'; }
+      errors.push(`${prop.title || key}: obligatorio`);
+      continue;
+    }
+    if (errEl) errEl.style.display='none';
+    if (v === '' || v == null) continue;
+    // Type
+    if (type === 'integer' && !/^-?\d+$/.test(v)) {
+      if (errEl) { errEl.textContent = 'Debe ser entero'; errEl.style.display='block'; }
+      errors.push(`${prop.title || key}: debe ser entero`);
+    }
+    if (type === 'number' && isNaN(Number(v))) {
+      if (errEl) { errEl.textContent = 'Debe ser número'; errEl.style.display='block'; }
+      errors.push(`${prop.title || key}: debe ser número`);
+    }
+    if (type === 'string') {
+      if (prop.minLength != null && v.length < prop.minLength) {
+        if (errEl) { errEl.textContent = `Mínimo ${prop.minLength} caracteres`; errEl.style.display='block'; }
+        errors.push(`${prop.title || key}: mínimo ${prop.minLength} chars`);
+      }
+      if (prop.maxLength != null && v.length > prop.maxLength) {
+        if (errEl) { errEl.textContent = `Máximo ${prop.maxLength} caracteres`; errEl.style.display='block'; }
+        errors.push(`${prop.title || key}: máximo ${prop.maxLength} chars`);
+      }
+    }
+    if (prop.enum && !prop.enum.includes(type === 'boolean' ? (v === 'true') : v)) {
+      if (errEl) { errEl.textContent = `Debe ser uno de: ${prop.enum.join(', ')}`; errEl.style.display='block'; }
+      errors.push(`${prop.title || key}: valor no válido`);
+    }
+  }
+  if (errors.length) {
+    showConfigError(errors.join('\n'));
+    return false;
+  }
+  return true;
+}
+
+function showConfigError(msg) {
+  const box = document.getElementById('mp-config-error');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+function clearConfigError() {
+  const box = document.getElementById('mp-config-error');
+  if (box) { box.textContent = ''; box.style.display = 'none'; }
+}
+
+// ── Recolectar config desde el form ────────────────────────────────
+function collectConfigFromForm(schema) {
+  if (!schema || !schema.properties) return null;
+  const out = {};
+  for (const key of Object.keys(schema.properties)) {
+    const el = document.getElementById(`mp-cfg-${key}`);
+    if (!el) continue;
+    const v = el.value;
+    if (v === '' || v == null) continue;
+    const prop = schema.properties[key] || {};
+    const type = prop.type || 'string';
+    if (type === 'boolean') out[key] = (v === 'true');
+    else if (type === 'integer') out[key] = parseInt(v, 10);
+    else if (type === 'number') out[key] = Number(v);
+    else if (type === 'array' || type === 'object') {
+      try { out[key] = JSON.parse(v); } catch (e) { out[key] = v; }
+    }
+    else out[key] = v;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 function hideModal() {
@@ -556,15 +830,29 @@ function hideModal() {
 async function confirmInstall() {
   if (!pendingSlug) return;
   const slug = pendingSlug;
+  // Validar config_schema antes de mandar al server
+  if (pendingConfigSchema && !validateConfigClientSide(pendingConfigSchema)) {
+    return;
+  }
+  const config = collectConfigFromForm(pendingConfigSchema);
   hideModal();
   try {
     const res = await fetch(`${API_BASE}/marketplace/${slug}/install`, {
       method: 'POST',
       headers: apiHeaders(),
-      body: JSON.stringify({}),
+      body: JSON.stringify(config ? { config } : {}),
     });
     if (res.status === 409) {
       showToast('Este plugin ya está instalado.', 'warn');
+      return;
+    }
+    if (res.status === 422) {
+      const body = await res.json().catch(() => ({}));
+      const msg = body.detail?.message || 'Config inválida';
+      const errs = (body.detail?.errors || []).join('\n');
+      const outErr = (body.detail?.error || '') + '\n' + (body.detail?.output || '');
+      showToast(msg, 'error');
+      alert(msg + '\n' + (errs || outErr || ''));
       return;
     }
     if (!res.ok) { showToast('Error al instalar el plugin.', 'error'); return; }
