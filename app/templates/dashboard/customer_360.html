@@ -1,0 +1,569 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Cliente 360°{% endblock %}
+{% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
+
+<!-- ── Header: nombre + segmento + back ─────────────────────── -->
+<div class="row-between" id="page-header">
+  <div>
+    <a class="btn btn-ghost btn-sm" href="/dashboard/customers" style="margin-bottom: 6px;">← Volver a Clientes</a>
+    <h1 id="cust-name" style="margin: 0;">Cargando…</h1>
+    <p class="sub" id="cust-sub">—</p>
+  </div>
+  <div class="row" id="cust-badges" style="gap: 8px; align-items: center;">
+    <!-- badges inyectados por JS: segmento + celda RFM -->
+  </div>
+</div>
+
+<!-- ── Skeleton loader (visible mientras se carga) ────────── -->
+<div id="skeleton" class="card-grid mt-3">
+  <div class="skeleton-card"><div class="sk-bar w40"></div><div class="sk-bar w60"></div></div>
+  <div class="skeleton-card"><div class="sk-bar w40"></div><div class="sk-bar w60"></div></div>
+  <div class="skeleton-card"><div class="sk-bar w40"></div><div class="sk-bar w60"></div></div>
+  <div class="skeleton-card"><div class="sk-bar w40"></div><div class="sk-bar w60"></div></div>
+</div>
+
+<!-- ── Row 1: KPIs (LTV, ticket, pedidos, recencia) ──────── -->
+<div id="kpi-row" class="kpi-row mt-3" style="display: none;">
+  <div class="kpi-card">
+    <div class="label">LTV (lifetime value)</div>
+    <div class="value" id="kpi-ltv">—</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">Ticket promedio</div>
+    <div class="value" id="kpi-ticket">—</div>
+  </div>
+  <div class="kpi-card">
+    <div class="label">Pedidos</div>
+    <div class="value" id="kpi-orders">—</div>
+  </div>
+  <div class="kpi-card" id="kpi-recency-card">
+    <div class="label">Última compra</div>
+    <div class="value" id="kpi-recency" style="font-size: 16px;">—</div>
+  </div>
+</div>
+
+<!-- ── Row 2: Insights card (churn + promo + next action + RFM) ─ -->
+<div id="insights-card" class="card mt-3" style="display: none;">
+  <div class="card-header">
+    <h3 class="card-title">🤖 Insights</h3>
+    <span class="text-muted" id="ins-segment-badge"></span>
+  </div>
+
+  <div class="grid-3" style="gap: 16px;">
+    <div>
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;">Riesgo de churn</div>
+      <div id="ins-churn" style="font-size: 22px; font-weight: 700;">—</div>
+    </div>
+    <div>
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;">Promoción recomendada</div>
+      <div id="ins-promo" style="font-size: 14px;">—</div>
+    </div>
+    <div>
+      <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;">Próxima acción</div>
+      <div id="ins-action" style="font-size: 14px;">—</div>
+    </div>
+  </div>
+
+  <!-- RFM visualization -->
+  <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);">
+    <div class="text-muted" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;">Puntuación RFM</div>
+    <div class="rfm-bars" id="ins-rfm-bars">
+      <div class="rfm-bar"><span class="rfm-bar-label">R</span><div class="rfm-bar-track"><div class="rfm-bar-fill" id="rfm-r-fill"></div></div><span class="rfm-bar-val" id="rfm-r-val">—</span></div>
+      <div class="rfm-bar"><span class="rfm-bar-label">F</span><div class="rfm-bar-track"><div class="rfm-bar-fill" id="rfm-f-fill"></div></div><span class="rfm-bar-val" id="rfm-f-val">—</span></div>
+      <div class="rfm-bar"><span class="rfm-bar-label">M</span><div class="rfm-bar-track"><div class="rfm-bar-fill" id="rfm-m-fill"></div></div><span class="rfm-bar-val" id="rfm-m-val">—</span></div>
+    </div>
+    <div id="ins-rfm-segment" class="text-muted mt-3" style="font-size: 13px;">—</div>
+  </div>
+</div>
+
+<!-- ── Row 3: Orders (60%) + Timeline (40%) ───────────────── -->
+<div id="bottom-row" class="bottom-grid mt-3" style="display: none;">
+
+  <!-- Orders table -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">📦 Pedidos</h3>
+      <div class="row" style="gap: 6px;">
+        <select id="filter-status" class="form-input" style="max-width: 160px; padding: 6px 8px; font-size: 12px;">
+          <option value="">Todos los estados</option>
+          <option value="recibido">Recibido</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="en_preparacion">En preparación</option>
+          <option value="listo">Listo</option>
+          <option value="entregado">Entregado</option>
+          <option value="pagado">Pagado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="border: none; background: transparent;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Pedido</th>
+            <th>Fecha</th>
+            <th>Estado</th>
+            <th>Canal</th>
+            <th>Sucursal</th>
+            <th>Items</th>
+            <th style="text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody id="orders-tbody">
+          <tr><td colspan="7" class="text-center text-muted" style="padding: 20px;">Cargando pedidos…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination client-side -->
+    <div id="orders-pager" class="row-between mt-3" style="display: none;">
+      <span class="text-muted" id="orders-pager-info" style="font-size: 12px;">—</span>
+      <div class="row" style="gap: 6px;">
+        <button class="btn btn-sm" id="orders-prev">← Anterior</button>
+        <button class="btn btn-sm" id="orders-next">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">🕐 Línea de tiempo</h3>
+      <span class="text-muted" id="timeline-count" style="font-size: 12px;">—</span>
+    </div>
+    <div id="timeline-list" class="timeline-list">
+      <div class="text-center text-muted" style="padding: 20px;">Cargando…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Empty state -->
+<div id="error-card" class="card mt-3" style="display: none;">
+  <div class="text-center" style="padding: 30px;">
+    <div style="font-size: 48px;">⚠️</div>
+    <h3 id="error-title" style="margin-top: 8px;">No se pudo cargar</h3>
+    <p class="text-muted" id="error-detail" style="margin-top: 6px;">—</p>
+    <a class="btn mt-3" href="/dashboard/customers">← Volver a Clientes</a>
+  </div>
+</div>
+
+</section>
+{% endblock %}
+
+{% block dash_scripts %}
+<style>
+/* ── Skeleton loader ───────────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.skeleton-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 80px;
+}
+.sk-bar {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    var(--bg-elev-2) 0%, var(--border) 50%, var(--bg-elev-2) 100%);
+  background-size: 200% 100%;
+  animation: sk-pulse 1.4s ease-in-out infinite;
+}
+.sk-bar.w40 { width: 40%; }
+.sk-bar.w60 { width: 60%; }
+@keyframes sk-pulse {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── RFM bars ──────────────────────────────────────────────── */
+.rfm-bars {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.rfm-bar {
+  display: grid;
+  grid-template-columns: 24px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+}
+.rfm-bar-label {
+  font-weight: 700; color: var(--fg-muted);
+  font-size: 13px;
+}
+.rfm-bar-track {
+  height: 8px;
+  background: var(--bg-elev-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rfm-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.5s ease;
+}
+.rfm-bar-val {
+  font-size: 13px; font-weight: 600;
+  text-align: right;
+}
+
+/* ── Bottom grid: orders 60% + timeline 40% ───────────────── */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .bottom-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Timeline ──────────────────────────────────────────────── */
+.timeline-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+.timeline-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.timeline-item:last-child { border-bottom: none; }
+.timeline-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  background: var(--bg-elev-2);
+}
+.timeline-icon[data-type="order"]   { background: hsl(220 60% 92%); color: hsl(220 70% 40%); }
+.timeline-icon[data-type="payment"] { background: hsl(150 60% 92%); color: hsl(150 70% 30%); }
+.timeline-icon[data-type="rfm"]     { background: hsl(280 60% 92%); color: hsl(280 70% 40%); }
+.timeline-icon[data-type="customer"]{ background: hsl(40 80% 92%);  color: hsl(40 80% 35%); }
+.timeline-body { min-width: 0; }
+.timeline-title {
+  font-weight: 600; font-size: 13px;
+  color: var(--fg);
+  margin-bottom: 2px;
+}
+.timeline-detail {
+  font-size: 12px; color: var(--fg-muted);
+}
+.timeline-amount {
+  font-weight: 700; color: var(--fg);
+}
+</style>
+
+<script>
+let tenant = WH.Auth.tenant();
+let customerId = null;
+
+// Estado de la tabla de pedidos (paginación client-side sobre el payload).
+const ordersState = { items: [], page: 1, pageSize: 8, statusFilter: "" };
+
+// Helpers compartidos con customers.html
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+function fmt(c) {
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format((c || 0) / 100);
+}
+function fmtDate(iso) {
+  if (!iso) return '<span class="text-dim">—</span>';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '<span class="text-dim">—</span>';
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
+  } catch (_) { return '<span class="text-dim">—</span>'; }
+}
+function fmtDateTime(iso) {
+  if (!iso) return '<span class="text-dim">—</span>';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '<span class="text-dim">—</span>';
+    return d.toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch (_) { return '<span class="text-dim">—</span>'; }
+}
+function daysLabel(n) {
+  if (n == null) return "—";
+  if (n === 0) return "hoy";
+  if (n === 1) return "hace 1 día";
+  if (n < 30) return `hace ${n} días`;
+  if (n < 365) return `hace ${Math.floor(n/30)} mes${Math.floor(n/30)>1?'es':''}`;
+  return `hace ${Math.floor(n/365)} año${Math.floor(n/365)>1?'s':''}`;
+}
+
+const SEG_BADGE = {
+  nuevo:      { label: "Nuevo",      cls: "badge-muted" },
+  regular:    { label: "Regular",    cls: "badge-info" },
+  recurrente: { label: "Recurrente", cls: "badge-accent" },
+  vip:        { label: "VIP",        cls: "badge-ok" },
+  inactivo:   { label: "Inactivo",   cls: "badge-warn" },
+};
+
+const STATUS_BADGE = {
+  recibido:        { label: "Recibido",        cls: "badge-muted" },
+  confirmado:      { label: "Confirmado",      cls: "badge-info" },
+  en_preparacion:  { label: "En preparación",  cls: "badge-info" },
+  listo:           { label: "Listo",           cls: "badge-accent" },
+  entregado:       { label: "Entregado",       cls: "badge-ok" },
+  pagado:          { label: "Pagado",          cls: "badge-ok" },
+  cancelado:       { label: "Cancelado",       cls: "badge-warn" },
+};
+
+const TIMELINE_ICONS = {
+  order: "📦", payment: "💳", rfm: "📊", customer: "🆕",
+};
+
+function showError(title, detail) {
+  document.getElementById("page-header").style.display = "none";
+  document.getElementById("skeleton").style.display = "none";
+  document.getElementById("kpi-row").style.display = "none";
+  document.getElementById("insights-card").style.display = "none";
+  document.getElementById("bottom-row").style.display = "none";
+  const ec = document.getElementById("error-card");
+  ec.style.display = "block";
+  document.getElementById("error-title").textContent = title;
+  document.getElementById("error-detail").textContent = detail;
+}
+
+async function loadCustomer() {
+  if (!tenant || !tenant.tenant_id) {
+    const s = await WH.Auth.ensureSession();
+    if (s && s.tenant) tenant = s.tenant;
+  }
+  if (!tenant || !tenant.tenant_id) {
+    showError("Sin negocio activo", "Crea uno desde Resumen para usar el perfil 360°.");
+    return;
+  }
+
+  customerId = new URLSearchParams(location.search).get("id") || new URLSearchParams(location.search).get("uuid");
+  if (!customerId) {
+    showError("Falta el ID del cliente", "Abre esta vista desde el botón '👁 Ver 360°' en la lista de Clientes.");
+    return;
+  }
+  // Validar UUID básico
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(customerId)) {
+    showError("ID de cliente inválido", customerId);
+    return;
+  }
+
+  try {
+    // Cargamos insights (incluye customer data) + orders + timeline en paralelo
+    const [insights, orders, timeline] = await Promise.all([
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/${customerId}/insights`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/${customerId}/orders?page=1&page_size=100`),
+      WH.api.get(`/api/v1/tenants/${tenant.tenant_id}/customers/${customerId}/timeline?limit=50`),
+    ]);
+
+    renderHeader(insights);
+    renderKpis(insights);
+    renderInsights(insights);
+
+    ordersState.items = orders.items || [];
+    ordersState.page = 1;
+    renderOrders();
+
+    renderTimeline(timeline || []);
+
+    // Mostrar todo
+    document.getElementById("skeleton").style.display = "none";
+    document.getElementById("kpi-row").style.display = "";
+    document.getElementById("insights-card").style.display = "";
+    document.getElementById("bottom-row").style.display = "";
+  } catch (err) {
+    console.error("loadCustomer error", err);
+    if (err && err.message && err.message.toLowerCase().includes("not found")) {
+      showError("Cliente no encontrado", "Este cliente no existe o pertenece a otro negocio.");
+    } else {
+      showError("Error al cargar", err.message || "—");
+    }
+  }
+}
+
+function renderHeader(ins) {
+  const cust = ins.customer || {};
+  document.getElementById("cust-name").textContent = cust.full_name || "—";
+  const subBits = [];
+  if (cust.email) subBits.push(cust.email);
+  if (cust.phone) subBits.push(cust.phone);
+  if (cust.city)  subBits.push(cust.city);
+  document.getElementById("cust-sub").textContent = subBits.join(" · ") || "—";
+
+  // Badges: segmento + celda RFM
+  const badges = document.getElementById("cust-badges");
+  badges.innerHTML = "";
+
+  const segKey = ins.segmento || "nuevo";
+  const segMeta = SEG_BADGE[segKey] || SEG_BADGE.nuevo;
+  badges.innerHTML += `<span class="badge ${segMeta.cls}" title="Segmento efectivo">${segMeta.label}</span>`;
+
+  if (cust.rfm_cell) {
+    badges.innerHTML += `<span class="badge badge-info" title="Celda RFM (R-F-M)">📊 ${esc(cust.rfm_cell)}</span>`;
+  }
+  if (cust.rfm_segment) {
+    const segNames = {
+      champions: "🏆 Champion", loyal: "🤝 Loyal", potential: "🌱 Potential",
+      new: "🆕 New", about_to_sleep: "😴 About to sleep",
+      at_risk: "⚠️ At risk", hibernating: "🥶 Hibernating", lost: "💀 Lost",
+    };
+    badges.innerHTML += `<span class="badge badge-accent" title="Segmento RFM">${esc(segNames[cust.rfm_segment] || cust.rfm_segment)}</span>`;
+  }
+}
+
+function renderKpis(ins) {
+  document.getElementById("kpi-ltv").textContent = fmt(ins.lifetime_value_cents || 0);
+  document.getElementById("kpi-ticket").textContent = fmt(ins.avg_ticket_cents || 0);
+  document.getElementById("kpi-orders").textContent = ins.total_orders || 0;
+  const recencyEl = document.getElementById("kpi-recency");
+  recencyEl.textContent = ins.days_since_last_order != null ? daysLabel(ins.days_since_last_order) : "—";
+
+  // Color KPI recency: rojo si lleva mucho sin comprar
+  const card = document.getElementById("kpi-recency-card");
+  card.classList.remove("alert", "danger", "ok", "accent");
+  if (ins.days_since_last_order == null) {
+    card.classList.add("accent");
+  } else if (ins.days_since_last_order > 90) {
+    card.classList.add("danger");
+  } else if (ins.days_since_last_order > 30) {
+    card.classList.add("alert");
+  } else {
+    card.classList.add("ok");
+  }
+}
+
+function renderInsights(ins) {
+  const segKey = ins.segmento || "nuevo";
+  const segMeta = SEG_BADGE[segKey] || SEG_BADGE.nuevo;
+  document.getElementById("ins-segment-badge").innerHTML =
+    `<span class="badge ${segMeta.cls}">${segMeta.label}</span>`;
+
+  const churnColor = ins.churn_risk_label === "alto" ? "var(--err)"
+                    : ins.churn_risk_label === "medio" ? "var(--warn)"
+                    : "var(--ok)";
+  document.getElementById("ins-churn").innerHTML =
+    `<span style="color: ${churnColor};">${ins.churn_risk_pct}%</span> <span class="text-dim" style="font-size: 13px;">(${ins.churn_risk_label})</span>`;
+  document.getElementById("ins-promo").textContent = ins.recommended_promotion || "—";
+  document.getElementById("ins-action").textContent = ins.next_action || "—";
+
+  // RFM bars (r/f/m son 1-5; pintamos como %)
+  const r = ins.customer?.r_score;
+  const f = ins.customer?.f_score;
+  const m = ins.customer?.m_score;
+  if (r && f && m) {
+    document.getElementById("rfm-r-fill").style.width = `${r * 20}%`;
+    document.getElementById("rfm-f-fill").style.width = `${f * 20}%`;
+    document.getElementById("rfm-m-fill").style.width = `${m * 20}%`;
+    document.getElementById("rfm-r-val").textContent = `${r}/5`;
+    document.getElementById("rfm-f-val").textContent = `${f}/5`;
+    document.getElementById("rfm-m-val").textContent = `${m}/5`;
+    document.getElementById("ins-rfm-segment").textContent =
+      `Celda ${ins.customer.rfm_cell || "—"} · ${ins.customer.rfm_segment || "—"}`;
+  } else {
+    document.getElementById("rfm-r-fill").style.width = "0%";
+    document.getElementById("rfm-f-fill").style.width = "0%";
+    document.getElementById("rfm-m-fill").style.width = "0%";
+    document.getElementById("rfm-r-val").textContent = "—";
+    document.getElementById("rfm-f-val").textContent = "—";
+    document.getElementById("rfm-m-val").textContent = "—";
+    document.getElementById("ins-rfm-segment").innerHTML =
+      '<span class="text-dim">Aún no se ha calculado RFM para este cliente. Corre "Recalcular RFM" desde la sección Clientes.</span>';
+  }
+}
+
+function renderOrders() {
+  const tbody = document.getElementById("orders-tbody");
+  const filtered = ordersState.statusFilter
+    ? ordersState.items.filter(o => o.status === ordersState.statusFilter)
+    : ordersState.items;
+
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / ordersState.pageSize));
+  if (ordersState.page > totalPages) ordersState.page = totalPages;
+  const start = (ordersState.page - 1) * ordersState.pageSize;
+  const slice = filtered.slice(start, start + ordersState.pageSize);
+
+  if (total === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">📭</div>Sin pedidos${ordersState.statusFilter ? ' con ese filtro' : ''}.</div></td></tr>`;
+    document.getElementById("orders-pager").style.display = "none";
+    return;
+  }
+
+  tbody.innerHTML = slice.map(o => {
+    const stMeta = STATUS_BADGE[o.status] || { label: o.status, cls: "badge-muted" };
+    const summary = (o.items_summary && o.items_summary.length > 0)
+      ? `${esc(o.items_summary.slice(0, 2).join(", "))}${o.items_summary.length > 2 || o.items_count > 2 ? "…" : ""}`
+      : '<span class="text-dim">—</span>';
+    return `
+      <tr>
+        <td><strong>${esc(o.short_id)}</strong></td>
+        <td>${fmtDate(o.created_at)}</td>
+        <td><span class="badge ${stMeta.cls}">${stMeta.label}</span></td>
+        <td>${esc(o.source || "—")}</td>
+        <td>${esc(o.branch_name || "—")}</td>
+        <td>${o.items_count} <span class="text-dim" style="font-size:11px;">· ${summary}</span></td>
+        <td style="text-align: right;"><strong>${fmt(o.total_cents)}</strong></td>
+      </tr>`;
+  }).join("");
+
+  // Pager
+  const pager = document.getElementById("orders-pager");
+  pager.style.display = "flex";
+  document.getElementById("orders-pager-info").textContent =
+    `${start + 1}–${Math.min(start + ordersState.pageSize, total)} de ${total}`;
+  document.getElementById("orders-prev").disabled = ordersState.page <= 1;
+  document.getElementById("orders-next").disabled = ordersState.page >= totalPages;
+}
+
+function renderTimeline(events) {
+  const list = document.getElementById("timeline-list");
+  if (!events || events.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="icon">🕐</div>Sin eventos todavía.</div>';
+    document.getElementById("timeline-count").textContent = "0 eventos";
+    return;
+  }
+  document.getElementById("timeline-count").textContent = `${events.length} evento${events.length !== 1 ? "s" : ""}`;
+  list.innerHTML = events.map(e => {
+    const icon = TIMELINE_ICONS[e.type] || "•";
+    const amount = (e.amount_cents != null)
+      ? `<div class="timeline-amount">${fmt(e.amount_cents)}</div>`
+      : "";
+    return `
+      <div class="timeline-item">
+        <div class="timeline-icon" data-type="${esc(e.type)}" title="${esc(e.type)}">${icon}</div>
+        <div class="timeline-body">
+          <div class="timeline-title">${esc(e.title)}</div>
+          <div class="timeline-detail">${esc(e.detail)} · ${fmtDateTime(e.date)}</div>
+          ${amount}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// Listeners
+document.getElementById("filter-status").addEventListener("change", (e) => {
+  ordersState.statusFilter = e.target.value;
+  ordersState.page = 1;
+  renderOrders();
+});
+document.getElementById("orders-prev").addEventListener("click", () => {
+  if (ordersState.page > 1) { ordersState.page--; renderOrders(); }
+});
+document.getElementById("orders-next").addEventListener("click", () => {
+  ordersState.page++;
+  renderOrders();
+});
+
+(async function init() {
+  await loadCustomer();
+})();
+</script>
+{% endblock %}

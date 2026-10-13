@@ -1,0 +1,119 @@
+"""SQLAlchemy engine, session factory y base declarativa."""
+from typing import Generator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
+from sqlalchemy.pool import StaticPool
+
+from app.config import settings
+
+
+class Base(DeclarativeBase):
+    """Base declarativa para todos los modelos."""
+    pass
+
+
+# Engine: configuración distinta para SQLite (dev) vs Postgres (prod)
+if settings.is_sqlite:
+    # StaticPool cuando es :memory: para que todas las conexiones
+    # compartan el mismo store (necesario para tests).
+    is_memory = settings.database_url.endswith(":memory:")
+    engine = create_engine(
+        settings.database_url,
+        echo=settings.debug,
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool if is_memory else None,
+    )
+else:
+    # PostgreSQL: forzar timezone de la conexión a America/Santiago para que
+    # NOW(), CURRENT_TIMESTAMP y CAST(timestamp AT TIME ZONE ...) devuelvan
+    # hora chilena. Combinado con TZ=America/Santiago en el contenedor, hace
+    # que "hoy" en SQL sea coherente con la lógica de negocio Python.
+    engine = create_engine(
+        settings.database_url,
+        echo=settings.debug,
+        future=True,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        connect_args={"options": "-c timezone=America/Santiago"},
+    )
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+    future=True,
+)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Dependencia FastAPI que provee una sesión de DB y la cierra al final."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def init_db() -> None:
+    """Crea las tablas. En producción usar Alembic."""
+    # Importar modelos para que SQLAlchemy los registre
+    from app.models import (  # noqa: F401
+        user, tenant, branch, category, product, customer,
+        promotion, qr, landing, order,
+        site_config,  # noqa
+        loyalty_pass,  # noqa
+        automation,  # Automation Manager (Cap. 19.3)
+        business_costs,  # Costos fijos + cálculo de costo_hora (Fase 2 V8)
+        insumo,  # V8 P0.1: Insumos + Recetas (BOM)
+    )
+    Base.metadata.create_all(bind=engine)
+    # ── Migración puntual: cashier_pin VARCHAR(8) → VARCHAR(64) ──
+    # El campo cambió de tamaño porque el hash SHA-256 (64 hex chars)
+    # no entraba en 8. create_all no altera columnas existentes.
+    import logging as _lg
+    log = _lg.getLogger("wowhub.db")
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            exists = conn.execute(text(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'loyalty_campaigns'"
+            )).scalar()
+            if exists:
+                conn.execute(text(
+                    "ALTER TABLE loyalty_campaigns "
+                    "ALTER COLUMN cashier_pin TYPE VARCHAR(64)"
+                ))
+                log.info("Migración aplicada: cashier_pin → VARCHAR(64)")
+    except Exception as e:
+        log.warning("Migración cashier_pin no aplicada: %s", e)
+    # ── Auto-heal V8: asegura columnas agregadas después del create_all
+    # inicial (production_time_min y siguientes). Se ejecuta en cada
+    # arranque del lifespan para que Railway (que NO corre entrypoint.sh
+    # automáticamente) también reciba las migraciones. Es idempotente.
+    try:
+        from scripts.migrate_product_v8_columns import ensure_v8_columns
+        added = ensure_v8_columns()
+        if added:
+            log.info("Auto-heal V8: %s columna(s) agregada(s)", added)
+    except Exception as e:
+        log.warning("Auto-heal V8 no aplicado: %s", e)
+    # ── Auto-heal V8 P0: nuevos modelos (insumos/recetas) + customers.segmento
+    try:
+        from scripts.migrate_v8_p0_columns import ensure_v8_p0_objects
+        added_p0 = ensure_v8_p0_objects()
+        if added_p0:
+            log.info("Auto-heal V8 P0: %s objeto(s) agregado(s)", added_p0)
+    except Exception as e:
+        log.warning("Auto-heal V8 P0 no aplicado: %s", e)
+    # ── Auto-heal V2 metálico: 7 columnas nuevas en loyalty_campaigns
+    try:
+        from scripts.migrate_loyalty_metallic_v2 import ensure_metallic_columns
+        added_v2 = ensure_metallic_columns()
+        if added_v2:
+            log.info("Auto-heal V2 metálico: %s columna(s) agregada(s)", added_v2)
+    except Exception as e:
+        log.warning("Auto-heal V2 metálico no aplicado: %s", e)

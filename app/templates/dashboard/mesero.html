@@ -1,0 +1,943 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Mesero Virtual — WowHub{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  /* ── Mesero Virtual ────────────────────────────────────────────── */
+  .mesero-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 40%) 1fr;
+    gap: 14px;
+    height: calc(100vh - 140px);
+    min-height: 540px;
+  }
+  @media (max-width: 900px) {
+    .mesero-layout { grid-template-columns: 1fr; height: auto; }
+  }
+
+  .mesero-panel {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-y: auto;
+  }
+  .mesero-panel h4 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--fg-muted);
+  }
+
+  /* ── Header strip ─────────────────────────────────────────────── */
+  .mesero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .mesero-header h1 { margin: 0; font-size: 20px; }
+  .mesero-header p  { margin: 4px 0 0; font-size: 13px; color: var(--fg-muted); }
+
+  /* ── Table card grid (left) ───────────────────────────────────── */
+  .table-cards { display: grid; gap: 8px; }
+  .table-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-elev-2);
+    cursor: pointer;
+    transition: transform .12s, box-shadow .15s, border-color .15s;
+  }
+  .table-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .table-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .table-card .label {
+    font-weight: 700; font-size: 15px;
+  }
+  .table-card .meta {
+    font-size: 12px; color: var(--fg-muted); margin-top: 2px;
+  }
+
+  /* ── Status pills ─────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .pill-free            { background: #d4edda; color: #155724; }
+  .pill-occupied        { background: #f8d7da; color: #721c24; }
+  .pill-needs_attention { background: #ffe5d0; color: #8b2500; animation: pill-pulse 1.5s ease-in-out infinite; }
+  .pill-reserved        { background: #fff3cd; color: #856404; }
+
+  @keyframes pill-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4); }
+    50%      { box-shadow: 0 0 0 6px rgba(255, 107, 53, 0); }
+  }
+
+  /* ── Right panel ──────────────────────────────────────────────── */
+  .session-empty {
+    text-align: center;
+    padding: 60px 16px;
+    color: var(--fg-muted);
+  }
+  .session-empty .ico {
+    font-size: 42px; display: block; margin-bottom: 8px;
+  }
+
+  .session-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 14px;
+    padding: 10px 12px;
+    background: var(--bg-elev-2);
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+  .session-meta div { font-size: 12px; }
+  .session-meta strong { display: block; color: var(--fg-muted); font-weight: 500; margin-bottom: 2px; }
+
+  /* ── Items list ───────────────────────────────────────────────── */
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .items-table th, .items-table td {
+    padding: 8px 6px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .items-table th {
+    font-weight: 600;
+    color: var(--fg-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .items-table .num { text-align: right; }
+  .items-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--fg-muted);
+    font-size: 13px;
+  }
+
+  /* ── Totals bar ────────────────────────────────────────────────── */
+  .totals-bar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    padding: 14px 12px;
+    background: var(--bg-elev-2);
+    border-radius: 6px;
+    margin-top: 14px;
+    font-size: 14px;
+  }
+  .totals-bar .row {
+    display: contents;
+  }
+  .totals-bar .row > div { padding: 2px 0; }
+  .totals-bar .row > div:last-child { text-align: right; font-weight: 600; }
+  .totals-bar .total-row { font-size: 16px; font-weight: 700; color: var(--accent); }
+
+  /* ── Action buttons ───────────────────────────────────────────── */
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  /* ── Modal ────────────────────────────────────────────────────── */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--bg-elev);
+    border-radius: 8px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal h2 { margin: 0 0 14px; font-size: 18px; }
+  .modal-footer {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .form-field { margin-bottom: 10px; }
+  .form-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
+  .form-field input, .form-field select, .form-field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elev-2);
+    color: var(--fg);
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ── Split shares ─────────────────────────────────────────────── */
+  .split-shares { display: grid; gap: 8px; }
+  .split-share {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px;
+    background: var(--bg-elev-2);
+    border-radius: 6px;
+  }
+  .split-share .name { font-weight: 600; }
+  .split-share .amount { font-weight: 700; color: var(--accent); }
+
+  /* ── Refresh indicator ────────────────────────────────────────── */
+  .refresh-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #28a745;
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .refresh-info { font-size: 12px; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 6px; }
+
+  /* ── Toast ─────────────────────────────────────────────────────── */
+  .mesero-toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 6px;
+    font-size: 13px; z-index: 99999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+</style>
+{% endblock %}
+
+{% block dash_content %}
+<section class="dash-page" style="padding: 16px 20px;">
+  <div class="mesero-header">
+    <div>
+      <h1>🧑‍🍳 Mesero Virtual</h1>
+      <p>Estado de las mesas en tiempo real. Haz clic en una mesa para abrir o ver la sesión.</p>
+    </div>
+    <div class="flex" style="gap:10px; align-items:center; flex-wrap:wrap;">
+      <select id="mes-branch" class="form-input" style="width:200px;">
+        <option value="">Todas las sucursales</option>
+      </select>
+      <span class="refresh-info">
+        <span class="refresh-dot" id="mes-refresh-dot"></span>
+        <span id="mes-refresh-label">Auto-actualiza cada 10s</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="mesero-layout">
+    <!-- ── Left: list of tables ─────────────────────────────────── -->
+    <div class="mesero-panel" id="mes-left-panel">
+      <h4>Mesas</h4>
+      <div class="table-cards" id="mes-table-cards">
+        <div class="items-empty">Cargando mesas…</div>
+      </div>
+    </div>
+
+    <!-- ── Right: session detail ─────────────────────────────────── -->
+    <div class="mesero-panel" id="mes-right-panel">
+      <h4>Detalle</h4>
+      <div class="session-empty" id="mes-empty">
+        <span class="ico">🍽️</span>
+        Selecciona una mesa del panel izquierdo para ver o crear una sesión.
+      </div>
+
+      <div id="mes-session" style="display:none;">
+        <div class="session-meta" id="mes-session-meta"></div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+          <strong style="font-size:13px;">Items de la mesa</strong>
+          <button class="btn btn-sm" id="mes-add-item-btn">+ Agregar item</button>
+        </div>
+
+        <div id="mes-items-wrap">
+          <table class="items-table" id="mes-items-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="num">Cant.</th>
+                <th class="num">Precio</th>
+                <th class="num">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="mes-items-tbody"></tbody>
+          </table>
+          <div class="items-empty" id="mes-items-empty">Aún no hay items en esta mesa.</div>
+        </div>
+
+        <div class="totals-bar" id="mes-totals">
+          <div class="row"><div>Subtotal</div><div id="mes-totals-subtotal">$0</div></div>
+          <div class="row"><div>Propina</div><div id="mes-totals-tip">$0</div></div>
+          <div class="row total-row"><div>Total</div><div id="mes-totals-total">$0</div></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn" id="mes-split-btn">📊 Dividir cuenta</button>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="number" id="mes-tip-input" min="0" step="100"
+                   placeholder="Propina $" style="width:100px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg-elev-2); color:var(--fg);">
+            <button class="btn btn-ghost btn-sm" id="mes-tip-btn">+ Propina</button>
+          </div>
+          <button class="btn" id="mes-close-btn" style="background:#28a745; color:white;">✅ Cerrar mesa</button>
+          <button class="btn btn-ghost btn-sm" id="mes-cancel-btn" style="color:var(--err);">✖ Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Open Session Modal ──────────────────────────────────────── -->
+<div class="modal-backdrop" id="mes-open-modal" style="display:none;">
+  <div class="modal">
+    <h2>🍽️ Abrir nueva sesión</h2>
+    <form id="mes-open-form">
+      <div class="form-field">
+        <label>Mesa</label>
+        <input type="text" id="mes-open-label" required maxlength="60" placeholder="Mesa 7">
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Sucursal</label>
+          <select id="mes-open-branch" required></select>
+        </div>
+        <div class="form-field">
+          <label>Comensales</label>
+          <input type="number" id="mes-open-party" min="1" max="100" value="1">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Mesero (opcional)</label>
+        <select id="mes-open-server">
+          <option value="">— Sin asignar —</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Notas (opcional)</label>
+        <textarea id="mes-open-notes" rows="2" maxlength="2000"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="mes-open-cancel">Cancelar</button>
+        <button type="submit" class="btn" id="mes-open-submit">Abrir mesa</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Add Item Modal ──────────────────────────────────────────── -->
+<div class="modal-backdrop" id="mes-item-modal" style="display:none;">
+  <div class="modal">
+    <h2>➕ Agregar item a la mesa</h2>
+    <form id="mes-item-form">
+      <div class="form-field">
+        <label>Producto</label>
+        <select id="mes-item-product" required>
+          <option value="">— Cargando… —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Cantidad</label>
+          <input type="number" id="mes-item-qty" min="1" max="50" value="1">
+        </div>
+        <div class="form-field">
+          <label>Asignar a (opcional)</label>
+          <input type="text" id="mes-item-assigned" maxlength="80" placeholder="Comensal 1">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Notas (opcional)</label>
+        <input type="text" id="mes-item-notes" maxlength="300">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="mes-item-cancel">Cancelar</button>
+        <button type="submit" class="btn" id="mes-item-submit">Crear pedido y agregar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Split Modal ──────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="mes-split-modal" style="display:none;">
+  <div class="modal">
+    <h2>📊 División de cuenta</h2>
+    <div id="mes-split-body">
+      <div class="items-empty">Cargando división…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="mes-split-close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Mesero Virtual JS ────────────────────────────────────────── */
+(function () {
+  'use strict';
+
+  // ── State ─────────────────────────────────────────────────────
+  let currentTenantId = null;
+  let currentUser = null;
+  let allBranches = [];
+  let allProducts = [];
+  let tables = [];
+  let selectedSessionId = null;
+  let selectedTable = null;
+  let refreshTimer = null;
+
+  // ── DOM refs ──────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const branchSel       = $('mes-branch');
+  const tableCardsEl    = $('mes-table-cards');
+  const emptyRightEl    = $('mes-empty');
+  const sessionEl       = $('mes-session');
+  const sessionMetaEl   = $('mes-session-meta');
+  const itemsTblEl      = $('mes-items-table');
+  const itemsTbodyEl    = $('mes-items-tbody');
+  const itemsEmptyEl    = $('mes-items-empty');
+  const refreshDot      = $('mes-refresh-dot');
+  const refreshLabel    = $('mes-refresh-label');
+
+  // ── Helpers ───────────────────────────────────────────────────
+  const formatCLP = (cents) => {
+    const n = Number(cents || 0) / 100;
+    try {
+      return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+    } catch (_) { return '$' + n.toLocaleString('es-CL'); }
+  };
+  const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
+  }[c]));
+
+  // Toast
+  function toast(msg, type) {
+    type = type || 'success';
+    const t = document.createElement('div');
+    t.className = 'mesero-toast';
+    t.style.background = type === 'error' ? '#dc3545' : (type === 'warning' ? '#ffc107' : '#1f2937');
+    t.style.color = type === 'warning' ? '#000' : '#fff';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .25s'; setTimeout(() => t.remove(), 250); }, 3000);
+  }
+
+  // Auth-aware API
+  async function apiFetch(method, url, body) {
+    if (window.WH && window.WH.api && window.WH.api.request) {
+      return window.WH.api.request(url, {
+        method: method,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    }
+    const tk = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
+      || localStorage.getItem('wowhub_access_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (tk) headers.Authorization = 'Bearer ' + tk;
+    const r = await fetch(url, {
+      method: method,
+      headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      throw new Error(text || 'HTTP ' + r.status);
+    }
+    return r.json();
+  }
+  const apiGet  = (url) => apiFetch('GET', url);
+  const apiPost = (url, body) => apiFetch('POST', url, body);
+  const apiPatch = (url, body) => apiFetch('PATCH', url, body);
+
+  // ── Resolve tenant ────────────────────────────────────────────
+  async function loadTenantAndBranches() {
+    const session = await window.WH.Auth.ensureSession();
+    currentUser = (session && session.user) || window.WH.Auth.user();
+    const tenantObj = (session && session.tenant) || window.WH.Auth.tenant();
+    currentTenantId = tenantObj && tenantObj.tenant_id;
+    if (!currentTenantId) throw new Error('No se pudo resolver el tenant actual.');
+
+    // Branches
+    const branches = await apiGet('/api/v1/tenants/' + currentTenantId + '/branches');
+    allBranches = Array.isArray(branches) ? branches : [];
+    populateBranchSelects();
+  }
+
+  function populateBranchSelects() {
+    const html = '';
+    branchSel.innerHTML = '<option value="">Todas las sucursales</option>' +
+      allBranches.map(b => `<option value="${b.id}">${escapeHtml(b.name || b.id)}</option>`).join('');
+    const openBranch = $('mes-open-branch');
+    openBranch.innerHTML = '<option value="">— Selecciona —</option>' +
+      allBranches.map(b => `<option value="${b.id}">${escapeHtml(b.name || b.id)}</option>`).join('');
+  }
+
+  // ── Load products for "add item" modal ───────────────────────
+  async function loadProducts() {
+    try {
+      const data = await apiGet('/api/v1/tenants/' + currentTenantId + '/products?page_size=200');
+      allProducts = (data && data.items) || data || [];
+      if (!Array.isArray(allProducts)) allProducts = [];
+    } catch (e) {
+      console.warn('No se pudieron cargar productos:', e);
+      allProducts = [];
+    }
+    const sel = $('mes-item-product');
+    if (allProducts.length === 0) {
+      sel.innerHTML = '<option value="">— Sin productos disponibles —</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— Selecciona producto —</option>' +
+      allProducts.map(p => {
+        const name = p.name || p.title || 'Producto';
+        const price = p.price_cents != null ? formatCLP(p.price_cents) : (p.base_price_cents != null ? formatCLP(p.base_price_cents) : '');
+        return `<option value="${p.id}">${escapeHtml(name)} ${price ? '— ' + price : ''}</option>`;
+      }).join('');
+  }
+
+  // ── Populate "mesero (server)" selector with current user ─────
+  function populateServerSelect() {
+    const sel = $('mes-open-server');
+    sel.innerHTML = '<option value="">— Sin asignar —</option>';
+    if (currentUser && currentUser.id) {
+      const opt = document.createElement('option');
+      opt.value = currentUser.id;
+      opt.textContent = currentUser.full_name || currentUser.email || 'Yo';
+      opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  // ── Load tables ───────────────────────────────────────────────
+  async function loadTables() {
+    const branchId = branchSel.value;
+    let url = '/api/v1/tenants/' + currentTenantId + '/tables?status_filter=all';
+    if (branchId) url += '&branch_id=' + encodeURIComponent(branchId);
+    try {
+      tables = await apiGet(url);
+    } catch (e) {
+      console.error('loadTables error:', e);
+      tables = [];
+      toast('Error al cargar mesas: ' + e.message, 'error');
+    }
+    renderTables();
+    // Update refresh indicator timestamp
+    if (refreshLabel) {
+      refreshLabel.dataset.last = Date.now().toString();
+      refreshLabel.textContent = 'Actualizado ahora';
+    }
+    if (selectedSessionId) {
+      // refresh selected session in background
+      loadSessionDetails(selectedSessionId).catch((err) => {
+        // if 404, reset selection
+        if (String(err.message).includes('404') || String(err.message).includes('not found')) {
+          resetSelection();
+        }
+      });
+    }
+  }
+
+  // ── Render left panel ─────────────────────────────────────────
+  function renderTables() {
+    if (!Array.isArray(tables) || tables.length === 0) {
+      tableCardsEl.innerHTML = '<div class="items-empty">No hay mesas configuradas.<br><small>Abre una sesión ad-hoc desde el botón de abajo.</small></div>';
+      return;
+    }
+    const html = tables.map((t) => {
+      const isSelected = t.session_id === selectedSessionId;
+      const pillMap = {
+        free: '<span class="pill pill-free">🟢 Libre</span>',
+        occupied: '<span class="pill pill-occupied">🔴 Ocupada</span>',
+        needs_attention: '<span class="pill pill-needs_attention">🟡 Atención</span>',
+        reserved: '<span class="pill pill-reserved">🟠 Reservada</span>',
+      };
+      const pill = pillMap[t.status] || '<span class="pill">' + escapeHtml(t.status) + '</span>';
+      const sub = t.status === 'free'
+        ? `${t.capacity || 0} pers. — click para abrir`
+        : `${t.items_count || 0} items · ${formatCLP(t.total_cents)} · ${t.party_size || 1} com.`;
+      const label = `${escapeHtml(t.label)} <span style="font-size:11px; color:var(--fg-muted);">· ${escapeHtml(t.branch_name || '')}</span>`;
+      return `<div class="table-card ${isSelected ? 'selected' : ''}" data-table-key="${escapeHtml(t.branch_id)}::${escapeHtml(t.label)}" data-session-id="${escapeHtml(t.session_id || '')}">
+        <div>
+          <div class="label">${label}</div>
+          <div class="meta">${sub}</div>
+        </div>
+        <div>${pill}</div>
+      </div>`;
+    }).join('');
+    tableCardsEl.innerHTML = html + '<div style="margin-top:12px; text-align:center;"><button class="btn btn-ghost btn-sm" id="mes-open-new-btn" style="width:100%;">+ Abrir mesa nueva (ad-hoc)</button></div>';
+    document.getElementById('mes-open-new-btn').addEventListener('click', () => openOpenModal(null));
+    tableCardsEl.querySelectorAll('.table-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const sessionId = card.dataset.sessionId;
+        const branchId = card.dataset.tableKey.split('::')[0];
+        const label = card.dataset.tableKey.split('::')[1];
+        const table = tables.find(t => t.label === label && t.branch_id === branchId);
+        if (sessionId) {
+          selectSession(sessionId, table);
+        } else {
+          // free table → open a new session
+          openOpenModal(table);
+        }
+      });
+    });
+  }
+
+  // ── Selection / detail panel ─────────────────────────────────
+  function resetSelection() {
+    selectedSessionId = null;
+    selectedTable = null;
+    emptyRightEl.style.display = 'block';
+    sessionEl.style.display = 'none';
+    sessionMetaEl.innerHTML = '';
+    itemsTbodyEl.innerHTML = '';
+    itemsTblEl.style.display = 'none';
+    itemsEmptyEl.style.display = 'block';
+  }
+
+  async function selectSession(sessionId, table) {
+    selectedSessionId = sessionId;
+    selectedTable = table || null;
+    emptyRightEl.style.display = 'none';
+    sessionEl.style.display = 'block';
+    // highlight
+    tableCardsEl.querySelectorAll('.table-card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.sessionId === sessionId);
+    });
+    await loadSessionDetails(sessionId);
+  }
+
+  async function loadSessionDetails(sessionId) {
+    const sess = await apiGet('/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + sessionId);
+    // Refresh totals
+    const updatedTable = tables.find(t => t.session_id === sessionId);
+    if (updatedTable) {
+      selectedTable = updatedTable;
+    }
+    renderSessionMeta(sess);
+    await loadSessionItems(sessionId);
+    renderTotals(sess);
+  }
+
+  async function loadSessionItems(sessionId) {
+    try {
+      // Need session detail + items. The dining_session service has list_items but
+      // there's no public GET endpoint for items. We approximate from session.total_cents
+      // and a call to /orders/{id} when needed. For now we list items via
+      // /dining-sessions/{id} (single) which already has total_cents; the items
+      // detail is queried via /dining-sessions/{id}/split (it returns items inside shares).
+      const split = await apiGet('/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + sessionId + '/split');
+      const allItems = (split.shares || []).reduce((acc, sh) => acc.concat(sh.items || []), []);
+      renderItems(allItems);
+    } catch (e) {
+      console.warn('No se pudieron cargar items:', e);
+      itemsTblEl.style.display = 'none';
+      itemsEmptyEl.style.display = 'block';
+      itemsEmptyEl.textContent = 'Aún no hay items en esta mesa.';
+    }
+  }
+
+  function renderSessionMeta(sess) {
+    const openedAt = sess.opened_at ? new Date(sess.opened_at).toLocaleString('es-CL') : '—';
+    const statusLabel = {
+      open: '🟢 Abierta',
+      closed: '✅ Cerrada',
+      cancelled: '✖ Cancelada',
+    }[sess.status] || sess.status;
+    sessionMetaEl.innerHTML = `
+      <div><strong>Sucursal</strong>${escapeHtml(selectedTable ? selectedTable.branch_name : '—')}</div>
+      <div><strong>Mesa</strong>${escapeHtml(sess.table_label)}</div>
+      <div><strong>Estado</strong> ${statusLabel}</div>
+      <div><strong>Comensales</strong>${sess.customer_count}</div>
+      <div><strong>Abierta</strong>${escapeHtml(openedAt)}</div>
+      <div><strong>Mesero</strong>${escapeHtml((selectedTable && selectedTable.server_name) || '—')}</div>
+    `;
+  }
+
+  function renderItems(items) {
+    if (!items || items.length === 0) {
+      itemsTblEl.style.display = 'none';
+      itemsEmptyEl.style.display = 'block';
+      itemsEmptyEl.textContent = 'Aún no hay items en esta mesa.';
+      return;
+    }
+    itemsTblEl.style.display = 'table';
+    itemsEmptyEl.style.display = 'none';
+    // We only have ids; for display we render placeholder names.
+    // In a deeper integration we'd expose a /dining-session-items list endpoint.
+    const html = items.map(it => {
+      const orderId = it.order_item_id || '';
+      return `<tr>
+        <td><code style="font-size:11px;">${escapeHtml(orderId.slice(0, 8))}</code></td>
+        <td class="num">1</td>
+        <td class="num">${it.share_cents != null ? formatCLP(it.share_cents) : '—'}</td>
+        <td class="num">${it.share_cents != null ? formatCLP(it.share_cents) : '—'}</td>
+      </tr>`;
+    }).join('');
+    itemsTbodyEl.innerHTML = html;
+  }
+
+  function renderTotals(sess) {
+    const subtotal = Number(sess.total_cents || 0);
+    const tip = Number(sess.tip_cents || 0);
+    $('mes-totals-subtotal').textContent = formatCLP(subtotal);
+    $('mes-totals-tip').textContent = formatCLP(tip);
+    $('mes-totals-total').textContent = formatCLP(subtotal + tip);
+  }
+
+  // ── Modals ────────────────────────────────────────────────────
+  function showModal(id) { $(id).style.display = 'flex'; }
+  function hideModal(id) { $(id).style.display = 'none'; }
+
+  function openOpenModal(prefilledTable) {
+    if (prefilledTable) {
+      $('mes-open-label').value = prefilledTable.label || '';
+      $('mes-open-branch').value = prefilledTable.branch_id || '';
+    } else {
+      $('mes-open-label').value = '';
+      $('mes-open-branch').value = '';
+    }
+    $('mes-open-party').value = 1;
+    $('mes-open-notes').value = '';
+    showModal('mes-open-modal');
+    setTimeout(() => $('mes-open-label').focus(), 50);
+  }
+
+  $('mes-open-cancel').addEventListener('click', () => hideModal('mes-open-modal'));
+  $('mes-open-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const label = ($('mes-open-label').value || '').trim();
+    const branchId = $('mes-open-branch').value;
+    if (!label || !branchId) { toast('Mesa y sucursal son obligatorios.', 'warning'); return; }
+    const payload = {
+      branch_id: branchId,
+      table_label: label,
+      customer_count: Math.max(1, parseInt($('mes-open-party').value || '1', 10)),
+      server_user_id: $('mes-open-server').value || null,
+      notes: $('mes-open-notes').value || null,
+    };
+    try {
+      $('mes-open-submit').disabled = true;
+      $('mes-open-submit').textContent = 'Abriendo…';
+      const created = await apiPost('/api/v1/tenants/' + currentTenantId + '/dining-sessions', payload);
+      toast('✅ Mesa abierta: ' + created.table_label);
+      hideModal('mes-open-modal');
+      await loadTables();
+      await selectSession(created.id, null);
+    } catch (err) {
+      toast('Error al abrir mesa: ' + err.message, 'error');
+    } finally {
+      $('mes-open-submit').disabled = false;
+      $('mes-open-submit').textContent = 'Abrir mesa';
+    }
+  });
+
+  $('mes-item-cancel').addEventListener('click', () => hideModal('mes-item-modal'));
+  $('mes-item-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productId = $('mes-item-product').value;
+    const qty = Math.max(1, parseInt($('mes-item-qty').value || '1', 10));
+    const assignedTo = ($('mes-item-assigned').value || '').trim() || null;
+    const notes = ($('mes-item-notes').value || '').trim() || null;
+    if (!productId) { toast('Selecciona un producto.', 'warning'); return; }
+    if (!selectedSessionId) { toast('No hay sesión seleccionada.', 'warning'); return; }
+    try {
+      $('mes-item-submit').disabled = true;
+      $('mes-item-submit').textContent = 'Creando pedido…';
+      // 1) Crear Order
+      const orderPayload = {
+        items: [{ product_id: productId, quantity: qty }],
+        notes: notes,
+      };
+      const order = await apiPost('/api/v1/tenants/' + currentTenantId + '/orders', orderPayload);
+      // 2) Buscar el primer order_item del pedido recién creado
+      const orderDetail = await apiGet('/api/v1/tenants/' + currentTenantId + '/orders/' + order.id);
+      const firstItem = (orderDetail && orderDetail.items && orderDetail.items[0]) || null;
+      if (!firstItem) throw new Error('El pedido no devolvió items.');
+      // 3) Adjuntar item a la sesión
+      await apiPost(
+        '/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + selectedSessionId + '/orders',
+        { order_item_id: firstItem.id, assigned_to: assignedTo, notes: notes }
+      );
+      toast('✅ Item agregado a la mesa.');
+      hideModal('mes-item-modal');
+      await loadTables();
+      await loadSessionDetails(selectedSessionId);
+    } catch (err) {
+      toast('Error al agregar item: ' + err.message, 'error');
+    } finally {
+      $('mes-item-submit').disabled = false;
+      $('mes-item-submit').textContent = 'Crear pedido y agregar';
+    }
+  });
+
+  $('mes-split-close').addEventListener('click', () => hideModal('mes-split-modal'));
+
+  // ── Action buttons ────────────────────────────────────────────
+  $('mes-add-item-btn').addEventListener('click', () => {
+    if (allProducts.length === 0) {
+      // try loading
+      loadProducts().then(() => showModal('mes-item-modal'));
+    } else {
+      showModal('mes-item-modal');
+    }
+  });
+
+  $('mes-split-btn').addEventListener('click', async () => {
+    if (!selectedSessionId) { toast('Selecciona una sesión primero.', 'warning'); return; }
+    showModal('mes-split-modal');
+    const body = $('mes-split-body');
+    body.innerHTML = '<div class="items-empty">Calculando división…</div>';
+    try {
+      const split = await apiGet('/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + selectedSessionId + '/split');
+      const html = `
+        <div style="margin-bottom:10px; font-size:13px;">
+          <strong>${split.shares.length} comensales</strong> ·
+          Subtotal: ${formatCLP(split.total_cents)} ·
+          Propina: ${formatCLP(split.tip_cents)} ·
+          Total: <strong>${formatCLP(split.total_cents + split.tip_cents)}</strong>
+        </div>
+        <div class="split-shares">
+          ${split.shares.map(sh => `
+            <div class="split-share">
+              <div>
+                <div class="name">${escapeHtml(sh.label)}</div>
+                <div style="font-size:11px; color:var(--fg-muted);">${(sh.items || []).length} item(s)</div>
+              </div>
+              <div class="amount">${formatCLP(sh.amount_cents)}</div>
+            </div>
+          `).join('')}
+        </div>
+        ${split.remainder_cents ? `<div style="margin-top:8px; font-size:11px; color:var(--fg-muted);">Nota: remanente de ${formatCLP(split.remainder_cents)} absorbido por el primer comensal.</div>` : ''}
+      `;
+      body.innerHTML = html;
+    } catch (err) {
+      body.innerHTML = `<div class="items-empty">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  });
+
+  $('mes-tip-btn').addEventListener('click', async () => {
+    if (!selectedSessionId) { toast('Selecciona una sesión primero.', 'warning'); return; }
+    const tipCLP = parseFloat($('mes-tip-input').value || '0');
+    if (!tipCLP || tipCLP < 0) { toast('Ingresa una propina válida (en pesos).', 'warning'); return; }
+    const tipCents = Math.round(tipCLP * 100);
+    try {
+      await apiPatch(
+        '/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + selectedSessionId + '/tip',
+        { tip_cents: tipCents }
+      );
+      toast('✅ Propina agregada.');
+      $('mes-tip-input').value = '';
+      await loadTables();
+      await loadSessionDetails(selectedSessionId);
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    }
+  });
+
+  $('mes-close-btn').addEventListener('click', async () => {
+    if (!selectedSessionId) return;
+    if (!confirm('¿Cerrar esta mesa? La cuenta quedará congelada.')) return;
+    try {
+      await apiPost(
+        '/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + selectedSessionId + '/close',
+        {}
+      );
+      toast('✅ Mesa cerrada.');
+      resetSelection();
+      await loadTables();
+    } catch (err) {
+      toast('Error al cerrar: ' + err.message, 'error');
+    }
+  });
+
+  $('mes-cancel-btn').addEventListener('click', async () => {
+    if (!selectedSessionId) return;
+    if (!confirm('¿Cancelar esta sesión? Esta acción no se puede deshacer.')) return;
+    try {
+      await apiPost(
+        '/api/v1/tenants/' + currentTenantId + '/dining-sessions/' + selectedSessionId + '/cancel',
+        {}
+      );
+      toast('Sesión cancelada.', 'warning');
+      resetSelection();
+      await loadTables();
+    } catch (err) {
+      toast('Error al cancelar: ' + err.message, 'error');
+    }
+  });
+
+  // ── Branch filter ─────────────────────────────────────────────
+  branchSel.addEventListener('change', () => loadTables());
+
+  // ── Auto-refresh every 10s ────────────────────────────────────
+  function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+      loadTables().then(() => {
+        refreshDot.style.background = '#28a745';
+        refreshLabel.textContent = 'Actualizado hace <1s';
+      });
+    }, 10000);
+  }
+  // update label softly every second
+  setInterval(() => {
+    if (!refreshLabel.dataset.last) refreshLabel.dataset.last = Date.now().toString();
+    const last = parseInt(refreshLabel.dataset.last, 10);
+    const ago = Math.max(0, Math.floor((Date.now() - last) / 1000));
+    refreshLabel.textContent = ago < 1 ? 'Actualizado ahora' : 'Actualizado hace ' + ago + 's';
+  }, 1000);
+
+  // ── Init ──────────────────────────────────────────────────────
+  (async function init() {
+    try {
+      await loadTenantAndBranches();
+      populateServerSelect();
+      await loadProducts();
+      await loadTables();
+      startAutoRefresh();
+    } catch (err) {
+      toast('Error inicial: ' + err.message, 'error');
+      tableCardsEl.innerHTML = '<div class="items-empty">No se pudo cargar la página: ' + escapeHtml(err.message) + '</div>';
+    }
+  })();
+
+  // Cleanup on unload
+  window.addEventListener('beforeunload', () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+  });
+})();
+</script>
+{% endblock %}

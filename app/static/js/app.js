@@ -1,0 +1,713 @@
+// WowHub client utilities
+// - Token storage (localStorage)
+// - API wrapper con Bearer
+// - Toast helper
+// - Logout
+
+const TOKEN_KEY = "wowhub.tokens";
+const TENANT_KEY = "wowhub.currentTenant";
+
+const TokenStore = {
+  get() {
+    try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || "null"); } catch { return null; }
+  },
+  set(tokens) { localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens)); },
+  clear() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(TENANT_KEY); },
+  access() { return this.get()?.access_token; },
+  refresh() { return this.get()?.refresh_token; },
+  currentTenant() { return this.get()?.current_tenant || null; },
+};
+
+const api = {
+  async request(path, opts = {}) {
+    const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+    const tk = TokenStore.access();
+    if (tk) headers.Authorization = `Bearer ${tk}`;
+    // Nota histórica: aquí hubo un bloque muerto con un bug de precedencia
+    // (`!path.startsWith(...) === false`). Las rutas tenant-scoped ya viajan
+    // en la URL (`/api/v1/tenants/{id}/...`), así que no hace falta enviar
+    // el tenant id como header. Si en el futuro se necesita, usar
+    // `headers["X-Tenant-Id"] = tid` y construirlo explícitamente.
+    const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401 && !path.includes("/auth/")) {
+      // intentar refresh
+      const refreshed = await this.tryRefresh();
+      if (refreshed) {
+        headers.Authorization = `Bearer ${TokenStore.access()}`;
+        const retry = await fetch(path, { ...opts, headers });
+        return this._parse(retry);
+      }
+      TokenStore.clear();
+      window.location.href = "/login";
+      return;
+    }
+    return this._parse(res);
+  },
+  async tryRefresh() {
+    const r = TokenStore.get()?.refresh_token;
+    if (!r) return false;
+    try {
+      const res = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: r }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      TokenStore.set(data);
+      return true;
+    } catch { return false; }
+  },
+  async _parse(res) {
+    if (res.status === 204) return null;
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+    if (!res.ok) {
+      const detail = (data && data.detail) || res.statusText;
+      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    }
+    return data;
+  },
+  get(path) { return this.request(path); },
+  post(path, body) { return this.request(path, { method: "POST", body: JSON.stringify(body) }); },
+  put(path, body) { return this.request(path, { method: "PUT", body: JSON.stringify(body) }); },
+  patch(path, body) { return this.request(path, { method: "PATCH", body: JSON.stringify(body) }); },
+  del(path) { return this.request(path, { method: "DELETE" }); },
+};
+
+// Public API (no auth)
+const publicApi = {
+  async get(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error("Error al cargar datos");
+    return res.json();
+  },
+};
+
+const Toast = {
+  show(message, type = "success") {
+    let c = document.getElementById("toast-container");
+    if (!c) { c = document.createElement("div"); c.id = "toast-container"; document.body.appendChild(c); }
+    const t = document.createElement("div");
+    t.className = `toast toast-${type}`;
+    t.textContent = message;
+    c.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity 0.2s"; setTimeout(() => t.remove(), 200); }, 3500);
+  },
+};
+
+// ── Upload helper ─────────────────────────────────────────────
+// Sube imágenes (JPG/PNG, max 3 MB) al backend y devuelve la URL pública.
+// Se usa desde cualquier template vía WH.Upload.image(file, {purpose}).
+const Upload = {
+  // Límites (deben coincidir con app/services/upload_service.py)
+  MAX_BYTES: 3 * 1024 * 1024,
+  ALLOWED_MIME: new Set(["image/jpeg", "image/png"]),
+
+  validate(file) {
+    if (!file) throw new Error("No se seleccionó ningún archivo.");
+    if (!this.ALLOWED_MIME.has(file.type)) {
+      throw new Error(`Tipo no permitido (${file.type || "?"}). Solo JPG o PNG.`);
+    }
+    if (file.size > this.MAX_BYTES) {
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      throw new Error(`La imagen pesa ${mb} MB. El máximo es 3 MB.`);
+    }
+  },
+
+  // Sube un File y devuelve {url, width, height, ...} (lo que devuelva el server).
+  // Lanza Error si falla (validación cliente o server).
+  async image(file, opts = {}) {
+    this.validate(file);
+    const tenant = TokenStore.currentTenant();
+    if (!tenant || !tenant.tenant_id) {
+      throw new Error("No hay un negocio activo. Vuelve a iniciar sesión.");
+    }
+    const fd = new FormData();
+    fd.append("file", file);
+    if (opts.purpose) fd.append("purpose", opts.purpose);
+    if (opts.entity_type) fd.append("entity_type", opts.entity_type);
+    if (opts.entity_id) fd.append("entity_id", opts.entity_id);
+
+    const tk = TokenStore.access();
+    const res = await fetch(
+      `/api/v1/tenants/${tenant.tenant_id}/uploads`,
+      { method: "POST", body: fd, headers: tk ? { Authorization: `Bearer ${tk}` } : {} }
+    );
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+    if (!res.ok) {
+      const detail = (data && data.detail) || res.statusText;
+      throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    }
+    return data; // UploadOut: {url, width, height, ...}
+  },
+};
+
+// ── ImagePicker component ────────────────────────────────────
+// Reemplaza el <input type="url"> clásico por un selector con:
+//   - Drag & drop
+//   - Click → file picker
+//   - Preview de la imagen actual
+//   - Botón "Quitar" para volver a null
+//   - Sube automáticamente al server al elegir y guarda la URL en un
+//     <input type="hidden"> (targetInput) que el form ya sabe leer.
+//
+// Uso:
+//   <div data-image-picker
+//        data-target="p_image_url"        ← id del <input> donde dejar la URL
+//        data-purpose="product_image"
+//        data-max-size-mb="3"
+//        data-accept="image/jpeg,image/png">
+//   </div>
+//   <input type="hidden" id="p_image_url">
+const ImagePicker = {
+  // Convierte bytes a "1.4 MB" legible
+  fmtSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  },
+
+  // Inicializa todos los <div data-image-picker> de la página.
+  initAll(root = document) {
+    root.querySelectorAll("[data-image-picker]").forEach((host) => this.mount(host));
+  },
+
+  // Helper: refresca el preview del picker que apunta a `targetId`
+  // (útil cuando el valor del input cambia programáticamente: editar un
+  // producto, abrir un modal, etc.)
+  setValue(targetId, url) {
+    const host = document.querySelector(
+      `[data-image-picker][data-target="${targetId}"]`
+    );
+    if (host && host._whPicker) host._whPicker.setPreview(url || null);
+  },
+
+  mount(host) {
+    if (host._whPicker) return; // idempotente
+    const targetId = host.dataset.target;
+    const purpose = host.dataset.purpose || "general";
+    const maxMb = Number(host.dataset.maxSizeMb || 3);
+    const accept = host.dataset.accept || "image/jpeg,image/png";
+    const target = targetId ? document.getElementById(targetId) : null;
+
+    host.innerHTML = `
+      <div class="ip-drop" tabindex="0" role="button" aria-label="Subir imagen">
+        <input type="file" class="ip-file" accept="${accept}" hidden>
+        <div class="ip-preview" data-empty="true">
+          <div class="ip-empty">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <div class="ip-empty-title">Subir imagen</div>
+            <div class="ip-empty-sub">Arrastra un archivo o haz click. JPG o PNG, máx ${maxMb} MB.</div>
+          </div>
+        </div>
+        <div class="ip-progress" hidden><div class="ip-progress-bar"></div></div>
+        <div class="ip-error" hidden></div>
+        <div class="ip-actions">
+          <button type="button" class="btn btn-sm ip-pick">Elegir archivo</button>
+          <button type="button" class="btn btn-sm btn-ghost ip-remove" hidden>Quitar</button>
+          <span class="ip-filename text-muted"></span>
+        </div>
+      </div>
+    `;
+
+    const drop = host.querySelector(".ip-drop");
+    const fileInput = host.querySelector(".ip-file");
+    const preview = host.querySelector(".ip-preview");
+    const empty = host.querySelector(".ip-empty");
+    const pickBtn = host.querySelector(".ip-pick");
+    const removeBtn = host.querySelector(".ip-remove");
+    const filenameEl = host.querySelector(".ip-filename");
+    const progress = host.querySelector(".ip-progress");
+    const progressBar = host.querySelector(".ip-progress-bar");
+    const errorEl = host.querySelector(".ip-error");
+
+    function setPreview(url) {
+      if (url) {
+        preview.dataset.empty = "false";
+        // onerror: si la URL no carga (host no alcanzable, 404, CORS),
+        // mostramos un mensaje claro en vez de un área vacía silenciosa.
+        preview.innerHTML = `
+          <div class="ip-preview-img-wrap">
+            <img src="${escapeAttr(url)}" alt="" referrerpolicy="no-referrer"
+                 style="max-width:100%;max-height:240px;display:block;border-radius:6px;"
+                 onerror="this.parentNode.innerHTML = '<div class=&quot;ip-preview-broken&quot;>⚠ No se pudo cargar la imagen.<br><small>La URL puede haber cambiado o el archivo ya no existe.</small><br><code style=&quot;font-size:10px;word-break:break-all;&quot;></code></div>';">
+          </div>`;
+        // Si falla la carga, mostramos la URL para diagnóstico
+        const img = preview.querySelector("img");
+        img.addEventListener("error", () => {
+          const codeEl = preview.querySelector(".ip-preview-broken code");
+          if (codeEl) codeEl.textContent = url;
+          if (window.WH && window.WH.Toast) {
+            window.WH.Toast.show("La URL de la imagen no carga. ¿El servidor cambió de dominio?", "warning");
+          }
+        }, { once: true });
+        removeBtn.hidden = false;
+        empty.style.display = "none";
+      } else {
+        preview.dataset.empty = "true";
+        preview.innerHTML = "";
+        preview.appendChild(empty);
+        empty.style.display = "";
+        removeBtn.hidden = true;
+        filenameEl.textContent = "";
+      }
+    }
+
+    function setError(msg) {
+      if (msg) {
+        errorEl.hidden = false;
+        errorEl.textContent = msg;
+      } else {
+        errorEl.hidden = true;
+        errorEl.textContent = "";
+      }
+    }
+
+    function setUploading(on) {
+      progress.hidden = !on;
+      if (on) progressBar.style.width = "0%";
+      pickBtn.disabled = !!on;
+      drop.classList.toggle("ip-uploading", !!on);
+    }
+
+    async function uploadFile(file) {
+      setError("");
+      filenameEl.textContent = file.name + " · " + ImagePicker.fmtSize(file.size);
+      // Validación rápida en cliente (la autoridad está en el server)
+      const allowed = accept.split(",").map((s) => s.trim());
+      if (!allowed.includes(file.type)) {
+        setError("Tipo no permitido. Solo " + allowed.join(" o ") + ".");
+        return;
+      }
+      if (file.size > maxMb * 1024 * 1024) {
+        setError("La imagen supera " + maxMb + " MB.");
+        return;
+      }
+
+      setUploading(true);
+      // Animación fake de progreso (fetch no expone progreso sin XHR; suficiente
+      // como feedback visual — el server responde en <2s en el 99% de los casos).
+      let pct = 0;
+      const tick = setInterval(() => {
+        pct = Math.min(pct + 12, 85);
+        progressBar.style.width = pct + "%";
+      }, 120);
+
+      try {
+        const out = await Upload.image(file, { purpose });
+        if (target) target.value = out.url;
+        progressBar.style.width = "100%";
+        setPreview(out.url);
+        host.dispatchEvent(new CustomEvent("image-uploaded", { detail: out, bubbles: true }));
+        if (window.WH && window.WH.Toast) window.WH.Toast.show("Imagen subida ✓", "success");
+      } catch (e) {
+        setError(e.message || "Error al subir la imagen.");
+        if (window.WH && window.WH.Toast) window.WH.Toast.show(e.message || "Error al subir", "error");
+      } finally {
+        clearInterval(tick);
+        setTimeout(() => { setUploading(false); }, 250);
+      }
+    }
+
+    // Click anywhere on the drop zone → open file picker
+    drop.addEventListener("click", (e) => {
+      if (e.target.closest(".ip-remove")) return;
+      if (e.target.closest(".ip-pick")) { fileInput.click(); return; }
+      if (!host.classList.contains("ip-uploading")) fileInput.click();
+    });
+    // Keyboard accessibility
+    drop.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+    pickBtn.addEventListener("click", (e) => { e.stopPropagation(); fileInput.click(); });
+    fileInput.addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) uploadFile(f);
+      fileInput.value = ""; // permite re-subir el mismo archivo
+    });
+    // Drag & drop
+    ["dragenter", "dragover"].forEach((ev) =>
+      drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("ip-drag"); })
+    );
+    ["dragleave", "drop"].forEach((ev) =>
+      drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("ip-drag"); })
+    );
+    drop.addEventListener("drop", (e) => {
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) uploadFile(f);
+    });
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (target) target.value = "";
+      setPreview(null);
+      host.dispatchEvent(new CustomEvent("image-removed", { bubbles: true }));
+    });
+
+    // Estado inicial: si el target ya tiene valor, pintamos el preview
+    if (target && target.value) setPreview(target.value);
+
+    // API pública por instancia
+    host._whPicker = { setPreview, setError, uploadFile };
+  },
+};
+
+function escapeAttr(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[m]));
+}
+
+const Auth = {
+  isLoggedIn() { return !!TokenStore.access(); },
+  async logout() {
+    TokenStore.clear();
+    this.resetSession();
+    try { await fetch("/api/v1/auth/logout", { method: "POST" }); } catch (_) {}
+    window.location.href = "/login";
+  },
+  user() { return TokenStore.get()?.user; },
+  tenant() { return TokenStore.currentTenant(); },
+  requireLogin() { if (!this.isLoggedIn()) { window.location.href = "/login?next=" + encodeURIComponent(location.pathname); } },
+
+  // Invalida la promesa cacheada de ensureSession. Llamar después de
+  // login/logout o cuando los datos del usuario cambian. Antes el cache
+  // sobrevivía al logout y devolvía el usuario viejo en re-hidrataciones.
+  resetSession() {
+    this._sessionPromise = null;
+  },
+
+  // Devuelve {user, tenant, access_token} desde localStorage y, si falta
+  // `current_tenant`, rehidrata desde el server con /api/v1/auth/me/session
+  // (usa el access_token vigente).
+  // Cachea el promise para no pegarle al endpoint varias veces en la misma página.
+  _sessionPromise: null,
+  ensureSession() {
+    if (this._sessionPromise) return this._sessionPromise;
+    this._sessionPromise = (async () => {
+      const access = TokenStore.access();
+      let user = Auth.user();
+      let tenant = Auth.tenant();
+      if (user && tenant && tenant.tenant_id) return { user, tenant, access_token: access };
+      if (!access) return { user, tenant, access_token: access };
+      try {
+        const session = await api.get("/api/v1/auth/me/session");
+        if (session) {
+          const tokens = TokenStore.get() || {};
+          if (session.user) tokens.user = session.user;
+          if (session.current_tenant) tokens.current_tenant = session.current_tenant;
+          TokenStore.set(tokens);
+          return { user: tokens.user, tenant: tokens.current_tenant, access_token: access };
+        }
+      } catch (e) {
+        console.warn("[WowHub] No se pudo rehidratar la sesión:", e);
+      }
+      return { user, tenant, access_token: access };
+    })();
+    return this._sessionPromise;
+  },
+};
+
+function formatMoney(cents, currency = "CLP") {
+  const value = cents / 100;
+  if (currency === "CLP") {
+    return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value);
+  }
+  return new Intl.NumberFormat("es-CL", { style: "currency", currency }).format(value);
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es-CL", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ── fmtTime: formateo de fechas con TZ fija America/Santiago ────
+// WowHub opera exclusivamente en Chile. Si formateamos con
+// `new Date(iso).toLocaleString("es-CL", ...)`, el navegador usa su TZ
+// local — un visitante con PC en UTC verá fechas desfasadas.
+//
+// Esta helper fuerza `timeZone: 'America/Santiago'` en todas las
+// llamadas, independiente del browser. Acepta ISO 8601 (string) o Date.
+// `opts` se mergea con `timeZone`; si pasás `timeZone`, sobrescribís.
+//
+// Ejemplos:
+//   fmtTime("2026-10-01T23:30:00Z")                                  // "01/10/2026, 20:30:00"
+//   fmtTime(iso, { dateStyle: "short", timeStyle: "short" })         // "01/10/26, 20:30"
+//   fmtTime(iso, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+//   fmtTime(iso, { dateStyle: "medium", timeStyle: "medium" })       // sólo fecha+hora corta
+const CL_TZ = "America/Santiago";
+function fmtTime(iso, opts = {}) {
+  if (!iso) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("es-CL", { timeZone: CL_TZ, ...opts });
+}
+
+// ── Utilidades compartidas ─────────────────────────────────
+// `escapeHtml` es la versión segura para insertar texto en HTML. La
+// diferencia con `escapeAttr` (que escapa también `"` y `'`) es que esta
+// se usa dentro de innerHTML, donde no hay comillas que romper. Útil para
+// evitar XSS cuando pintamos datos del backend (nombres de producto, etc).
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>]/g, (m) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+  }[m]));
+}
+
+// Debounce: la versión canónica. Antes había 3 copias (products.html,
+// costs.js, app.js) con bugs sutiles. Esta es la única.
+function debounce(fn, ms) {
+  let t = null;
+  return function debounced(...args) {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      t = null;
+      try { fn.apply(this, args); } catch (e) { console.error("[debounce]", e); }
+    }, ms);
+  };
+}
+
+// ── Modal reutilizable (WH.Modal) ──────────────────────────
+// Reemplaza el patrón "modal-overlay hidden / .modal-header / .modal-body"
+// inline en cada template. Ventajas:
+//   - Esc cierra
+//   - Click fuera cierra
+//   - Focus trap (Tab cicla dentro del modal)
+//   - Restaura el foco al elemento que abrió
+//   - Una sola instancia, sin re-acoplar listeners (fix del bug de
+//     products.html donde `openModal` apilaba `addEventListener` cada vez)
+//   - API: WH.Modal.open({title, body, footer, size, onClose}) → {close}
+const Modal = (function () {
+  let overlay = null;
+  let dialog = null;
+  let lastFocus = null;
+  let onCloseCb = null;
+  let onKeyHandler = null;
+
+  function ensureDom() {
+    if (overlay) return;
+    overlay = document.createElement("div");
+    overlay.className = "wh-modal-overlay";
+    overlay.setAttribute("role", "presentation");
+    overlay.addEventListener("mousedown", (e) => {
+      // Sólo cerrar si el click fue exactamente sobre el overlay,
+      // no sobre el dialog. Usamos mousedown para no cerrar cuando el
+      // usuario hace drag dentro del modal y suelta fuera.
+      if (e.target === overlay) close();
+    });
+    dialog = document.createElement("div");
+    dialog.className = "wh-modal-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+  }
+
+  function focusables() {
+    return Array.from(dialog.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]),' +
+      ' select:not([disabled]), textarea:not([disabled]),' +
+      ' [tabindex]:not([tabindex="-1"])'
+    )).filter((el) => el.offsetParent !== null);
+  }
+
+  function trapTab(e) {
+    if (e.key !== "Tab") return;
+    const items = focusables();
+    if (!items.length) {
+      e.preventDefault();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      last.focus();
+      e.preventDefault();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      first.focus();
+      e.preventDefault();
+    }
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    } else if (e.key === "Tab") {
+      trapTab(e);
+    }
+  }
+
+  function open(opts = {}) {
+    ensureDom();
+    const { title, body, footer, size, onClose } = opts;
+    lastFocus = document.activeElement;
+    onCloseCb = typeof onClose === "function" ? onClose : null;
+    dialog.className = "wh-modal-dialog" + (size ? " wh-modal-" + size : "");
+    dialog.innerHTML = "";
+    const head = document.createElement("header");
+    head.className = "wh-modal-head";
+    const h2 = document.createElement("h2");
+    h2.id = "wh-modal-title";
+    h2.textContent = title || "";
+    head.appendChild(h2);
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "wh-modal-x";
+    x.setAttribute("aria-label", "Cerrar");
+    x.textContent = "×";
+    x.addEventListener("click", () => close());
+    head.appendChild(x);
+    dialog.appendChild(head);
+    dialog.setAttribute("aria-labelledby", "wh-modal-title");
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "wh-modal-body";
+    if (body instanceof Node) bodyEl.appendChild(body);
+    else if (typeof body === "string") bodyEl.textContent = body;
+    dialog.appendChild(bodyEl);
+
+    if (footer) {
+      const footEl = document.createElement("footer");
+      footEl.className = "wh-modal-foot";
+      if (footer instanceof Node) footEl.appendChild(footer);
+      else if (typeof footer === "string") footEl.innerHTML = footer;
+      dialog.appendChild(footEl);
+    }
+
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+    onKeyHandler = onKey;
+    document.addEventListener("keydown", onKeyHandler);
+    // Foco inicial: el primer focusable, o el dialog como fallback.
+    setTimeout(() => {
+      const items = focusables();
+      const target = items[0] || dialog;
+      if (target && typeof target.focus === "function") target.focus();
+    }, 0);
+    return { close };
+  }
+
+  function close() {
+    if (!overlay || !overlay.classList.contains("open")) return;
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+    if (onKeyHandler) {
+      document.removeEventListener("keydown", onKeyHandler);
+      onKeyHandler = null;
+    }
+    const cb = onCloseCb;
+    onCloseCb = null;
+    dialog.innerHTML = "";
+    if (cb) {
+      try { cb(); } catch (e) { console.error("[Modal.onClose]", e); }
+    }
+    if (lastFocus && typeof lastFocus.focus === "function") {
+      try { lastFocus.focus(); } catch (_) {}
+    }
+  }
+
+  return { open, close };
+})();
+
+// ── Confirm accesible (WH.Confirm) ────────────────────────
+// Reemplaza al `confirm()` nativo. Devuelve Promise<boolean>.
+// - "danger: true" pinta el botón en rojo
+// - Esc y click en overlay resuelven `false`
+// - Tab/Shift-Tab quedan atrapados dentro del modal
+const Confirm = {
+  show({ title = "¿Confirmar?", body, danger = false, confirmText = "Confirmar", cancelText = "Cancelar" } = {}) {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const finish = (val) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(val);
+      };
+      const wrap = document.createElement("div");
+      const p = document.createElement("p");
+      p.style.margin = "0";
+      p.textContent = body || "";
+      wrap.appendChild(p);
+      const footer = document.createElement("div");
+      footer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn btn-ghost";
+      cancel.textContent = cancelText;
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = danger ? "btn btn-danger" : "btn btn-primary";
+      ok.textContent = confirmText;
+      footer.append(cancel, ok);
+      const m = Modal.open({ title, body: wrap, footer, onClose: () => finish(false) });
+      cancel.addEventListener("click", () => { m.close(); finish(false); });
+      ok.addEventListener("click", () => { m.close(); finish(true); });
+    });
+  },
+};
+
+// Auto-refresh on focus
+let refreshInterval = null;
+function startAutoRefresh() {
+  if (refreshInterval) return;
+  refreshInterval = setInterval(() => {
+    if (Auth.isLoggedIn()) api.tryRefresh();
+  }, 14 * 60 * 1000); // 14 min
+}
+if (Auth.isLoggedIn()) startAutoRefresh();
+
+// ── Notifications helper (Fase 6) ───────────────────────────
+// Wrapper sobre la API de Fase 5:
+//   GET /api/v1/tenants/{tid}/notifications/summary → { total,
+//     by_severity, by_category, top_3, generated_at }
+//   GET /api/v1/tenants/{tid}/notifications?severity=&category=&limit=
+//     → { count, items, total_by_severity, total_by_category }
+//
+// Uso:
+//   await WH.Notifications.summary(tenantId)
+//   await WH.Notifications.list(tenantId, { severity: "critical" })
+//
+// `lastSummary()` devuelve el cache del último fetch del bell badge
+// (se actualiza cada 60s por el código de dashboard/base.html).
+const Notifications = {
+  async _tenantId() {
+    if (this.__cachedTid) return this.__cachedTid;
+    const ms = await api.get("/api/v1/me/memberships");
+    this.__cachedTid = ms.length ? ms[0].tenant_id : null;
+    return this.__cachedTid;
+  },
+  invalidateTenant() { this.__cachedTid = null; },
+  async summary(tenantId) {
+    const tid = tenantId || await this._tenantId();
+    if (!tid) return null;
+    return api.get("/api/v1/tenants/" + tid + "/notifications/summary");
+  },
+  async list(tenantId, params = {}) {
+    const tid = tenantId || await this._tenantId();
+    if (!tid) return { count: 0, items: [], total_by_severity: {}, total_by_category: {} };
+    const qs = new URLSearchParams();
+    if (params.severity) qs.set("severity", params.severity);
+    if (params.category) qs.set("category", params.category);
+    if (params.limit)    qs.set("limit", String(params.limit));
+    const url = "/api/v1/tenants/" + tid + "/notifications" +
+                (qs.toString() ? "?" + qs.toString() : "");
+    return api.get(url);
+  },
+  lastSummary() {
+    return (window.WH && window.WH.__lastNotifSummary) || null;
+  },
+};
+
+// Expose
+window.WH = {
+  api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore,
+  formatMoney, formatDate, startAutoRefresh,
+  escapeHtml, escapeAttr, debounce, Modal, Confirm,
+  Notifications, fmtTime, CL_TZ,
+};

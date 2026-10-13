@@ -1,0 +1,75 @@
+# ─── WowHub — docker-compose ───────────────────────────
+# Levanta la API + (opcional) PostgreSQL.
+# Por defecto arranca con SQLite (más simple para demos).
+# Para usar Postgres: `docker-compose --profile postgres up --build`
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wowhub:latest
+    container_name: wowhub-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # ── App
+      APP_NAME: WowHub
+      APP_ENV: ${APP_ENV:-production}
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SECRET_KEY: ${SECRET_KEY:-change-me-to-a-random-string-min-32-chars-please-ok}
+      BASE_URL: ${BASE_URL:-http://localhost:8000}
+      # ── DB (SQLite por defecto, ver perfil "postgres" abajo)
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./data/wowhub.db}
+      # ── Auth
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-min-32-chars-random-ok}
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TTL_MINUTES: 60
+      JWT_REFRESH_TTL_DAYS: 14
+      # ── CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - wowhub_data:/app/data
+      - wowhub_storage:/app/storage
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - wowhub-net
+
+  # ── Perfil "postgres": activa este servicio con
+  #    `docker-compose --profile postgres up --build`
+  postgres:
+    image: postgres:16-alpine
+    container_name: wowhub-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wowhub
+      POSTGRES_PASSWORD: wowhub
+      POSTGRES_DB: wowhub
+    volumes:
+      - wowhub_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wowhub -d wowhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wowhub-net
+
+volumes:
+  wowhub_data:
+  wowhub_storage:
+  wowhub_pgdata:
+
+networks:
+  wowhub-net:
+    driver: bridge

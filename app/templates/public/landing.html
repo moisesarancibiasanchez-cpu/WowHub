@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ site_config.nombre_sitio or "Bienvenidos" }}</title>
+  <link rel="stylesheet" href="/static/css/tokens.css?v=unified-2026-08-23">
+  <link rel="stylesheet" href="/static/css/app.css?v=unified-2026-08-23">
+</head>
+<body class="pub-landing">
+  <!-- ══ Header (dark estilo WowPrint Kiosk) ══ -->
+  <header class="public-header">
+    <div class="container" style="max-width:1240px;margin:0 auto;width:100%;">
+      <div class="row">
+        {% if site_config.logo_url %}
+        <img src="{{ site_config.logo_url }}" alt="Logo" style="height:44px;border-radius:8px;object-fit:cover;">
+        {% endif %}
+        <span class="brand-name" style="color:#fff;font-weight:900;font-size:18px;letter-spacing:-0.3px;">
+          {{ site_config.nombre_sitio or "WowHub" }}
+        </span>
+        <span class="spacer"></span>
+        <a class="btn" href="/u/{{ slug }}/catalogo" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3);">
+          Ver catálogo
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ Nav ══ -->
+  <nav>
+    <a href="/">Inicio</a>
+    <a href="/u/{{ slug }}/catalogo">Catálogo</a>
+    <!-- Fase 8: capability probe — estos links se muestran solo si la ruta responde 200 -->
+    <a id="nav-bookings" class="nav-cap" href="/u/{{ slug }}/reservar">Reservar</a>
+    <a id="nav-loyalty" class="nav-cap" href="/u/{{ slug }}/tarjeta">★ Mi tarjeta</a>
+    {% if site_config.public_menu_enabled %}<a href="/u/{{ slug }}/catalogo">Menú</a>{% endif %}
+    {% if site_config.bookings_enabled and site_config.web_booking_enabled %}<a href="/dashboard/bookings">Reservas</a>{% endif %}
+    {% if site_config.orders_enabled %}<a href="/dashboard/orders">Pedidos</a>{% endif %}
+    {% if site_config.loyalty_enabled %}<a href="/loyalty/{{ slug }}">Fidelización</a>{% endif %}
+  </nav>
+
+  <!-- ══ Main ══ -->
+  <main class="pub-main">
+
+    {% if site_config.mensaje_principal %}
+    <div style="text-align:center;margin-bottom:48px;">
+      <p style="font-size:18px;color:#667085;max-width:600px;margin:0 auto 24px;line-height:1.6;">
+        {{ site_config.mensaje_principal }}
+      </p>
+      <a class="pub-hero-cta" href="/u/{{ slug }}/catalogo">Ver catálogo completo →</a>
+    </div>
+    {% endif %}
+
+    <!-- ══ Módulos ══ -->
+    <div class="section-title">Nuestros servicios</div>
+    <div class="section-sub">Explorá lo que tenemos para vos</div>
+
+    <div class="modules-grid">
+      {% if site_config.bookings_enabled %}
+      <a href="/dashboard/bookings" class="module-card">
+        <span class="module-icon">📅</span>
+        <h2>Reservas</h2>
+        <p>Reservá tu mesa online</p>
+      </a>
+      {% else %}
+      <div class="module-card disabled">
+        <span class="module-icon">📅</span>
+        <h2>Reservas</h2>
+        <p>No disponible</p>
+        <span class="disabled-badge">Desactivado</span>
+      </div>
+      {% endif %}
+
+      {% if site_config.orders_enabled %}
+      <a href="/dashboard/orders" class="module-card">
+        <span class="module-icon">🛒</span>
+        <h2>Pedidos</h2>
+        <p>Hacé tu pedido online</p>
+      </a>
+      {% else %}
+      <div class="module-card disabled">
+        <span class="module-icon">🛒</span>
+        <h2>Pedidos</h2>
+        <p>No disponible</p>
+        <span class="disabled-badge">Desactivado</span>
+      </div>
+      {% endif %}
+
+      {% if site_config.loyalty_enabled %}
+      <a href="/loyalty/{{ slug }}" class="module-card">
+        <span class="module-icon">⭐</span>
+        <h2>Fidelización</h2>
+        <p>Acumulá puntos</p>
+      </a>
+      {% else %}
+      <div class="module-card disabled">
+        <span class="module-icon">⭐</span>
+        <h2>Fidelización</h2>
+        <p>No disponible</p>
+        <span class="disabled-badge">Desactivado</span>
+      </div>
+      {% endif %}
+
+      {% if site_config.public_menu_enabled %}
+      <a href="/u/{{ slug }}/catalogo" class="module-card">
+        <span class="module-icon">🍽️</span>
+        <h2>Menú</h2>
+        <p>Nuestra carta</p>
+      </a>
+      {% else %}
+      <div class="module-card disabled">
+        <span class="module-icon">🍽️</span>
+        <h2>Menú</h2>
+        <p>No disponible</p>
+        <span class="disabled-badge">Desactivado</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ══ Destacados ══ -->
+    <div style="margin-top:64px;">
+      <div class="section-title">Destacados</div>
+      <div class="section-sub">Lo más pedido de {{ site_config.nombre_sitio or "nuestro negocio" }}</div>
+      <div class="modules-grid">
+        <div class="module-card disabled">
+          <span class="module-icon">⭐</span>
+          <h2>Próximamente</h2>
+          <p>Tu próximo favorito</p>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:24px;">
+        <a href="/u/{{ slug }}/catalogo" style="color:var(--pub-accent,#6c5ce7);font-weight:600;font-size:15px;text-decoration:none;">
+          Ver todo →
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <footer>© {{ site_config.nombre_sitio or "WowHub" }} · Powered by WowHub</footer>
+
+  <!-- ══ Capability probe — muestra nav links solo si la ruta existe ══ -->
+  <script>
+    (function() {
+      var slug = {{ (slug or "") | tojson }};
+      if (!slug) return;
+      var checks = [
+        { id: "nav-bookings", url: "/u/" + slug + "/reservar" },
+        { id: "nav-loyalty",  url: "/u/" + slug + "/tarjeta"  },
+      ];
+      checks.forEach(function(c) {
+        fetch(c.url, { method: "HEAD" })
+          .then(function(r) {
+            if (r.ok) {
+              var el = document.getElementById(c.id);
+              if (el) el.classList.remove("nav-cap");
+            }
+          })
+          .catch(function() { /* silence */ });
+      });
+    })();
+  </script>
+</body>
+</html>

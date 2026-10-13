@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>parse test</title></head>
+<body>
+<pre id="out">pending</pre>
+<script>
+window.__results = [];
+function log(name, ok, info) {
+  window.__results.push({name: name, ok: ok, info: info});
+  document.getElementById('out').textContent =
+    window.__results.map(function(r){
+      return (r.ok ? 'OK ' : 'FAIL ') + r.name + ' :: ' + r.info;
+    }).join('\n');
+}
+</script>
+<script src="http://127.0.0.1:8799/js/app.js"></script>
+<script src="http://127.0.0.1:8799/js/dashboard-compat.js"></script>
+<script>
+setTimeout(async function () {
+  try {
+    if (!window.WH || !window.WH.api || !window.WH.api._parse) {
+      log('setup', false, 'WH.api._parse no existe');
+      return;
+    }
+    log('setup', true, 'WH.api._parse OK');
+
+    // Test 1: 404 con body {detail: ''} y statusText 'Not Found'
+    try {
+      await window.WH.api._parse(new Response(
+        JSON.stringify({detail: ''}),
+        {status: 404, statusText: 'Not Found', headers: {'content-type': 'application/json'}}
+      ));
+      log('test1_404_normal', false, 'debio lanzar');
+    } catch (e) {
+      var hasHttp = /HTTP 404/.test(e.message);
+      var hasStatusText = /Not Found/.test(e.message);
+      var ok = hasHttp && hasStatusText && e.status === 404;
+      log('test1_404_normal', ok, e.message);
+    }
+
+    // Test 2: 404 con body sin detail y statusText '' (caso Railway bug)
+    try {
+      await window.WH.api._parse(new Response(
+        JSON.stringify({}),
+        {status: 404, statusText: '', headers: {'content-type': 'application/json'}}
+      ));
+      log('test2_404_empty', false, 'debio lanzar');
+    } catch (e) {
+      var hasHttp = /HTTP 404/.test(e.message);
+      var ok = hasHttp && e.status === 404;
+      log('test2_404_empty', ok, e.message);
+    }
+
+    // Test 3: 401 con body {detail: 'Token expirado'}
+    try {
+      await window.WH.api._parse(new Response(
+        JSON.stringify({detail: 'Token expirado'}),
+        {status: 401, statusText: 'Unauthorized', headers: {'content-type': 'application/json'}}
+      ));
+      log('test3_401_with_detail', false, 'debio lanzar');
+    } catch (e) {
+      var ok = /HTTP 401/.test(e.message)
+            && /Token expirado/.test(e.message)
+            && e.status === 401;
+      log('test3_401_with_detail', ok, e.message);
+    }
+
+    // Test 4: 500 con body texto plano
+    try {
+      await window.WH.api._parse(new Response(
+        'Internal Server Error',
+        {status: 500, statusText: 'Internal Server Error', headers: {'content-type': 'text/plain'}}
+      ));
+      log('test4_500_text', false, 'debio lanzar');
+    } catch (e) {
+      var ok = /HTTP 500/.test(e.message) && e.status === 500;
+      log('test4_500_text', ok, e.message);
+    }
+
+    // Test 5: 200 OK (no debe lanzar)
+    try {
+      var r = await window.WH.api._parse(new Response(
+        JSON.stringify({ok: true}),
+        {status: 200, headers: {'content-type': 'application/json'}}
+      ));
+      var ok = r && r.ok === true;
+      log('test5_200_ok', ok, JSON.stringify(r));
+    } catch (e) {
+      log('test5_200_ok', false, 'NO debio lanzar: ' + e.message);
+    }
+
+    // Test 6: 204 No Content
+    try {
+      var r = await window.WH.api._parse(new Response(null, {status: 204}));
+      var ok = r === null;
+      log('test6_204', ok, JSON.stringify(r));
+    } catch (e) {
+      log('test6_204', false, 'NO debio lanzar: ' + e.message);
+    }
+  } catch (e) {
+    log('fatal', false, String(e));
+  }
+}, 200);
+</script>
+</body></html>

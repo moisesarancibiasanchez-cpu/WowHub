@@ -1,0 +1,623 @@
+/* ============================================================
+ * WowHub — Landing "Pro" (portada de marketing)
+ *
+ * Usa los design tokens unificados de tokens.css. Variables
+ * semánticas (--bg, --fg, --accent, --border, --info, --ok,
+ * --warn…) en lugar del antiguo esquema paralelo --lp-*.
+ *
+ * Personalizaciones locales (en :root sobreescrito por body.theme-pro):
+ *   --shadow-card / --shadow-card-sm — sombras más pronunciadas
+ *   --radius-pro  / --radius-pro-sm  — radios más grandes
+ *   --transition-pro                 — curva de easing de la landing
+ *
+ * Responsive: breakpoints en 768px y 480px (mobile-first collapsos).
+ * ============================================================ */
+
+/* Sobrescribe defaults SOLO dentro del scope de la landing pro.
+   No rompe el resto del sistema. */
+body.theme-pro {
+  /* Sombras marketing (más dramáticas que las del dashboard) */
+  --shadow-card:    0 20px 60px rgba(26, 34, 58, 0.08);
+  --shadow-card-sm: 0 8px 30px rgba(26, 34, 58, 0.04);
+  --shadow-card-lg: 0 30px 60px rgba(26, 34, 58, 0.06);
+
+  /* Radios más generosos (16px vs 14px del sistema) */
+  --radius-pro:    16px;
+  --radius-pro-sm: 10px;
+
+  /* Easing específico de la landing (cubic-bezier) */
+  --transition-pro: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Footer siempre oscuro (convención de marketing: footer negro
+     en ambos temas). Lo anclamos a un valor fijo para que no
+     cambie al togglear el tema. */
+  --footer-bg:        #111827;
+  --footer-fg:        #d1d5db;
+  --footer-fg-strong: #ffffff;
+  --footer-divider:   #1f2937;
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+body.theme-pro a { text-decoration: none; color: inherit; }
+body.theme-pro .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* ── Header / Nav ───────────────────────── */
+body.theme-pro header.pro {
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+body.theme-pro .pro-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+body.theme-pro .pro-logo {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--info);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+body.theme-pro .pro-logo .bolt { color: var(--warn); }
+body.theme-pro .pro-logo .hub { color: var(--fg-strong); }
+body.theme-pro .pro-nav-links {
+  display: flex;
+  gap: 28px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  align-items: center;
+  flex-wrap: wrap;
+}
+body.theme-pro .pro-nav-links a:hover { color: var(--info); }
+body.theme-pro .pro-country {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elev-2);
+  padding: 6px 14px;
+  border-radius: 40px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+body.theme-pro .pro-country select {
+  border: none;
+  background: transparent;
+  font-weight: 500;
+  outline: none;
+  font-size: 0.9rem;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+/* ── Botones ───────────────────────── */
+body.theme-pro .lp-btn {
+  display: inline-block;
+  padding: 10px 28px;
+  border-radius: 40px;
+  font-weight: 600;
+  transition: var(--transition-pro);
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-family: inherit;
+  text-decoration: none;
+}
+body.theme-pro .lp-btn-primary {
+  background: var(--info);
+  color: var(--fg-on-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 35%, transparent);
+}
+body.theme-pro .lp-btn-primary:hover {
+  background: color-mix(in srgb, var(--info) 80%, black);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px color-mix(in srgb, var(--info) 40%, transparent);
+}
+body.theme-pro .lp-btn-secondary {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+}
+body.theme-pro .lp-btn-secondary:hover {
+  background: var(--bg-elev-2);
+  border-color: var(--fg-dim);
+}
+body.theme-pro .lp-btn-success {
+  background: var(--ok);
+  color: var(--fg-on-accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--ok) 35%, transparent);
+}
+body.theme-pro .lp-btn-success:hover {
+  background: color-mix(in srgb, var(--ok) 80%, black);
+  transform: translateY(-2px);
+}
+body.theme-pro .lp-btn-sm { padding: 8px 24px; font-size: 0.95rem; }
+
+/* ── Hero ───────────────────────── */
+body.theme-pro .pro-hero {
+  padding: 60px 0 80px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+body.theme-pro .pro-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--info) 18%, transparent), transparent 60%),
+    radial-gradient(circle at 20% 80%, color-mix(in srgb, var(--ok) 18%, transparent), transparent 50%);
+  z-index: 0;
+}
+body.theme-pro .pro-hero-content { position: relative; z-index: 1; }
+body.theme-pro .pro-hero h1 {
+  font-size: 3.4rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--fg-strong);
+  max-width: 800px;
+  margin: 0 auto 20px;
+}
+body.theme-pro .pro-hero h1 .highlight {
+  background: linear-gradient(135deg, var(--info), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+body.theme-pro .pro-hero p.lead {
+  font-size: 1.25rem;
+  color: var(--fg-muted);
+  max-width: 720px;
+  margin: 0 auto 32px;
+}
+body.theme-pro .pro-hero p.lead strong { color: var(--fg); }
+body.theme-pro .pro-hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 48px;
+}
+body.theme-pro .pro-hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+body.theme-pro .pro-hero-stats > div { text-align: center; }
+body.theme-pro .pro-hero-stats .number {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--fg-strong);
+  display: block;
+}
+body.theme-pro .pro-hero-stats .label {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+/* ── Funciones del MVP ───────────────────────── */
+body.theme-pro .pro-funciones {
+  padding: 60px 0;
+  background: var(--bg-elev);
+}
+body.theme-pro .pro-section-title {
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-section-title .accent { color: var(--info); }
+body.theme-pro .pro-section-sub {
+  text-align: center;
+  color: var(--fg-muted);
+  margin-bottom: 40px;
+  font-size: 1.1rem;
+}
+body.theme-pro .pro-func-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+}
+body.theme-pro .pro-func {
+  background: var(--bg);
+  border-radius: var(--radius-pro);
+  padding: 30px 24px;
+  flex: 1 1 220px;
+  max-width: 260px;
+  text-align: center;
+  box-shadow: var(--shadow-card-sm);
+  transition: var(--transition-pro);
+  border: 1px solid transparent;
+}
+body.theme-pro .pro-func:hover {
+  border-color: var(--info);
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-card-lg);
+}
+body.theme-pro .pro-func .icon {
+  font-size: 2.4rem;
+  margin-bottom: 12px;
+  display: block;
+}
+body.theme-pro .pro-func h3 {
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-func p {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+/* ── Demo interactiva ───────────────────────── */
+body.theme-pro .pro-demo {
+  padding: 60px 0;
+  background: var(--bg);
+}
+body.theme-pro .pro-demo-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+}
+body.theme-pro .pro-step {
+  background: var(--bg-elev);
+  border-radius: var(--radius-pro);
+  padding: 30px 24px;
+  flex: 1 1 220px;
+  max-width: 260px;
+  text-align: center;
+  box-shadow: var(--shadow-card);
+  transition: var(--transition-pro);
+  border: 1px solid var(--border);
+}
+body.theme-pro .pro-step:hover {
+  border-color: var(--info);
+  transform: translateY(-6px);
+}
+body.theme-pro .pro-step .icon {
+  font-size: 2.8rem;
+  margin-bottom: 12px;
+  color: var(--info);
+  display: block;
+}
+body.theme-pro .pro-step h3 {
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-step p {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  margin: 0 0 8px;
+}
+body.theme-pro .pro-step .step-num {
+  display: inline-block;
+  background: var(--info);
+  color: var(--fg-on-accent);
+  border-radius: 40px;
+  padding: 2px 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-top: 4px;
+}
+body.theme-pro .pro-demo-cta {
+  text-align: center;
+  margin-top: 40px;
+}
+
+/* ── Pricing ───────────────────────── */
+body.theme-pro .pro-pricing {
+  padding: 60px 0;
+  background: var(--bg-elev);
+}
+body.theme-pro .pro-pricing-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+}
+body.theme-pro .pro-plan {
+  background: var(--bg-elev);
+  border-radius: var(--radius-pro);
+  padding: 32px 28px;
+  flex: 1 1 280px;
+  max-width: 340px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  transition: var(--transition-pro);
+  position: relative;
+}
+body.theme-pro .pro-plan.popular {
+  border-color: var(--info);
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--info) 15%, transparent);
+}
+body.theme-pro .pro-plan .badge {
+  position: absolute;
+  top: -12px;
+  right: 24px;
+  background: var(--info);
+  color: var(--fg-on-accent);
+  padding: 4px 20px;
+  border-radius: 40px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+body.theme-pro .pro-plan .plan-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-plan .price {
+  font-size: 2.8rem;
+  font-weight: 800;
+  margin: 16px 0 8px;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-plan .price small {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+body.theme-pro .pro-plan .description {
+  color: var(--fg-muted);
+  margin-bottom: 20px;
+}
+body.theme-pro .pro-plan ul {
+  list-style: none;
+  margin-bottom: 24px;
+}
+body.theme-pro .pro-plan ul li {
+  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--fg);
+}
+body.theme-pro .pro-plan ul li::before {
+  content: "✓";
+  color: var(--ok);
+  font-weight: 700;
+  width: 20px;
+  display: inline-block;
+}
+body.theme-pro .pro-plan .lp-btn { width: 100%; text-align: center; }
+
+/* ── Testimonios ───────────────────────── */
+body.theme-pro .pro-testimonials {
+  padding: 60px 0;
+  background: var(--bg);
+}
+body.theme-pro .pro-testim-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+}
+body.theme-pro .pro-testimonial {
+  background: var(--bg-elev);
+  padding: 28px 24px;
+  border-radius: var(--radius-pro);
+  flex: 1 1 280px;
+  max-width: 340px;
+  box-shadow: var(--shadow-card-sm);
+  border: 1px solid var(--border);
+}
+body.theme-pro .pro-testimonial .stars {
+  color: var(--warn);
+  margin-bottom: 8px;
+  font-size: 1rem;
+  letter-spacing: 2px;
+}
+body.theme-pro .pro-testimonial blockquote {
+  font-style: italic;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+body.theme-pro .pro-testimonial .author {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+body.theme-pro .pro-testimonial .author .avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+body.theme-pro .pro-testimonial .author .name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-testimonial .author .role {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+/* ── FAQ ───────────────────────── */
+body.theme-pro .pro-faq {
+  padding: 60px 0;
+  background: var(--bg-elev);
+}
+body.theme-pro .pro-faq-list {
+  max-width: 800px;
+  margin: 0 auto;
+}
+body.theme-pro .pro-faq-item {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+}
+body.theme-pro .pro-faq-item .question {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 6px 0;
+  color: var(--fg-strong);
+}
+body.theme-pro .pro-faq-item .question .chev {
+  transition: var(--transition-pro);
+  color: var(--info);
+  font-size: 1rem;
+}
+body.theme-pro .pro-faq-item .answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s ease;
+  color: var(--fg-muted);
+}
+body.theme-pro .pro-faq-item.open .answer {
+  max-height: 300px;
+  padding: 12px 0 6px;
+}
+body.theme-pro .pro-faq-item.open .question .chev {
+  transform: rotate(180deg);
+}
+
+/* ── Seguridad ───────────────────────── */
+body.theme-pro .pro-security {
+  padding: 40px 0;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+body.theme-pro .pro-security-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 40px;
+}
+body.theme-pro .pro-security-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+}
+body.theme-pro .pro-security-item .ico {
+  font-size: 1.6rem;
+  color: var(--info);
+}
+
+/* ── Footer (siempre oscuro, anclado a --footer-bg) ───────── */
+body.theme-pro footer.pro {
+  background: var(--footer-bg);
+  color: var(--footer-fg);
+  padding: 40px 0 24px;
+}
+body.theme-pro .pro-footer-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  justify-content: space-between;
+}
+body.theme-pro footer.pro h4 {
+  color: var(--footer-fg-strong);
+  font-weight: 600;
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+body.theme-pro footer.pro .col a {
+  display: block;
+  padding: 4px 0;
+  font-size: 0.9rem;
+  color: var(--footer-fg);
+  transition: color var(--transition-pro);
+}
+body.theme-pro footer.pro .col a:hover { color: var(--footer-fg-strong); }
+body.theme-pro footer.pro .bottom {
+  border-top: 1px solid var(--footer-divider);
+  margin-top: 32px;
+  padding-top: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+}
+body.theme-pro footer.pro .socials {
+  margin-top: 8px;
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Reveal on scroll ───────────────────────── */
+body.theme-pro .pro-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+body.theme-pro .pro-reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Theme toggle (botón del header) ───────────────────────── */
+body.theme-pro .theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: var(--bg-elev);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--transition-pro), color var(--transition-pro), border-color var(--transition-pro), transform 0.2s ease;
+}
+body.theme-pro .theme-toggle:hover {
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+body.theme-pro .theme-toggle .icon-sun  { display: none; }
+body.theme-pro .theme-toggle .icon-moon { display: inline-block; }
+[data-theme="dark"] body.theme-pro .theme-toggle .icon-sun  { display: inline-block; }
+[data-theme="dark"] body.theme-pro .theme-toggle .icon-moon { display: none; }
+
+/* ── Responsive ───────────────────────── */
+@media (max-width: 768px) {
+  body.theme-pro .pro-hero h1 { font-size: 2.2rem; }
+  body.theme-pro .pro-hero p.lead { font-size: 1rem; }
+  body.theme-pro .pro-nav { flex-direction: column; align-items: stretch; }
+  body.theme-pro .pro-nav-links { justify-content: center; gap: 16px; }
+  body.theme-pro .pro-func-grid,
+  body.theme-pro .pro-demo-steps,
+  body.theme-pro .pro-pricing-grid,
+  body.theme-pro .pro-testim-grid {
+    flex-direction: column;
+    align-items: center;
+  }
+  body.theme-pro .pro-step,
+  body.theme-pro .pro-func { max-width: 100%; }
+  body.theme-pro .pro-hero-stats { gap: 24px; }
+  body.theme-pro .pro-security-grid { gap: 20px; }
+}
+@media (max-width: 480px) {
+  body.theme-pro .pro-hero h1 { font-size: 1.8rem; }
+  body.theme-pro .lp-btn { padding: 10px 20px; font-size: 0.9rem; }
+}

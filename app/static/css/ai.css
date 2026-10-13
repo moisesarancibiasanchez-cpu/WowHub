@@ -1,0 +1,952 @@
+/* AI Core — Sidebar derecho fijo, siempre visible
+   ------------------------------------------------------------------
+   Layout nuevo:
+   - Sidebar izquierdo: 240px (fijo)
+   - Contenido central: flexible
+   - Sidebar derecho AI: 360px (fijo, siempre visible)
+   - Composer: fijo al fondo del sidebar derecho
+   - La barra de escritura NUNCA desaparece aunque el contenido central crezca
+*/
+
+:root {
+  --ai-bg: var(--bg, #0b0d12);
+  --ai-panel: var(--bg-elev, #11151c);
+  --ai-card: var(--bg-elev-2, #161b24);
+  --ai-border: var(--border, #1f2937);
+  --ai-text: var(--fg, #e5e7eb);
+  --ai-text-dim: var(--fg-muted, #9ca3af);
+  --ai-accent: var(--accent, #7c5cff);
+  --ai-accent-hover: var(--accent-2, #00d4a8);
+  --ai-success: #10b981;
+  --ai-warn: #f59e0b;
+  --ai-err: #ef4444;
+  --ai-bubble-user: linear-gradient(135deg, #7c5cff 0%, #5a3df0 100%);
+  --ai-bubble-asst: var(--bg-elev-2, #161b24);
+  --ai-radius: 12px;
+  --ai-width: 360px;
+  --ai-composer-h: 124px;
+}
+
+/* ── Contenedor principal del sidebar ────────────────────── */
+.ai-sidebar {
+  position: fixed;
+  top: 56px;             /* debajo del topbar */
+  right: 0;
+  width: var(--ai-width);
+  height: calc(100vh - 56px);
+  background: var(--ai-panel);
+  border-left: 1px solid var(--ai-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  font-size: 14px;
+}
+
+/* FIX 2026-10-04 — AI sidebar flotante ELIMINADO del dashboard.
+   El padding-right en main era para que el contenido central no
+   quedara oculto detrás del sidebar flotante de 360px. Como el
+   sidebar ya no se renderiza en el dashboard (solo existe en la
+   vista dedicada /dashboard/ai), este padding es innecesario
+   y robaba 360px valiosos del viewport.
+
+   Lo comentamos (no eliminamos) por si en el futuro se reactiva
+   el sidebar flotante via override de plantilla.
+
+body:has(.ai-sidebar) main {
+  padding-right: var(--ai-width);
+}
+*/
+
+/* ── Encabezado ─────────────────────────────────────────── */
+.ai-sidebar-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-head-title {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.ai-avatar {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--ai-accent), var(--ai-accent-hover));
+  color: #0b0d12;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.ai-title { margin: 0; font-size: 14px; font-weight: 700; line-height: 1.2; }
+.ai-sub {
+  margin: 2px 0 0; font-size: 11px; color: var(--ai-text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 220px;
+}
+.ai-icon-btn {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  color: var(--ai-text);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.ai-icon-btn:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
+
+/* Acciones del header (agrupar botones) */
+.ai-head-actions {
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+
+/* Por defecto mostramos el icono "expandir" y ocultamos "colapsar" */
+.ai-icon-collapse { display: none; }
+.ai-sidebar.ai-maximized .ai-icon-expand { display: none; }
+.ai-sidebar.ai-maximized .ai-icon-collapse { display: block; }
+
+/* ── ESTADO MAXIMIZADO: ocupa toda el área central ────────
+   El sidebar izquierdo (240px) y el topbar (56px) siguen
+   visibles. El contenido central (.dash-main) se oculta.
+   El AI sidebar pasa a ocupar todo el espacio restante. */
+.ai-sidebar.ai-maximized {
+  left: 240px;
+  width: calc(100vw - 240px);
+  z-index: 35;          /* sobre el main pero bajo el topbar */
+  box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+}
+body:has(.ai-sidebar.ai-maximized) .dash-main {
+  display: none;
+}
+body:has(.ai-sidebar.ai-maximized) {
+  /* Anulamos el padding-right del main para que no haya hueco
+     intermedio. Como el main está oculto, no se ve, pero por
+     seguridad evitamos scrolls fantasma. */
+  overflow: hidden;
+}
+
+/* En móvil/tablet el left sidebar se vuelve scroll horizontal,
+   así que el AI maximizado ocupa todo el viewport */
+@media (max-width: 900px) {
+  .ai-sidebar.ai-maximized {
+    left: 0;
+    width: 100vw;
+  }
+}
+
+/* ── Botón "Pantalla completa" en el composer (abajo) ── */
+.ai-fullscreen-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.ai-fullscreen-btn:hover {
+  border-color: var(--ai-accent);
+  color: var(--ai-accent);
+}
+/* Por defecto: muestra icono "expandir" y la etiqueta */
+.ai-fullscreen-btn .ai-icon-collapse { display: none; }
+.ai-fullscreen-btn .ai-icon-expand { display: inline-block; }
+/* Cuando el sidebar está maximizado: muestra icono "colapsar" */
+.ai-sidebar.ai-maximized ~ * .ai-fullscreen-btn .ai-icon-expand,
+body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-expand { display: none; }
+body:has(.ai-sidebar.ai-maximized) .ai-fullscreen-btn .ai-icon-collapse { display: inline-block; }
+
+/* ── Chips de agentes ──────────────────────────────────── */
+.ai-agents {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-agent-chip {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex; align-items: center; gap: 5px;
+  color: var(--ai-text);
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-agent-chip span:last-child {
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ai-agent-chip:hover { border-color: var(--ai-accent); }
+.ai-agent-chip.ai-active {
+  background: var(--ai-accent);
+  color: #fff;
+  border-color: var(--ai-accent);
+}
+
+/* ── Sugerencias rápidas ───────────────────────────────── */
+.ai-suggestions {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-suggest {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  padding: 8px 8px;
+  font-size: 12px;
+  color: var(--ai-text);
+  cursor: pointer;
+  text-align: left;
+  transition: all .15s;
+  display: flex; align-items: center; gap: 6px;
+  font-family: inherit;
+  line-height: 1.25;
+  min-height: 38px;
+}
+.ai-suggest:hover { border-color: var(--ai-accent); background: var(--ai-card); }
+.ai-suggest-ico { font-size: 14px; flex-shrink: 0; }
+
+/* ── Hilo de conversación (con scroll) ─────────────────── */
+.ai-thread {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 14px 8px;
+  display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+}
+.ai-thread::-webkit-scrollbar { width: 6px; }
+.ai-thread::-webkit-scrollbar-thumb { background: var(--ai-border); border-radius: 4px; }
+
+.ai-welcome {
+  text-align: center;
+  padding: 12px 6px 6px;
+  color: var(--ai-text-dim);
+}
+.ai-welcome-icon { font-size: 28px; margin-bottom: 6px; }
+.ai-welcome h2 { margin: 0 0 4px; font-size: 14px; color: var(--ai-text); }
+.ai-welcome p { margin: 0; font-size: 12px; }
+
+/* ── Mensajes ──────────────────────────────────────────── */
+.ai-msg {
+  display: flex; flex-direction: column;
+  max-width: 100%;
+  word-wrap: break-word;
+}
+.ai-msg-user { align-self: flex-end; max-width: 85%; }
+.ai-msg-user .ai-msg-bubble {
+  background: var(--ai-bubble-user);
+  color: #fff;
+  border-radius: var(--ai-radius) var(--ai-radius) 4px var(--ai-radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.ai-msg-assistant { align-self: flex-start; max-width: 92%; }
+.ai-msg-assistant .ai-msg-bubble {
+  background: var(--ai-bubble-asst);
+  border: 1px solid var(--ai-border);
+  border-radius: 4px var(--ai-radius) var(--ai-radius) var(--ai-radius);
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.ai-msg-assistant .ai-msg-bubble strong { color: var(--ai-accent); }
+.ai-msg-fallback { border-color: var(--ai-warn) !important; }
+.ai-msg-typing .ai-msg-bubble::after {
+  content: "▍"; animation: blink 1s steps(2) infinite; display: inline-block;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── Tarjeta de opción de promoción ───────────────────── */
+.ai-promo-card {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  display: flex; flex-direction: column; gap: 6px;
+  max-width: 100%;
+  align-self: stretch;
+}
+.ai-promo-card-title { font-weight: 700; font-size: 13px; }
+.ai-promo-card-meta  { font-size: 12px; color: var(--ai-text-dim); }
+.ai-promo-card-why   { font-size: 12px; line-height: 1.4; }
+.ai-promo-pick {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* ── Prompt de diseño (copia/pega) ────────────────────── */
+.ai-design-prompt {
+  background: linear-gradient(180deg, rgba(124,92,255,0.10), rgba(0,212,168,0.06));
+  border: 1px solid var(--ai-accent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ai-design-prompt-title { font-size: 12px; font-weight: 700; }
+.ai-design-prompt-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  background: var(--ai-bg);
+  color: var(--ai-text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ai-border);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ai-copy-prompt { align-self: flex-start; font-size: 12px; padding: 4px 10px; }
+.ai-copy-prompt.is-copied { background: var(--ai-success); color: #fff; border-color: var(--ai-success); }
+
+/* ── CTA de subida de imagen (paso 3) ─────────────────── */
+.ai-upload-cta {
+  background: var(--ai-card);
+  border: 1px dashed var(--ai-accent);
+  border-radius: 10px;
+  padding: 12px;
+  margin: 4px 0;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+}
+.ai-upload-cta-title { font-size: 13px; font-weight: 700; }
+.ai-upload-cta-text  { font-size: 12px; color: var(--ai-text-dim); margin: 0; }
+
+/* ── Composer (FIJO abajo) ────────────────────────────── */
+.ai-composer {
+  flex: 0 0 auto;
+  position: sticky;          /* respaldo si flex no se respeta */
+  bottom: 0;
+  background: var(--ai-panel);
+  border-top: 1px solid var(--ai-border);
+  padding: 8px 10px 10px;
+  z-index: 2;
+}
+.ai-composer-row {
+  display: flex; gap: 6px; align-items: flex-end;
+}
+.ai-attach-btn {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all .15s;
+}
+.ai-attach-btn:hover { color: var(--ai-accent); border-color: var(--ai-accent); }
+.ai-attach-btn.is-active { color: var(--ai-accent); border-color: var(--ai-accent); background: rgba(124,92,255,0.10); }
+
+.ai-composer textarea {
+  flex: 1;
+  background: var(--ai-card);
+  color: var(--ai-text);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  min-height: 36px;
+  max-height: 120px;
+  font-family: inherit;
+  transition: border-color .15s;
+}
+.ai-composer textarea:focus {
+  outline: none;
+  border-color: var(--ai-accent);
+}
+.ai-send-btn {
+  background: var(--ai-accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.ai-send-btn:hover:not(:disabled) { background: var(--ai-accent-hover); }
+.ai-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ai-composer-meta {
+  display: flex; gap: 8px; align-items: center;
+  margin-top: 4px; padding: 0 2px;
+  font-size: 10px; color: var(--ai-text-dim);
+  flex-wrap: wrap;
+}
+.ai-attach-name {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  max-width: 50%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ai-hint { margin-left: auto; }
+
+/* ── Responsivo: en pantallas chicas el AI se abre a pantalla completa ──
+   El sidebar derecho NO se ve; en su lugar, hay un FAB etiquetado
+   ("Asistente Virtual") en la esquina inferior derecha. Al hacer clic,
+   el panel se abre ocupando TODO el viewport (top + left = 0). */
+@media (max-width: 1100px) {
+  body:has(.ai-sidebar) main {
+    padding-right: 0;
+  }
+  .ai-sidebar {
+    /* Por defecto, oculto fuera de pantalla a la derecha */
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    box-shadow: -8px 0 24px rgba(0,0,0,0.35);
+    width: 100vw;        /* pantalla completa por defecto en chicas */
+    left: 0;
+  }
+  .ai-sidebar.ai-open {
+    transform: translateX(0);
+  }
+}
+
+/* Botón flotante para reabrir el AI en móvil (en caso de cerrarlo) */
+.ai-fab {
+  position: fixed;
+  right: 16px; bottom: 16px;
+  min-width: 52px; height: 52px;
+  border-radius: 26px;
+  background: var(--ai-accent);
+  color: #fff;
+  border: 0;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(124,92,255,0.45);
+  transition: all .2s ease;
+}
+.ai-fab:hover {
+  background: var(--ai-accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(124,92,255,0.55);
+}
+.ai-fab svg { flex-shrink: 0; }
+.ai-fab.ai-hidden { display: none; }
+
+/* En pantallas chicas el FAB se muestra SIEMPRE (etiquetado) */
+@media (max-width: 1100px) {
+  .ai-fab { display: inline-flex; }
+  .ai-fab.ai-hidden { display: none; }
+}
+
+/* En pantallas muy estrechas, FAB más compacto (solo icono) */
+@media (max-width: 380px) {
+  .ai-fab {
+    padding: 0;
+    width: 52px;
+  }
+  .ai-fab-label { display: none; }
+}
+
+/* ── Drawer de historial (overlay sobre el chat) ────── */
+.ai-history {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-panel);
+  z-index: 3;
+  animation: aiHistorySlide .2s ease;
+}
+.ai-history[hidden] { display: none; }
+@keyframes aiHistorySlide {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ai-history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-history-title {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+.ai-history-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+}
+.ai-history-list::-webkit-scrollbar { width: 6px; }
+.ai-history-list::-webkit-scrollbar-thumb { background: var(--ai-border); border-radius: 4px; }
+
+.ai-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 32px 12px;
+  color: var(--ai-text-dim);
+}
+.ai-history-empty-ico { font-size: 36px; opacity: 0.6; }
+.ai-history-empty p { margin: 0; font-size: 13px; }
+.ai-history-empty small { font-size: 11px; opacity: 0.7; }
+
+.ai-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ai-text);
+  font-family: inherit;
+  transition: all .15s;
+  width: 100%;
+}
+.ai-history-item:hover {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.06);
+}
+.ai-history-item.is-active {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.12);
+}
+.ai-history-item-icon {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--ai-panel);
+  border: 1px solid var(--ai-border);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.ai-history-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-history-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-history-item-meta {
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ai-history-item-del {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.ai-history-item-del:hover {
+  color: var(--ai-err);
+  border-color: var(--ai-err);
+  background: rgba(239,68,68,0.08);
+}
+
+/* ── Cuerpo del sidebar: split [Task History] + [Chat] ──
+   Por defecto, en modo normal (sidebar angosto 360px) NO se
+   muestra el panel izquierdo; el chat ocupa todo. En modo
+   maximizado aparece la columna izquierda con el historial
+   de conversaciones (estilo MiniMax Task History). */
+.ai-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;            /* necesario para que el thread haga scroll */
+  position: relative;
+}
+
+/* Task History: oculto por defecto. Aparece como columna izquierda
+   fija SOLO cuando el sidebar está maximizado. */
+.ai-task-history {
+  display: none;
+  width: 0;
+  flex: 0 0 auto;
+  background: var(--ai-panel);
+  border-right: 1px solid var(--ai-border);
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Chat: ocupa el 100% por defecto. En maximizado deja espacio
+   para la columna izquierda del Task History. */
+.ai-chat {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--ai-panel);
+}
+
+/* Cuando el sidebar está maximizado, mostramos la columna
+   izquierda con el historial (estilo MiniMax). */
+.ai-sidebar.ai-maximized .ai-task-history {
+  display: flex;
+  width: clamp(260px, 26vw, 320px);
+}
+
+/* ── Task History: head / list / items / foot ─────────── */
+.ai-task-history-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-task-history-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ai-text-dim);
+}
+.ai-task-history-title svg { color: var(--ai-accent); }
+.ai-task-history-new {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  color: var(--ai-text);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.ai-task-history-new:hover {
+  border-color: var(--ai-accent);
+  color: var(--ai-accent);
+}
+
+.ai-task-history-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ai-border) transparent;
+  min-height: 0;
+}
+.ai-task-history-list::-webkit-scrollbar { width: 6px; }
+.ai-task-history-list::-webkit-scrollbar-thumb { background: var(--ai-border); border-radius: 4px; }
+
+.ai-task-history-foot {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ai-border);
+  background: var(--ai-panel);
+}
+.ai-task-history-hint {
+  font-size: 10px;
+  color: var(--ai-text-dim);
+  letter-spacing: 0.02em;
+}
+
+.ai-task-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 32px 12px;
+  color: var(--ai-text-dim);
+}
+.ai-task-history-empty-ico { font-size: 32px; opacity: 0.6; }
+.ai-task-history-empty p { margin: 0; font-size: 12px; }
+.ai-task-history-empty small { font-size: 11px; opacity: 0.7; }
+
+.ai-task-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--ai-card);
+  border: 1px solid var(--ai-border);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ai-text);
+  font-family: inherit;
+  transition: all .15s;
+  width: 100%;
+}
+.ai-task-history-item:hover {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.06);
+}
+.ai-task-history-item.is-active {
+  border-color: var(--ai-accent);
+  background: rgba(124,92,255,0.12);
+}
+.ai-task-history-item-ico {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--ai-panel);
+  border: 1px solid var(--ai-border);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.ai-task-history-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-task-history-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-task-history-item-meta {
+  font-size: 11px;
+  color: var(--ai-text-dim);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ai-task-history-item-del {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+  opacity: 0;
+}
+.ai-task-history-item:hover .ai-task-history-item-del { opacity: 1; }
+.ai-task-history-item-del:hover {
+  color: var(--ai-err);
+  border-color: var(--ai-err);
+  background: rgba(239,68,68,0.08);
+}
+
+/* En pantallas chicas el Task History ocupa menos espacio
+   para dejar más al chat. */
+@media (max-width: 1100px) {
+  .ai-sidebar.ai-maximized .ai-task-history {
+    width: clamp(220px, 38vw, 280px);
+  }
+}
+
+/* ============================================================
+ * AI context chips (v2)
+ * ------------------------------------------------------------
+ * Sistema de "contexto de fila" para el chat IA:
+ *  - Cualquier botón con `data-ai-context='{"type":...}'` en
+ *    el dashboard pre-carga contexto en el chat.
+ *  - El contexto se muestra como una píldora encima del composer
+ *    mientras esté activa.
+ *  - Al enviar el siguiente mensaje, el contexto se prepende al
+ *    texto en formato JSON dentro de un bloque [CONTEXTO: ...].
+ *  - Una ✕ en la píldora la descarta sin enviar.
+ * ============================================================ */
+
+/* ── Píldora de contexto (dentro del composer) ─────────── */
+.ai-context-pill {
+  display: none;  /* se muestra sólo cuando hay ctx activo */
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  margin: 0 0 8px 0;
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.18),
+    rgba(0, 212, 168, 0.10));
+  border: 1px solid rgba(124, 92, 255, 0.4);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--ai-text);
+  line-height: 1.3;
+  animation: aiContextIn .25s ease;
+}
+.ai-context-pill.is-on { display: flex; }
+@keyframes aiContextIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ai-context-pill__ico {
+  flex: 0 0 16px;
+  display: grid; place-items: center;
+  color: var(--ai-accent);
+  font-size: 14px;
+  line-height: 1;
+}
+.ai-context-pill__ico svg { display: block; }
+.ai-context-pill__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-context-pill__label b {
+  color: var(--ai-text);
+  font-weight: 600;
+}
+.ai-context-pill__label span {
+  color: var(--ai-text-dim);
+  font-size: 11px;
+  margin-left: 4px;
+}
+.ai-context-pill__close {
+  flex: 0 0 22px;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  color: var(--ai-text-dim);
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: all .15s;
+}
+.ai-context-pill__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ai-err);
+}
+
+/* ── Chip "AI" en fila de entidad ──────────────────────── */
+.ai-row-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.10),
+    rgba(0, 212, 168, 0.06));
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  color: var(--ai-accent, #7c5cff);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all .15s ease;
+  vertical-align: middle;
+  white-space: nowrap;
+  user-select: none;
+}
+.ai-row-chip:hover {
+  background: linear-gradient(135deg,
+    rgba(124, 92, 255, 0.20),
+    rgba(0, 212, 168, 0.12));
+  border-color: rgba(124, 92, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(124, 92, 255, 0.25);
+}
+.ai-row-chip:active { transform: translateY(0); }
+.ai-row-chip:focus-visible {
+  outline: 2px solid var(--ai-accent, #7c5cff);
+  outline-offset: 2px;
+}
+.ai-row-chip.is-active {
+  background: linear-gradient(135deg, #7c5cff, #5a3df0);
+  color: #fff;
+  border-color: #7c5cff;
+}
+.ai-row-chip svg {
+  display: block;
+  width: 12px; height: 12px;
+}
+.ai-row-chip--sm { padding: 2px 6px; font-size: 10px; }
+.ai-row-chip--sm svg { width: 10px; height: 10px; }
+
+/* Variantes semánticas por tipo de entidad */
+.ai-row-chip--product { color: #f59e0b; border-color: rgba(245, 158, 11, 0.4); }
+.ai-row-chip--product:hover { background: rgba(245, 158, 11, 0.18); }
+.ai-row-chip--order   { color: #60a5fa; border-color: rgba(96, 165, 250, 0.4); }
+.ai-row-chip--order:hover { background: rgba(96, 165, 250, 0.18); }
+.ai-row-chip--customer{ color: #f472b6; border-color: rgba(244, 114, 182, 0.4); }
+.ai-row-chip--customer:hover { background: rgba(244, 114, 182, 0.18); }
+.ai-row-chip--booking { color: #34d399; border-color: rgba(52, 211, 153, 0.4); }
+.ai-row-chip--booking:hover { background: rgba(52, 211, 153, 0.18); }
+

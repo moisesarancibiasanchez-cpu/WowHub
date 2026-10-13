@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+{# ── Test mode: ?no_ai=1 oculta el sidebar IA para diagnóstico ──
+   Sirve para confirmar si el panel de IA es el responsable de
+   problemas de layout (centrado, espacio vacío, etc). Úsalo en
+   cualquier URL del dashboard, ej: /dashboard/costs?no_ai=1 ── #}
+{% set no_ai = request.query_params.get("no_ai") == "1" %}
+{% set hide_ai_panel = hide_ai_panel or no_ai %}
+{% block title %}{% block dash_title %}Dashboard
+{% endblock %} — WowHub
+{% endblock %}
+
+{# ── Aplicar clase al <body> cuando no_ai=1 (el padre tiene
+   <body> sin clase, así que lo hacemos con un script inline
+   en head_extra para que corra antes del primer paint) ── #}
+{% block head_extra %}
+{% if no_ai %}
+<script>document.documentElement.classList.add("no-ai-sidebar");</script>
+{% endif %}
+<link rel="stylesheet" href="/static/css/ai.css">
+{# El sistema unificado vive en tokens.css + app.css (cargados por
+   base.html). El banner de impersonación está ahora en app.css. ── #}
+{% endblock %}
+
+{% block topbar %}
+<div id="imp-banner" role="alert" aria-live="assertive">
+  <span class="imp-icon">🛡️</span>
+  <div class="imp-text">
+    <strong>IMPERSONACIÓN ACTIVA</strong> —
+    Estás viendo el dashboard como
+    <span class="imp-target" id="imp-banner-target">…</span>
+    <div class="imp-admin" id="imp-banner-admin">Sesión original: …</div>
+  </div>
+  <span class="imp-timer" id="imp-banner-timer">--:--</span>
+  <button class="imp-stop" id="imp-banner-stop">🚪 Salir de impersonación</button>
+</div>
+<header class="topbar">
+  <a class="brand" href="/dashboard">
+    <span class="brand-mark">W</span>
+    <span>WowHub</span>
+  </a>
+  <span class="spacer"></span>
+  <span id="user-chip" class="text-muted" style="font-size: 13px;"></span>
+  {# ── Bell badge: contadores de notificaciones en el topbar ──
+     Carga lazy: el JS (WH.Notifications) hace GET al endpoint
+     /summary cada 60s y actualiza el badge + dropdown. ── #}
+  <div class="bell-wrap" id="bell-wrap">
+    <button class="bell-btn" id="bell-btn"
+            aria-label="Notificaciones"
+            aria-haspopup="true"
+            aria-expanded="false">
+      <svg class="ico ico-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="bell-badges">
+        <span class="bell-badge bell-badge-crit" id="bell-badge-crit" hidden>0</span>
+        <span class="bell-badge bell-badge-warn" id="bell-badge-warn" hidden>0</span>
+      </span>
+    </button>
+    <div class="bell-dropdown" id="bell-dropdown" role="menu" hidden>
+      <header class="bell-dd-head">
+        <strong>Notificaciones</strong>
+        <a href="/dashboard/notifications" class="bell-dd-all">Ver todas →</a>
+      </header>
+      <div class="bell-dd-list" id="bell-dd-list">
+        <p class="text-muted text-center" style="padding: 20px; margin: 0;">Cargando…</p>
+      </div>
+    </div>
+  </div>
+  <a class="btn btn-ghost btn-sm" href="/" target="_blank">Ver sitio</a>
+  <button class="btn btn-sm" id="logout-btn">Salir</button>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="dash-layout">
+  <!-- ── Sidebar izquierdo: SIEMPRE visible ─────────────────── -->
+  <aside class="dash-side">
+    <h4>Negocio</h4>
+    <a href="/dashboard" class="nav-link" data-route="dashboard">
+      <span class="ico">⌂</span> Resumen
+    </a>
+    {# FIX 2026-10-02 — Link faltante para /dashboard/widgets (HU_34).
+       El usuario reportó "no se visualiza los widgets que puedan moverse"
+       y la causa raíz era que el menú lateral NO lo enlazaba.
+       Lo agregamos justo debajo de "Resumen" porque es la vista de
+       personalización del dashboard principal. #}
+    <a href="/dashboard/widgets" class="nav-link" data-route="widgets"
+       title="Widgets personalizables (drag & drop)">
+      <span class="ico">▤</span> Widgets
+    </a>
+    <a href="/dashboard/notifications" class="nav-link" data-route="notifications">
+      <span class="ico">🔔</span> Notificaciones
+      <span class="nav-badge" id="nav-badge-notif" hidden>0</span>
+    </a>
+    <a href="/dashboard/products" class="nav-link" data-route="products">
+      <span class="ico">▦</span> Productos / Catálogo
+    </a>
+    <a href="/dashboard/promotions" class="nav-link" data-route="promotions">
+      <span class="ico">%</span> Promociones
+    </a>
+    <a href="/dashboard/qrs" class="nav-link" data-route="qrs">
+      <span class="ico">▣</span> Códigos QR
+    </a>
+    <a href="/dashboard/customers" class="nav-link" data-route="customers">
+      <span class="ico">◉</span> Clientes
+    </a>
+    {# ── HU_26 — Sub-item RFM (matriz 5x5 + segmentación real). ──
+       Indentado con padding-left extra para que se vea como submenú
+       del item "Clientes". El ``data-route`` debe ser único para que
+       el resaltado del sidebar (``highlightActiveNav``) funcione. #}
+    <a href="/dashboard/customers/rfm" class="nav-link nav-sub"
+       data-route="customers-rfm" style="padding-left: 28px; font-size: 13px;"
+       title="Segmentación RFM (Recency · Frequency · Monetary)">
+      <span class="ico">📊</span> RFM
+    </a>
+    {# ── HU_25 — Sub-item Perfil 360° (vista detallada de cliente). ──
+       También indentado como submenú. No expone la URL base sino la
+       landing de "todos los clientes"; el link desde la fila abre la
+       vista con ?id=<uuid>. #}
+    <a href="/dashboard/customers" class="nav-link nav-sub"
+       data-route="customer-360" style="padding-left: 28px; font-size: 13px;"
+       title="Perfil 360° del cliente (pedidos + línea de tiempo + insights)">
+      <span class="ico">👁</span> Vista 360°
+    </a>
+    <a href="/dashboard/loyalty" class="nav-link" data-route="loyalty">
+      <span class="ico">★</span> Fidelidad
+    </a>
+    <a href="/dashboard/bookings" class="nav-link" data-route="bookings">
+      <span class="ico">◷</span> Reservas
+    </a>
+    <a href="/dashboard/floor-map" class="nav-link" data-route="floor-map">
+      <span class="ico">🗺</span> Mapa de Sala
+    </a>
+    {# ── HU_19 — Mesero Virtual. Vista workflow: estado de mesas + sesión ── #}
+    <a href="/dashboard/mesero" class="nav-link" data-route="mesero"
+       title="Mesero virtual: ver/abrir sesiones y dividir cuenta">
+      <span class="ico">🧑‍🍳</span> Mesero
+    </a>
+    <a href="/dashboard/kds/" class="nav-link" data-route="kds" target="_blank">
+      <span class="ico">🍳</span> Cocina (KDS)
+    </a>
+    <a href="/dashboard/landing" class="nav-link" data-route="landing">
+      <span class="ico">⇗</span> Sitio público
+    </a>
+    <a href="/dashboard/mi-sitio-web" class="nav-link" data-route="mi-sitio-web">
+      <span class="ico">🎨</span> Mi sitio web
+    </a>
+    <a href="/dashboard/site" class="nav-link" data-route="site">
+      <span class="ico">🌗</span> Apariencia
+    </a>
+    <a href="/dashboard/marketing" class="nav-link" data-route="marketing">
+      <span class="ico">✨</span> Marketing IA
+    </a>
+
+    <h4>Gestión interna</h4>
+    <a href="/dashboard/orders" class="nav-link" data-route="orders">
+      <span class="ico">⛟</span> Pedidos
+    </a>
+    {# ── HU_16 — Canales (multi-canal POS / Web / WhatsApp / QR). ──
+       Vista de revenue por canal + top productos por canal. ── #}
+    <a href="/dashboard/channels" class="nav-link" data-route="channels"
+       title="Comparativa de canales de venta">
+      <span class="ico">⇋</span> Canales
+    </a>
+    <a href="/dashboard/inventory" class="nav-link" data-route="inventory">
+      <span class="ico">▤</span> Inventario
+    </a>
+    <a href="/dashboard/inventario" class="nav-link" data-route="inventario">
+      <span class="ico">📦</span> Insumos / Recetas
+    </a>
+    <a href="/dashboard/costs" class="nav-link" data-route="costs">
+      <span class="ico">$</span> Costos
+    </a>
+    <a href="/dashboard/quotes" class="nav-link" data-route="quotes">
+      <span class="ico">⎙</span> Cotizaciones
+    </a>
+    <h4>Avanzado</h4>
+    <a href="/dashboard/ai" class="nav-link" data-route="ai">
+      <span class="ico">💬</span> Asistente IA
+    </a>
+    <a href="/dashboard/marketplace/" class="nav-link" data-route="marketplace">
+      <span class="ico">🧩</span> Marketplace
+    </a>
+    {# ── FIX 2026-10-02 (C2) + 2026-10-12 — Links huérfanos al sidebar ──
+       La auditoría LINKS_NAV_AUDIT_2026_10_02 detectó 5 páginas
+       registradas sin link en el sidebar: /dashboard/payments,
+       /dashboard/pipeline, /dashboard/stats, /dashboard/webhooks y
+       /superadmin/marketplace/. Las primeras 4 (de uso frecuente
+       para owner/admin) se añaden bajo el grupo "Avanzado"
+       junto con AI y Marketplace. SUPERADMIN marketplace ya tiene
+       su acceso vía /admin/superadmin → pestaña Marketplace. ── #}
+    <a href="/dashboard/stats" class="nav-link" data-route="stats">
+      <span class="ico">📊</span> Estadísticas
+    </a>
+    <a href="/dashboard/pipeline" class="nav-link" data-route="pipeline">
+      <span class="ico">⇆</span> Pipeline
+    </a>
+    <a href="/dashboard/payments" class="nav-link" data-route="payments">
+      <span class="ico">💳</span> Pagos
+    </a>
+    <a href="/dashboard/webhooks" class="nav-link" data-route="webhooks">
+      <span class="ico">🪝</span> Webhooks
+    </a>
+    <a href="/admin/ai" class="nav-link" data-route="admin-ai"
+       data-requires-role="owner,admin"
+       style="display:none;">
+      <span class="ico">🛡️</span> Admin IA
+    </a>
+    <a href="/dashboard/admin-observability" class="nav-link" data-route="admin-observability"
+       data-requires-role="owner,admin"
+       style="display:none;">
+      <span class="ico">📊</span> Observabilidad
+    </a>
+    <a href="/admin/superadmin" class="nav-link" data-route="superadmin"
+       data-requires-role="superuser"
+       style="display:none;">
+      <span class="ico">👑</span> SUPERADMIN
+    </a>
+    <a href="/docs" target="_blank">
+      <span class="ico">📘</span> API Docs
+    </a>
+  </aside>
+
+  <!-- ── Contenido central ──────────────────────────────────── -->
+  <main class="dash-main">
+    <div class="dash-content">
+      {# ── HU_04: Exponer onboarding al frontend (lectura en JS + redirect) ── #}
+      <script>window.__onboarding = {{ onboarding | tojson | safe }};</script>
+      {# ── Redirect al wizard de onboarding si no está completo ── #}
+      <script>
+        (function checkOnboarding() {
+          var ob = window.__onboarding;
+          var path = location.pathname || "";
+          if (ob && ob.is_completed === false && path !== "/dashboard/onboarding") {
+            location.href = "/dashboard/onboarding";
+          }
+        })();
+      </script>
+      {% block dash_content %}
+{% endblock %}
+    </div>
+  </main>
+</div>
+{# ── FIX 2026-10-04 — Eliminado sidebar derecho del Asistente IA ──
+   ANTES el AI sidebar (include _ai_panel.html) ocupaba 360px
+   fijos a la derecha del viewport. El comentario original decia
+   "roba ~720px del contenido central" (360 fixed + 360 padding-
+   right en main). En la realidad observada, el MAIN quedaba
+   reducido a ~50% del ancho de pantalla y Widgets personalizables
+   quedaba inutilizable para arrastrar/redimensionar.
+
+   FIX: el sidebar del Asistente IA se ELIMINA por completo.
+   La pagina completa de IA sigue accesible en /dashboard/ai
+   (vista completa del chat, sin sidebar fijo). Los context chips
+   (ai-context.js) siguen disponibles en cualquier pagina del
+   dashboard para enviar contexto al chat con un click.
+
+   NOTA: el chat IA sigue siendo accesible via /dashboard/ai
+   (vista dedicada). El boton flotante del sidebar es lo que
+   se elimino. ── #}
+{# AI sidebar ELIMINADO. Ver comentario FIX 2026-10-04 arriba. #}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- app.js lo carga base.html (padre) — NO duplicar acá, causa
+     SyntaxError por const redeclaration (TOKEN_KEY, TokenStore, Auth…).
+     El clic en "Salir" depende de que WH.Auth siga definido al ejecutar
+     el listener de línea siguiente. -->
+<script src="/static/js/ai.js?v=sidebar-v2"></script>
+{# ── AI context chips (v2): pre-carga contexto de fila al chat IA.
+   Carga DESPUÉS de ai.js porque lee $("ai-composer") al inicializar. ── #}
+<script src="/static/js/ai-context.js?v=v2"></script>
+<script>
+WH.Auth.requireLogin();
+(async function paintChip() {
+  const session = await WH.Auth.ensureSession();
+  const user = session.user || WH.Auth.user();
+  const tenant = session.tenant || WH.Auth.tenant();
+  if (user) {
+    document.getElementById("user-chip").innerHTML =
+      `<strong>${user.full_name}</strong> · ${tenant ? tenant.tenant_display_name : "Sin negocio"}`;
+  }
+})();
+document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.logout());
+// ── Resaltar link activo en el sidebar ────────────────────
+(function highlightActiveNav() {
+  const path = (location.pathname || "").replace(/\/+$/, "");
+  document.querySelectorAll(".nav-link[data-route]").forEach(a => {
+    const href = (a.getAttribute("href") || "").replace(/\/+$/, "");
+    if (href && (path === href || path.startsWith(href + "/"))) {
+      a.classList.add("active");
+    }
+  });
+})();
+
+// ── Banner de impersonación (countdown + salir) ───────────
+(function impersonationBanner() {
+  const banner   = document.getElementById("imp-banner");
+  const targetEl = document.getElementById("imp-banner-target");
+  const adminEl  = document.getElementById("imp-banner-admin");
+  const timerEl  = document.getElementById("imp-banner-timer");
+  const stopBtn  = document.getElementById("imp-banner-stop");
+  if (!banner || !targetEl || !adminEl || !timerEl || !stopBtn) return;
+
+  function getToken() {
+    try {
+      if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === "function") {
+        return window.WH.TokenStore.access();
+      }
+    } catch (_) {}
+    return localStorage.getItem("wowhub_access_token");
+  }
+
+  function decodeJwtPayload(token) {
+    try {
+      const parts = String(token || "").split(".");
+      if (parts.length < 2) return null;
+      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(b64));
+    } catch (_) { return null; }
+  }
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function formatRemaining(ms) {
+    if (ms <= 0) return "00:00";
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h > 0 ? pad(h) + ":" + pad(m) + ":" + pad(s) : pad(m) + ":" + pad(s);
+  }
+
+  let countdownInterval = null;
+  let currentImp = null;
+
+  // Resuelve el timestamp de expiración en ms (epoch) a partir de `imp`.
+  // Soporta `imp.expires_at` (ISO), `imp.exp` (epoch segundos o ms) y
+  // fallback a `imp.started_at` + 60 min (TTL por defecto de SUPERADMIN).
+  function resolveImpExpiryMs(imp) {
+    if (!imp) return null;
+    if (imp.expires_at) {
+      const t = new Date(imp.expires_at).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (typeof imp.exp === "number" && imp.exp > 0) {
+      // Si está en segundos (típico JWT), multiplicar por 1000
+      return imp.exp < 1e12 ? imp.exp * 1000 : imp.exp;
+    }
+    if (imp.started_at) {
+      const t = new Date(imp.started_at).getTime();
+      if (!isNaN(t)) return t + 60 * 60 * 1000; // 60 min default TTL
+    }
+    return null;
+  }
+
+  function showBanner(imp) {
+    currentImp = imp;
+    targetEl.textContent = imp.full_name
+      ? imp.full_name + " (" + (imp.email || "—") + ")"
+      : (imp.email || "Usuario impersonado");
+    adminEl.textContent = imp.admin_email
+      ? "Sesión original: " + imp.admin_email
+      : "Sesión original: superusuario";
+    banner.classList.add("shown");
+
+    function tick() {
+      const expMs = resolveImpExpiryMs(currentImp);
+      if (expMs === null) {
+        // Sin información de expiración: mostrar 60:00 como límite
+        // informativo en lugar de "--:--" confuso. El usuario puede
+        // salir con el botón.
+        timerEl.textContent = "60:00";
+        timerEl.classList.remove("expired");
+        return;
+      }
+      const ms = expMs - Date.now();
+      if (ms <= 0) {
+        timerEl.textContent = "00:00";
+        timerEl.classList.add("expired");
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        stopBtn.disabled = true;
+        stopBtn.textContent = "⏱ Expirado — saliendo…";
+        setTimeout(function () { doStop(true); }, 1500);
+        return;
+      }
+      timerEl.textContent = formatRemaining(ms);
+      timerEl.classList.remove("expired");
+    }
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+  }
+
+  function hideBanner() {
+    banner.classList.remove("shown");
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  }
+
+  async function doStop(autoExpired) {
+    if (stopBtn.disabled) return;
+    stopBtn.disabled = true;
+    const original = stopBtn.textContent;
+    stopBtn.textContent = "Saliendo…";
+    try {
+      const r = await fetch("/api/v1/superadmin/stop-impersonating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (r.ok) {
+        const data = await r.json().catch(function () { return {}; });
+        if (data && data.access_token) {
+          try {
+            if (window.WH && window.WH.TokenStore) {
+              // FIX: limpiar user y current_tenant stale del target impersonado
+              // para que la nueva página rehidrate con la sesión del admin.
+              const cur = window.WH.TokenStore.get() || {};
+              delete cur.user;
+              delete cur.current_tenant;
+              window.WH.TokenStore.set({ ...cur, access_token: data.access_token });
+            } else {
+              localStorage.setItem("wowhub_access_token", data.access_token);
+              localStorage.removeItem("wowhub.tokens");
+              localStorage.removeItem("wowhub.currentTenant");
+            }
+            try { window.WH.Auth._sessionPromise = null; } catch (_) {}
+          } catch (_) {}
+        }
+        hideBanner();
+        window.location.href = "/admin/superadmin";
+      } else {
+        stopBtn.disabled = false;
+        stopBtn.textContent = original;
+        if (!autoExpired) alert("No se pudo salir de la impersonación. Intenta de nuevo.");
+      }
+    } catch (e) {
+      stopBtn.disabled = false;
+      stopBtn.textContent = original;
+      if (!autoExpired) alert("Error de red al salir de la impersonación.");
+    }
+  }
+
+  stopBtn.addEventListener("click", function () { doStop(false); });
+
+  function init() {
+    const tk = getToken();
+    if (!tk) return;
+    const payload = decodeJwtPayload(tk);
+    if (!payload) return;
+    const imp = payload.imp;
+    if (!imp || !imp.uid) return;
+    const expMs = resolveImpExpiryMs(imp);
+    if (expMs !== null && expMs <= Date.now()) {
+      // Impersonación ya expirada: limpiar y no mostrar banner.
+      try { localStorage.removeItem("wowhub_access_token"); } catch (_) {}
+      return;
+    }
+    if (!imp.admin_email && payload.sub) {
+      imp.admin_email = payload.sub;
+    }
+    showBanner(imp);
+  }
+  init();
+})();
+
+// ── Mostrar/ocultar links según rol ───────────────────────
+(async function applyRoleGuards() {
+  try {
+    const session = await WH.Auth.ensureSession();
+    const user = session.user || WH.Auth.user();
+    const role = (user && (user.default_role || user.role)) || "";
+    const roleStr = String(role).toLowerCase();
+    // SUPERADMIN: flag a nivel de usuario (no de membresía).
+    // Lo leemos del JWT decodificado o de la sesión si lo expone WH.
+    let isSuperuser = false;
+    try {
+      const tk = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
+        || localStorage.getItem("wowhub_access_token");
+      if (tk) {
+        const parts = tk.split(".");
+        if (parts.length >= 2) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+          isSuperuser = !!payload.is_superuser;
+        }
+      }
+    } catch (_) {}
+    if (!isSuperuser && user) {
+      isSuperuser = !!(user.is_superuser || user.superuser);
+    }
+    document.querySelectorAll("[data-requires-role]").forEach(el => {
+      const allowed = (el.dataset.requiresRole || "")
+        .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      // Soporte para "superuser" como rol independiente
+      if (allowed.includes("superuser") && isSuperuser) {
+        el.style.display = "";
+        return;
+      }
+      if (allowed.length === 0 || allowed.includes(roleStr)) {
+        el.style.display = "";
+      } else {
+        el.remove();
+      }
+    });
+  } catch (e) {
+    console.warn("[role-guards]", e);
+  }
+})();
+
+// ── Bell badge: actualiza contadores + dropdown cada 60s ──
+(function bellBadge() {
+  const btn   = document.getElementById("bell-btn");
+  const drop  = document.getElementById("bell-dropdown");
+  const list  = document.getElementById("bell-dd-list");
+  const bCrit = document.getElementById("bell-badge-crit");
+  const bWarn = document.getElementById("bell-badge-warn");
+  const navBd = document.getElementById("nav-badge-notif");
+  if (!btn || !drop || !list) return;
+
+  function setBadge(el, n) {
+    if (!el) return;
+    if (n > 0) {
+      el.textContent = n > 99 ? "99+" : String(n);
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+  function syncBtnStates() {
+    // Aplica has-crit / has-warn al bell-btn según contadores
+    // para resaltar el botón con borde y pulso de atención.
+    if (!btn) return;
+    const critN = bCrit && !bCrit.hidden ? parseInt(bCrit.textContent || "0", 10) : 0;
+    const warnN = bWarn && !bWarn.hidden ? parseInt(bWarn.textContent || "0", 10) : 0;
+    btn.classList.toggle("has-crit", critN > 0);
+    btn.classList.toggle("has-warn", warnN > 0 && critN === 0);
+  }
+  function setNavBadge(n) {
+    if (!navBd) return;
+    if (n > 0) {
+      navBd.textContent = n > 99 ? "99+" : String(n);
+      navBd.hidden = false;
+    } else {
+      navBd.hidden = true;
+    }
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function fmtRel(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60)    return "hace " + diff + "s";
+    if (diff < 3600)  return "hace " + Math.floor(diff / 60) + " min";
+    if (diff < 86400) return "hace " + Math.floor(diff / 3600) + " h";
+    if (diff < 604800) return "hace " + Math.floor(diff / 86400) + " d";
+    return WH.fmtTime(d, { day: "2-digit", month: "short" });
+  }
+
+  function renderList(top3) {
+    if (!top3 || !top3.length) {
+      list.innerHTML =
+        '<p class="text-muted text-center" style="padding: 24px; margin: 0;">' +
+          'Sin notificaciones. Todo en orden.' +
+        '</p>';
+      return;
+    }
+    list.innerHTML = top3.map(function (n) {
+      const sev = String(n.severity || "info");
+      const hasUrl = n.action_url && n.action_url !== "#";
+      return (
+        '<a class="bell-dd-item bell-dd-' + escapeHtml(sev) + '"' +
+          (hasUrl ? ' href="' + escapeHtml(n.action_url) + '"' : ' href="/dashboard/notifications"') +
+          ' role="menuitem">' +
+          '<div class="bell-dd-row">' +
+            '<span class="bell-dot bell-dot-' + escapeHtml(sev) + '"></span>' +
+            '<div class="bell-dd-text">' +
+              '<div class="bell-dd-title">' + escapeHtml(n.title || "") + '</div>' +
+              '<div class="bell-dd-body">' + escapeHtml(n.body || "") + '</div>' +
+              '<div class="bell-dd-time">' + escapeHtml(fmtRel(n.detected_at)) + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</a>'
+      );
+    }).join("");
+  }
+
+  async function refresh() {
+    try {
+      const memberships = await WH.api.get("/api/v1/me/memberships");
+      if (!memberships.length) return;
+      const tid = memberships[0].tenant_id;
+      const data = await WH.api.get(
+        "/api/v1/tenants/" + tid + "/notifications/summary"
+      );
+      const bs = data.by_severity || {};
+      setBadge(bCrit, bs.critical || 0);
+      setBadge(bWarn, bs.warning || 0);
+      setNavBadge(data.total || 0);
+      syncBtnStates();
+      renderList(data.top_3 || []);
+      // Publica en window.WH.Notifications para que otras pages
+      // (ej. /dashboard/notifications) puedan leer sin re-fetch.
+      window.WH = window.WH || {};
+      window.WH.__lastNotifSummary = data;
+    } catch (e) {
+      console.warn("[bell] refresh failed:", e);
+    }
+  }
+
+  function openDrop() {
+    drop.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  }
+  function closeDrop() {
+    drop.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  btn.addEventListener("click", function (ev) {
+    ev.stopPropagation();
+    if (drop.hidden) openDrop(); else closeDrop();
+  });
+  document.addEventListener("click", function (ev) {
+    if (!drop.hidden) {
+      const wrap = document.getElementById("bell-wrap");
+      if (wrap && !wrap.contains(ev.target)) closeDrop();
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && !drop.hidden) closeDrop();
+  });
+
+  refresh();
+  setInterval(refresh, 60_000);
+})();
+</script>
+{% block dash_scripts %}
+{% endblock %}
+  <script src="/static/js/dashboard-compat.js" defer></script>
+{% endblock %}

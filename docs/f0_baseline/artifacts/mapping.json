@@ -1,0 +1,2843 @@
+{
+  "version": "1.0.0",
+  "phase": "F0",
+  "story_points": 3,
+  "title": "Mapeo localStorage ↔ modelos SQLAlchemy multi-tenant",
+  "keys_in_html": [
+    "wowhub.tenant",
+    "wowhub.user",
+    "wowhub.session",
+    "wowhub.membership",
+    "wowhub.branch",
+    "wowhub.category",
+    "wowhub.product",
+    "wowhub.insumo",
+    "wowhub.receta",
+    "wowhub.branchProduct",
+    "wowhub.order",
+    "wowhub.orderItem",
+    "wowhub.quote",
+    "wowhub.quoteItem",
+    "wowhub.invoice",
+    "wowhub.payment",
+    "wowhub.cart",
+    "wowhub.cartItem",
+    "wowhub.customer",
+    "wowhub.booking",
+    "wowhub.loyaltyCampaign",
+    "wowhub.customerPass",
+    "wowhub.passStamp",
+    "wowhub.qrToken",
+    "wowhub.promotion",
+    "wowhub.qr",
+    "wowhub.landingConfig",
+    "wowhub.siteConfig",
+    "wowhub.aiConversation",
+    "wowhub.aiMessage",
+    "wowhub.aiLog",
+    "wowhub.aiTrace",
+    "wowhub.aiMetricDaily",
+    "wowhub.audit",
+    "wowhub.webhook",
+    "wowhub.webhookEvent",
+    "wowhub.webhookDelivery",
+    "wowhub.automation",
+    "wowhub.upload",
+    "wowhub.legalConsent",
+    "wowhub.onboarding"
+  ],
+  "mapping": [
+    {
+      "key": "wowhub.tenant",
+      "model": "Tenant",
+      "table": "tenants",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "slug",
+        "legal_name",
+        "display_name",
+        "industry",
+        "plan",
+        "status",
+        "country",
+        "locale",
+        "currency",
+        "timezone",
+        "wow_score",
+        "health_score",
+        "active_branches",
+        "settings",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.user",
+      "model": "User",
+      "table": "users",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "email",
+        "password_hash",
+        "full_name",
+        "phone",
+        "is_active",
+        "is_superuser",
+        "default_role",
+        "avatar_url",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.session",
+      "model": "AuthToken",
+      "table": "auth_tokens",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "token",
+        "type",
+        "expires_at",
+        "used_at",
+        "context",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.membership",
+      "model": "TenantMembership",
+      "table": "tenant_memberships",
+      "module": "core",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "tenant_id",
+        "role",
+        "is_owner",
+        "is_active",
+        "invited_by",
+        "last_login_at",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.branch",
+      "model": "Branch",
+      "table": "branches",
+      "module": "core",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "code",
+        "address",
+        "city",
+        "region",
+        "country",
+        "phone",
+        "email",
+        "lat",
+        "lng",
+        "hours",
+        "is_main",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.category",
+      "model": "Category",
+      "table": "categories",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "slug",
+        "description",
+        "parent_id",
+        "position",
+        "is_active",
+        "icon",
+        "color",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.product",
+      "model": "Product",
+      "table": "products",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "category_id",
+          "target": "categories.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "sku",
+        "name",
+        "slug",
+        "short_description",
+        "description",
+        "category_id",
+        "price_cents",
+        "compare_at_cents",
+        "cost_cents",
+        "production_time_min",
+        "track_inventory",
+        "stock",
+        "low_stock_threshold",
+        "image_url",
+        "gallery",
+        "tags",
+        "status",
+        "is_featured",
+        "position",
+        "view_count",
+        "sold_count",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.insumo",
+      "model": "Insumo",
+      "table": "insumos",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "sku",
+        "name",
+        "description",
+        "unit",
+        "stock",
+        "reserved",
+        "min_stock",
+        "reorder_point",
+        "reorder_lead_time_days",
+        "waste_pct",
+        "last_cost_cents",
+        "avg_cost_cents",
+        "supplier",
+        "location",
+        "lot",
+        "expires_at",
+        "image_url",
+        "tags",
+        "is_active",
+        "is_na",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.receta",
+      "model": "Receta",
+      "table": "recetas",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "insumo_id",
+          "target": "insumos.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "product_id",
+        "insumo_id",
+        "quantity",
+        "notes",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.branchProduct",
+      "model": "BranchProduct",
+      "table": "branch_products",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "branch_id",
+        "product_id",
+        "stock",
+        "low_stock_threshold",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.order",
+      "model": "Order",
+      "table": "orders",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "number",
+        "status",
+        "customer_id",
+        "branch_id",
+        "subtotal_cents",
+        "discount_cents",
+        "shipping_cents",
+        "tax_cents",
+        "total_cents",
+        "currency",
+        "promotion_ids",
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "shipping_address",
+        "notes",
+        "source",
+        "qr_code_id",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.orderItem",
+      "model": "OrderItem",
+      "table": "order_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "product_image",
+        "quantity",
+        "unit_price_cents",
+        "total_cents",
+        "options",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.quote",
+      "model": "Quote",
+      "table": "quotes",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "converted_order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "number",
+        "title",
+        "status",
+        "customer_id",
+        "branch_id",
+        "recipient_name",
+        "recipient_email",
+        "recipient_phone",
+        "subtotal_cents",
+        "discount_cents",
+        "tax_cents",
+        "total_cents",
+        "currency",
+        "notes",
+        "terms",
+        "valid_until",
+        "sent_at",
+        "viewed_at",
+        "accepted_at",
+        "rejected_at",
+        "public_token",
+        "converted_order_id",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.quoteItem",
+      "model": "QuoteItem",
+      "table": "quote_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "quote_id",
+          "target": "quotes.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "quote_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "description",
+        "quantity",
+        "unit_price_cents",
+        "discount_cents",
+        "total_cents",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.invoice",
+      "model": "Invoice",
+      "table": "invoices",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "number",
+        "status",
+        "customer_name",
+        "customer_tax_id",
+        "customer_tax_id_type",
+        "customer_address",
+        "customer_email",
+        "subtotal_cents",
+        "tax_cents",
+        "discount_cents",
+        "total_cents",
+        "currency",
+        "tax_breakdown",
+        "pdf_url",
+        "pdf_generated_at",
+        "issued_at",
+        "due_at",
+        "paid_at",
+        "notes",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.payment",
+      "model": "Payment",
+      "table": "payments",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "method",
+        "status",
+        "amount_cents",
+        "fee_cents",
+        "net_cents",
+        "currency",
+        "provider",
+        "provider_payment_id",
+        "provider_preference_id",
+        "provider_status_detail",
+        "init_point",
+        "sandbox_init_point",
+        "provider_response",
+        "paid_at",
+        "expires_at",
+        "notes",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.cart",
+      "model": "Cart",
+      "table": "carts",
+      "module": "sales",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "session_id",
+        "customer_id",
+        "branch_id",
+        "subtotal_cents",
+        "discount_cents",
+        "total_cents",
+        "currency",
+        "promotion_code",
+        "promotion_ids",
+        "contact_name",
+        "contact_phone",
+        "contact_email",
+        "notes",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.cartItem",
+      "model": "CartItem",
+      "table": "cart_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "cart_id",
+          "target": "carts.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "cart_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "product_image",
+        "unit_price_cents",
+        "quantity",
+        "total_cents",
+        "options",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.customer",
+      "model": "Customer",
+      "table": "customers",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "full_name",
+        "email",
+        "phone",
+        "address",
+        "city",
+        "notes",
+        "total_orders",
+        "total_spent_cents",
+        "points",
+        "last_order_at",
+        "tags",
+        "accepts_marketing",
+        "is_active",
+        "segmento",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.booking",
+      "model": "Booking",
+      "table": "bookings",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "branch_id",
+        "customer_id",
+        "product_id",
+        "status",
+        "starts_at",
+        "ends_at",
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "price_cents",
+        "currency",
+        "notes",
+        "staff_name",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.loyaltyCampaign",
+      "model": "LoyaltyCampaign",
+      "table": "loyalty_campaigns",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "reward_label",
+        "stamps_required",
+        "primary_color",
+        "text_color",
+        "logo_url",
+        "icon_url",
+        "strip_url",
+        "accent_color",
+        "metal_c1",
+        "metal_c2",
+        "metal_c3",
+        "metal_c4",
+        "metal_c5",
+        "metal_angle",
+        "sheen_opacity",
+        "is_active",
+        "starts_at",
+        "ends_at",
+        "cashier_pin",
+        "pin_hint",
+        "total_passes",
+        "total_stamps_issued",
+        "total_rewards_redeemed",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.customerPass",
+      "model": "CustomerPass",
+      "table": "customer_passes",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "campaign_id",
+        "customer_id",
+        "serial_number",
+        "source",
+        "status",
+        "stamps_current",
+        "rewards_earned",
+        "qr_payload",
+        "apple_pass_url",
+        "google_pass_jwt",
+        "installed_at",
+        "last_stamp_at",
+        "redeemed_at",
+        "expires_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.passStamp",
+      "model": "PassStamp",
+      "table": "pass_stamps",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "pass_id",
+          "target": "customer_passes.id"
+        },
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "scanned_by",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "pass_id",
+        "campaign_id",
+        "delta",
+        "reason",
+        "scanned_by",
+        "cashier_pin_validated",
+        "device_fp",
+        "qr_token_jti",
+        "stamps_after",
+        "reward_unlocked",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.qrToken",
+      "model": "QrToken",
+      "table": "qr_tokens",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "created_by",
+          "target": "users.id"
+        },
+        {
+          "column": "consumed_by_pass",
+          "target": "customer_passes.id"
+        },
+        {
+          "column": "consumed_by_user",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "jti",
+        "campaign_id",
+        "created_by",
+        "kind",
+        "expires_at",
+        "consumed_at",
+        "consumed_by_pass",
+        "consumed_by_user",
+        "device_fp",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.promotion",
+      "model": "Promotion",
+      "table": "promotions",
+      "module": "marketing",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "description",
+        "code",
+        "promo_type",
+        "discount_type",
+        "discount_value",
+        "min_purchase_cents",
+        "max_discount_cents",
+        "starts_at",
+        "ends_at",
+        "usage_limit",
+        "usage_limit_per_customer",
+        "used_count",
+        "applies_to_all",
+        "product_ids",
+        "category_ids",
+        "is_active",
+        "is_public",
+        "priority",
+        "badge_text",
+        "color",
+        "image_url",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.qr",
+      "model": "QrCode",
+      "table": "qr_codes",
+      "module": "marketing",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "label",
+        "short_code",
+        "target_type",
+        "target_id",
+        "external_url",
+        "branch_id",
+        "scan_count",
+        "unique_scans",
+        "conversion_count",
+        "is_active",
+        "expires_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.landingConfig",
+      "model": "LandingConfig",
+      "table": "landing_configs",
+      "module": "marketing",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "hero_title",
+        "hero_subtitle",
+        "hero_image_url",
+        "hero_cta_text",
+        "hero_cta_url",
+        "brand_color",
+        "accent_color",
+        "logo_url",
+        "favicon_url",
+        "contact_whatsapp",
+        "contact_phone",
+        "contact_email",
+        "contact_address",
+        "social_instagram",
+        "social_facebook",
+        "social_tiktok",
+        "show_categories",
+        "show_featured_products",
+        "show_promotions",
+        "show_branches",
+        "show_contact",
+        "seo_title",
+        "seo_description",
+        "seo_image_url",
+        "custom_css",
+        "extra_blocks",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.siteConfig",
+      "model": "SiteConfig",
+      "table": "site_config",
+      "module": "marketing",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "id",
+        "home_theme",
+        "maintenance_mode",
+        "maintenance_message",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.aiConversation",
+      "model": "AIConversation",
+      "table": "ai_conversations",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "title",
+        "agent",
+        "status",
+        "message_count",
+        "last_message_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.aiMessage",
+      "model": "AIMessage",
+      "table": "ai_messages",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "conversation_id",
+        "user_id",
+        "role",
+        "content",
+        "tool_name",
+        "tool_call_id",
+        "tool_args",
+        "tool_result",
+        "agent",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "fallback",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.aiLog",
+      "model": "AILog",
+      "table": "ai_logs",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "conversation_id",
+        "agent",
+        "status",
+        "user_message",
+        "assistant_message",
+        "error",
+        "error_code",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "tools_called",
+        "circuit_state_before",
+        "circuit_state_after",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.aiTrace",
+      "model": "AITrace",
+      "table": "ai_traces",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "log_id",
+          "target": "ai_logs.id"
+        },
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "log_id",
+        "conversation_id",
+        "step",
+        "detail",
+        "duration_ms",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.aiMetricDaily",
+      "model": "AIMetricDaily",
+      "table": "ai_metrics_daily",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "day",
+        "agent",
+        "requests",
+        "success",
+        "fallback",
+        "errors",
+        "timeouts",
+        "rate_limited",
+        "tokens_in",
+        "tokens_out",
+        "avg_latency_ms",
+        "p95_latency_ms",
+        "unique_users",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.audit",
+      "model": "AuditLog",
+      "table": "audit_logs",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "actor_user_id",
+        "actor_email",
+        "action",
+        "resource_type",
+        "resource_id",
+        "method",
+        "path",
+        "ip",
+        "user_agent",
+        "status_code",
+        "extra",
+        "description",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.webhook",
+      "model": "Webhook",
+      "table": "webhooks",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "url",
+        "secret",
+        "events",
+        "is_active",
+        "total_deliveries",
+        "successful_deliveries",
+        "failed_deliveries",
+        "last_triggered_at",
+        "last_status_code",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.webhookEvent",
+      "model": "WebhookEvent",
+      "table": "—",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": []
+    },
+    {
+      "key": "wowhub.webhookDelivery",
+      "model": "WebhookDelivery",
+      "table": "webhook_deliveries",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "webhook_id",
+        "event",
+        "payload",
+        "success",
+        "status_code",
+        "response_body",
+        "error",
+        "attempts",
+        "max_attempts",
+        "next_retry_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.automation",
+      "model": "AutomationExecution",
+      "table": "automation_executions",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        },
+        {
+          "column": "user_id",
+          "target": "users.id"
+        }
+      ],
+      "columns": [
+        "tenant_id",
+        "user_id",
+        "action_type",
+        "status",
+        "dry_run",
+        "confirmed",
+        "source",
+        "source_insight_id",
+        "notes",
+        "resource_id",
+        "resource_type",
+        "resource_url",
+        "error",
+        "params",
+        "result_meta",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.upload",
+      "model": "Upload",
+      "table": "uploads",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "filename",
+        "stored_filename",
+        "url",
+        "storage_backend",
+        "content_type",
+        "size_bytes",
+        "width",
+        "height",
+        "entity_type",
+        "entity_id",
+        "purpose",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    {
+      "key": "wowhub.legalConsent",
+      "model": "LegalConsent",
+      "table": "legal_consents",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "user_id",
+        "document_type",
+        "document_version",
+        "ip",
+        "user_agent",
+        "accepted",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    {
+      "key": "wowhub.onboarding",
+      "model": "OnboardingState",
+      "table": "onboarding_states",
+      "module": "platform",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "completed_steps",
+        "current_step",
+        "wizard_data",
+        "wow_score",
+        "is_completed",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    }
+  ],
+  "models": {
+    "Tenant": {
+      "table": "tenants",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "slug",
+        "legal_name",
+        "display_name",
+        "industry",
+        "plan",
+        "status",
+        "country",
+        "locale",
+        "currency",
+        "timezone",
+        "wow_score",
+        "health_score",
+        "active_branches",
+        "settings",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "User": {
+      "table": "users",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "email",
+        "password_hash",
+        "full_name",
+        "phone",
+        "is_active",
+        "is_superuser",
+        "default_role",
+        "avatar_url",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "AuthToken": {
+      "table": "auth_tokens",
+      "module": "core",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "token",
+        "type",
+        "expires_at",
+        "used_at",
+        "context",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "TenantMembership": {
+      "table": "tenant_memberships",
+      "module": "core",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "tenant_id",
+        "role",
+        "is_owner",
+        "is_active",
+        "invited_by",
+        "last_login_at",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "Branch": {
+      "table": "branches",
+      "module": "core",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "code",
+        "address",
+        "city",
+        "region",
+        "country",
+        "phone",
+        "email",
+        "lat",
+        "lng",
+        "hours",
+        "is_main",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Category": {
+      "table": "categories",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "slug",
+        "description",
+        "parent_id",
+        "position",
+        "is_active",
+        "icon",
+        "color",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Product": {
+      "table": "products",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "category_id",
+          "target": "categories.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "sku",
+        "name",
+        "slug",
+        "short_description",
+        "description",
+        "category_id",
+        "price_cents",
+        "compare_at_cents",
+        "cost_cents",
+        "production_time_min",
+        "track_inventory",
+        "stock",
+        "low_stock_threshold",
+        "image_url",
+        "gallery",
+        "tags",
+        "status",
+        "is_featured",
+        "position",
+        "view_count",
+        "sold_count",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Insumo": {
+      "table": "insumos",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "sku",
+        "name",
+        "description",
+        "unit",
+        "stock",
+        "reserved",
+        "min_stock",
+        "reorder_point",
+        "reorder_lead_time_days",
+        "waste_pct",
+        "last_cost_cents",
+        "avg_cost_cents",
+        "supplier",
+        "location",
+        "lot",
+        "expires_at",
+        "image_url",
+        "tags",
+        "is_active",
+        "is_na",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Receta": {
+      "table": "recetas",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "insumo_id",
+          "target": "insumos.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "product_id",
+        "insumo_id",
+        "quantity",
+        "notes",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "BranchProduct": {
+      "table": "branch_products",
+      "module": "catalog",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "branch_id",
+        "product_id",
+        "stock",
+        "low_stock_threshold",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Order": {
+      "table": "orders",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "number",
+        "status",
+        "customer_id",
+        "branch_id",
+        "subtotal_cents",
+        "discount_cents",
+        "shipping_cents",
+        "tax_cents",
+        "total_cents",
+        "currency",
+        "promotion_ids",
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "shipping_address",
+        "notes",
+        "source",
+        "qr_code_id",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "OrderItem": {
+      "table": "order_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "product_image",
+        "quantity",
+        "unit_price_cents",
+        "total_cents",
+        "options",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "Quote": {
+      "table": "quotes",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "converted_order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "number",
+        "title",
+        "status",
+        "customer_id",
+        "branch_id",
+        "recipient_name",
+        "recipient_email",
+        "recipient_phone",
+        "subtotal_cents",
+        "discount_cents",
+        "tax_cents",
+        "total_cents",
+        "currency",
+        "notes",
+        "terms",
+        "valid_until",
+        "sent_at",
+        "viewed_at",
+        "accepted_at",
+        "rejected_at",
+        "public_token",
+        "converted_order_id",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "QuoteItem": {
+      "table": "quote_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "quote_id",
+          "target": "quotes.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "quote_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "description",
+        "quantity",
+        "unit_price_cents",
+        "discount_cents",
+        "total_cents",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "Invoice": {
+      "table": "invoices",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "number",
+        "status",
+        "customer_name",
+        "customer_tax_id",
+        "customer_tax_id_type",
+        "customer_address",
+        "customer_email",
+        "subtotal_cents",
+        "tax_cents",
+        "discount_cents",
+        "total_cents",
+        "currency",
+        "tax_breakdown",
+        "pdf_url",
+        "pdf_generated_at",
+        "issued_at",
+        "due_at",
+        "paid_at",
+        "notes",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Payment": {
+      "table": "payments",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "order_id",
+          "target": "orders.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "order_id",
+        "method",
+        "status",
+        "amount_cents",
+        "fee_cents",
+        "net_cents",
+        "currency",
+        "provider",
+        "provider_payment_id",
+        "provider_preference_id",
+        "provider_status_detail",
+        "init_point",
+        "sandbox_init_point",
+        "provider_response",
+        "paid_at",
+        "expires_at",
+        "notes",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Cart": {
+      "table": "carts",
+      "module": "sales",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "session_id",
+        "customer_id",
+        "branch_id",
+        "subtotal_cents",
+        "discount_cents",
+        "total_cents",
+        "currency",
+        "promotion_code",
+        "promotion_ids",
+        "contact_name",
+        "contact_phone",
+        "contact_email",
+        "notes",
+        "is_active",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "CartItem": {
+      "table": "cart_items",
+      "module": "sales",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [
+        {
+          "column": "cart_id",
+          "target": "carts.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        }
+      ],
+      "columns": [
+        "cart_id",
+        "product_id",
+        "product_name",
+        "product_sku",
+        "product_image",
+        "unit_price_cents",
+        "quantity",
+        "total_cents",
+        "options",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "Customer": {
+      "table": "customers",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "full_name",
+        "email",
+        "phone",
+        "address",
+        "city",
+        "notes",
+        "total_orders",
+        "total_spent_cents",
+        "points",
+        "last_order_at",
+        "tags",
+        "accepts_marketing",
+        "is_active",
+        "segmento",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Booking": {
+      "table": "bookings",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "product_id",
+          "target": "products.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "branch_id",
+        "customer_id",
+        "product_id",
+        "status",
+        "starts_at",
+        "ends_at",
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "price_cents",
+        "currency",
+        "notes",
+        "staff_name",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "LoyaltyCampaign": {
+      "table": "loyalty_campaigns",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "reward_label",
+        "stamps_required",
+        "primary_color",
+        "text_color",
+        "logo_url",
+        "icon_url",
+        "strip_url",
+        "accent_color",
+        "metal_c1",
+        "metal_c2",
+        "metal_c3",
+        "metal_c4",
+        "metal_c5",
+        "metal_angle",
+        "sheen_opacity",
+        "is_active",
+        "starts_at",
+        "ends_at",
+        "cashier_pin",
+        "pin_hint",
+        "total_passes",
+        "total_stamps_issued",
+        "total_rewards_redeemed",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "CustomerPass": {
+      "table": "customer_passes",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "customer_id",
+          "target": "customers.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "campaign_id",
+        "customer_id",
+        "serial_number",
+        "source",
+        "status",
+        "stamps_current",
+        "rewards_earned",
+        "qr_payload",
+        "apple_pass_url",
+        "google_pass_jwt",
+        "installed_at",
+        "last_stamp_at",
+        "redeemed_at",
+        "expires_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "PassStamp": {
+      "table": "pass_stamps",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "pass_id",
+          "target": "customer_passes.id"
+        },
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "scanned_by",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "pass_id",
+        "campaign_id",
+        "delta",
+        "reason",
+        "scanned_by",
+        "cashier_pin_validated",
+        "device_fp",
+        "qr_token_jti",
+        "stamps_after",
+        "reward_unlocked",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "QrToken": {
+      "table": "qr_tokens",
+      "module": "crm",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "campaign_id",
+          "target": "loyalty_campaigns.id"
+        },
+        {
+          "column": "created_by",
+          "target": "users.id"
+        },
+        {
+          "column": "consumed_by_pass",
+          "target": "customer_passes.id"
+        },
+        {
+          "column": "consumed_by_user",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "jti",
+        "campaign_id",
+        "created_by",
+        "kind",
+        "expires_at",
+        "consumed_at",
+        "consumed_by_pass",
+        "consumed_by_user",
+        "device_fp",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Promotion": {
+      "table": "promotions",
+      "module": "marketing",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "description",
+        "code",
+        "promo_type",
+        "discount_type",
+        "discount_value",
+        "min_purchase_cents",
+        "max_discount_cents",
+        "starts_at",
+        "ends_at",
+        "usage_limit",
+        "usage_limit_per_customer",
+        "used_count",
+        "applies_to_all",
+        "product_ids",
+        "category_ids",
+        "is_active",
+        "is_public",
+        "priority",
+        "badge_text",
+        "color",
+        "image_url",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "QrCode": {
+      "table": "qr_codes",
+      "module": "marketing",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "branch_id",
+          "target": "branches.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "label",
+        "short_code",
+        "target_type",
+        "target_id",
+        "external_url",
+        "branch_id",
+        "scan_count",
+        "unique_scans",
+        "conversion_count",
+        "is_active",
+        "expires_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "LandingConfig": {
+      "table": "landing_configs",
+      "module": "marketing",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "hero_title",
+        "hero_subtitle",
+        "hero_image_url",
+        "hero_cta_text",
+        "hero_cta_url",
+        "brand_color",
+        "accent_color",
+        "logo_url",
+        "favicon_url",
+        "contact_whatsapp",
+        "contact_phone",
+        "contact_email",
+        "contact_address",
+        "social_instagram",
+        "social_facebook",
+        "social_tiktok",
+        "show_categories",
+        "show_featured_products",
+        "show_promotions",
+        "show_branches",
+        "show_contact",
+        "seo_title",
+        "seo_description",
+        "seo_image_url",
+        "custom_css",
+        "extra_blocks",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "SiteConfig": {
+      "table": "site_config",
+      "module": "marketing",
+      "kind": "object",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "id",
+        "home_theme",
+        "maintenance_mode",
+        "maintenance_message",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "AIConversation": {
+      "table": "ai_conversations",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "title",
+        "agent",
+        "status",
+        "message_count",
+        "last_message_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AIMessage": {
+      "table": "ai_messages",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "conversation_id",
+        "user_id",
+        "role",
+        "content",
+        "tool_name",
+        "tool_call_id",
+        "tool_args",
+        "tool_result",
+        "agent",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "fallback",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AILog": {
+      "table": "ai_logs",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "user_id",
+          "target": "users.id"
+        },
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "user_id",
+        "conversation_id",
+        "agent",
+        "status",
+        "user_message",
+        "assistant_message",
+        "error",
+        "error_code",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "tools_called",
+        "circuit_state_before",
+        "circuit_state_after",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AITrace": {
+      "table": "ai_traces",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "log_id",
+          "target": "ai_logs.id"
+        },
+        {
+          "column": "conversation_id",
+          "target": "ai_conversations.id"
+        },
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "log_id",
+        "conversation_id",
+        "step",
+        "detail",
+        "duration_ms",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AIMetricDaily": {
+      "table": "ai_metrics_daily",
+      "module": "ai",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "day",
+        "agent",
+        "requests",
+        "success",
+        "fallback",
+        "errors",
+        "timeouts",
+        "rate_limited",
+        "tokens_in",
+        "tokens_out",
+        "avg_latency_ms",
+        "p95_latency_ms",
+        "unique_users",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AuditLog": {
+      "table": "audit_logs",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "actor_user_id",
+        "actor_email",
+        "action",
+        "resource_type",
+        "resource_id",
+        "method",
+        "path",
+        "ip",
+        "user_agent",
+        "status_code",
+        "extra",
+        "description",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "Webhook": {
+      "table": "webhooks",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "name",
+        "url",
+        "secret",
+        "events",
+        "is_active",
+        "total_deliveries",
+        "successful_deliveries",
+        "failed_deliveries",
+        "last_triggered_at",
+        "last_status_code",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "WebhookEvent": {
+      "table": "—",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": []
+    },
+    "WebhookDelivery": {
+      "table": "webhook_deliveries",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "webhook_id",
+        "event",
+        "payload",
+        "success",
+        "status_code",
+        "response_body",
+        "error",
+        "attempts",
+        "max_attempts",
+        "next_retry_at",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "AutomationExecution": {
+      "table": "automation_executions",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        },
+        {
+          "column": "user_id",
+          "target": "users.id"
+        }
+      ],
+      "columns": [
+        "tenant_id",
+        "user_id",
+        "action_type",
+        "status",
+        "dry_run",
+        "confirmed",
+        "source",
+        "source_insight_id",
+        "notes",
+        "resource_id",
+        "resource_type",
+        "resource_url",
+        "error",
+        "params",
+        "result_meta",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "Upload": {
+      "table": "uploads",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "filename",
+        "stored_filename",
+        "url",
+        "storage_backend",
+        "content_type",
+        "size_bytes",
+        "width",
+        "height",
+        "entity_type",
+        "entity_id",
+        "purpose",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    },
+    "LegalConsent": {
+      "table": "legal_consents",
+      "module": "platform",
+      "kind": "array",
+      "has_tenant_id": false,
+      "fks": [],
+      "columns": [
+        "user_id",
+        "document_type",
+        "document_version",
+        "ip",
+        "user_agent",
+        "accepted",
+        "extra",
+        "id",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "OnboardingState": {
+      "table": "onboarding_states",
+      "module": "platform",
+      "kind": "object",
+      "has_tenant_id": true,
+      "fks": [
+        {
+          "column": "tenant_id",
+          "target": "tenants.id"
+        }
+      ],
+      "columns": [
+        "completed_steps",
+        "current_step",
+        "wizard_data",
+        "wow_score",
+        "is_completed",
+        "id",
+        "created_at",
+        "updated_at",
+        "tenant_id"
+      ]
+    }
+  },
+  "stats": {
+    "keys_in_html": 41,
+    "models": 41,
+    "models_with_tenant_id": 32,
+    "cross_foreign_keys": 75,
+    "coverage_pct": 100.0,
+    "elapsed_ms": 0
+  },
+  "elapsed_ms": 0,
+  "markdown": "# Mapeo `localStorage` ↔ modelos SQLAlchemy — WowHub F0\n\n- **Story points:** 3 (Must)\n- **Claves de localStorage cubiertas:** **41**\n- **Modelos SQLAlchemy mapeados:** **41**\n- **Modelos con `tenant_id`:** **32**\n- **Foreign Keys cruzadas:** **75**\n- **Cobertura:** **100.0%**\n- **Tiempo:** 0 ms\n\n## Resumen por módulo\n\n| Módulo | Keys | Modelos |\n|---|---:|---:|\n| `sales` | 8 | 8 |\n| `platform` | 8 | 8 |\n| `crm` | 6 | 6 |\n| `core` | 5 | 5 |\n| `catalog` | 5 | 5 |\n| `ai` | 5 | 5 |\n| `marketing` | 4 | 4 |\n\n## Detalle del mapeo\n\n| # | Key localStorage | Modelo | Tabla | Módulo | `tenant_id` | FKs |\n|---:|---|---|---|---|:-:|---:|\n| 1 | `wowhub.tenant` | `Tenant` | `tenants` | `core` | no | 0 |\n| 2 | `wowhub.user` | `User` | `users` | `core` | no | 0 |\n| 3 | `wowhub.session` | `AuthToken` | `auth_tokens` | `core` | no | 1 |\n| 4 | `wowhub.membership` | `TenantMembership` | `tenant_memberships` | `core` | sí | 2 |\n| 5 | `wowhub.branch` | `Branch` | `branches` | `core` | sí | 1 |\n| 6 | `wowhub.category` | `Category` | `categories` | `catalog` | sí | 1 |\n| 7 | `wowhub.product` | `Product` | `products` | `catalog` | sí | 2 |\n| 8 | `wowhub.insumo` | `Insumo` | `insumos` | `catalog` | sí | 1 |\n| 9 | `wowhub.receta` | `Receta` | `recetas` | `catalog` | sí | 3 |\n| 10 | `wowhub.branchProduct` | `BranchProduct` | `branch_products` | `catalog` | sí | 3 |\n| 11 | `wowhub.order` | `Order` | `orders` | `sales` | sí | 3 |\n| 12 | `wowhub.orderItem` | `OrderItem` | `order_items` | `sales` | no | 2 |\n| 13 | `wowhub.quote` | `Quote` | `quotes` | `sales` | sí | 4 |\n| 14 | `wowhub.quoteItem` | `QuoteItem` | `quote_items` | `sales` | no | 2 |\n| 15 | `wowhub.invoice` | `Invoice` | `invoices` | `sales` | sí | 2 |\n| 16 | `wowhub.payment` | `Payment` | `payments` | `sales` | sí | 2 |\n| 17 | `wowhub.cart` | `Cart` | `carts` | `sales` | sí | 3 |\n| 18 | `wowhub.cartItem` | `CartItem` | `cart_items` | `sales` | no | 2 |\n| 19 | `wowhub.customer` | `Customer` | `customers` | `crm` | sí | 1 |\n| 20 | `wowhub.booking` | `Booking` | `bookings` | `crm` | sí | 4 |\n| 21 | `wowhub.loyaltyCampaign` | `LoyaltyCampaign` | `loyalty_campaigns` | `crm` | sí | 1 |\n| 22 | `wowhub.customerPass` | `CustomerPass` | `customer_passes` | `crm` | sí | 3 |\n| 23 | `wowhub.passStamp` | `PassStamp` | `pass_stamps` | `crm` | sí | 4 |\n| 24 | `wowhub.qrToken` | `QrToken` | `qr_tokens` | `crm` | sí | 5 |\n| 25 | `wowhub.promotion` | `Promotion` | `promotions` | `marketing` | sí | 1 |\n| 26 | `wowhub.qr` | `QrCode` | `qr_codes` | `marketing` | sí | 2 |\n| 27 | `wowhub.landingConfig` | `LandingConfig` | `landing_configs` | `marketing` | sí | 1 |\n| 28 | `wowhub.siteConfig` | `SiteConfig` | `site_config` | `marketing` | no | 0 |\n| 29 | `wowhub.aiConversation` | `AIConversation` | `ai_conversations` | `ai` | sí | 2 |\n| 30 | `wowhub.aiMessage` | `AIMessage` | `ai_messages` | `ai` | sí | 3 |\n| 31 | `wowhub.aiLog` | `AILog` | `ai_logs` | `ai` | sí | 3 |\n| 32 | `wowhub.aiTrace` | `AITrace` | `ai_traces` | `ai` | sí | 3 |\n| 33 | `wowhub.aiMetricDaily` | `AIMetricDaily` | `ai_metrics_daily` | `ai` | sí | 1 |\n| 34 | `wowhub.audit` | `AuditLog` | `audit_logs` | `platform` | sí | 1 |\n| 35 | `wowhub.webhook` | `Webhook` | `webhooks` | `platform` | sí | 1 |\n| 36 | `wowhub.webhookEvent` | `WebhookEvent` | `—` | `platform` | no | 0 |\n| 37 | `wowhub.webhookDelivery` | `WebhookDelivery` | `webhook_deliveries` | `platform` | sí | 1 |\n| 38 | `wowhub.automation` | `AutomationExecution` | `automation_executions` | `platform` | sí | 2 |\n| 39 | `wowhub.upload` | `Upload` | `uploads` | `platform` | sí | 1 |\n| 40 | `wowhub.legalConsent` | `LegalConsent` | `legal_consents` | `platform` | no | 0 |\n| 41 | `wowhub.onboarding` | `OnboardingState` | `onboarding_states` | `platform` | sí | 1 |\n\n---\n_Generado por `app.f0_baseline.mapping` · introspección de `Base.metadata`._"
+}

@@ -1,0 +1,600 @@
+"""Marketplace API — plugin ecosystem (HU_45).
+
+Tenant endpoints (require JWT auth via headers):
+  GET  /marketplace/                        → list active plugins
+  GET  /marketplace/{slug}                  → plugin detail
+  POST /marketplace/{slug}/install           → subscribe tenant
+  POST /marketplace/{slug}/uninstall         → cancel subscription
+  GET  /marketplace/my-plugins              → tenant's installed plugins
+  PATCH /marketplace/my-plugins/{slug}/config → update plugin config
+
+Admin endpoints (require superuser):
+  POST   /admin/marketplace/                 → publish plugin
+  PATCH  /admin/marketplace/{id}            → update plugin
+  DELETE /admin/marketplace/{id}            → remove plugin
+  POST   /admin/marketplace/seed             → seed 5 example plugins
+"""
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
+
+from app.database import get_db
+from app.deps import get_current_user, get_current_membership, require_superuser
+from app.models.tenant import TenantMembership
+from app.models.user import User
+from app.models.marketplace import MarketplacePlugin, PluginSubscription
+from app.schemas.marketplace import (
+    MarketplacePluginCreate, MarketplacePluginUpdate, MarketplacePluginResponse,
+    PluginSubscriptionCreate, PluginSubscriptionUpdate, PluginSubscriptionResponse,
+    MarketplaceListResponse,
+)
+from app.core.errors import NotFoundError, ValidationError
+from app.services.plugin_schema import validate_config
+from app.services.plugin_runtime import (
+    run_install_script,
+    serialize_install_log,
+    serialize_hooks,
+)
+
+router = APIRouter(prefix="/marketplace", tags=["marketplace"])
+
+# ─────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────
+
+def _get_plugin_by_slug(db: Session, slug: str) -> MarketplacePlugin:
+    p = db.query(MarketplacePlugin).filter(
+        MarketplacePlugin.slug == slug,
+        MarketplacePlugin.is_active == True,
+    ).first()
+    if not p:
+        raise NotFoundError(f"Plugin '{slug}' not found or inactive")
+    return p
+
+
+def _get_subscription(db: Session, tenant_id: UUID, plugin_id: UUID) -> Optional[PluginSubscription]:
+    return db.query(PluginSubscription).filter(
+        PluginSubscription.tenant_id == tenant_id,
+        PluginSubscription.plugin_id == plugin_id,
+        PluginSubscription.status == "active",
+    ).first()
+
+
+def _resolve_tenant(request: Request, db: Session, user: User) -> UUID:
+    """Resuelve el tenant actor y VALIDA que `user` sea miembro activo.
+
+    FIX 2026-09-27 (IDOR cross-tenant): antes el header `X-Tenant-Id` se
+    aceptaba tal cual, sin comprobar la membresía, de modo que cualquier
+    usuario autenticado podía añadir `X-Tenant-Id: <uuid_ajeno>` e
+    instalar/desinstalar/reconfigurar plugins de otro tenant.
+
+    Orden de resolución: header `X-Tenant-Id` → `request.state.tenant_id` →
+    primera membresía activa del usuario. En todos los casos se exige
+    membresía activa sobre el tenant resultante.
+    """
+    tenant_id_str = request.headers.get("x-tenant-id") if request else None
+    if not tenant_id_str:
+        tenant_id_str = getattr(request.state, "tenant_id", None) if request else None
+
+    if tenant_id_str:
+        try:
+            tenant_id = UUID(str(tenant_id_str))
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail="X-Tenant-Id inválido") from exc
+    else:
+        membership = (
+            db.query(TenantMembership)
+            .filter(
+                TenantMembership.user_id == str(user.id),
+                TenantMembership.is_active == True,  # noqa: E712
+            )
+            .first()
+        )
+        if not membership:
+            raise HTTPException(status_code=400, detail="No tenant found for user")
+        # FIX 2026-10-06 (production 500): con PostgreSQL + GUID type,
+        # ``membership.tenant_id`` ya es un objeto UUID (no str). Llamar
+        # ``UUID(uuid_obj)`` falla porque ``UUID.__init__`` internamente
+        # hace ``hex.replace(...)`` y ``uuid_obj.hex`` es otro UUID, no
+        # un string ⇒ ``AttributeError: 'UUID' object has no attribute 'replace'``.
+        tenant_id = UUID(str(membership.tenant_id))
+
+    # Validación de pertenencia — la parte que faltaba en el código original.
+    member = (
+        db.query(TenantMembership)
+        .filter(
+            TenantMembership.user_id == str(user.id),
+            TenantMembership.tenant_id == str(tenant_id),
+            TenantMembership.is_active == True,  # noqa: E712
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=403, detail="No perteneces a este tenant")
+
+    return tenant_id
+
+
+# Backwards-compatible alias (el nombre original se mantenía sin uso real).
+_require_tenant = _resolve_tenant
+
+
+# ─────────────────────────────────────────────────────────────────
+# Tenant endpoints
+# ─────────────────────────────────────────────────────────────────
+
+@router.get("/", response_model=MarketplaceListResponse)
+def list_marketplace_plugins(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    search: Optional[str] = Query(None, description="Search name/description"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(12, ge=1, le=100),
+):
+    """List all active marketplace plugins with pagination and filters."""
+    q = db.query(MarketplacePlugin).filter(MarketplacePlugin.is_active == True)
+
+    if category:
+        q = q.filter(MarketplacePlugin.category == category)
+
+    if search:
+        pattern = f"%{search}%"
+        q = q.filter(
+            (MarketplacePlugin.name.ilike(pattern)) |
+            (MarketplacePlugin.description.ilike(pattern))
+        )
+
+    total = q.count()
+    pages = (total + per_page - 1) // per_page if total > 0 else 1
+    items = q.order_by(
+        MarketplacePlugin.is_featured.desc(),
+        MarketplacePlugin.installs.desc(),
+    ).offset((page - 1) * per_page).limit(per_page).all()
+
+    return MarketplaceListResponse(
+        items=[MarketplacePluginResponse.model_validate(p) for p in items],
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=pages,
+    )
+
+
+# NOTA DE ORDEN: FastAPI evalúa las rutas en orden de declaración. `/{slug}` es
+# un catch-all, por lo que las rutas literales deben declararse ANTES que él o
+# nunca serán alcanzables (FIX 2026-09-27: `/my-plugins` devolvía siempre 404).
+
+
+@router.get("/my-plugins", response_model=list[PluginSubscriptionResponse])
+def my_plugins(
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List plugins installed for the current tenant."""
+    try:
+        tenant_id = _resolve_tenant(request, db, user)
+    except HTTPException as exc:
+        # Sin contexto de tenant devolvemos lista vacía (comportamiento previo).
+        if exc.status_code in (400, 403):
+            return []
+        raise
+
+    subs = db.query(PluginSubscription).filter(
+        PluginSubscription.tenant_id == tenant_id,
+        PluginSubscription.status == "active",
+    ).all()
+
+    # Manually eager-load plugin
+    plugin_ids = [sub.plugin_id for sub in subs]
+    plugins_map = {
+        p.id: p for p in db.query(MarketplacePlugin).filter(
+            MarketplacePlugin.id.in_(plugin_ids)
+        ).all()
+    }
+
+    result = []
+    for sub in subs:
+        resp = PluginSubscriptionResponse.model_validate(sub)
+        plugin = plugins_map.get(sub.plugin_id)
+        if plugin is not None:
+            resp.plugin = MarketplacePluginResponse.model_validate(plugin)
+        result.append(resp)
+    return result
+
+
+@router.get("/{slug}", response_model=MarketplacePluginResponse)
+def get_marketplace_plugin(
+    slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get details for a specific plugin."""
+    plugin = _get_plugin_by_slug(db, slug)
+    return MarketplacePluginResponse.model_validate(plugin)
+
+
+@router.post("/{slug}/install", response_model=PluginSubscriptionResponse, status_code=201)
+def install_plugin(
+    slug: str,
+    body: Optional[PluginSubscriptionCreate] = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Install a plugin for the current tenant (creates subscription).
+
+    HU_45 — runtime:
+      1. Valida ``body.config`` contra ``plugin.config_schema`` (si existe).
+      2. Si el plugin tiene ``install_script``, lo ejecuta en el sandbox
+         con `db` (SQLAlchemy session del request), `tenant_id` y `config`.
+      3. Persiste el log y los hooks extraídos en la suscripción.
+      4. Si el install_script falla → rollback + 422.
+    """
+    plugin = _get_plugin_by_slug(db, slug)
+    tenant_id = _resolve_tenant(request, db, user)
+
+    # Check if already subscribed
+    existing = _get_subscription(db, tenant_id, plugin.id)
+    if existing:
+        raise HTTPException(status_code=409, detail="Plugin already installed")
+
+    config_raw = body.config if body else None
+    config_dict = _parse_config(config_raw)
+
+    # ── 1) Validar config contra JSON Schema ─────────────────────────
+    ok, schema_errors = validate_config(plugin.config_schema, config_dict)
+    if not ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Config no cumple el schema del plugin",
+                "errors": schema_errors,
+            },
+        )
+
+    # ── 2) Crear la suscripción (todavía sin commit) ────────────────
+    sub = PluginSubscription(
+        tenant_id=tenant_id,
+        plugin_id=plugin.id,
+        status="active",
+        config=config_raw,  # almacenamos el raw tal como vino (string o dict)
+        revenue_share_70_to_developer=True,
+    )
+    db.add(sub)
+
+    # ── 3) Ejecutar install_script en sandbox con DB real ────────────
+    if plugin.install_script and plugin.install_script.strip():
+        try:
+            run_result = run_install_script(
+                db=db,
+                plugin=plugin,
+                tenant_id=tenant_id,
+                config=config_dict,
+                timeout_sec=10,
+            )
+        except Exception as e:  # noqa: BLE001
+            # Cualquier excepción no controlada del sandbox debe abortar
+            # la instalación — la transacción del caller hace rollback.
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"install_script lanzó una excepción no controlada: {type(e).__name__}: {e}",
+            ) from e
+
+        sub.install_log = serialize_install_log(run_result)
+        sub.hooks = serialize_hooks(run_result.get("hooks") or {})
+
+        if not run_result.get("ok"):
+            # Fallo del install_script (excepción, syntax error, timeout).
+            # Hacemos rollback para que ni la suscripción ni los efectos
+            # secundarios del script (tablas creadas, etc.) queden.
+            db.rollback()
+            err = run_result.get("error") or "install_script falló"
+            if run_result.get("timed_out"):
+                err = f"install_script excedió el timeout de 10s: {err}"
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "install_script del plugin falló durante la instalación",
+                    "error": err[:500],
+                    "output": (run_result.get("output") or "")[:2000],
+                    "duration_ms": run_result.get("duration_ms", 0),
+                },
+            )
+
+    # ── 4) Commit final + bump installs ─────────────────────────────
+    plugin.installs = (plugin.installs or 0) + 1
+    db.commit()
+    db.refresh(sub)
+    return PluginSubscriptionResponse.model_validate(sub)
+
+
+def _parse_config(raw: Any) -> Dict[str, Any]:
+    """Decodifica el ``config`` recibido en el body a dict.
+
+    Aceptamos: None, dict, o string JSON. Si no se puede parsear, devuelve
+    ``{}`` — la validación posterior del schema generará el 422 adecuado.
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            import json as _json
+            parsed = _json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except Exception:  # noqa: BLE001
+            return {"value": raw}
+    return {"value": raw}
+
+
+@router.post("/{slug}/uninstall", status_code=204)
+def uninstall_plugin(
+    slug: str,
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Uninstall a plugin for the current tenant (marks subscription canceled)."""
+    plugin = _get_plugin_by_slug(db, slug)
+    tenant_id = _resolve_tenant(request, db, user)
+
+    sub = _get_subscription(db, tenant_id, plugin.id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Plugin not installed")
+
+    sub.status = "canceled"
+    sub.canceled_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+@router.patch("/my-plugins/{slug}/config", response_model=PluginSubscriptionResponse)
+def update_plugin_config(
+    slug: str,
+    body: PluginSubscriptionUpdate,
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update the configuration for an installed plugin.
+
+    HU_45 — valida la nueva ``config`` contra ``plugin.config_schema``
+    antes de persistir. Si la validación falla, devuelve 422 con la
+    lista de errores.
+    """
+    plugin = _get_plugin_by_slug(db, slug)
+    tenant_id = _resolve_tenant(request, db, user)
+
+    sub = _get_subscription(db, tenant_id, plugin.id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Plugin not installed")
+
+    if body.config is not None:
+        new_config = _parse_config(body.config)
+        ok, schema_errors = validate_config(plugin.config_schema, new_config)
+        if not ok:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Config no cumple el schema del plugin",
+                    "errors": schema_errors,
+                },
+            )
+        sub.config = body.config
+    if body.status is not None:
+        sub.status = body.status
+        if body.status == "canceled":
+            sub.canceled_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(sub)
+
+    resp = PluginSubscriptionResponse.model_validate(sub)
+    resp.plugin = MarketplacePluginResponse.model_validate(plugin)
+    return resp
+
+
+# ─────────────────────────────────────────────────────────────────
+# Admin endpoints
+# ─────────────────────────────────────────────────────────────────
+
+admin_router = APIRouter(prefix="/admin/marketplace", tags=["marketplace-admin"])
+
+
+@admin_router.post("/", response_model=MarketplacePluginResponse, status_code=201)
+def admin_create_plugin(
+    body: MarketplacePluginCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Publish a new marketplace plugin. Requires superadmin."""
+    existing = db.query(MarketplacePlugin).filter(
+        MarketplacePlugin.slug == body.slug
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Plugin with slug '{body.slug}' already exists")
+
+    plugin = MarketplacePlugin(
+        name=body.name,
+        slug=body.slug,
+        description=body.description,
+        version=body.version,
+        category=body.category,
+        pip_package=body.pip_package,
+        git_url=body.git_url,
+        install_script=body.install_script,
+        config_schema=body.config_schema,
+        is_active=body.is_active,
+        is_featured=body.is_featured,
+        is_paid=body.is_paid,
+        price_monthly_usd=body.price_monthly_usd,
+        published_by=user.id,
+    )
+    db.add(plugin)
+    db.commit()
+    db.refresh(plugin)
+    return MarketplacePluginResponse.model_validate(plugin)
+
+
+@admin_router.patch("/{plugin_id}", response_model=MarketplacePluginResponse)
+def admin_update_plugin(
+    plugin_id: UUID,
+    body: MarketplacePluginUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Update a marketplace plugin. Requires superadmin."""
+    plugin = db.get(MarketplacePlugin, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(plugin, field, value)
+
+    db.commit()
+    db.refresh(plugin)
+    return MarketplacePluginResponse.model_validate(plugin)
+
+
+@admin_router.delete("/{plugin_id}", status_code=204)
+def admin_delete_plugin(
+    plugin_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Remove a marketplace plugin. Requires superadmin."""
+    plugin = db.get(MarketplacePlugin, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+
+    db.delete(plugin)
+    db.commit()
+
+
+class SeedResult(BaseModel):
+    created: int
+    message: str
+
+
+@admin_router.post("/seed", response_model=SeedResult)
+def admin_seed_plugins(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Seed 5 example marketplace plugins. Requires superadmin."""
+    from app.seed import seed_marketplace_plugins as _seed_fn
+    created = _seed_fn(db)
+    return SeedResult(created=created, message=f"Seeded {created} plugins")
+
+
+class TestInstallRequest(BaseModel):
+    """Body del ``POST /admin/marketplace/{id}/test-install``."""
+
+    tenant_id: Optional[UUID] = None
+    config: Optional[Any] = None
+    timeout_sec: int = 10
+
+
+class TestInstallResponse(BaseModel):
+    ok: bool
+    output: str = ""
+    error: Optional[str] = None
+    timed_out: bool = False
+    duration_ms: int = 0
+    hooks_count: int = 0
+    # Si el plugin no tiene install_script, devolvemos este mensaje
+    # informativo en vez de error.
+    skipped: bool = False
+    message: Optional[str] = None
+
+
+@admin_router.post(
+    "/{plugin_id}/test-install",
+    response_model=TestInstallResponse,
+)
+def admin_test_install(
+    plugin_id: UUID,
+    body: TestInstallRequest = TestInstallRequest(),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superuser),
+):
+    """Ejecuta el install_script de un plugin en sandbox contra un tenant de prueba.
+
+    HU_45 — útil para que el desarrollador / superadmin valide el script
+    antes de publicarlo. Por seguridad NO se persisten los efectos en la
+    DB del tenant target — se valida en sandbox con una sesión que se
+    descarta al final.
+
+    Requiere superadmin.
+    """
+    plugin = db.get(MarketplacePlugin, plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin no encontrado")
+
+    if not plugin.install_script or not plugin.install_script.strip():
+        return TestInstallResponse(
+            ok=True,
+            skipped=True,
+            message="El plugin no tiene `install_script` definido.",
+        )
+
+    # Para validar config contra schema
+    config_dict = _parse_config(body.config)
+    ok, schema_errors = validate_config(plugin.config_schema, config_dict)
+    if not ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Config no cumple el schema del plugin",
+                "errors": schema_errors,
+            },
+        )
+
+    # Determinar tenant de prueba: si el admin envió tenant_id, usar ése;
+    # en caso contrario, tomar el primer tenant activo.
+    tenant_id = body.tenant_id
+    if not tenant_id:
+        from app.models.tenant import Tenant
+        first = db.query(Tenant).order_by(Tenant.created_at.asc()).first()
+        if first is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay tenants en el sistema; crea uno antes de probar.",
+            )
+        tenant_id = first.id
+
+    # IMPORTANTE: ejecutar en sandbox con `db` real — los efectos del
+    # install_script (CREATE TABLE, INSERT seed, etc.) SÍ quedan
+    # persistidos. Es responsabilidad del operador/admin usarlos con
+    # criterio. El caller decide commit/rollback desde su cliente.
+    run_result = run_install_script(
+        db=db,
+        plugin=plugin,
+        tenant_id=tenant_id,
+        config=config_dict,
+        timeout_sec=body.timeout_sec,
+    )
+
+    # Si el script falló, NO hacemos rollback — dejamos que el caller
+    # decida. Pero NO persistimos la suscripción automáticamente.
+    db.commit()  # commit los efectos del script (tablas nuevas, etc.)
+
+    return TestInstallResponse(
+        ok=run_result.get("ok", False),
+        output=run_result.get("output") or "",
+        error=run_result.get("error"),
+        timed_out=run_result.get("timed_out", False),
+        duration_ms=run_result.get("duration_ms", 0),
+        hooks_count=len(run_result.get("hooks") or {}),
+        skipped=False,
+    )

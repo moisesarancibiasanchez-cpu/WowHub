@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Política de privacidad — WowHub{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 24px; max-width: 800px;">
+  <h1>Política de privacidad</h1>
+  <p class="text-muted">Última actualización: 2026-08-09</p>
+
+  <h2>1. Datos que recopilamos</h2>
+  <ul>
+    <li><strong>Cuenta:</strong> email, nombre, contraseña (hasheada con bcrypt).</li>
+    <li><strong>Negocio:</strong> nombre, slug, descripción, logo, branding.</li>
+    <li><strong>Pedidos y clientes:</strong> información que el comercio registra sobre sus clientes.</li>
+    <li><strong>Uso:</strong> IP, user-agent, escaneos de QR, eventos de auditoría.</li>
+  </ul>
+
+  <h2>2. Para qué los usamos</h2>
+  <ul>
+    <li>Proveer y mejorar el servicio.</li>
+    <li>Procesar pagos y emitir comprobantes.</li>
+    <li>Enviar emails transaccionales (pedidos, recuperación de contraseña, verificaciones).</li>
+    <li>Prevenir fraude y abuso.</li>
+    <li>Cumplir obligaciones legales.</li>
+  </ul>
+
+  <h2>3. Con quién los compartimos</h2>
+  <p>Solo con proveedores que nos ayudan a operar:</p>
+  <ul>
+    <li>Procesadores de pago (MercadoPago).</li>
+    <li>Proveedores de email (Resend, SMTP).</li>
+    <li>Hosting y base de datos (Railway, PostgreSQL).</li>
+    <li>Almacenamiento de archivos.</li>
+  </ul>
+  <p>Nunca vendemos tus datos.</p>
+
+  <h2>4. Cookies</h2>
+  <p>Usamos cookies técnicas para autenticación y sesión. Ver
+  <a href="/legal/cookies">política de cookies</a> para más detalles.</p>
+
+  <h2>5. Tus derechos</h2>
+  <p>Puedes acceder, rectificar, eliminar o exportar tus datos desde el panel o
+  solicitándolo a <a href="mailto:privacy@wowhub.app">privacy@wowhub.app</a>.</p>
+
+  <h2>6. Seguridad</h2>
+  <p>Usamos HTTPS, contraseñas hasheadas, JWT firmados, rate limiting y auditoría.
+  Hacemos respaldos periódicos. Sin embargo, ningún sistema es 100% seguro.</p>
+
+  <h2>7. Retención</h2>
+  <p>Conservamos los datos mientras la cuenta esté activa. Tras la cancelación, los
+  datos se eliminan en un plazo máximo de 90 días, salvo obligaciones legales.</p>
+
+  <h2>8. Menores</h2>
+  <p>WowHub no está dirigido a menores de 16 años. No recopilamos intencionalmente
+  datos de menores.</p>
+
+  <h2>9. Cambios</h2>
+  <p>Te avisaremos por email ante cambios sustanciales en esta política.</p>
+
+  <p class="mt-4">
+    <a href="/legal/terms">Términos</a> ·
+    <a href="/legal/cookies">Política de cookies</a>
+  </p>
+</section>
+{% endblock %}

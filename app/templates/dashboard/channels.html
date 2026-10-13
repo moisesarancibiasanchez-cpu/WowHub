@@ -1,0 +1,271 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Canales — WowHub{% endblock %}
+
+{% block dash_content %}
+<section class="dash-page" style="padding: 24px;">
+  <div class="row-between">
+    <div>
+      <h1 style="margin: 0;">Canales de venta</h1>
+      <p class="text-muted" style="margin: 4px 0 0;">
+        Comparativa de pedidos por canal (POS · Web · WhatsApp · QR · Kiosko · API).
+        Excluye pedidos cancelados.
+      </p>
+    </div>
+    <div class="flex" style="gap: 8px; align-items: center;">
+      <label class="text-muted" for="days-select" style="font-size: 13px;">Período:</label>
+      <select id="days-select" class="form-input" style="width: 110px;">
+        <option value="7">7 días</option>
+        <option value="30" selected>30 días</option>
+        <option value="90">90 días</option>
+        <option value="365">1 año</option>
+      </select>
+      <select id="branch-select" class="form-input" style="width: 180px;">
+        <option value="">Todas las sucursales</option>
+      </select>
+      <button class="btn" id="refresh-btn">Actualizar</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div id="kpis" class="flex" style="gap: 12px; margin: 16px 0; flex-wrap: wrap;"></div>
+
+  <!-- Gráfico de barras (CSS-only) -->
+  <div class="card" style="padding: 16px; margin-bottom: 16px;">
+    <h3 style="margin: 0 0 12px;">Revenue por canal</h3>
+    <div id="bars"></div>
+  </div>
+
+  <!-- Top productos por canal -->
+  <div class="card" style="padding: 16px; margin-bottom: 16px;">
+    <h3 style="margin: 0 0 12px;">Top productos por canal</h3>
+    <p class="text-muted" style="font-size: 12px; margin: 0 0 12px;">
+      Productos más pedidos en el período, clasificados por canal de origen.
+    </p>
+    <div id="top-products" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+      <p class="text-muted">Cargando…</p>
+    </div>
+  </div>
+
+  <div id="alert"></div>
+</section>
+
+<!-- Estilos locales para barras -->
+<style>
+.ch-bar-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 120px;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+.ch-bar-label {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
+}
+.ch-bar-track {
+  height: 18px;
+  background: var(--bg-elev-2, #1f2533);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, #2a3142);
+}
+.ch-bar-fill {
+  height: 100%;
+  border-radius: 8px 0 0 8px;
+  transition: width 0.3s ease;
+}
+.ch-bar-value {
+  font-size: 12px;
+  text-align: right;
+  color: var(--fg-muted, #9ca3af);
+}
+.ch-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-muted, #9ca3af);
+}
+.ch-product-list {
+  background: var(--bg-elev-2, #1f2533);
+  border: 1px solid var(--border, #2a3142);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.ch-product-list h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-muted, #9ca3af);
+  display: flex; align-items: center; gap: 6px;
+}
+.ch-product-list ol {
+  margin: 0; padding: 0 0 0 18px;
+  font-size: 13px;
+}
+.ch-product-list li {
+  padding: 2px 0;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTenantId = null;
+let days = 30;
+let branchId = "";
+let stats = null;
+
+const $ = (id) => document.getElementById(id);
+const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString("es-CL", { maximumFractionDigits: 0 })};
+
+const CHANNEL_META = {
+  web:      { icon: "🌐", label: "Web",      color: "#3b82f6" },
+  pos:      { icon: "🖥️", label: "POS",      color: "#8b5cf6" },
+  qr:       { icon: "📷", label: "QR",       color: "#f59e0b" },
+  kiosk:    { icon: "🏬", label: "Kiosko",   color: "#ec4899" },
+  whatsapp: { icon: "📱", label: "WhatsApp", color: "#22c55e" },
+  api:      { icon: "🔌", label: "API",      color: "#64748b" },
+  test:     { icon: "🧪", label: "Test",     color: "#94a3b8" },
+};
+function channelMeta(src) {
+  return CHANNEL_META[String(src || "web").toLowerCase()] || CHANNEL_META.web;
+}
+
+async function getTenant() {
+  const ms = await WH.api.get("/api/v1/me/memberships");
+  if (!ms.length) throw new Error("No perteneces a ningún negocio.");
+  return ms[0].tenant_id;
+}
+
+async function loadBranches() {
+  const sel = $("branch-select");
+  sel.innerHTML = '<option value="">Todas las sucursales</option>';
+  try {
+    const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/branches?page_size=200`);
+    const list = data.items || data || [];
+    list.forEach(b => {
+      const opt = document.createElement("option");
+      opt.value = b.id; opt.textContent = b.name;
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+async function loadStats() {
+  const qs = new URLSearchParams({ days: String(days) });
+  if (branchId) qs.set("branch_id", branchId);
+  stats = await WH.api.get(`/api/v1/tenants/${currentTenantId}/orders/channel-stats?${qs}`);
+  renderAll();
+}
+
+function renderAll() {
+  renderKPIs();
+  renderBars();
+  renderTopProducts();
+}
+
+function renderKPIs() {
+  if (!stats) return;
+  const total = stats.total_orders || 0;
+  const rev = stats.total_revenue_cents || 0;
+  const channels = stats.channels || [];
+  const bestRev = channels.length ? channels[0] : null;
+  const bestCnt = [...channels].sort((a, b) => b.count - a.count)[0] || null;
+  const avg = total > 0 ? Math.round(rev / total) : 0;
+  $("kpis").innerHTML = `
+    <div class="kpi-card"><div class="label">Pedidos</div><div class="value">${total}</div></div>
+    <div class="kpi-card"><div class="label">Revenue total</div><div class="value">${fmtMoney(rev)}</div></div>
+    <div class="kpi-card"><div class="label">Ticket promedio</div><div class="value">${fmtMoney(avg)}</div></div>
+    <div class="kpi-card"><div class="label">Mejor canal (rev)</div><div class="value">${bestRev ? channelMeta(bestRev.channel).icon + " " + channelMeta(bestRev.channel).label : "—"}</div></div>
+    <div class="kpi-card"><div class="label">Más pedidos</div><div class="value">${bestCnt ? channelMeta(bestCnt.channel).icon + " " + bestCnt.count : "—"}</div></div>
+    <div class="kpi-card"><div class="label">Período</div><div class="value">${stats.days} días</div></div>
+  `;
+}
+
+function renderBars() {
+  if (!stats || !stats.channels.length) {
+    $("bars").innerHTML = '<div class="ch-empty">Sin pedidos en este período. Cuando lleguen, aparecerán acá.</div>';
+    return;
+  }
+  const max = Math.max(...stats.channels.map(c => c.revenue_cents || 0), 1);
+  $("bars").innerHTML = stats.channels.map(c => {
+    const meta = channelMeta(c.channel);
+    const pct = max > 0 ? Math.round((c.revenue_cents / max) * 100) : 0;
+    return `
+      <div class="ch-bar-row">
+        <div class="ch-bar-label">${meta.icon} ${meta.label}</div>
+        <div class="ch-bar-track">
+          <div class="ch-bar-fill" style="width:${pct}%; background:${meta.color};"></div>
+        </div>
+        <div class="ch-bar-value">${fmtMoney(c.revenue_cents)} · ${c.count} pedidos</div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadTopProducts() {
+  // Traemos los últimos 200 pedidos del período y los agregamos por canal
+  // localmente. Barato y suficiente para una vista "Top productos por canal".
+  const params = new URLSearchParams({ page_size: "200" });
+  const data = await WH.api.get(`/api/v1/tenants/${currentTenantId}/orders?${params}`);
+  const orders = (data.items || data || []);
+  const byCh = {};
+  for (const o of orders) {
+    const ch = String(o.source || "web").toLowerCase();
+    if (!byCh[ch]) byCh[ch] = {};
+    // Expandir items del pedido
+    if (Array.isArray(o.items)) {
+      for (const it of o.items) {
+        const name = it.product_name || it.name || "—";
+        if (!byCh[ch][name]) byCh[ch][name] = { qty: 0, cents: 0 };
+        byCh[ch][name].qty += it.quantity || 1;
+        byCh[ch][name].cents += (it.total_cents || 0);
+      }
+    }
+  }
+  const container = $("top-products");
+  const chKeys = Object.keys(byCh);
+  if (!chKeys.length) {
+    container.innerHTML = '<p class="text-muted">Sin items en este período.</p>';
+    return;
+  }
+  container.innerHTML = chKeys.map(ch => {
+    const meta = channelMeta(ch);
+    const items = Object.entries(byCh[ch])
+      .map(([name, v]) => ({ name, qty: v.qty, cents: v.cents }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+    return `
+      <div class="ch-product-list">
+        <h4><span aria-hidden="true">${meta.icon}</span> ${meta.label}</h4>
+        <ol>
+          ${items.map(it => `
+            <li><strong>${escapeHTML(it.name)}</strong> · ${it.qty} ud · ${fmtMoney(it.cents)}</li>
+          `).join("") || '<li class="text-muted">Sin datos</li>'}
+        </ol>
+      </div>
+    `;
+  }).join("");
+}
+
+function escapeHTML(s) {
+  return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+}
+
+$("days-select").addEventListener("change", (e) => { days = parseInt(e.target.value, 10) || 30; loadStats(); });
+$("branch-select").addEventListener("change", (e) => { branchId = e.target.value; loadStats(); });
+$("refresh-btn").addEventListener("click", () => { loadStats(); loadTopProducts(); });
+
+(async function init() {
+  try {
+    currentTenantId = await getTenant();
+    await loadBranches();
+    await loadStats();
+    await loadTopProducts();
+  } catch (err) {
+    $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
+  }
+})();
+</script>
+{% endblock %}

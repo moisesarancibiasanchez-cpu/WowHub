@@ -1,0 +1,663 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Bienvenido a WowHub — Onboarding{% endblock %}
+{% block dash_content %}
+
+<style>
+.onboarding-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Progress bar ── */
+.ob-progress {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 48px;
+}
+.ob-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+.ob-progress-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  width: 100%;
+  height: 3px;
+  background: var(--color-border, #e2e8f0);
+  z-index: 0;
+}
+.ob-progress-step.done:not(:last-child)::after {
+  background: var(--color-primary, #7c5cff);
+}
+.ob-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-border, #e2e8f0);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 1;
+  transition: background 0.3s;
+}
+.ob-progress-step.done .ob-dot,
+.ob-progress-step.active .ob-dot {
+  background: var(--color-primary, #7c5cff);
+}
+.ob-label {
+  font-size: 11px;
+  color: var(--color-text-muted, #94a3b8);
+  margin-top: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.ob-progress-step.active .ob-label {
+  color: var(--color-primary, #7c5cff);
+  font-weight: 600;
+}
+
+/* ── Card ── */
+.ob-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 16px;
+  padding: 40px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.ob-card h2 {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--color-text, #1e293b);
+}
+.ob-card p.sub {
+  color: var(--color-text-muted, #64748b);
+  margin: 0 0 32px;
+  font-size: 15px;
+}
+
+/* ── Form elements ── */
+.ob-field {
+  margin-bottom: 20px;
+}
+.ob-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  margin-bottom: 6px;
+}
+.ob-field input[type="text"],
+.ob-field input[type="url"],
+.ob-field input[type="number"],
+.ob-field select,
+.ob-field textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--color-bg, #f8fafc);
+  color: var(--color-text, #1e293b);
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  outline: none;
+}
+.ob-field input:focus,
+.ob-field select:focus,
+.ob-field textarea:focus {
+  border-color: var(--color-primary, #7c5cff);
+}
+.ob-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+.ob-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ── Navigation ── */
+.ob-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+.ob-skip {
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+}
+.ob-skip:hover { color: var(--color-primary, #7c5cff); }
+
+/* ── Welcome step ── */
+.ob-welcome-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  display: block;
+  text-align: center;
+}
+.ob-welcome-text {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.ob-welcome-text h2 {
+  text-align: center;
+}
+.ob-welcome-text p {
+  text-align: center;
+}
+
+/* ── Summary step ── */
+.ob-summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  font-size: 14px;
+}
+.ob-summary-item:last-child { border-bottom: none; }
+.ob-summary-item strong { color: var(--color-text, #1e293b); }
+.ob-summary-item span { color: var(--color-text-muted, #64748b); }
+
+/* ── Loading overlay ── */
+.ob-loading {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.8);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+}
+.ob-loading.show { display: flex; }
+.ob-spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #7c5cff);
+  border-radius: 50%;
+  animation: ob-spin 0.7s linear infinite;
+}
+@keyframes ob-spin { to { transform: rotate(360deg); } }
+
+/* ── Error ── */
+.ob-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #dc2626;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: none;
+}
+
+/* ── wow_score badge ── */
+.ob-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #7c5cff, #a78bfa);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+</style>
+
+<div class="onboarding-wrap" id="ob-root">
+  <!-- Loading overlay -->
+  <div class="ob-loading" id="ob-loading">
+    <div class="ob-spinner"></div>
+    <span style="color:#64748b;font-size:14px;">Guardando…</span>
+  </div>
+
+  <!-- Progress bar (hidden on welcome, shown after) -->
+  <div class="ob-progress" id="ob-progress" style="display:none;">
+    {% for i in range(1, 6) %}
+    <div class="ob-progress-step{% if i == 1 %} active{% endif %}" data-step="{{ i }}">
+      <div class="ob-dot">{{ i }}</div>
+      <div class="ob-label">{{ ["Bienvenida","Perfil","Menú","Salón","Completar"][i-1] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Step panels -->
+  <div class="ob-card" id="ob-card">
+
+    <!-- ── STEP 1: Welcome ── -->
+    <div class="ob-step" id="ob-step-1">
+      <span class="ob-welcome-icon">👋</span>
+      <div class="ob-welcome-text">
+        <h2>¡Bienvenido a WowHub!</h2>
+        <p style="color:#64748b;font-size:15px;margin:0;">
+          Configuremos tu restaurante en minutos.<br>Te guiaremos en 5 pasos simples.
+        </p>
+      </div>
+      <div class="ob-field">
+        <label for="ob-name">Nombre de tu restaurante</label>
+        <input type="text" id="ob-name" placeholder="Ej: La Casa del Sabor" />
+      </div>
+      <div class="ob-field">
+        <label for="ob-logo">URL del logo (opcional)</label>
+        <input type="url" id="ob-logo" placeholder="https://tulogo.com/logo.png" />
+      </div>
+      <div class="ob-nav" style="border-top:none;margin-top:24px;padding-top:0;">
+        <span></span>
+        <button class="btn btn-primary" id="ob-btn-1">Comenzar →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: Profile ── -->
+    <div class="ob-step" id="ob-step-2" style="display:none;">
+      <h2>🍽️ Tu Perfil</h2>
+      <p class="sub">Contanos un poco sobre tu restaurante.</p>
+      <div class="ob-field">
+        <label for="ob-cuisine">Tipo de cocina</label>
+        <select id="ob-cuisine">
+          <option value="">Seleccionar…</option>
+          <option>Argentina</option>
+          <option>Mexicana</option>
+          <option>Italiana</option>
+          <option>Japonesa</option>
+          <option>Peruana</option>
+          <option>Chilena</option>
+          <option>Francesa</option>
+          <option>Española</option>
+          <option>China</option>
+          <option>India</option>
+          <option>Thai</option>
+          <option>Mediterránea</option>
+          <option>Americana</option>
+          <option>Brasilera</option>
+          <option>Otra</option>
+        </select>
+      </div>
+      <div class="ob-grid-2">
+        <div class="ob-field">
+          <label for="ob-price-range">Rango de precios</label>
+          <select id="ob-price-range">
+            <option value="">Seleccionar…</option>
+            <option>$ (Económico)</option>
+            <option>$$ (Intermedio)</option>
+            <option>$$$ (Gourmet)</option>
+            <option>$$$$ (Premium)</option>
+          </select>
+        </div>
+        <div class="ob-field">
+          <label for="ob-city">Ciudad</label>
+          <input type="text" id="ob-city" placeholder="Santiago" />
+        </div>
+      </div>
+      <div class="ob-field">
+        <label for="ob-address">Dirección</label>
+        <input type="text" id="ob-address" placeholder="Av. Providencia 1234, Santiago" />
+      </div>
+      <div class="ob-error" id="ob-error-2"></div>
+      <div class="ob-nav">
+        <button class="btn btn-ghost" id="ob-back-2">← Atrás</button>
+        <button class="btn btn-primary" id="ob-next-2">Siguiente →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: Menu ── -->
+    <div class="ob-step" id="ob-step-3" style="display:none;">
+      <h2>📋 Tu Menú</h2>
+      <p class="sub">Creá tu primera categoría y un producto para empezar.</p>
+      <div class="ob-field">
+        <label for="ob-cat-name">Nombre de la categoría</label>
+        <input type="text" id="ob-cat-name" placeholder="Ej: Entradas, Platos principales…" />
+      </div>
+      <div class="ob-field">
+        <label for="ob-product-name">Nombre del producto</label>
+        <input type="text" id="ob-product-name" placeholder="Ej: Empanadas caseras" />
+      </div>
+      <div class="ob-grid-2">
+        <div class="ob-field">
+          <label for="ob-product-price">Precio</label>
+          <input type="text" id="ob-product-price" placeholder="$ 4.500" />
+        </div>
+        <div class="ob-field">
+          <label for="ob-product-desc">Descripción (opcional)</label>
+          <input type="text" id="ob-product-desc" placeholder="Breve descripción…" />
+        </div>
+      </div>
+      <p class="ob-skip" id="ob-skip-3" style="text-align:center;margin-top:8px;">
+        ⏭️ Omitir este paso si aún no tenés tu menú listo
+      </p>
+      <div class="ob-error" id="ob-error-3"></div>
+      <div class="ob-nav">
+        <button class="btn btn-ghost" id="ob-back-3">← Atrás</button>
+        <button class="btn btn-primary" id="ob-next-3">Siguiente →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 4: Dining Room ── -->
+    <div class="ob-step" id="ob-step-4" style="display:none;">
+      <h2>🪑 Tu Salón</h2>
+      <p class="sub">Configurá el espacio de atención.</p>
+      <div class="ob-grid-2">
+        <div class="ob-field">
+          <label for="ob-tables">Número de mesas</label>
+          <input type="number" id="ob-tables" min="1" max="200" value="5" placeholder="5" />
+        </div>
+        <div class="ob-field">
+          <label for="ob-capacity">Capacidad total (personas)</label>
+          <input type="number" id="ob-capacity" min="1" max="1000" value="20" placeholder="20" />
+        </div>
+      </div>
+      <div class="ob-field">
+        <label for="ob-layout">Tipo de distribución</label>
+        <select id="ob-layout">
+          <option>Mesas individuales</option>
+          <option>Mixto (mesas y grupal)</option>
+          <option>Bar con mesas altas</option>
+          <option>Terraza / Exterior</option>
+          <option>Salón privado</option>
+        </select>
+      </div>
+      <div class="ob-error" id="ob-error-4"></div>
+      <div class="ob-nav">
+        <button class="btn btn-ghost" id="ob-back-4">← Atrás</button>
+        <button class="btn btn-primary" id="ob-next-4">Siguiente →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 5: Complete ── -->
+    <div class="ob-step" id="ob-step-5" style="display:none;">
+      <h2>🎉 ¡Todo Listo!</h2>
+      <p class="sub">Este es el resumen de tu configuración inicial.</p>
+
+      <div class="ob-score" id="ob-score-display">
+        🌟 WowScore: <span id="ob-score-val">0</span>/100
+      </div>
+
+      <div id="ob-summary-list">
+        <div class="ob-summary-item"><strong>Restaurante</strong><span id="ob-sum-name">—</span></div>
+        <div class="ob-summary-item"><strong>Tipo de cocina</strong><span id="ob-sum-cuisine">—</span></div>
+        <div class="ob-summary-item"><strong>Dirección</strong><span id="ob-sum-address">—</span></div>
+        <div class="ob-summary-item"><strong>Mesas</strong><span id="ob-sum-tables">—</span></div>
+        <div class="ob-summary-item"><strong>Categoría menú</strong><span id="ob-sum-cat">—</span></div>
+        <div class="ob-summary-item"><strong>Primer producto</strong><span id="ob-sum-product">—</span></div>
+      </div>
+
+      <div class="ob-error" id="ob-error-5"></div>
+      <div class="ob-nav">
+        <button class="btn btn-ghost" id="ob-back-5">← Atrás</button>
+        <button class="btn btn-primary" id="ob-next-5">🎉 Entrar al Dashboard</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Onboarding Wizard Controller ──────────────────────────────────────
+(function () {
+  const STEPS = 5;
+  let currentStep = 1;
+  let completedSteps = [];
+  let wizardData = {};
+  let tenantId = null;
+  let accessToken = null;
+
+  // ── Auth + Tenant from session ──
+  async function initAuth() {
+    try {
+      const session = await WH.Auth.ensureSession();
+      const t = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
+        || localStorage.getItem("wowhub_access_token");
+      accessToken = t;
+      const tenant = session && (session.tenant || WH.Auth.tenant());
+      if (tenant) {
+        tenantId = tenant.tenant_id || tenant.id;
+      }
+      if (!tenantId) {
+        // Fallback: decode JWT payload
+        try {
+          const parts = String(t).split(".");
+          if (parts.length >= 2) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+            tenantId = payload.tenant_id || payload.tid;
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.error("[onboarding] initAuth failed", e);
+    }
+  }
+
+  async function loadState() {
+    if (!tenantId || !accessToken) return;
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/onboarding`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.current_step) {
+          // Map backend step name to step number
+          const stepMap = { welcome: 1, profile: 2, menu: 3, dining: 4, complete: 5 };
+          currentStep = stepMap[data.current_step] || 1;
+        }
+        completedSteps = data.completed_steps || [];
+        wizardData = data.wizard_data || {};
+        if (data.is_completed) {
+          // Already completed → redirect to dashboard
+          window.location.href = "/dashboard";
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("[onboarding] loadState failed", e);
+    }
+  }
+
+  function showStep(n) {
+    document.querySelectorAll(".ob-step").forEach(el => el.style.display = "none");
+    const stepEl = document.getElementById(`ob-step-${n}`);
+    if (stepEl) stepEl.style.display = "";
+
+    // Update progress dots
+    document.querySelectorAll(".ob-progress-step").forEach(el => {
+      const s = parseInt(el.dataset.step || "0");
+      el.classList.remove("active", "done");
+      if (s < n) el.classList.add("done");
+      if (s === n) el.classList.add("active");
+    });
+
+    // Show progress bar after step 1
+    const progressBar = document.getElementById("ob-progress");
+    if (progressBar) progressBar.style.display = n > 1 ? "" : "none";
+
+    // Populate summary on step 5
+    if (n === 5) {
+      document.getElementById("ob-sum-name").textContent = wizardData.restaurant_name || "—";
+      document.getElementById("ob-sum-cuisine").textContent = wizardData.cuisine_type || "—";
+      document.getElementById("ob-sum-address").textContent = wizardData.address || "—";
+      document.getElementById("ob-sum-tables").textContent = (wizardData.num_tables || "—") + " mesas";
+      document.getElementById("ob-sum-cat").textContent = wizardData.category_name || "—";
+      document.getElementById("ob-sum-product").textContent = wizardData.product_name || "—";
+      document.getElementById("ob-score-val").textContent = completedSteps.length * 14;
+    }
+  }
+
+  function setLoading(on) {
+    const el = document.getElementById("ob-loading");
+    if (el) el.classList.toggle("show", on);
+  }
+
+  function showError(step, msg) {
+    const el = document.getElementById(`ob-error-${step}`);
+    if (!el) return;
+    el.textContent = msg || "Ocurrió un error. Intenta de nuevo.";
+    el.style.display = msg ? "" : "none";
+  }
+
+  async function saveStep(stepNum, stepName, extraData) {
+    if (!tenantId) {
+      // Try to init again
+      await initAuth();
+      if (!tenantId) {
+        showError(stepNum, "No se pudo identificar el restaurante. Recargá la página.");
+        return false;
+      }
+    }
+    setLoading(true);
+    showError(stepNum, null);
+    try {
+      const payload = {
+        current_step: stepName,
+        completed_steps: [...new Set([...completedSteps, stepName])],
+        wizard_data: { ...wizardData, ...(extraData || {}) }
+      };
+      const res = await fetch(`/api/v1/tenants/${tenantId}/onboarding/step`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      completedSteps = data.completed_steps || completedSteps;
+      wizardData = data.wizard_data || wizardData;
+      return true;
+    } catch (e) {
+      showError(stepNum, e.message || "Error de conexión. Intenta de nuevo.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function completeWizard() {
+    if (!tenantId) return;
+    setLoading(true);
+    try {
+      await fetch(`/api/v1/tenants/${tenantId}/onboarding/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+    } catch (_) {}
+    finally { setLoading(false); }
+    window.location.href = "/dashboard";
+  }
+
+  // ── Navigation ──
+  async function goNext(stepNum) {
+    let extraData = {};
+
+    if (stepNum === 1) {
+      const name = document.getElementById("ob-name").value.trim();
+      const logo = document.getElementById("ob-logo").value.trim();
+      extraData = { restaurant_name: name, logo_url: logo };
+      if (!name) {
+        showError(1, "Por favor ingresá el nombre de tu restaurante.");
+        return;
+      }
+      const ok = await saveStep(1, "welcome", extraData);
+      if (ok) { currentStep = 2; showStep(2); }
+    } else if (stepNum === 2) {
+      const cuisine = document.getElementById("ob-cuisine").value;
+      const priceRange = document.getElementById("ob-price-range").value;
+      const city = document.getElementById("ob-city").value.trim();
+      const address = document.getElementById("ob-address").value.trim();
+      extraData = { cuisine_type: cuisine, price_range: priceRange, city, address };
+      if (!cuisine) {
+        showError(2, "Por favor seleccioná el tipo de cocina.");
+        return;
+      }
+      const ok = await saveStep(2, "profile", extraData);
+      if (ok) { currentStep = 3; showStep(3); }
+    } else if (stepNum === 3) {
+      const catName = document.getElementById("ob-cat-name").value.trim();
+      const productName = document.getElementById("ob-product-name").value.trim();
+      const productPrice = document.getElementById("ob-product-price").value.trim();
+      const productDesc = document.getElementById("ob-product-desc").value.trim();
+      extraData = { category_name: catName, product_name: productName, product_price: productPrice, product_desc: productDesc };
+      const ok = await saveStep(3, "menu", extraData);
+      if (ok) { currentStep = 4; showStep(4); }
+    } else if (stepNum === 4) {
+      const numTables = document.getElementById("ob-tables").value;
+      const capacity = document.getElementById("ob-capacity").value;
+      const layout = document.getElementById("ob-layout").value;
+      extraData = { num_tables: numTables, capacity, layout_type: layout };
+      const ok = await saveStep(4, "dining", extraData);
+      if (ok) { currentStep = 5; showStep(5); }
+    } else if (stepNum === 5) {
+      const ok = await saveStep(5, "complete", {});
+      if (ok) await completeWizard();
+    }
+  }
+
+  function goBack(stepNum) {
+    if (stepNum <= 1) return;
+    currentStep = stepNum - 1;
+    showStep(currentStep);
+  }
+
+  // ── Event listeners ──
+  // Step 1
+  document.getElementById("ob-btn-1")?.addEventListener("click", () => goNext(1));
+
+  // Step 2
+  document.getElementById("ob-next-2")?.addEventListener("click", () => goNext(2));
+  document.getElementById("ob-back-2")?.addEventListener("click", () => goBack(2));
+
+  // Step 3
+  document.getElementById("ob-next-3")?.addEventListener("click", () => goNext(3));
+  document.getElementById("ob-back-3")?.addEventListener("click", () => goBack(3));
+  document.getElementById("ob-skip-3")?.addEventListener("click", async () => {
+    await saveStep(3, "menu", { skipped: true });
+    currentStep = 4;
+    showStep(4);
+  });
+
+  // Step 4
+  document.getElementById("ob-next-4")?.addEventListener("click", () => goNext(4));
+  document.getElementById("ob-back-4")?.addEventListener("click", () => goBack(4));
+
+  // Step 5
+  document.getElementById("ob-next-5")?.addEventListener("click", () => goNext(5));
+  document.getElementById("ob-back-5")?.addEventListener("click", () => goBack(5));
+
+  // ── Bootstrap ──
+  (async function bootstrap() {
+    await initAuth();
+    await loadState();
+    showStep(currentStep);
+  })();
+})();
+</script>
+{% endblock %}

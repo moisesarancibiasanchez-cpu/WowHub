@@ -1,0 +1,1555 @@
+{
+  "html": "/workspace/wowhub/prototypes/f0_baseline/demo.html",
+  "total": 221,
+  "elapsed_ms": 3,
+  "rows": [
+    {
+      "n": 1,
+      "name": "localStorage_seed",
+      "module": "LOCALSTORAGE",
+      "line": 1175,
+      "description": "siembra localStorage para HU_02"
+    },
+    {
+      "n": 2,
+      "name": "dashboard_func_01",
+      "module": "DASHBOARD",
+      "line": 21,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 3,
+      "name": "dashboard_func_02",
+      "module": "DASHBOARD",
+      "line": 26,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 4,
+      "name": "dashboard_func_03",
+      "module": "DASHBOARD",
+      "line": 31,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 5,
+      "name": "dashboard_func_04",
+      "module": "DASHBOARD",
+      "line": 36,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 6,
+      "name": "dashboard_func_05",
+      "module": "DASHBOARD",
+      "line": 41,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 7,
+      "name": "dashboard_func_06",
+      "module": "DASHBOARD",
+      "line": 46,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 8,
+      "name": "dashboard_func_07",
+      "module": "DASHBOARD",
+      "line": 51,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 9,
+      "name": "dashboard_func_08",
+      "module": "DASHBOARD",
+      "line": 56,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 10,
+      "name": "dashboard_func_09",
+      "module": "DASHBOARD",
+      "line": 61,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 11,
+      "name": "dashboard_func_10",
+      "module": "DASHBOARD",
+      "line": 66,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 12,
+      "name": "dashboard_func_11",
+      "module": "DASHBOARD",
+      "line": 71,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 13,
+      "name": "dashboard_func_12",
+      "module": "DASHBOARD",
+      "line": 76,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 14,
+      "name": "dashboard_func_13",
+      "module": "DASHBOARD",
+      "line": 81,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 15,
+      "name": "dashboard_func_14",
+      "module": "DASHBOARD",
+      "line": 86,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 16,
+      "name": "dashboard_func_15",
+      "module": "DASHBOARD",
+      "line": 91,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 17,
+      "name": "dashboard_func_16",
+      "module": "DASHBOARD",
+      "line": 96,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 18,
+      "name": "dashboard_func_17",
+      "module": "DASHBOARD",
+      "line": 101,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 19,
+      "name": "dashboard_func_18",
+      "module": "DASHBOARD",
+      "line": 106,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 20,
+      "name": "dashboard_func_19",
+      "module": "DASHBOARD",
+      "line": 111,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 21,
+      "name": "dashboard_func_20",
+      "module": "DASHBOARD",
+      "line": 116,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 22,
+      "name": "productos_func_01",
+      "module": "PRODUCTOS",
+      "line": 122,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 23,
+      "name": "productos_func_02",
+      "module": "PRODUCTOS",
+      "line": 127,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 24,
+      "name": "productos_func_03",
+      "module": "PRODUCTOS",
+      "line": 132,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 25,
+      "name": "productos_func_04",
+      "module": "PRODUCTOS",
+      "line": 137,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 26,
+      "name": "productos_func_05",
+      "module": "PRODUCTOS",
+      "line": 142,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 27,
+      "name": "productos_func_06",
+      "module": "PRODUCTOS",
+      "line": 147,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 28,
+      "name": "productos_func_07",
+      "module": "PRODUCTOS",
+      "line": 152,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 29,
+      "name": "productos_func_08",
+      "module": "PRODUCTOS",
+      "line": 157,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 30,
+      "name": "productos_func_09",
+      "module": "PRODUCTOS",
+      "line": 162,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 31,
+      "name": "productos_func_10",
+      "module": "PRODUCTOS",
+      "line": 167,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 32,
+      "name": "productos_func_11",
+      "module": "PRODUCTOS",
+      "line": 172,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 33,
+      "name": "productos_func_12",
+      "module": "PRODUCTOS",
+      "line": 177,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 34,
+      "name": "productos_func_13",
+      "module": "PRODUCTOS",
+      "line": 182,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 35,
+      "name": "productos_func_14",
+      "module": "PRODUCTOS",
+      "line": 187,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 36,
+      "name": "productos_func_15",
+      "module": "PRODUCTOS",
+      "line": 192,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 37,
+      "name": "productos_func_16",
+      "module": "PRODUCTOS",
+      "line": 197,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 38,
+      "name": "productos_func_17",
+      "module": "PRODUCTOS",
+      "line": 202,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 39,
+      "name": "productos_func_18",
+      "module": "PRODUCTOS",
+      "line": 207,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 40,
+      "name": "productos_func_19",
+      "module": "PRODUCTOS",
+      "line": 212,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 41,
+      "name": "productos_func_20",
+      "module": "PRODUCTOS",
+      "line": 217,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 42,
+      "name": "insumos_func_01",
+      "module": "INSUMOS",
+      "line": 223,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 43,
+      "name": "insumos_func_02",
+      "module": "INSUMOS",
+      "line": 228,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 44,
+      "name": "insumos_func_03",
+      "module": "INSUMOS",
+      "line": 233,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 45,
+      "name": "insumos_func_04",
+      "module": "INSUMOS",
+      "line": 238,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 46,
+      "name": "insumos_func_05",
+      "module": "INSUMOS",
+      "line": 243,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 47,
+      "name": "insumos_func_06",
+      "module": "INSUMOS",
+      "line": 248,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 48,
+      "name": "insumos_func_07",
+      "module": "INSUMOS",
+      "line": 253,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 49,
+      "name": "insumos_func_08",
+      "module": "INSUMOS",
+      "line": 258,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 50,
+      "name": "insumos_func_09",
+      "module": "INSUMOS",
+      "line": 263,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 51,
+      "name": "insumos_func_10",
+      "module": "INSUMOS",
+      "line": 268,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 52,
+      "name": "insumos_func_11",
+      "module": "INSUMOS",
+      "line": 273,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 53,
+      "name": "insumos_func_12",
+      "module": "INSUMOS",
+      "line": 278,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 54,
+      "name": "insumos_func_13",
+      "module": "INSUMOS",
+      "line": 283,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 55,
+      "name": "insumos_func_14",
+      "module": "INSUMOS",
+      "line": 288,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 56,
+      "name": "insumos_func_15",
+      "module": "INSUMOS",
+      "line": 293,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 57,
+      "name": "insumos_func_16",
+      "module": "INSUMOS",
+      "line": 298,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 58,
+      "name": "insumos_func_17",
+      "module": "INSUMOS",
+      "line": 303,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 59,
+      "name": "insumos_func_18",
+      "module": "INSUMOS",
+      "line": 308,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 60,
+      "name": "insumos_func_19",
+      "module": "INSUMOS",
+      "line": 313,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 61,
+      "name": "insumos_func_20",
+      "module": "INSUMOS",
+      "line": 318,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 62,
+      "name": "pedidos_func_01",
+      "module": "PEDIDOS",
+      "line": 324,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 63,
+      "name": "pedidos_func_02",
+      "module": "PEDIDOS",
+      "line": 329,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 64,
+      "name": "pedidos_func_03",
+      "module": "PEDIDOS",
+      "line": 334,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 65,
+      "name": "pedidos_func_04",
+      "module": "PEDIDOS",
+      "line": 339,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 66,
+      "name": "pedidos_func_05",
+      "module": "PEDIDOS",
+      "line": 344,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 67,
+      "name": "pedidos_func_06",
+      "module": "PEDIDOS",
+      "line": 349,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 68,
+      "name": "pedidos_func_07",
+      "module": "PEDIDOS",
+      "line": 354,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 69,
+      "name": "pedidos_func_08",
+      "module": "PEDIDOS",
+      "line": 359,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 70,
+      "name": "pedidos_func_09",
+      "module": "PEDIDOS",
+      "line": 364,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 71,
+      "name": "pedidos_func_10",
+      "module": "PEDIDOS",
+      "line": 369,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 72,
+      "name": "pedidos_func_11",
+      "module": "PEDIDOS",
+      "line": 374,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 73,
+      "name": "pedidos_func_12",
+      "module": "PEDIDOS",
+      "line": 379,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 74,
+      "name": "pedidos_func_13",
+      "module": "PEDIDOS",
+      "line": 384,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 75,
+      "name": "pedidos_func_14",
+      "module": "PEDIDOS",
+      "line": 389,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 76,
+      "name": "pedidos_func_15",
+      "module": "PEDIDOS",
+      "line": 394,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 77,
+      "name": "pedidos_func_16",
+      "module": "PEDIDOS",
+      "line": 399,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 78,
+      "name": "pedidos_func_17",
+      "module": "PEDIDOS",
+      "line": 404,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 79,
+      "name": "pedidos_func_18",
+      "module": "PEDIDOS",
+      "line": 409,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 80,
+      "name": "pedidos_func_19",
+      "module": "PEDIDOS",
+      "line": 414,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 81,
+      "name": "pedidos_func_20",
+      "module": "PEDIDOS",
+      "line": 419,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 82,
+      "name": "clientes_func_01",
+      "module": "CLIENTES",
+      "line": 425,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 83,
+      "name": "clientes_func_02",
+      "module": "CLIENTES",
+      "line": 430,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 84,
+      "name": "clientes_func_03",
+      "module": "CLIENTES",
+      "line": 435,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 85,
+      "name": "clientes_func_04",
+      "module": "CLIENTES",
+      "line": 440,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 86,
+      "name": "clientes_func_05",
+      "module": "CLIENTES",
+      "line": 445,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 87,
+      "name": "clientes_func_06",
+      "module": "CLIENTES",
+      "line": 450,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 88,
+      "name": "clientes_func_07",
+      "module": "CLIENTES",
+      "line": 455,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 89,
+      "name": "clientes_func_08",
+      "module": "CLIENTES",
+      "line": 460,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 90,
+      "name": "clientes_func_09",
+      "module": "CLIENTES",
+      "line": 465,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 91,
+      "name": "clientes_func_10",
+      "module": "CLIENTES",
+      "line": 470,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 92,
+      "name": "clientes_func_11",
+      "module": "CLIENTES",
+      "line": 475,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 93,
+      "name": "clientes_func_12",
+      "module": "CLIENTES",
+      "line": 480,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 94,
+      "name": "clientes_func_13",
+      "module": "CLIENTES",
+      "line": 485,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 95,
+      "name": "clientes_func_14",
+      "module": "CLIENTES",
+      "line": 490,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 96,
+      "name": "clientes_func_15",
+      "module": "CLIENTES",
+      "line": 495,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 97,
+      "name": "clientes_func_16",
+      "module": "CLIENTES",
+      "line": 500,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 98,
+      "name": "clientes_func_17",
+      "module": "CLIENTES",
+      "line": 505,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 99,
+      "name": "clientes_func_18",
+      "module": "CLIENTES",
+      "line": 510,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 100,
+      "name": "clientes_func_19",
+      "module": "CLIENTES",
+      "line": 515,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 101,
+      "name": "clientes_func_20",
+      "module": "CLIENTES",
+      "line": 520,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 102,
+      "name": "cotizaciones_func_01",
+      "module": "COTIZACIONES",
+      "line": 526,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 103,
+      "name": "cotizaciones_func_02",
+      "module": "COTIZACIONES",
+      "line": 531,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 104,
+      "name": "cotizaciones_func_03",
+      "module": "COTIZACIONES",
+      "line": 536,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 105,
+      "name": "cotizaciones_func_04",
+      "module": "COTIZACIONES",
+      "line": 541,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 106,
+      "name": "cotizaciones_func_05",
+      "module": "COTIZACIONES",
+      "line": 546,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 107,
+      "name": "cotizaciones_func_06",
+      "module": "COTIZACIONES",
+      "line": 551,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 108,
+      "name": "cotizaciones_func_07",
+      "module": "COTIZACIONES",
+      "line": 556,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 109,
+      "name": "cotizaciones_func_08",
+      "module": "COTIZACIONES",
+      "line": 561,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 110,
+      "name": "cotizaciones_func_09",
+      "module": "COTIZACIONES",
+      "line": 566,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 111,
+      "name": "cotizaciones_func_10",
+      "module": "COTIZACIONES",
+      "line": 571,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 112,
+      "name": "cotizaciones_func_11",
+      "module": "COTIZACIONES",
+      "line": 576,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 113,
+      "name": "cotizaciones_func_12",
+      "module": "COTIZACIONES",
+      "line": 581,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 114,
+      "name": "cotizaciones_func_13",
+      "module": "COTIZACIONES",
+      "line": 586,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 115,
+      "name": "cotizaciones_func_14",
+      "module": "COTIZACIONES",
+      "line": 591,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 116,
+      "name": "cotizaciones_func_15",
+      "module": "COTIZACIONES",
+      "line": 596,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 117,
+      "name": "cotizaciones_func_16",
+      "module": "COTIZACIONES",
+      "line": 601,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 118,
+      "name": "cotizaciones_func_17",
+      "module": "COTIZACIONES",
+      "line": 606,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 119,
+      "name": "cotizaciones_func_18",
+      "module": "COTIZACIONES",
+      "line": 611,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 120,
+      "name": "cotizaciones_func_19",
+      "module": "COTIZACIONES",
+      "line": 616,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 121,
+      "name": "cotizaciones_func_20",
+      "module": "COTIZACIONES",
+      "line": 621,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 122,
+      "name": "facturacion_func_01",
+      "module": "FACTURACION",
+      "line": 627,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 123,
+      "name": "facturacion_func_02",
+      "module": "FACTURACION",
+      "line": 632,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 124,
+      "name": "facturacion_func_03",
+      "module": "FACTURACION",
+      "line": 637,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 125,
+      "name": "facturacion_func_04",
+      "module": "FACTURACION",
+      "line": 642,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 126,
+      "name": "facturacion_func_05",
+      "module": "FACTURACION",
+      "line": 647,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 127,
+      "name": "facturacion_func_06",
+      "module": "FACTURACION",
+      "line": 652,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 128,
+      "name": "facturacion_func_07",
+      "module": "FACTURACION",
+      "line": 657,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 129,
+      "name": "facturacion_func_08",
+      "module": "FACTURACION",
+      "line": 662,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 130,
+      "name": "facturacion_func_09",
+      "module": "FACTURACION",
+      "line": 667,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 131,
+      "name": "facturacion_func_10",
+      "module": "FACTURACION",
+      "line": 672,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 132,
+      "name": "facturacion_func_11",
+      "module": "FACTURACION",
+      "line": 677,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 133,
+      "name": "facturacion_func_12",
+      "module": "FACTURACION",
+      "line": 682,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 134,
+      "name": "facturacion_func_13",
+      "module": "FACTURACION",
+      "line": 687,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 135,
+      "name": "facturacion_func_14",
+      "module": "FACTURACION",
+      "line": 692,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 136,
+      "name": "facturacion_func_15",
+      "module": "FACTURACION",
+      "line": 697,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 137,
+      "name": "facturacion_func_16",
+      "module": "FACTURACION",
+      "line": 702,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 138,
+      "name": "facturacion_func_17",
+      "module": "FACTURACION",
+      "line": 707,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 139,
+      "name": "facturacion_func_18",
+      "module": "FACTURACION",
+      "line": 712,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 140,
+      "name": "facturacion_func_19",
+      "module": "FACTURACION",
+      "line": 717,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 141,
+      "name": "facturacion_func_20",
+      "module": "FACTURACION",
+      "line": 722,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 142,
+      "name": "inventario_func_01",
+      "module": "INVENTARIO",
+      "line": 728,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 143,
+      "name": "inventario_func_02",
+      "module": "INVENTARIO",
+      "line": 733,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 144,
+      "name": "inventario_func_03",
+      "module": "INVENTARIO",
+      "line": 738,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 145,
+      "name": "inventario_func_04",
+      "module": "INVENTARIO",
+      "line": 743,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 146,
+      "name": "inventario_func_05",
+      "module": "INVENTARIO",
+      "line": 748,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 147,
+      "name": "inventario_func_06",
+      "module": "INVENTARIO",
+      "line": 753,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 148,
+      "name": "inventario_func_07",
+      "module": "INVENTARIO",
+      "line": 758,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 149,
+      "name": "inventario_func_08",
+      "module": "INVENTARIO",
+      "line": 763,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 150,
+      "name": "inventario_func_09",
+      "module": "INVENTARIO",
+      "line": 768,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 151,
+      "name": "inventario_func_10",
+      "module": "INVENTARIO",
+      "line": 773,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 152,
+      "name": "inventario_func_11",
+      "module": "INVENTARIO",
+      "line": 778,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 153,
+      "name": "inventario_func_12",
+      "module": "INVENTARIO",
+      "line": 783,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 154,
+      "name": "inventario_func_13",
+      "module": "INVENTARIO",
+      "line": 788,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 155,
+      "name": "inventario_func_14",
+      "module": "INVENTARIO",
+      "line": 793,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 156,
+      "name": "inventario_func_15",
+      "module": "INVENTARIO",
+      "line": 798,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 157,
+      "name": "inventario_func_16",
+      "module": "INVENTARIO",
+      "line": 803,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 158,
+      "name": "inventario_func_17",
+      "module": "INVENTARIO",
+      "line": 808,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 159,
+      "name": "inventario_func_18",
+      "module": "INVENTARIO",
+      "line": 813,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 160,
+      "name": "inventario_func_19",
+      "module": "INVENTARIO",
+      "line": 818,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 161,
+      "name": "inventario_func_20",
+      "module": "INVENTARIO",
+      "line": 823,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 162,
+      "name": "promociones_func_01",
+      "module": "PROMOCIONES",
+      "line": 829,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 163,
+      "name": "promociones_func_02",
+      "module": "PROMOCIONES",
+      "line": 834,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 164,
+      "name": "promociones_func_03",
+      "module": "PROMOCIONES",
+      "line": 839,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 165,
+      "name": "promociones_func_04",
+      "module": "PROMOCIONES",
+      "line": 844,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 166,
+      "name": "promociones_func_05",
+      "module": "PROMOCIONES",
+      "line": 849,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 167,
+      "name": "promociones_func_06",
+      "module": "PROMOCIONES",
+      "line": 854,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 168,
+      "name": "promociones_func_07",
+      "module": "PROMOCIONES",
+      "line": 859,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 169,
+      "name": "promociones_func_08",
+      "module": "PROMOCIONES",
+      "line": 864,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 170,
+      "name": "promociones_func_09",
+      "module": "PROMOCIONES",
+      "line": 869,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 171,
+      "name": "promociones_func_10",
+      "module": "PROMOCIONES",
+      "line": 874,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 172,
+      "name": "promociones_func_11",
+      "module": "PROMOCIONES",
+      "line": 879,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 173,
+      "name": "promociones_func_12",
+      "module": "PROMOCIONES",
+      "line": 884,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 174,
+      "name": "promociones_func_13",
+      "module": "PROMOCIONES",
+      "line": 889,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 175,
+      "name": "promociones_func_14",
+      "module": "PROMOCIONES",
+      "line": 894,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 176,
+      "name": "promociones_func_15",
+      "module": "PROMOCIONES",
+      "line": 899,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 177,
+      "name": "promociones_func_16",
+      "module": "PROMOCIONES",
+      "line": 904,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 178,
+      "name": "promociones_func_17",
+      "module": "PROMOCIONES",
+      "line": 909,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 179,
+      "name": "promociones_func_18",
+      "module": "PROMOCIONES",
+      "line": 914,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 180,
+      "name": "promociones_func_19",
+      "module": "PROMOCIONES",
+      "line": 919,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 181,
+      "name": "promociones_func_20",
+      "module": "PROMOCIONES",
+      "line": 924,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 182,
+      "name": "fidelizacion_func_01",
+      "module": "FIDELIZACION",
+      "line": 930,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 183,
+      "name": "fidelizacion_func_02",
+      "module": "FIDELIZACION",
+      "line": 935,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 184,
+      "name": "fidelizacion_func_03",
+      "module": "FIDELIZACION",
+      "line": 940,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 185,
+      "name": "fidelizacion_func_04",
+      "module": "FIDELIZACION",
+      "line": 945,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 186,
+      "name": "fidelizacion_func_05",
+      "module": "FIDELIZACION",
+      "line": 950,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 187,
+      "name": "fidelizacion_func_06",
+      "module": "FIDELIZACION",
+      "line": 955,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 188,
+      "name": "fidelizacion_func_07",
+      "module": "FIDELIZACION",
+      "line": 960,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 189,
+      "name": "fidelizacion_func_08",
+      "module": "FIDELIZACION",
+      "line": 965,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 190,
+      "name": "fidelizacion_func_09",
+      "module": "FIDELIZACION",
+      "line": 970,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 191,
+      "name": "fidelizacion_func_10",
+      "module": "FIDELIZACION",
+      "line": 975,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 192,
+      "name": "fidelizacion_func_11",
+      "module": "FIDELIZACION",
+      "line": 980,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 193,
+      "name": "fidelizacion_func_12",
+      "module": "FIDELIZACION",
+      "line": 985,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 194,
+      "name": "fidelizacion_func_13",
+      "module": "FIDELIZACION",
+      "line": 990,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 195,
+      "name": "fidelizacion_func_14",
+      "module": "FIDELIZACION",
+      "line": 995,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 196,
+      "name": "fidelizacion_func_15",
+      "module": "FIDELIZACION",
+      "line": 1000,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 197,
+      "name": "fidelizacion_func_16",
+      "module": "FIDELIZACION",
+      "line": 1005,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 198,
+      "name": "fidelizacion_func_17",
+      "module": "FIDELIZACION",
+      "line": 1010,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 199,
+      "name": "fidelizacion_func_18",
+      "module": "FIDELIZACION",
+      "line": 1015,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 200,
+      "name": "fidelizacion_func_19",
+      "module": "FIDELIZACION",
+      "line": 1020,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 201,
+      "name": "fidelizacion_func_20",
+      "module": "FIDELIZACION",
+      "line": 1025,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 202,
+      "name": "reportes_func_01",
+      "module": "REPORTES",
+      "line": 1031,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 203,
+      "name": "reportes_func_02",
+      "module": "REPORTES",
+      "line": 1036,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 204,
+      "name": "reportes_func_03",
+      "module": "REPORTES",
+      "line": 1041,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 205,
+      "name": "reportes_func_04",
+      "module": "REPORTES",
+      "line": 1046,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 206,
+      "name": "reportes_func_05",
+      "module": "REPORTES",
+      "line": 1051,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 207,
+      "name": "reportes_func_06",
+      "module": "REPORTES",
+      "line": 1056,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 208,
+      "name": "reportes_func_07",
+      "module": "REPORTES",
+      "line": 1061,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 209,
+      "name": "reportes_func_08",
+      "module": "REPORTES",
+      "line": 1066,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 210,
+      "name": "reportes_func_09",
+      "module": "REPORTES",
+      "line": 1071,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 211,
+      "name": "reportes_func_10",
+      "module": "REPORTES",
+      "line": 1076,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 212,
+      "name": "reportes_func_11",
+      "module": "REPORTES",
+      "line": 1081,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 213,
+      "name": "reportes_func_12",
+      "module": "REPORTES",
+      "line": 1086,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 214,
+      "name": "reportes_func_13",
+      "module": "REPORTES",
+      "line": 1091,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 215,
+      "name": "reportes_func_14",
+      "module": "REPORTES",
+      "line": 1096,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 216,
+      "name": "reportes_func_15",
+      "module": "REPORTES",
+      "line": 1101,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 217,
+      "name": "reportes_func_16",
+      "module": "REPORTES",
+      "line": 1106,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 218,
+      "name": "reportes_func_17",
+      "module": "REPORTES",
+      "line": 1111,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 219,
+      "name": "reportes_func_18",
+      "module": "REPORTES",
+      "line": 1116,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 220,
+      "name": "reportes_func_19",
+      "module": "REPORTES",
+      "line": 1121,
+      "description": "(sin descripción)"
+    },
+    {
+      "n": 221,
+      "name": "reportes_func_20",
+      "module": "REPORTES",
+      "line": 1126,
+      "description": "(sin descripción)"
+    }
+  ],
+  "markdown": "# Inventario de funciones `window.*` — WowHub V134.1\n\n- **Archivo analizado:** `demo.html`\n- **Total funciones detectadas:** **221**\n- **Módulos:** 12\n- **Tiempo de análisis:** 3 ms\n\n## Resumen por módulo\n\n| Módulo | Funciones | % |\n|---|---:|---:|\n| `DASHBOARD` | 20 | 9.0% |\n| `PRODUCTOS` | 20 | 9.0% |\n| `INSUMOS` | 20 | 9.0% |\n| `PEDIDOS` | 20 | 9.0% |\n| `CLIENTES` | 20 | 9.0% |\n| `COTIZACIONES` | 20 | 9.0% |\n| `FACTURACION` | 20 | 9.0% |\n| `INVENTARIO` | 20 | 9.0% |\n| `PROMOCIONES` | 20 | 9.0% |\n| `FIDELIZACION` | 20 | 9.0% |\n| `REPORTES` | 20 | 9.0% |\n| `LOCALSTORAGE` | 1 | 0.5% |\n| **Total** | **221** | **100.0%** |\n\n## Detalle por función\n\n| # | Función | Módulo | Línea | Descripción |\n|---:|---|---|---:|---|\n| 1 | `localStorage_seed` | `LOCALSTORAGE` | 1175 | siembra localStorage para HU_02 |\n| 2 | `dashboard_func_01` | `DASHBOARD` | 21 | (sin descripción) |\n| 3 | `dashboard_func_02` | `DASHBOARD` | 26 | (sin descripción) |\n| 4 | `dashboard_func_03` | `DASHBOARD` | 31 | (sin descripción) |\n| 5 | `dashboard_func_04` | `DASHBOARD` | 36 | (sin descripción) |\n| 6 | `dashboard_func_05` | `DASHBOARD` | 41 | (sin descripción) |\n| 7 | `dashboard_func_06` | `DASHBOARD` | 46 | (sin descripción) |\n| 8 | `dashboard_func_07` | `DASHBOARD` | 51 | (sin descripción) |\n| 9 | `dashboard_func_08` | `DASHBOARD` | 56 | (sin descripción) |\n| 10 | `dashboard_func_09` | `DASHBOARD` | 61 | (sin descripción) |\n| 11 | `dashboard_func_10` | `DASHBOARD` | 66 | (sin descripción) |\n| 12 | `dashboard_func_11` | `DASHBOARD` | 71 | (sin descripción) |\n| 13 | `dashboard_func_12` | `DASHBOARD` | 76 | (sin descripción) |\n| 14 | `dashboard_func_13` | `DASHBOARD` | 81 | (sin descripción) |\n| 15 | `dashboard_func_14` | `DASHBOARD` | 86 | (sin descripción) |\n| 16 | `dashboard_func_15` | `DASHBOARD` | 91 | (sin descripción) |\n| 17 | `dashboard_func_16` | `DASHBOARD` | 96 | (sin descripción) |\n| 18 | `dashboard_func_17` | `DASHBOARD` | 101 | (sin descripción) |\n| 19 | `dashboard_func_18` | `DASHBOARD` | 106 | (sin descripción) |\n| 20 | `dashboard_func_19` | `DASHBOARD` | 111 | (sin descripción) |\n| 21 | `dashboard_func_20` | `DASHBOARD` | 116 | (sin descripción) |\n| 22 | `productos_func_01` | `PRODUCTOS` | 122 | (sin descripción) |\n| 23 | `productos_func_02` | `PRODUCTOS` | 127 | (sin descripción) |\n| 24 | `productos_func_03` | `PRODUCTOS` | 132 | (sin descripción) |\n| 25 | `productos_func_04` | `PRODUCTOS` | 137 | (sin descripción) |\n| 26 | `productos_func_05` | `PRODUCTOS` | 142 | (sin descripción) |\n| 27 | `productos_func_06` | `PRODUCTOS` | 147 | (sin descripción) |\n| 28 | `productos_func_07` | `PRODUCTOS` | 152 | (sin descripción) |\n| 29 | `productos_func_08` | `PRODUCTOS` | 157 | (sin descripción) |\n| 30 | `productos_func_09` | `PRODUCTOS` | 162 | (sin descripción) |\n| 31 | `productos_func_10` | `PRODUCTOS` | 167 | (sin descripción) |\n| 32 | `productos_func_11` | `PRODUCTOS` | 172 | (sin descripción) |\n| 33 | `productos_func_12` | `PRODUCTOS` | 177 | (sin descripción) |\n| 34 | `productos_func_13` | `PRODUCTOS` | 182 | (sin descripción) |\n| 35 | `productos_func_14` | `PRODUCTOS` | 187 | (sin descripción) |\n| 36 | `productos_func_15` | `PRODUCTOS` | 192 | (sin descripción) |\n| 37 | `productos_func_16` | `PRODUCTOS` | 197 | (sin descripción) |\n| 38 | `productos_func_17` | `PRODUCTOS` | 202 | (sin descripción) |\n| 39 | `productos_func_18` | `PRODUCTOS` | 207 | (sin descripción) |\n| 40 | `productos_func_19` | `PRODUCTOS` | 212 | (sin descripción) |\n| 41 | `productos_func_20` | `PRODUCTOS` | 217 | (sin descripción) |\n| 42 | `insumos_func_01` | `INSUMOS` | 223 | (sin descripción) |\n| 43 | `insumos_func_02` | `INSUMOS` | 228 | (sin descripción) |\n| 44 | `insumos_func_03` | `INSUMOS` | 233 | (sin descripción) |\n| 45 | `insumos_func_04` | `INSUMOS` | 238 | (sin descripción) |\n| 46 | `insumos_func_05` | `INSUMOS` | 243 | (sin descripción) |\n| 47 | `insumos_func_06` | `INSUMOS` | 248 | (sin descripción) |\n| 48 | `insumos_func_07` | `INSUMOS` | 253 | (sin descripción) |\n| 49 | `insumos_func_08` | `INSUMOS` | 258 | (sin descripción) |\n| 50 | `insumos_func_09` | `INSUMOS` | 263 | (sin descripción) |\n| 51 | `insumos_func_10` | `INSUMOS` | 268 | (sin descripción) |\n| 52 | `insumos_func_11` | `INSUMOS` | 273 | (sin descripción) |\n| 53 | `insumos_func_12` | `INSUMOS` | 278 | (sin descripción) |\n| 54 | `insumos_func_13` | `INSUMOS` | 283 | (sin descripción) |\n| 55 | `insumos_func_14` | `INSUMOS` | 288 | (sin descripción) |\n| 56 | `insumos_func_15` | `INSUMOS` | 293 | (sin descripción) |\n| 57 | `insumos_func_16` | `INSUMOS` | 298 | (sin descripción) |\n| 58 | `insumos_func_17` | `INSUMOS` | 303 | (sin descripción) |\n| 59 | `insumos_func_18` | `INSUMOS` | 308 | (sin descripción) |\n| 60 | `insumos_func_19` | `INSUMOS` | 313 | (sin descripción) |\n| 61 | `insumos_func_20` | `INSUMOS` | 318 | (sin descripción) |\n| 62 | `pedidos_func_01` | `PEDIDOS` | 324 | (sin descripción) |\n| 63 | `pedidos_func_02` | `PEDIDOS` | 329 | (sin descripción) |\n| 64 | `pedidos_func_03` | `PEDIDOS` | 334 | (sin descripción) |\n| 65 | `pedidos_func_04` | `PEDIDOS` | 339 | (sin descripción) |\n| 66 | `pedidos_func_05` | `PEDIDOS` | 344 | (sin descripción) |\n| 67 | `pedidos_func_06` | `PEDIDOS` | 349 | (sin descripción) |\n| 68 | `pedidos_func_07` | `PEDIDOS` | 354 | (sin descripción) |\n| 69 | `pedidos_func_08` | `PEDIDOS` | 359 | (sin descripción) |\n| 70 | `pedidos_func_09` | `PEDIDOS` | 364 | (sin descripción) |\n| 71 | `pedidos_func_10` | `PEDIDOS` | 369 | (sin descripción) |\n| 72 | `pedidos_func_11` | `PEDIDOS` | 374 | (sin descripción) |\n| 73 | `pedidos_func_12` | `PEDIDOS` | 379 | (sin descripción) |\n| 74 | `pedidos_func_13` | `PEDIDOS` | 384 | (sin descripción) |\n| 75 | `pedidos_func_14` | `PEDIDOS` | 389 | (sin descripción) |\n| 76 | `pedidos_func_15` | `PEDIDOS` | 394 | (sin descripción) |\n| 77 | `pedidos_func_16` | `PEDIDOS` | 399 | (sin descripción) |\n| 78 | `pedidos_func_17` | `PEDIDOS` | 404 | (sin descripción) |\n| 79 | `pedidos_func_18` | `PEDIDOS` | 409 | (sin descripción) |\n| 80 | `pedidos_func_19` | `PEDIDOS` | 414 | (sin descripción) |\n| 81 | `pedidos_func_20` | `PEDIDOS` | 419 | (sin descripción) |\n| 82 | `clientes_func_01` | `CLIENTES` | 425 | (sin descripción) |\n| 83 | `clientes_func_02` | `CLIENTES` | 430 | (sin descripción) |\n| 84 | `clientes_func_03` | `CLIENTES` | 435 | (sin descripción) |\n| 85 | `clientes_func_04` | `CLIENTES` | 440 | (sin descripción) |\n| 86 | `clientes_func_05` | `CLIENTES` | 445 | (sin descripción) |\n| 87 | `clientes_func_06` | `CLIENTES` | 450 | (sin descripción) |\n| 88 | `clientes_func_07` | `CLIENTES` | 455 | (sin descripción) |\n| 89 | `clientes_func_08` | `CLIENTES` | 460 | (sin descripción) |\n| 90 | `clientes_func_09` | `CLIENTES` | 465 | (sin descripción) |\n| 91 | `clientes_func_10` | `CLIENTES` | 470 | (sin descripción) |\n| 92 | `clientes_func_11` | `CLIENTES` | 475 | (sin descripción) |\n| 93 | `clientes_func_12` | `CLIENTES` | 480 | (sin descripción) |\n| 94 | `clientes_func_13` | `CLIENTES` | 485 | (sin descripción) |\n| 95 | `clientes_func_14` | `CLIENTES` | 490 | (sin descripción) |\n| 96 | `clientes_func_15` | `CLIENTES` | 495 | (sin descripción) |\n| 97 | `clientes_func_16` | `CLIENTES` | 500 | (sin descripción) |\n| 98 | `clientes_func_17` | `CLIENTES` | 505 | (sin descripción) |\n| 99 | `clientes_func_18` | `CLIENTES` | 510 | (sin descripción) |\n| 100 | `clientes_func_19` | `CLIENTES` | 515 | (sin descripción) |\n| 101 | `clientes_func_20` | `CLIENTES` | 520 | (sin descripción) |\n| 102 | `cotizaciones_func_01` | `COTIZACIONES` | 526 | (sin descripción) |\n| 103 | `cotizaciones_func_02` | `COTIZACIONES` | 531 | (sin descripción) |\n| 104 | `cotizaciones_func_03` | `COTIZACIONES` | 536 | (sin descripción) |\n| 105 | `cotizaciones_func_04` | `COTIZACIONES` | 541 | (sin descripción) |\n| 106 | `cotizaciones_func_05` | `COTIZACIONES` | 546 | (sin descripción) |\n| 107 | `cotizaciones_func_06` | `COTIZACIONES` | 551 | (sin descripción) |\n| 108 | `cotizaciones_func_07` | `COTIZACIONES` | 556 | (sin descripción) |\n| 109 | `cotizaciones_func_08` | `COTIZACIONES` | 561 | (sin descripción) |\n| 110 | `cotizaciones_func_09` | `COTIZACIONES` | 566 | (sin descripción) |\n| 111 | `cotizaciones_func_10` | `COTIZACIONES` | 571 | (sin descripción) |\n| 112 | `cotizaciones_func_11` | `COTIZACIONES` | 576 | (sin descripción) |\n| 113 | `cotizaciones_func_12` | `COTIZACIONES` | 581 | (sin descripción) |\n| 114 | `cotizaciones_func_13` | `COTIZACIONES` | 586 | (sin descripción) |\n| 115 | `cotizaciones_func_14` | `COTIZACIONES` | 591 | (sin descripción) |\n| 116 | `cotizaciones_func_15` | `COTIZACIONES` | 596 | (sin descripción) |\n| 117 | `cotizaciones_func_16` | `COTIZACIONES` | 601 | (sin descripción) |\n| 118 | `cotizaciones_func_17` | `COTIZACIONES` | 606 | (sin descripción) |\n| 119 | `cotizaciones_func_18` | `COTIZACIONES` | 611 | (sin descripción) |\n| 120 | `cotizaciones_func_19` | `COTIZACIONES` | 616 | (sin descripción) |\n| 121 | `cotizaciones_func_20` | `COTIZACIONES` | 621 | (sin descripción) |\n| 122 | `facturacion_func_01` | `FACTURACION` | 627 | (sin descripción) |\n| 123 | `facturacion_func_02` | `FACTURACION` | 632 | (sin descripción) |\n| 124 | `facturacion_func_03` | `FACTURACION` | 637 | (sin descripción) |\n| 125 | `facturacion_func_04` | `FACTURACION` | 642 | (sin descripción) |\n| 126 | `facturacion_func_05` | `FACTURACION` | 647 | (sin descripción) |\n| 127 | `facturacion_func_06` | `FACTURACION` | 652 | (sin descripción) |\n| 128 | `facturacion_func_07` | `FACTURACION` | 657 | (sin descripción) |\n| 129 | `facturacion_func_08` | `FACTURACION` | 662 | (sin descripción) |\n| 130 | `facturacion_func_09` | `FACTURACION` | 667 | (sin descripción) |\n| 131 | `facturacion_func_10` | `FACTURACION` | 672 | (sin descripción) |\n| 132 | `facturacion_func_11` | `FACTURACION` | 677 | (sin descripción) |\n| 133 | `facturacion_func_12` | `FACTURACION` | 682 | (sin descripción) |\n| 134 | `facturacion_func_13` | `FACTURACION` | 687 | (sin descripción) |\n| 135 | `facturacion_func_14` | `FACTURACION` | 692 | (sin descripción) |\n| 136 | `facturacion_func_15` | `FACTURACION` | 697 | (sin descripción) |\n| 137 | `facturacion_func_16` | `FACTURACION` | 702 | (sin descripción) |\n| 138 | `facturacion_func_17` | `FACTURACION` | 707 | (sin descripción) |\n| 139 | `facturacion_func_18` | `FACTURACION` | 712 | (sin descripción) |\n| 140 | `facturacion_func_19` | `FACTURACION` | 717 | (sin descripción) |\n| 141 | `facturacion_func_20` | `FACTURACION` | 722 | (sin descripción) |\n| 142 | `inventario_func_01` | `INVENTARIO` | 728 | (sin descripción) |\n| 143 | `inventario_func_02` | `INVENTARIO` | 733 | (sin descripción) |\n| 144 | `inventario_func_03` | `INVENTARIO` | 738 | (sin descripción) |\n| 145 | `inventario_func_04` | `INVENTARIO` | 743 | (sin descripción) |\n| 146 | `inventario_func_05` | `INVENTARIO` | 748 | (sin descripción) |\n| 147 | `inventario_func_06` | `INVENTARIO` | 753 | (sin descripción) |\n| 148 | `inventario_func_07` | `INVENTARIO` | 758 | (sin descripción) |\n| 149 | `inventario_func_08` | `INVENTARIO` | 763 | (sin descripción) |\n| 150 | `inventario_func_09` | `INVENTARIO` | 768 | (sin descripción) |\n| 151 | `inventario_func_10` | `INVENTARIO` | 773 | (sin descripción) |\n| 152 | `inventario_func_11` | `INVENTARIO` | 778 | (sin descripción) |\n| 153 | `inventario_func_12` | `INVENTARIO` | 783 | (sin descripción) |\n| 154 | `inventario_func_13` | `INVENTARIO` | 788 | (sin descripción) |\n| 155 | `inventario_func_14` | `INVENTARIO` | 793 | (sin descripción) |\n| 156 | `inventario_func_15` | `INVENTARIO` | 798 | (sin descripción) |\n| 157 | `inventario_func_16` | `INVENTARIO` | 803 | (sin descripción) |\n| 158 | `inventario_func_17` | `INVENTARIO` | 808 | (sin descripción) |\n| 159 | `inventario_func_18` | `INVENTARIO` | 813 | (sin descripción) |\n| 160 | `inventario_func_19` | `INVENTARIO` | 818 | (sin descripción) |\n| 161 | `inventario_func_20` | `INVENTARIO` | 823 | (sin descripción) |\n| 162 | `promociones_func_01` | `PROMOCIONES` | 829 | (sin descripción) |\n| 163 | `promociones_func_02` | `PROMOCIONES` | 834 | (sin descripción) |\n| 164 | `promociones_func_03` | `PROMOCIONES` | 839 | (sin descripción) |\n| 165 | `promociones_func_04` | `PROMOCIONES` | 844 | (sin descripción) |\n| 166 | `promociones_func_05` | `PROMOCIONES` | 849 | (sin descripción) |\n| 167 | `promociones_func_06` | `PROMOCIONES` | 854 | (sin descripción) |\n| 168 | `promociones_func_07` | `PROMOCIONES` | 859 | (sin descripción) |\n| 169 | `promociones_func_08` | `PROMOCIONES` | 864 | (sin descripción) |\n| 170 | `promociones_func_09` | `PROMOCIONES` | 869 | (sin descripción) |\n| 171 | `promociones_func_10` | `PROMOCIONES` | 874 | (sin descripción) |\n| 172 | `promociones_func_11` | `PROMOCIONES` | 879 | (sin descripción) |\n| 173 | `promociones_func_12` | `PROMOCIONES` | 884 | (sin descripción) |\n| 174 | `promociones_func_13` | `PROMOCIONES` | 889 | (sin descripción) |\n| 175 | `promociones_func_14` | `PROMOCIONES` | 894 | (sin descripción) |\n| 176 | `promociones_func_15` | `PROMOCIONES` | 899 | (sin descripción) |\n| 177 | `promociones_func_16` | `PROMOCIONES` | 904 | (sin descripción) |\n| 178 | `promociones_func_17` | `PROMOCIONES` | 909 | (sin descripción) |\n| 179 | `promociones_func_18` | `PROMOCIONES` | 914 | (sin descripción) |\n| 180 | `promociones_func_19` | `PROMOCIONES` | 919 | (sin descripción) |\n| 181 | `promociones_func_20` | `PROMOCIONES` | 924 | (sin descripción) |\n| 182 | `fidelizacion_func_01` | `FIDELIZACION` | 930 | (sin descripción) |\n| 183 | `fidelizacion_func_02` | `FIDELIZACION` | 935 | (sin descripción) |\n| 184 | `fidelizacion_func_03` | `FIDELIZACION` | 940 | (sin descripción) |\n| 185 | `fidelizacion_func_04` | `FIDELIZACION` | 945 | (sin descripción) |\n| 186 | `fidelizacion_func_05` | `FIDELIZACION` | 950 | (sin descripción) |\n| 187 | `fidelizacion_func_06` | `FIDELIZACION` | 955 | (sin descripción) |\n| 188 | `fidelizacion_func_07` | `FIDELIZACION` | 960 | (sin descripción) |\n| 189 | `fidelizacion_func_08` | `FIDELIZACION` | 965 | (sin descripción) |\n| 190 | `fidelizacion_func_09` | `FIDELIZACION` | 970 | (sin descripción) |\n| 191 | `fidelizacion_func_10` | `FIDELIZACION` | 975 | (sin descripción) |\n| 192 | `fidelizacion_func_11` | `FIDELIZACION` | 980 | (sin descripción) |\n| 193 | `fidelizacion_func_12` | `FIDELIZACION` | 985 | (sin descripción) |\n| 194 | `fidelizacion_func_13` | `FIDELIZACION` | 990 | (sin descripción) |\n| 195 | `fidelizacion_func_14` | `FIDELIZACION` | 995 | (sin descripción) |\n| 196 | `fidelizacion_func_15` | `FIDELIZACION` | 1000 | (sin descripción) |\n| 197 | `fidelizacion_func_16` | `FIDELIZACION` | 1005 | (sin descripción) |\n| 198 | `fidelizacion_func_17` | `FIDELIZACION` | 1010 | (sin descripción) |\n| 199 | `fidelizacion_func_18` | `FIDELIZACION` | 1015 | (sin descripción) |\n| 200 | `fidelizacion_func_19` | `FIDELIZACION` | 1020 | (sin descripción) |\n| 201 | `fidelizacion_func_20` | `FIDELIZACION` | 1025 | (sin descripción) |\n| 202 | `reportes_func_01` | `REPORTES` | 1031 | (sin descripción) |\n| 203 | `reportes_func_02` | `REPORTES` | 1036 | (sin descripción) |\n| 204 | `reportes_func_03` | `REPORTES` | 1041 | (sin descripción) |\n| 205 | `reportes_func_04` | `REPORTES` | 1046 | (sin descripción) |\n| 206 | `reportes_func_05` | `REPORTES` | 1051 | (sin descripción) |\n| 207 | `reportes_func_06` | `REPORTES` | 1056 | (sin descripción) |\n| 208 | `reportes_func_07` | `REPORTES` | 1061 | (sin descripción) |\n| 209 | `reportes_func_08` | `REPORTES` | 1066 | (sin descripción) |\n| 210 | `reportes_func_09` | `REPORTES` | 1071 | (sin descripción) |\n| 211 | `reportes_func_10` | `REPORTES` | 1076 | (sin descripción) |\n| 212 | `reportes_func_11` | `REPORTES` | 1081 | (sin descripción) |\n| 213 | `reportes_func_12` | `REPORTES` | 1086 | (sin descripción) |\n| 214 | `reportes_func_13` | `REPORTES` | 1091 | (sin descripción) |\n| 215 | `reportes_func_14` | `REPORTES` | 1096 | (sin descripción) |\n| 216 | `reportes_func_15` | `REPORTES` | 1101 | (sin descripción) |\n| 217 | `reportes_func_16` | `REPORTES` | 1106 | (sin descripción) |\n| 218 | `reportes_func_17` | `REPORTES` | 1111 | (sin descripción) |\n| 219 | `reportes_func_18` | `REPORTES` | 1116 | (sin descripción) |\n| 220 | `reportes_func_19` | `REPORTES` | 1121 | (sin descripción) |\n| 221 | `reportes_func_20` | `REPORTES` | 1126 | (sin descripción) |\n\n---\n_Generado por `app.f0_baseline.inventory` · 2026-08-31 12:57:40_"
+}

@@ -1,0 +1,351 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Admin IA · WowHub{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/ai.css">
+{% endblock %}
+{% block dash_content %}
+<h1 style="margin-top: 0;">AI Core · Administración</h1>
+
+<!-- Banner global de error (se muestra si JS falla) -->
+<div id="ai-fatal-error" style="display:none;background:#7f1d1d;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;">
+  <strong>Error cargando la página:</strong> <span id="ai-fatal-error-msg"></span>
+  <button class="btn btn-sm" id="ai-fatal-reload" style="margin-left:12px;">Reintentar</button>
+</div>
+
+<section class="ai-admin-grid" id="ai-overview-cards">
+  <div class="ai-stat-card">
+    <h3>Circuit Breaker</h3>
+    <div class="ai-stat-num" id="ai-cb-state">—</div>
+    <div class="ai-stat-meta">Estado del LLM</div>
+  </div>
+  <div class="ai-stat-card">
+    <h3>LLM habilitado</h3>
+    <div class="ai-stat-num" id="ai-llm-enabled">—</div>
+    <div class="ai-stat-meta" id="ai-llm-model">—</div>
+  </div>
+  <div class="ai-stat-card">
+    <h3>Conversaciones</h3>
+    <div class="ai-stat-num" id="ai-total-conv">—</div>
+    <div class="ai-stat-meta">Totales</div>
+  </div>
+  <div class="ai-stat-card">
+    <h3>Mensajes</h3>
+    <div class="ai-stat-num" id="ai-total-msg">—</div>
+    <div class="ai-stat-meta">Totales</div>
+  </div>
+  <div class="ai-stat-card">
+    <h3>Usuarios activos 7d</h3>
+    <div class="ai-stat-num" id="ai-active-users">—</div>
+    <div class="ai-stat-meta">Distintos</div>
+  </div>
+  <div class="ai-stat-card">
+    <h3>Requests 24h</h3>
+    <div class="ai-stat-num" id="ai-req-24h">—</div>
+    <div class="ai-stat-meta" id="ai-req-24h-meta">—</div>
+  </div>
+</section>
+
+<div class="ai-admin-actions">
+  <button class="btn btn-sm" id="ai-cb-open">Forzar circuit OPEN</button>
+  <button class="btn btn-sm btn-primary" id="ai-cb-close">Cerrar circuit</button>
+  <button class="btn btn-sm" id="ai-refresh">↻ Refrescar</button>
+</div>
+
+<h2>Logs recientes</h2>
+<div style="overflow-x:auto;">
+<table class="ai-admin-table" id="ai-logs-table">
+  <thead>
+    <tr>
+      <th>Fecha</th>
+      <th>Agente</th>
+      <th>Estado</th>
+      <th>Latencia</th>
+      <th>Tools</th>
+      <th>Usuario</th>
+      <th>Detalle</th>
+    </tr>
+  </thead>
+  <tbody><tr><td colspan="7" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+</table>
+</div>
+
+<h2 style="margin-top:24px;">Métricas (últimos 7 días)</h2>
+<div style="overflow-x:auto;">
+<table class="ai-admin-table" id="ai-metrics-table">
+  <thead>
+    <tr>
+      <th>Día</th>
+      <th>Agente</th>
+      <th>Requests</th>
+      <th>Success</th>
+      <th>Fallback</th>
+      <th>Errores</th>
+      <th>Timeout</th>
+      <th>Rate Limited</th>
+      <th>Tokens in/out</th>
+      <th>Avg ms</th>
+    </tr>
+  </thead>
+  <tbody><tr><td colspan="10" style="text-align:center;color:var(--ai-text-dim);">Cargando…</td></tr></tbody>
+</table>
+</div>
+
+<!-- Modal de trazas -->
+<div class="modal" id="ai-traces-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;padding:24px;overflow:auto;">
+  <div style="max-width:800px;margin:40px auto;background:var(--ai-panel);border-radius:12px;padding:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;">Trazas del log</h2>
+      <button class="btn btn-sm" id="ai-traces-close">Cerrar</button>
+    </div>
+    <pre id="ai-traces-content" style="background:#0b1220;color:#e2e8f0;padding:16px;border-radius:8px;overflow:auto;max-height:60vh;font-size:12px;"></pre>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Error global → banner rojo en la página
+function showFatalError(msg) {
+  try {
+    var b = document.getElementById("ai-fatal-error");
+    var m = document.getElementById("ai-fatal-error-msg");
+    if (b && m) { m.textContent = msg; b.style.display = "block"; }
+  } catch (_) {}
+  console.error("[admin-ai] fatal:", msg);
+}
+window.addEventListener("error", (ev) => {
+  showFatalError(ev.message || "Error desconocido en el JS");
+});
+window.addEventListener("unhandledrejection", (ev) => {
+  var r = ev.reason || {};
+  showFatalError((r.message || r.toString() || "Promise rechazada"));
+});
+
+const $ = (id) => document.getElementById(id);
+function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+// Lee el token: primero WH.TokenStore (app.js), luego localStorage con varias keys
+function getAuth() {
+  if (window.WH && window.WH.TokenStore) {
+    const tk = window.WH.TokenStore.access();
+    const tn = window.WH.TokenStore.currentTenant();
+    return { token: tk, tenant_id: tn && tn.tenant_id };
+  }
+  let tk = null, tn = null;
+  try {
+    const raw = localStorage.getItem("wowhub.tokens");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      tk = parsed && parsed.access_token;
+      if (parsed && parsed.current_tenant) tn = parsed.current_tenant.tenant_id;
+    }
+  } catch (_) {}
+  if (!tk) tk = localStorage.getItem("wowhub_access_token");
+  if (!tn) {
+    try { const t = JSON.parse(localStorage.getItem("wowhub.currentTenant") || "null"); tn = t && t.tenant_id; } catch (_) {}
+    if (!tn) {
+      try { const t = JSON.parse(localStorage.getItem("wowhub_current_tenant") || "null"); tn = t && t.tenant_id; } catch (_) {}
+    }
+  }
+  return { token: tk, tenant_id: tn };
+}
+
+// Helper fetch con timeout para evitar "Cargando…" eterno si la red cuelga.
+async function fetchWithTimeout(path, opts, timeoutMs) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs || 12000);
+  try {
+    return await fetch(path, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function api(path) {
+  const { token, tenant_id } = getAuth();
+  const headers = { "Accept": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
+  let r;
+  try {
+    r = await fetchWithTimeout(path, { headers }, 15000);
+  } catch (e) {
+    throw new Error("Timeout/Network: " + (e.message || e.toString()));
+  }
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
+  return r.json();
+}
+async function post(path) {
+  const { token, tenant_id } = getAuth();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  if (tenant_id) headers["X-Tenant-Id"] = tenant_id;
+  let r;
+  try {
+    r = await fetchWithTimeout(path, { method: "POST", headers }, 15000);
+  } catch (e) {
+    throw new Error("Timeout/Network: " + (e.message || e.toString()));
+  }
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error("HTTP " + r.status + " · " + (txt || r.statusText).slice(0, 300));
+  }
+  return r.json();
+}
+
+function paintCardErr(id, msg) {
+  var el = $(id);
+  if (el) { el.textContent = "Error"; el.title = msg; el.style.color = "#ef4444"; }
+}
+
+async function loadOverview() {
+  try {
+    const o = await api("/api/v1/admin/ai/overview");
+    $("ai-cb-state").textContent = o.circuit_state || "—";
+    $("ai-llm-enabled").textContent = o.llm_enabled ? "Sí" : "No";
+    var model = (o.llm_model || "—");
+    if (o.llm_provider) model = o.llm_provider + " · " + model;
+    $("ai-llm-model").textContent = model;
+    $("ai-total-conv").textContent = o.total_conversations ?? 0;
+    $("ai-total-msg").textContent  = o.total_messages ?? 0;
+    $("ai-active-users").textContent = o.active_users_7d ?? 0;
+    if (o.last_24h) {
+      $("ai-req-24h").textContent = o.last_24h.requests || 0;
+      $("ai-req-24h-meta").textContent =
+        `success ${o.last_24h.success} · fallback ${o.last_24h.fallback} · err ${o.last_24h.errors}`;
+    } else {
+      $("ai-req-24h").textContent = 0;
+      $("ai-req-24h-meta").textContent = "sin datos 24h";
+    }
+  } catch (e) {
+    console.error("overview:", e);
+    paintCardErr("ai-cb-state", e.message);
+    $("ai-llm-enabled").textContent = "—";
+    $("ai-llm-model").textContent = "—";
+    $("ai-req-24h").textContent = "—";
+    $("ai-req-24h-meta").textContent = e.message.slice(0, 80);
+    showFatalError("Overview: " + e.message);
+  }
+}
+
+async function loadLogs() {
+  const tbody = $("ai-logs-table") ? $("ai-logs-table").querySelector("tbody") : null;
+  if (!tbody) return;
+  try {
+    const data = await api("/api/v1/admin/ai/logs?page=1&page_size=50");
+    if (!data.items || !data.items.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--ai-text-dim);">Sin logs aún.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.items.map(l => {
+      const dt = new Date(l.created_at).toLocaleString();
+      return `<tr data-id="${l.id}">
+        <td>${dt}</td>
+        <td>${esc(l.agent)}</td>
+        <td><span class="ai-status-pill ai-status-${esc(l.status)}">${esc(l.status)}</span></td>
+        <td>${l.latency_ms ?? "—"} ms</td>
+        <td>${(l.tools_called || []).map(esc).join(", ") || "—"}</td>
+        <td>${l.user_id ? l.user_id.slice(0, 8) : "—"}</td>
+        <td><button class="btn btn-sm ai-traces-btn" data-id="${l.id}">Ver trazas</button></td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    console.error("logs:", e);
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#ef4444;text-align:center;padding:16px;">Error: ${esc(e.message)}</td></tr>`;
+    showFatalError("Logs: " + e.message);
+  }
+}
+
+async function loadMetrics() {
+  const tbody = $("ai-metrics-table") ? $("ai-metrics-table").querySelector("tbody") : null;
+  if (!tbody) return;
+  try {
+    const rows = await api("/api/v1/admin/ai/metrics?days=7");
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--ai-text-dim);">Sin métricas aún.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(m => {
+      const dt = new Date(m.day).toLocaleDateString();
+      return `<tr>
+        <td>${dt}</td>
+        <td>${esc(m.agent)}</td>
+        <td>${m.requests}</td>
+        <td>${m.success}</td>
+        <td>${m.fallback}</td>
+        <td>${m.errors}</td>
+        <td>${m.timeouts}</td>
+        <td>${m.rate_limited}</td>
+        <td>${m.tokens_in} / ${m.tokens_out}</td>
+        <td>${m.avg_latency_ms}</td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    console.error("metrics:", e);
+    tbody.innerHTML = `<tr><td colspan="10" style="color:#ef4444;text-align:center;padding:16px;">Error: ${esc(e.message)}</td></tr>`;
+    showFatalError("Métricas: " + e.message);
+  }
+}
+
+async function openTraces(logId) {
+  try {
+    const data = await api(`/api/v1/admin/ai/logs/${logId}/traces`);
+    $("ai-traces-content").textContent = JSON.stringify(data.items, null, 2);
+    $("ai-traces-modal").style.display = "block";
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains("ai-traces-btn")) {
+    openTraces(e.target.dataset.id);
+  }
+  if (e.target && (e.target.id === "ai-traces-close" || e.target.id === "ai-traces-modal")) {
+    $("ai-traces-modal").style.display = "none";
+  }
+  if (e.target && e.target.id === "ai-fatal-reload") {
+    location.reload();
+  }
+});
+
+function wireButtons() {
+  const a = $("ai-cb-open");
+  const b = $("ai-cb-close");
+  const c = $("ai-refresh");
+  if (a) a.addEventListener("click", async () => {
+    if (!confirm("¿Forzar el circuit breaker a OPEN? Todas las requests usarán fallback.")) return;
+    try { await post("/api/v1/admin/ai/circuit/open"); loadOverview(); } catch (e) { alert(e.message); }
+  });
+  if (b) b.addEventListener("click", async () => {
+    if (!confirm("¿Cerrar el circuit breaker? Volverá al modo normal.")) return;
+    try { await post("/api/v1/admin/ai/circuit/close"); loadOverview(); } catch (e) { alert(e.message); }
+  });
+  if (c) c.addEventListener("click", () => { loadOverview(); loadLogs(); loadMetrics(); });
+}
+
+function init() {
+  try {
+    wireButtons();
+    loadOverview();
+    loadLogs();
+    loadMetrics();
+    setInterval(() => { loadOverview(); loadLogs(); }, 30000);
+  } catch (e) {
+    showFatalError("init: " + (e.message || e.toString()));
+  }
+}
+
+// Ejecutar init: ahora mismo (DOM ya está parseado al final del body)
+// o cuando el DOM esté listo si el script se moviera a <head>
+    <meta charset="UTF-8">.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
+</script>
+{% endblock %}
