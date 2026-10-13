@@ -25,10 +25,7 @@
       <p class="text-center text-muted mt-4" style="font-size: 13px;">
         ¿No tienes cuenta? <a href="/register">Crear una</a>
       </p>
-      <hr>
-      <p class="text-center text-dim" style="font-size: 12px;">
-        Demo: <code>maria@cafenorte.cl</code> / <code>demo1234</code>
-      </p>
+
     </div>
   </div>
 </div>

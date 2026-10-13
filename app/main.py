@@ -693,6 +693,15 @@ def admin_ai_legacy_alias():
     return RedirectResponse(url="/admin/ai", status_code=301)
 
 
+# ── Alias backward compat ───────────────────────────────────────
+# Algunos bookmarks y docs antiguas apuntan a /admin/marketplace_admin.
+# La ruta canónica es /superadmin/marketplace/ (HU_45).
+@app.get("/admin/marketplace_admin", include_in_schema=False)
+def admin_marketplace_legacy_alias():
+    """Alias legacy: /admin/marketplace_admin → /superadmin/marketplace/ (deprecated)."""
+    return RedirectResponse(url="/superadmin/marketplace/", status_code=301)
+
+
 # ── SUPERADMIN (UI) ──────────────────────────────────────────────
 @app.get("/admin/superadmin", response_class=HTMLResponse, include_in_schema=False)
 def superadmin_page(request: Request):
