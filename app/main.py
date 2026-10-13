@@ -172,6 +172,7 @@ async def lifespan(app: FastAPI):
 # Determinar tipo de base de datos
 _db_kind = "postgres" if "postgresql" in (settings.database_url or "") else "sqlite"
 
+# Railway fresh rebuild trigger v2 — ensures no stale layer cache
 app = FastAPI(
     title="WowHub API",
     description=(
