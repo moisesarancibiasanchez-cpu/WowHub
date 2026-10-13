@@ -84,11 +84,11 @@ function render(items) {
     return;
   }
   grid.innerHTML = items.map(p => `
-    <div class="product-card">
+    <div class="product-card card-product-info">
       ${p.image_url ? `<img class="img" src="${p.image_url}" alt="${p.name}">` : '<div class="img placeholder">📦</div>'}
       ${p.on_sale ? `<div class="promo-badge">-${p.discount_pct}%</div>` : ''}
       <div class="body">
-        <div class="name">${p.name}</div>
+        <div class="name format">${p.name}</div>
         <div class="desc">${p.short_description || ''}</div>
         <div class="price-row">
           <span class="price">${fmt(p.price_cents)}</span>

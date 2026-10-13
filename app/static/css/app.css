@@ -1927,3 +1927,134 @@ body.pub-page { background: var(--pub-bg, #f4f4f4); }
   margin-top: 60px;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   WowPrint Kiosk V1354 R2 — design alignment
+   ─────────────────────────────────────────────────────────
+   Esta sección alinea la estética pública de WowHub con los
+   design tokens de WowPrint Kiosk. NO modifica las variables
+   semánticas (--fg, --accent, --topbar-bg, --border, etc.)
+   para preservar el theme switcher del dashboard.
+
+   Cambios:
+   - .topbar / .brand dentro de `body.pub-page` → variante dark
+     (altura 76px, fondo #111111, padding 0 34px, brand 24px/900)
+   - .public-header alto uniforme 76px
+   - .product-card / .card-product-info → sombra WowPrint
+     (0 12px 30px rgba(0,0,0,.10)) y radio 20px
+   - .format (18px/850) y .price (19px/900) para tipografía WowPrint
+   - .btn (11px radius, 12px 16px padding, 800 weight) y
+     .primary (fondo #111, color #fff) en el ámbito público
+   - .feat en home.html → mismo lenguaje visual que card-product-info
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Topbar variante dark para páginas públicas ──────────── */
+body.pub-page .topbar {
+  height: 76px;
+  padding: 0 34px;
+  background: #111111;
+  border-bottom: 1px solid #e7eaf0;
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .25);
+}
+body.pub-page .topbar .brand {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  color: #fff;
+}
+body.pub-page .topbar .brand:hover { text-decoration: none; }
+body.pub-page .topbar-nav a { color: rgba(255, 255, 255, .78); }
+body.pub-page .topbar-nav a:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+body.pub-page .topbar-nav a.active { background: rgba(255, 255, 255, .14); color: #fff; }
+
+/* ── .public-header: alinear altura a 76px ───────────────── */
+.public-header {
+  height: 76px;
+}
+.public-header .brand {
+  color: var(--pub-header-text, #fff);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+.public-header .brand-name { font-size: 20px; font-weight: 900; }
+
+/* ── Cards de producto (.product-card / .card-product-info) ── */
+.product-card,
+.card-product-info {
+  background: var(--pub-surface, #fff);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .10);
+  border: 0;
+}
+.product-card .body,
+.card-product-info .body {
+  padding: 24px 16px 20px 20px;
+}
+
+/* ── Tipografía WowPrint (.format, .price) ───────────────── */
+.format {
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: -0.3px;
+}
+.price {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+/* Mantener compatibilidad con la variante `.product-card .price`
+   ya existente (pub-page) — sube peso a 900 sin romper el color
+   de marca. */
+.product-card .price { font-weight: 900; }
+
+/* ── Botones (radio 11px, padding 12px 16px, weight 800) ──── */
+body.pub-page .btn {
+  border-radius: 11px;
+  padding: 12px 16px;
+  font-weight: 800;
+}
+body.pub-page .btn.btn-sm {
+  border-radius: 11px;
+  padding: 8px 14px;
+}
+body.pub-page .btn.btn-lg {
+  border-radius: 11px;
+  padding: 14px 20px;
+}
+body.pub-page .btn-primary,
+body.pub-page .primary,
+body.pub-page .btn.btn-primary {
+  background: #111111;
+  color: #fff;
+  border-color: #111111;
+}
+body.pub-page .btn-primary:hover,
+body.pub-page .btn.btn-primary:hover {
+  background: #222;
+  border-color: #222;
+}
+body.pub-page .btn-primary:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+
+/* ── .feat (home.html) unificado con estética WowPrint ──────
+   Mismo radius (20px) y sombra que las product cards para
+   coherencia visual con el catálogo público. */
+.funciones-mvp .feat {
+  background: var(--bg-elev, #fff);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .10);
+  border: 0;
+  padding: 24px 16px 20px 20px;
+}
+.funciones-mvp .feat h3 {
+  font-weight: 850;
+}
+.pub-landing .module-card {
+  /* Asegura misma sombra que el resto de las cards WowPrint */
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .10);
+  border-radius: 20px;
+}
+
