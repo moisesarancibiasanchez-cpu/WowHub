@@ -1,1 +1,0 @@
-"""Init para app.core"""
