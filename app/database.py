@@ -117,3 +117,14 @@ def init_db() -> None:
             log.info("Auto-heal V2 metálico: %s columna(s) agregada(s)", added_v2)
     except Exception as e:
         log.warning("Auto-heal V2 metálico no aplicado: %s", e)
+    # ── Auto-heal HU_26 RFM: columnas rfm_segment/r_score/f_score/m_score/
+    #    rfm_cell/rfm_updated_at en customers (migración 2026_10_07_0001 nunca
+    #    ejecutada en producción — bootstrap_migrate.py tiene lógica especial
+    #    que puede saltarla en DBs existentes)
+    try:
+        from scripts.migrate_rfm_columns import ensure_rfm_columns
+        added_rfm = ensure_rfm_columns()
+        if added_rfm:
+            log.info("Auto-heal HU_26 RFM: %s objeto(s) agregado(s)", added_rfm)
+    except Exception as e:
+        log.warning("Auto-heal HU_26 RFM no aplicado: %s", e)
