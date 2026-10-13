@@ -1026,6 +1026,23 @@ def dashboard_kds(request: Request):
     )
 
 
+# ── Rutas públicas root ──────────────────────────────────
+@app.get("/landing", response_class=HTMLResponse, include_in_schema=False)
+def public_landing(request: Request):
+    """Página pública de marketing — sin tenant."""
+    return templates.TemplateResponse(request, "home.html", {"settings": settings})
+
+
+@app.get("/catalog", response_class=HTMLResponse, include_in_schema=False)
+def public_catalog_root(request: Request):
+    """Catálogo público demo — usa slug 'wowhub' como default."""
+    slug = "wowhub"
+    return templates.TemplateResponse(
+        request, "public/catalog.html",
+        {"settings": settings, "slug": slug},
+    )
+
+
 # ── Páginas públicas por tenant ──────────────────────────
 @app.get("/u/{slug}", response_class=HTMLResponse, include_in_schema=False)
 def public_landing_page(slug: str, request: Request):
