@@ -1646,3 +1646,284 @@ footer {
   .incoming strong { text-align: right; }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Public Page Tokens — unifica estética WowPrint Kiosk
+   con el sistema de diseño tokens.css de WOWHUB
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  /* Overrides para páginas públicas (landing, catalog) */
+  --pub-bg: #f4f4f4;
+  --pub-surface: #ffffff;
+  --pub-text: #111111;
+  --pub-muted: #667085;
+  --pub-border: #e5e5e5;
+  --pub-header-bg: #111111;
+  --pub-header-text: #ffffff;
+  --pub-accent: #6c5ce7;
+  --pub-shadow: 0 12px 30px rgba(26,34,58,.10);
+  --pub-shadow-hover: 0 16px 40px rgba(26,34,58,.16);
+  --pub-radius: 20px;
+  --pub-gap: 28px;
+}
+
+[data-theme="dark"] {
+  --pub-bg: #111111;
+  --pub-surface: #1a1d24;
+  --pub-text: #e6e9ef;
+  --pub-muted: #9aa3b2;
+  --pub-border: #2a3142;
+  --pub-header-bg: #0b0d12;
+  --pub-header-text: #e6e9ef;
+  --pub-shadow: 0 12px 30px rgba(0,0,0,.40);
+  --pub-shadow-hover: 0 16px 40px rgba(0,0,0,.55);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Public Header — versión dark estilo WowPrint Kiosk
+   ═══════════════════════════════════════════════════════════ */
+.public-header {
+  background: var(--pub-header-bg, #111111);
+  border-bottom: none;
+  padding: 0 34px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
+.public-header .container { max-width: 1240px; margin: 0 auto; width: 100%; }
+.public-header .row { display: flex; align-items: center; gap: 12px; }
+.public-header .brand {
+  color: var(--pub-header-text, #fff);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.public-header .brand:hover { text-decoration: none; }
+.public-header .brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent, #6c5ce7), var(--accent-2, #00d4a8));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 900;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.public-header .spacer { flex: 1; }
+.public-header .brand-name { color: var(--pub-header-text, #fff); font-weight: 700; font-size: 18px; }
+.public-header img { height: 40px; object-fit: contain; }
+.public-header .btn {
+  background: transparent;
+  color: var(--pub-header-text, #fff);
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.public-header .btn:hover {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.5);
+  text-decoration: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Public Catalog Grid — estética WowPrint Kiosk
+   ═══════════════════════════════════════════════════════════ */
+body.pub-page { background: var(--pub-bg, #f4f4f4); }
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--pub-gap, 28px);
+  margin: 16px 0;
+}
+
+.product-card {
+  background: var(--pub-surface, #fff);
+  border-radius: var(--pub-radius, 20px);
+  box-shadow: var(--pub-shadow);
+  border: none;
+  overflow: hidden;
+  transition: transform .2s ease, box-shadow .2s ease;
+  position: relative;
+}
+.product-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--pub-shadow-hover);
+  text-decoration: none;
+}
+.product-card .img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: #f0f0f0;
+}
+.product-card .img.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: var(--pub-muted, #667085);
+}
+.product-card .body { padding: 20px 22px 22px; }
+.product-card .name {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--pub-text, #111);
+  line-height: 1.3;
+}
+.product-card .desc {
+  font-size: 13px;
+  color: var(--pub-muted, #667085);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.product-card .price-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.product-card .price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--pub-accent, #6c5ce7);
+  letter-spacing: -0.3px;
+}
+.product-card .price-compare {
+  font-size: 13px;
+  color: var(--pub-muted, #667085);
+  text-decoration: line-through;
+}
+.product-card .promo-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--err, #e25353);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Public Landing Page — módulos y cards
+   ═══════════════════════════════════════════════════════════ */
+.pub-landing { background: var(--pub-bg, #f4f4f4); min-height: 100vh; }
+.pub-landing nav {
+  background: #fff;
+  border-bottom: 1px solid var(--pub-border, #e5e5e5);
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 12px 24px;
+  flex-wrap: wrap;
+}
+.pub-landing nav a {
+  color: #555;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background .2s, color .2s;
+  font-size: 14px;
+}
+.pub-landing nav a:hover {
+  background: var(--pub-header-bg, #111);
+  color: #fff;
+  text-decoration: none;
+}
+.pub-landing .pub-main { max-width: 1240px; margin: 0 auto; padding: 48px 28px; }
+.pub-landing .section-title {
+  font-size: clamp(22px, 3vw, 32px);
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 8px;
+  color: var(--pub-text, #111);
+  letter-spacing: -0.5px;
+}
+.pub-landing .section-sub {
+  text-align: center;
+  color: var(--pub-muted, #667085);
+  margin: 0 0 40px;
+  font-size: 15px;
+}
+.pub-landing .modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--pub-gap, 28px);
+}
+.pub-landing .module-card {
+  background: var(--pub-surface, #fff);
+  border-radius: var(--pub-radius, 20px);
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: var(--pub-shadow);
+  border: none;
+  transition: transform .2s ease, box-shadow .2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+  color: inherit;
+}
+.pub-landing .module-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--pub-shadow-hover);
+  text-decoration: none;
+  border-color: transparent;
+}
+.pub-landing .module-icon { font-size: 2.5rem; margin-bottom: 14px; display: block; }
+.pub-landing .module-card h2 { font-size: 16px; margin: 0 0 8px; color: var(--pub-text, #111); font-weight: 700; }
+.pub-landing .module-card p { color: var(--pub-muted, #667085); font-size: 14px; margin: 0; }
+.pub-landing .module-card.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.pub-landing .disabled-badge {
+  display: inline-block;
+  background: var(--pub-border, #e5e5e5);
+  color: var(--pub-muted, #667085);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+.pub-landing .pub-hero-cta {
+  display: inline-block;
+  background: var(--pub-header-bg, #111);
+  color: #fff;
+  padding: 12px 28px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 16px;
+  transition: background .2s, transform .15s;
+  letter-spacing: -0.2px;
+}
+.pub-landing .pub-hero-cta:hover {
+  background: #222;
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+.pub-landing footer {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--pub-muted, #667085);
+  font-size: 13px;
+  border-top: 1px solid var(--pub-border, #e5e5e5);
+  margin-top: 60px;
+}
+
