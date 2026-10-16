@@ -108,6 +108,13 @@ class Order(BaseModel, TenantMixin):
         back_populates="order",
         cascade="all, delete-orphan",
     )
+    # HU_52 — ProductionJob derivados del pedido (1:N)
+    # Se crean automáticamente al transicionar a CONFIRMADO si algún item
+    # tiene product_type ∈ (print, m2, production_only).
+    production_jobs: Mapped[list["ProductionJob"]] = relationship(  # noqa: F821
+        back_populates="order",
+        cascade="all, delete-orphan",
+    )
 
 
 class OrderItem(BaseModel):
