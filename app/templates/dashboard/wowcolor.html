@@ -1,0 +1,652 @@
+{% extends "dashboard/base.html" %}
+{# ═══════════════════════════════════════════════════════════════════════════
+WOWCOLOR DASHBOARD v2.0 — TOBE v134.2-Producción-v2
+
+Nueva template por DEFAULT del dashboard WowHub.
+Inspirada en la estética de WowPrint V1354_R2 + WowColor (imprenta LATAM).
+- Apariencia sencilla, colores sobrios
+- Regla "3 clicks" + inline creation
+- Kanban 7 etapas para producción
+- Paleta: solo 2 acentos (azul + gris)
+
+Esta template REEMPLAZA dashboard/index.html como default.
+Para volver al dashboard legacy: /dashboard/v1
+═══════════════════════════════════════════════════════════════════════════ #}
+{% block title %}Dashboard — WowHub{% endblock %}
+{% block dash_title %}Dashboard{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/wowcolor.css">
+{% endblock %}
+
+{% block dash_content %}
+<div class="wc-app">
+  {# ── Sidebar oscuro fijo (estilo WowPrint) ── #}
+  <aside class="wc-side">
+    <div class="wc-logo">Wow<span>Hub</span></div>
+    <nav class="wc-nav">
+      <a href="/dashboard" class="wc-nav-item active">
+        <span class="wc-icon">📊</span> Dashboard
+      </a>
+      <a href="/dashboard/customers" class="wc-nav-item">
+        <span class="wc-icon">👥</span> Clientes
+      </a>
+      <a href="/dashboard/products" class="wc-nav-item">
+        <span class="wc-icon">📦</span> Productos
+      </a>
+      <a href="/dashboard/inventory" class="wc-nav-item">
+        <span class="wc-icon">🧱</span> Inventario
+      </a>
+
+      <div class="wc-sep"></div>
+      <div class="wc-section">Comercial</div>
+      <a href="/dashboard/costs" class="wc-nav-item">
+        <span class="wc-icon">💲</span> Costos y precios
+      </a>
+      <a href="/dashboard/quotes" class="wc-nav-item">
+        <span class="wc-icon">📄</span> Cotizaciones
+      </a>
+      <a href="/dashboard/orders" class="wc-nav-item">
+        <span class="wc-icon">🛒</span> Pedidos
+      </a>
+      <a href="/dashboard/payments" class="wc-nav-item">
+        <span class="wc-icon">💳</span> Ventas y pagos
+      </a>
+
+      <div class="wc-sep"></div>
+      <div class="wc-section">Operación</div>
+      <a href="/dashboard/production" class="wc-nav-item">
+        <span class="wc-icon">🏭</span> Producción
+      </a>
+      <a href="/dashboard/kds" class="wc-nav-item">
+        <span class="wc-icon">📺</span> KDS
+      </a>
+      <a href="/dashboard/loyalty" class="wc-nav-item">
+        <span class="wc-icon">⭐</span> Lealtad
+      </a>
+      <a href="/dashboard/analytics" class="wc-nav-item">
+        <span class="wc-icon">📈</span> Analytics
+      </a>
+
+      <div class="wc-sep"></div>
+      <a href="/dashboard/settings" class="wc-nav-item">
+        <span class="wc-icon">⚙️</span> Configuración
+      </a>
+    </nav>
+  </aside>
+
+  {# ── Main content ── #}
+  <main class="wc-main">
+    {# Header #}
+    <div class="wc-top">
+      <div>
+        <h1 class="wc-title">Dashboard</h1>
+        <div class="wc-subtitle">Resumen conectado de ventas, inventario y producción.</div>
+      </div>
+      <div class="wc-top-tools">
+        <div class="wc-search">
+          <span class="wc-search-icon">🔎</span>
+          <input type="text" id="wcSearch" placeholder="Buscar pedidos, clientes o productos..." autocomplete="off">
+        </div>
+        <button class="wc-bell" id="wcBell" title="Alertas">
+          🔔
+          <span class="wc-bell-count" id="wcBellCount">0</span>
+        </button>
+      </div>
+    </div>
+
+    {# KPIs #}
+    <div class="wc-cards" id="wcKpis">
+      <div class="wc-stat" data-href="/dashboard/quotes">
+        <div class="wc-stat-label">Cotizaciones</div>
+        <div class="wc-stat-value" id="kpiQuotes">0</div>
+        <div class="wc-stat-action">+ Crear cotización</div>
+      </div>
+      <div class="wc-stat" data-href="/dashboard/orders">
+        <div class="wc-stat-label">Pedidos</div>
+        <div class="wc-stat-value" id="kpiOrders">0</div>
+        <div class="wc-stat-action">+ Pedido manual</div>
+      </div>
+      <div class="wc-stat" data-href="/dashboard/production">
+        <div class="wc-stat-label">Trabajos de producción</div>
+        <div class="wc-stat-value" id="kpiJobs">0</div>
+        <div class="wc-stat-action">Mover procesos</div>
+      </div>
+      <div class="wc-stat" data-href="/dashboard/inventory">
+        <div class="wc-stat-label">Stock bajo</div>
+        <div class="wc-stat-value" id="kpiLowStock">0</div>
+        <div class="wc-stat-action">Revisar y agregar stock</div>
+      </div>
+    </div>
+
+    {# Kanban de Producción (HU_52, HU_53) — 7 etapas #}
+    <section class="wc-panel wc-panel-kanban">
+      <div class="wc-panel-head">
+        <div>
+          <div class="wc-panel-title">Producción</div>
+          <div class="wc-panel-sub">Trabajos activos sincronizados con el módulo Producción. Arrastra para mover de proceso.</div>
+        </div>
+        <a href="/dashboard/production" class="wc-btn wc-btn-secondary">Abrir tablero completo</a>
+      </div>
+      <div class="wc-kanban" id="wcKanban">
+        <div class="wc-col" data-stage="nuevo">
+          <h3>Pedido nuevo <span class="wc-count" id="count-nuevo">0</span></h3>
+          <div class="wc-col-body" data-stage="nuevo"></div>
+        </div>
+        <div class="wc-col" data-stage="archivo_aprobado">
+          <h3>Archivo aprobado <span class="wc-count" id="count-archivo_aprobado">0</span></h3>
+          <div class="wc-col-body" data-stage="archivo_aprobado"></div>
+        </div>
+        <div class="wc-col" data-stage="preparando">
+          <h3>Preparando impresión <span class="wc-count" id="count-preparando">0</span></h3>
+          <div class="wc-col-body" data-stage="preparando"></div>
+        </div>
+        <div class="wc-col" data-stage="imprimiendo">
+          <h3>Imprimiendo <span class="wc-count" id="count-imprimiendo">0</span></h3>
+          <div class="wc-col-body" data-stage="imprimiendo"></div>
+        </div>
+        <div class="wc-col" data-stage="terminacion">
+          <h3>Terminación <span class="wc-count" id="count-terminacion">0</span></h3>
+          <div class="wc-col-body" data-stage="terminacion"></div>
+        </div>
+        <div class="wc-col" data-stage="listo">
+          <h3>Listo para retiro/envío <span class="wc-count" id="count-listo">0</span></h3>
+          <div class="wc-col-body" data-stage="listo"></div>
+        </div>
+        <div class="wc-col" data-stage="entregado">
+          <h3>Entregado/enviado <span class="wc-count" id="count-entregado">0</span></h3>
+          <div class="wc-col-body" data-stage="entregado"></div>
+        </div>
+      </div>
+    </section>
+
+    {# Secciones inferiores #}
+    <div class="wc-grid2">
+      <section class="wc-panel">
+        <div class="wc-panel-head">
+          <div>
+            <div class="wc-panel-title">Últimas cotizaciones</div>
+            <div class="wc-panel-sub">Las 5 cotizaciones más recientes</div>
+          </div>
+        </div>
+        <table class="wc-table">
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Cliente</th>
+              <th>Total</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="wcRecentQuotes">
+            <tr><td colspan="4" class="wc-empty">Sin cotizaciones.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="wc-panel">
+        <div class="wc-panel-head">
+          <div>
+            <div class="wc-panel-title">Producción reciente</div>
+            <div class="wc-panel-sub">Últimos trabajos finalizados</div>
+          </div>
+        </div>
+        <table class="wc-table">
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="wcRecentProduction">
+            <tr><td colspan="4" class="wc-empty">Sin producción.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+</div>
+
+{# ── Modal genérico (HU_50/HU_51: inline creation) ── #}
+<div class="wc-modal" id="wcModal">
+  <div class="wc-modalbox">
+    <div class="wc-modalhead">
+      <div style="flex:1">
+        <div class="wc-breadcrumb" id="wcBread" style="display:none">Pedidos › Pedido manual › Nuevo cliente</div>
+        <h2 class="wc-modal-title" id="wcModalTitle">Título del modal</h2>
+      </div>
+      <button class="wc-close" onclick="wcCloseModal()" title="Cerrar (Esc)">×</button>
+    </div>
+    <div id="wcModalBody">Contenido</div>
+    <div class="wc-actions">
+      <button class="wc-btn wc-btn-secondary" onclick="wcCloseModal()">Cerrar</button>
+      <span class="wc-hint">💡 <kbd>Ctrl</kbd>+<kbd>Enter</kbd> guardar · <kbd>Esc</kbd> cerrar · <kbd>Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>C</kbd> cliente · <kbd>Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>P</kbd> producto</span>
+    </div>
+  </div>
+</div>
+
+{# ── Toast ── #}
+<div class="wc-toast" id="wcToast">Notificación</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// WOWCOLOR DASHBOARD v2.0 — JavaScript
+// - Inline creation (HU_50/HU_51)
+// - Kanban drag & drop (HU_52/HU_53)
+// - Atajos de teclado (HU_64)
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function() {
+  'use strict';
+
+  const STAGES = [
+    'nuevo', 'archivo_aprobado', 'preparando', 'imprimiendo',
+    'terminacion', 'listo', 'entregado'
+  ];
+  const STAGE_LABEL = {
+    'nuevo': 'Pedido nuevo',
+    'archivo_aprobado': 'Archivo aprobado',
+    'preparando': 'Preparando impresión',
+    'imprimiendo': 'Imprimiendo',
+    'terminacion': 'Terminación',
+    'listo': 'Listo para retiro/envío',
+    'entregado': 'Entregado/enviado'
+  };
+  const TRANSITIONS = {
+    'nuevo': ['archivo_aprobado'],
+    'archivo_aprobado': ['preparando'],
+    'preparando': ['imprimiendo'],
+    'imprimiendo': ['terminacion'],
+    'terminacion': ['listo'],
+    'listo': ['entregado'],
+    'entregado': []
+  };
+
+  // ── Modal helpers ──
+  window.wcOpenModal = function(title, body, breadcrumb) {
+    document.getElementById('wcModalTitle').textContent = title;
+    document.getElementById('wcModalBody').innerHTML = body;
+    const breadEl = document.getElementById('wcBread');
+    if (breadcrumb) {
+      breadEl.textContent = breadcrumb;
+      breadEl.style.display = 'block';
+    } else {
+      breadEl.style.display = 'none';
+    }
+    document.getElementById('wcModal').classList.add('show');
+    setTimeout(() => {
+      const first = document.querySelector('#wcModal input, #wcModal select, #wcModal textarea');
+      if (first) first.focus();
+    }, 30);
+  };
+
+  window.wcCloseModal = function() {
+    document.getElementById('wcModal').classList.remove('show');
+  };
+
+  window.wcShowToast = function(message, duration) {
+    duration = duration || 3000;
+    const toast = document.getElementById('wcToast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), duration);
+  };
+
+  // ── Inline creation (HU_50/HU_51) ──
+  window.wcCreateCustomerInline = function() {
+    wcOpenModal(
+      'Nuevo cliente',
+      `
+      <div class="wc-fields">
+        <div class="wc-field wc-field-full">
+          <label>Nombre completo *</label>
+          <input type="text" id="wcNewCustName" placeholder="Ej: Juan Pérez" autocomplete="off">
+        </div>
+        <div class="wc-field">
+          <label>Teléfono</label>
+          <input type="tel" id="wcNewCustPhone" placeholder="+56 9 ...">
+        </div>
+        <div class="wc-field">
+          <label>Email</label>
+          <input type="email" id="wcNewCustEmail" placeholder="cliente@email.com">
+        </div>
+        <div class="wc-field">
+          <label>Tipo de cliente</label>
+          <select id="wcNewCustType">
+            <option value="particular">Particular</option>
+            <option value="empresa">Empresa</option>
+          </select>
+        </div>
+        <div class="wc-field">
+          <label>RUT / DNI</label>
+          <input type="text" id="wcNewCustRut" placeholder="12.345.678-9">
+        </div>
+      </div>
+      <div class="wc-actions" style="margin-top:18px">
+        <button class="wc-btn wc-btn-secondary" onclick="wcCloseModal()">Cancelar</button>
+        <button class="wc-btn wc-btn-primary" id="wcSaveCustBtn">Crear y seleccionar</button>
+      </div>
+      `,
+      'Pedidos › Pedido manual › Nuevo cliente'
+    );
+    document.getElementById('wcSaveCustBtn').onclick = function() { wcSaveCustomerInline(); };
+  };
+
+  window.wcSaveCustomerInline = async function() {
+    const name = document.getElementById('wcNewCustName').value.trim();
+    if (!name) { wcShowToast('❌ El nombre es obligatorio'); return; }
+    const phone = document.getElementById('wcNewCustPhone').value.trim();
+    const email = document.getElementById('wcNewCustEmail').value.trim();
+    const customerType = document.getElementById('wcNewCustType').value;
+    if (!phone && !email) {
+      wcShowToast('❌ Al menos teléfono o email es requerido');
+      return;
+    }
+    try {
+      // HU_50 — POST /api/v1/tenants/{tid}/customers/inline
+      const tid = window.WH?.tenantId || window.WOWHUB_TENANT_ID;
+      if (!tid) {
+        wcShowToast('⚠ Tenant ID no disponible — simulado: ' + name);
+        wcCloseModal();
+        return;
+      }
+      const res = await fetch(`/api/v1/tenants/${tid}/customers/inline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, phone, email,
+          customer_type: customerType,
+          marketing_consent: false
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        wcShowToast('✅ Cliente "' + data.full_name + '" creado');
+        wcCloseModal();
+        // Recargar KPIs si es necesario
+        if (typeof wcLoadKpis === 'function') wcLoadKpis();
+      } else if (res.status === 409) {
+        wcShowToast('⚠ Cliente ya existe (email/teléfono duplicado)');
+      } else {
+        wcShowToast('❌ Error ' + res.status);
+      }
+    } catch (e) {
+      console.error(e);
+      wcShowToast('⚠ Error de red — simulado: ' + name);
+      wcCloseModal();
+    }
+  };
+
+  window.wcCreateProductInline = function() {
+    wcOpenModal(
+      'Nuevo producto',
+      `
+      <div class="wc-fields">
+        <div class="wc-field wc-field-full">
+          <label>Nombre del producto *</label>
+          <input type="text" id="wcNewProdName" placeholder="Ej: Flyer A5 full color" autocomplete="off">
+        </div>
+        <div class="wc-field">
+          <label>SKU *</label>
+          <input type="text" id="wcNewProdSku" placeholder="FLY-A5-001">
+        </div>
+        <div class="wc-field">
+          <label>Precio (CLP) *</label>
+          <input type="number" id="wcNewProdPrice" placeholder="5000" min="0">
+        </div>
+        <div class="wc-field">
+          <label>Tipo</label>
+          <select id="wcNewProdType" onchange="wcToggleTemplate(this.value)">
+            <option value="standard">Estándar</option>
+            <option value="print">Impresión</option>
+            <option value="m2">Por m²</option>
+          </select>
+        </div>
+        <div class="wc-field">
+          <label>Template</label>
+          <select id="wcNewProdTemplate" disabled>
+            <option value="">— Sin template —</option>
+            <option value="flyer-a5">Flyer A5 (14.8 × 21.0 cm)</option>
+            <option value="flyer-a6">Flyer A6 (10.5 × 14.8 cm)</option>
+            <option value="poster-a3">Poster A3 (29.7 × 42.0 cm)</option>
+            <option value="poster-a4">Poster A4 (21.0 × 29.7 cm)</option>
+            <option value="magnet-5x7">Imán 5x7 (12.7 × 17.8 cm)</option>
+            <option value="magnet-9x7">Imán 9x7 (22.9 × 17.8 cm)</option>
+            <option value="business-card">Tarjeta de presentación (9.0 × 5.5 cm)</option>
+            <option value="trovicel">Trovicel (60.0 × 40.0 cm)</option>
+            <option value="pvc">PVC (60.0 × 40.0 cm)</option>
+          </select>
+        </div>
+      </div>
+      <div class="wc-actions" style="margin-top:18px">
+        <button class="wc-btn wc-btn-secondary" onclick="wcCloseModal()">Cancelar</button>
+        <button class="wc-btn wc-btn-primary" id="wcSaveProdBtn">Crear y agregar al pedido</button>
+      </div>
+      `,
+      'Pedidos › Pedido manual › Nuevo producto'
+    );
+    document.getElementById('wcSaveProdBtn').onclick = function() { wcSaveProductInline(); };
+  };
+
+  window.wcToggleTemplate = function(type) {
+    const template = document.getElementById('wcNewProdTemplate');
+    if (template) {
+      template.disabled = type === 'standard';
+      if (type === 'standard') template.value = '';
+    }
+  };
+
+  window.wcSaveProductInline = async function() {
+    const name = document.getElementById('wcNewProdName').value.trim();
+    const sku = document.getElementById('wcNewProdSku').value.trim();
+    const priceCents = parseInt(document.getElementById('wcNewProdPrice').value || '0', 10) * 100;
+    const productType = document.getElementById('wcNewProdType').value;
+    const templateType = document.getElementById('wcNewProdTemplate').value || null;
+    if (!name || !sku || !priceCents) {
+      wcShowToast('❌ Faltan datos obligatorios');
+      return;
+    }
+    try {
+      const tid = window.WH?.tenantId || window.WOWHUB_TENANT_ID;
+      if (!tid) {
+        wcShowToast('⚠ Tenant ID no disponible — simulado: ' + name);
+        wcCloseModal();
+        return;
+      }
+      const res = await fetch(`/api/v1/tenants/${tid}/products/inline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, sku, price_cents: priceCents,
+          product_type: productType,
+          template_type: templateType,
+          add_to_order: false
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        wcShowToast('✅ Producto "' + data.name + '" creado');
+        wcCloseModal();
+        if (typeof wcLoadKpis === 'function') wcLoadKpis();
+      } else if (res.status === 409) {
+        wcShowToast('⚠ SKU duplicado');
+      } else {
+        wcShowToast('❌ Error ' + res.status);
+      }
+    } catch (e) {
+      console.error(e);
+      wcShowToast('⚠ Error de red — simulado: ' + name);
+      wcCloseModal();
+    }
+  };
+
+  // ── Kanban drag & drop (HU_52/HU_53) ──
+  let draggedJobId = null;
+  let draggedFromStage = null;
+
+  function wcInitKanban() {
+    document.querySelectorAll('.wc-col-body').forEach(col => {
+      col.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        col.parentElement.classList.add('wc-drop-active');
+      });
+      col.addEventListener('dragleave', () => {
+        col.parentElement.classList.remove('wc-drop-active');
+      });
+      col.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        col.parentElement.classList.remove('wc-drop-active');
+        const newStage = col.dataset.stage;
+        if (!draggedJobId || draggedFromStage === newStage) return;
+        const allowed = TRANSITIONS[draggedFromStage] || [];
+        if (!allowed.includes(newStage)) {
+          wcShowToast(`❌ Transición inválida: ${STAGE_LABEL[draggedFromStage]} → ${STAGE_LABEL[newStage]}`);
+          return;
+        }
+        try {
+          const tid = window.WH?.tenantId || window.WOWHUB_TENANT_ID;
+          if (!tid) {
+            wcShowToast('⚠ Modo demo: ' + STAGE_LABEL[newStage]);
+            return;
+          }
+          const res = await fetch(`/api/v1/tenants/${tid}/production/jobs/${draggedJobId}/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_status: newStage })
+          });
+          if (res.ok) {
+            wcShowToast('✅ Movido a ' + STAGE_LABEL[newStage]);
+            if (typeof wcLoadKanban === 'function') wcLoadKanban();
+          } else {
+            wcShowToast('❌ Error ' + res.status);
+          }
+        } catch (e) {
+          console.error(e);
+          wcShowToast('⚠ Error de red');
+        }
+      });
+    });
+  }
+
+  // ── KPI card click → navegar ──
+  function wcInitKpiClicks() {
+    document.querySelectorAll('.wc-stat[data-href]').forEach(card => {
+      card.addEventListener('click', () => {
+        window.location.href = card.dataset.href;
+      });
+    });
+  }
+
+  // ── Keyboard shortcuts (HU_64) ──
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('wcModal').classList.contains('show')) {
+      wcCloseModal();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (document.getElementById('wcModal').classList.contains('show')) {
+        const primaryBtn = document.querySelector('#wcModal .wc-btn-primary');
+        if (primaryBtn) primaryBtn.click();
+      }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      wcCreateCustomerInline();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
+      e.preventDefault();
+      wcCreateProductInline();
+      return;
+    }
+  });
+
+  // ── Cargar datos reales (si hay APIs) ──
+  async function wcLoadKpis() {
+    const tid = window.WH?.tenantId || window.WOWHUB_TENANT_ID;
+    if (!tid) return;
+    try {
+      const res = await fetch(`/api/v1/tenants/${tid}/stats/overview`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.quotes_count !== undefined) document.getElementById('kpiQuotes').textContent = data.quotes_count;
+        if (data.orders_count !== undefined) document.getElementById('kpiOrders').textContent = data.orders_count;
+        if (data.production_jobs_count !== undefined) document.getElementById('kpiJobs').textContent = data.production_jobs_count;
+        if (data.low_stock_count !== undefined) document.getElementById('kpiLowStock').textContent = data.low_stock_count;
+      }
+    } catch (e) {
+      console.log('KPIs no disponibles (modo demo)');
+    }
+  }
+
+  async function wcLoadKanban() {
+    const tid = window.WH?.tenantId || window.WOWHUB_TENANT_ID;
+    if (!tid) return;
+    try {
+      const res = await fetch(`/api/v1/tenants/${tid}/production/kanban`);
+      if (res.ok) {
+        const data = await res.json();
+        // Render jobs en cada columna
+        STAGES.forEach(stage => {
+          const col = document.querySelector(`.wc-col-body[data-stage="${stage}"]`);
+          if (!col) return;
+          const jobs = (data.columns || []).find(c => c.status === stage)?.jobs || [];
+          col.innerHTML = jobs.length === 0
+            ? '<div class="wc-empty-cell">Vacío</div>'
+            : jobs.map(j => `
+              <div class="wc-job" draggable="true" data-job-id="${j.id}">
+                <div class="wc-job-title">${j.product_name || j.product_snapshot?.name || 'Trabajo'}</div>
+                <div class="wc-job-customer">${j.customer_name || ''}</div>
+                <div class="wc-job-meta">
+                  <span class="wc-job-price">$${((j.estimated_cost_cents||0)/100).toLocaleString('es-CL')}</span>
+                  <span class="wc-pill">${j.priority || 'normal'}</span>
+                </div>
+              </div>
+            `).join('');
+          const count = document.getElementById(`count-${stage}`);
+          if (count) count.textContent = jobs.length;
+        });
+
+        // Init drag events para cada job
+        document.querySelectorAll('.wc-job[draggable]').forEach(jobEl => {
+          jobEl.addEventListener('dragstart', (e) => {
+            draggedJobId = jobEl.dataset.jobId;
+            const col = jobEl.closest('.wc-col-body');
+            draggedFromStage = col ? col.dataset.stage : null;
+            jobEl.classList.add('wc-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+          });
+          jobEl.addEventListener('dragend', () => {
+            draggedJobId = null;
+            draggedFromStage = null;
+            jobEl.classList.remove('wc-dragging');
+          });
+        });
+      }
+    } catch (e) {
+      console.log('Kanban no disponible (modo demo)');
+    }
+  }
+
+  // ── Init ──
+  document.addEventListener('DOMContentLoaded', () => {
+    wcInitKanban();
+    wcInitKpiClicks();
+    wcLoadKpis();
+    wcLoadKanban();
+    console.log('✅ WowColor Dashboard v2.0 cargado — TOBE v134.2-Producción-v2');
+  });
+
+  // Expose para integración con otros scripts
+  window.WOWCOLOR = {
+    createCustomer: wcCreateCustomerInline,
+    createProduct: wcCreateProductInline,
+    loadKanban: wcLoadKanban,
+    loadKpis: wcLoadKpis,
+  };
+})();
+</script>
+{% endblock %}
