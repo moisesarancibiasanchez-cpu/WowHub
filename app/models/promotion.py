@@ -31,12 +31,12 @@ class Promotion(BaseModel, TenantMixin):
 
     # Configuración del descuento
     promo_type: Mapped[PromotionType] = mapped_column(
-        Enum(PromotionType, name="promotion_type"),
+        Enum(PromotionType, name="promotion_type", values_callable=lambda obj: [e.value for e in obj]),
         default=PromotionType.PERCENT,
         nullable=False,
     )
     discount_type: Mapped[DiscountType] = mapped_column(
-        Enum(DiscountType, name="discount_type"),
+        Enum(DiscountType, name="discount_type", values_callable=lambda obj: [e.value for e in obj]),
         default=DiscountType.PERCENT,
         nullable=False,
     )

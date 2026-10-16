@@ -40,7 +40,7 @@ class Quote(BaseModel, TenantMixin):
     number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[QuoteStatus] = mapped_column(
-        Enum(QuoteStatus, name="quote_status"),
+        Enum(QuoteStatus, name="quote_status", values_callable=lambda obj: [e.value for e in obj]),
         default=QuoteStatus.DRAFT,
         nullable=False,
         index=True,

@@ -76,5 +76,7 @@ from app.models.payment_record import PaymentRecord, DebtAdjustment  # noqa: F40
 from app.models.notification import (  # noqa: F401
     NotificationTemplate, NotificationLog,
     NotificationEvent, NotificationChannel, NotificationStatus,
-    PaymentMethod as PaymentMethodManual,  # alias para no chocar con Payment.PaymentMethod
 )
+# NOTE: PaymentMethod para HU_56/HU_57 está en app.models.payment_record.
+# Se importa con alias para no chocar con Payment.PaymentMethod.
+from app.models.payment_record import PaymentMethod as PaymentMethodManual  # noqa: F401,E402

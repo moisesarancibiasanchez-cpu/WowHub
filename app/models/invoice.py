@@ -28,7 +28,7 @@ class Invoice(BaseModel, TenantMixin):
     )
     number: Mapped[str] = mapped_column(String(40), nullable=False, index=True)  # ej: "F-2026-0001"
     status: Mapped[InvoiceStatus] = mapped_column(
-        Enum(InvoiceStatus, name="invoice_status"),
+        Enum(InvoiceStatus, name="invoice_status", values_callable=lambda obj: [e.value for e in obj]),
         default=InvoiceStatus.DRAFT,
         nullable=False,
     )

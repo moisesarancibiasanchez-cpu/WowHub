@@ -53,7 +53,17 @@ class Order(BaseModel, TenantMixin):
     # /opportunities, /analytics/...) se aborda en un PR separado, ya con
     # pruebas contra PG real.
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, name="order_status"),
+        # FIX 2026-10-16 (TOBE v134.2-Producción-v2 / Diagnóstico Railway 502):
+        # SQLAlchemy serializa miembros de enum por NOMBRE (UPPERCASE: 'RECIBIDO')
+        # por defecto, pero el PG ENUM order_status NO contiene esos labels
+        # (solo 'recibido' lowercase). values_callable fuerza a usar el .value.
+        # Sin este fix, /notifications/summary, /stats/overview, /opportunities,
+        # /analytics/* devuelven 500 con "invalid input value for enum order_status".
+        Enum(
+            OrderStatus,
+            name="order_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=OrderStatus.RECIBIDO,
         nullable=False,
         index=True,

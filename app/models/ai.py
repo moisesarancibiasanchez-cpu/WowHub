@@ -63,11 +63,11 @@ class AIConversation(BaseModel, TenantMixin):
     )
     title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     agent: Mapped[AgentKind] = mapped_column(
-        Enum(AgentKind, name="ai_agent_kind"),
+        Enum(AgentKind, name="ai_agent_kind", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False, default=AgentKind.ROUTER,
     )
     status: Mapped[ConversationStatus] = mapped_column(
-        Enum(ConversationStatus, name="ai_conversation_status"),
+        Enum(ConversationStatus, name="ai_conversation_status", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False, default=ConversationStatus.ACTIVE,
         index=True,
     )
@@ -105,7 +105,7 @@ class AIMessage(BaseModel, TenantMixin):
         nullable=False, index=True,
     )
     role: Mapped[MessageRole] = mapped_column(
-        Enum(MessageRole, name="ai_message_role"),
+        Enum(MessageRole, name="ai_message_role", values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -116,7 +116,7 @@ class AIMessage(BaseModel, TenantMixin):
     tool_result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     # Metadata del LLM
     agent: Mapped[Optional[AgentKind]] = mapped_column(
-        Enum(AgentKind, name="ai_message_agent"), nullable=True,
+        Enum(AgentKind, name="ai_message_agent", values_callable=lambda obj: [e.value for e in obj]), nullable=True,
     )
     tokens_in: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -156,10 +156,10 @@ class AILog(BaseModel, TenantMixin):
         nullable=True, index=True,
     )
     agent: Mapped[AgentKind] = mapped_column(
-        Enum(AgentKind, name="ai_log_agent"), nullable=False, index=True,
+        Enum(AgentKind, name="ai_log_agent", values_callable=lambda obj: [e.value for e in obj]), nullable=False, index=True,
     )
     status: Mapped[LogStatus] = mapped_column(
-        Enum(LogStatus, name="ai_log_status"), nullable=False, index=True,
+        Enum(LogStatus, name="ai_log_status", values_callable=lambda obj: [e.value for e in obj]), nullable=False, index=True,
     )
     # Request
     user_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -205,7 +205,7 @@ class AIMetricDaily(BaseModel, TenantMixin):
         DateTime(timezone=True), nullable=False, index=True,
     )
     agent: Mapped[AgentKind] = mapped_column(
-        Enum(AgentKind, name="ai_metric_agent"), nullable=False, index=True,
+        Enum(AgentKind, name="ai_metric_agent", values_callable=lambda obj: [e.value for e in obj]), nullable=False, index=True,
     )
     requests: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     success: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

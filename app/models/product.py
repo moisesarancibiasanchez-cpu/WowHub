@@ -98,7 +98,7 @@ class Product(BaseModel, TenantMixin):
 
     # Estado
     status: Mapped[ProductStatus] = mapped_column(
-        Enum(ProductStatus, name="product_status"),
+        Enum(ProductStatus, name="product_status", values_callable=lambda obj: [e.value for e in obj]),
         default=ProductStatus.DRAFT,
         nullable=False,
         index=True,
