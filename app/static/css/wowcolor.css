@@ -369,6 +369,13 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.wc-pill.warn   { background: #fef3c7; color: #92400e; }
+.wc-pill.danger { background: #fee2e2; color: #991b1b; }
+.wc-pill.ok     { background: #d1fae5; color: #065f46; }
+.wc-pill.green  { background: #d1fae5; color: #065f46; }
+.wc-pill.orange { background: #fed7aa; color: #9a3412; }
+.wc-pill.gray   { background: #f3f4f6; color: #4b5563; }
+.wc-pill.red    { background: #fee2e2; color: #991b1b; }
 .wc-empty-cell {
   padding: 24px 8px;
   text-align: center;

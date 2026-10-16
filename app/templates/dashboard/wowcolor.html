@@ -264,6 +264,47 @@ Para volver al dashboard legacy: /dashboard/v1
     'entregado': []
   };
 
+  // ── NAV — WowPrint sidebar nav items (HU_64)
+  // Sincronizado con WowColor_Dashboard.html v134.2
+  // El highlight activo se calcula desde la URL actual.
+  const NAV = [
+    { id: 'dashboard',    label: 'Dashboard',         icon: '📊', href: '/dashboard' },
+    { id: 'customers',    label: 'Clientes',           icon: '👥', href: '/dashboard/customers' },
+    { id: 'products',     label: 'Productos',          icon: '📦', href: '/dashboard/products' },
+    { id: 'inventory',    label: 'Inventario',         icon: '🧱', href: '/dashboard/inventory' },
+    null, // sep
+    { id: 'section_comercial', label: 'Comercial',    icon: '',   href: null, section: true },
+    { id: 'costs',        label: 'Costos y precios',  icon: '💲', href: '/dashboard/costs' },
+    { id: 'quotes',       label: 'Cotizaciones',       icon: '📄', href: '/dashboard/quotes' },
+    { id: 'orders',       label: 'Pedidos',            icon: '🛒', href: '/dashboard/orders' },
+    { id: 'payments',     label: 'Ventas y pagos',     icon: '💳', href: '/dashboard/payments' },
+    null, // sep
+    { id: 'section_operacion', label: 'Operación',   icon: '',   href: null, section: true },
+    { id: 'production',   label: 'Producción',         icon: '🏭', href: '/dashboard/production' },
+    { id: 'kds',          label: 'KDS',                icon: '📺', href: '/dashboard/kds' },
+    { id: 'loyalty',      label: 'Lealtad',            icon: '⭐', href: '/dashboard/loyalty' },
+    { id: 'analytics',    label: 'Analytics',          icon: '📈', href: '/dashboard/analytics' },
+    null, // sep
+    { id: 'settings',     label: 'Configuración',     icon: '⚙️', href: '/dashboard/settings' },
+  ];
+
+  let wcCurrentView = 'dashboard';
+
+  // ── Nav highlight basado en URL actual
+  function wcInitNav() {
+    const path = window.location.pathname;
+    document.querySelectorAll('.wc-nav-item').forEach(link => {
+      const href = link.getAttribute('href');
+      if (href && (path === href || path.startsWith(href + '/'))) {
+        link.classList.add('active');
+      }
+    });
+  }
+
+  // ── allowDrop / leaveDrop — compatibilidad con HTML inline (WowPrint style)
+  window.allowDrop = function(e) { e.preventDefault(); e.currentTarget.classList.add('wc-drop-active'); };
+  window.leaveDrop = function(e) { e.currentTarget.classList.remove('wc-drop-active'); };
+
   // ── Modal helpers ──
   window.wcOpenModal = function(title, body, breadcrumb) {
     document.getElementById('wcModalTitle').textContent = title;
@@ -633,11 +674,13 @@ Para volver al dashboard legacy: /dashboard/v1
 
   // ── Init ──
   document.addEventListener('DOMContentLoaded', () => {
+    wcInitNav();
     wcInitKanban();
     wcInitKpiClicks();
     wcLoadKpis();
     wcLoadKanban();
     console.log('✅ WowColor Dashboard v2.0 cargado — TOBE v134.2-Producción-v2');
+    console.log('Atajos: Ctrl+Enter=guardar | Esc=cerrar | Ctrl+Shift+C=cliente | Ctrl+Shift+P=producto');
   });
 
   // Expose para integración con otros scripts
