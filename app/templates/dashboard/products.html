@@ -1,42 +1,45 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Productos{% endblock %}
 {% block dash_content %}
-<section class="dash-page" style="padding: 24px;">
-<div class="row-between">
-  <div>
-    <h1>Productos</h1>
-    <p class="sub">Tu catálogo. Edita precios, costos, tiempo de producción y stock.</p>
+<section class="wc-panel" style="margin: 0;">
+  {# ── Header ── #}
+  <div class="wc-panel-head">
+    <div>
+      <div class="wc-panel-title">Productos</div>
+      <div class="wc-panel-sub">Tu catálogo. Edita precios, costos, tiempo de producción y stock.</div>
+    </div>
+    <button class="wc-btn wc-btn-primary" id="new-btn">+ Nuevo producto</button>
   </div>
-  <button class="btn btn-primary" id="new-btn">+ Nuevo producto</button>
-</div>
 
-<div class="row mt-3" style="gap: 8px;">
-  <input class="form-input" id="search" placeholder="Buscar por nombre, SKU..." style="max-width: 320px;">
-  <select class="form-select" id="status-filter" style="max-width: 180px;">
-    <option value="">Todos los estados</option>
-    <option value="active">Activo</option>
-    <option value="draft">Borrador</option>
-    <option value="out_of_stock">Sin stock</option>
-    <option value="archived">Archivado</option>
-  </select>
-  <select class="form-select" id="order-by" style="max-width: 180px;">
-    <option value="position">Orden manual</option>
-    <option value="name">Nombre</option>
-    <option value="price">Precio</option>
-    <option value="created">Más recientes</option>
-    <option value="sold">Más vendidos</option>
-  </select>
-  <select class="form-select" id="health-filter" style="max-width: 180px;" title="Filtrar por salud de pricing">
-    <option value="">Todas las saludes</option>
-    <option value="healthy">✓ Saludable</option>
-    <option value="warning">⚠ Margen bajo</option>
-    <option value="danger">❌ Margen crítico</option>
-    <option value="unknown">— Sin Costos</option>
-  </select>
-</div>
+  {# ── Filtros ── #}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    <input id="search" placeholder="Buscar por nombre, SKU..."
+           style="max-width:320px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
+    <select id="status-filter" style="max-width:180px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
+      <option value="">Todos los estados</option>
+      <option value="active">Activo</option>
+      <option value="draft">Borrador</option>
+      <option value="out_of_stock">Sin stock</option>
+      <option value="archived">Archivado</option>
+    </select>
+    <select id="order-by" style="max-width:180px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
+      <option value="position">Orden manual</option>
+      <option value="name">Nombre</option>
+      <option value="price">Precio</option>
+      <option value="created">Más recientes</option>
+      <option value="sold">Más vendidos</option>
+    </select>
+    <select id="health-filter" style="max-width:180px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;" title="Filtrar por salud de pricing">
+      <option value="">Todas las saludes</option>
+      <option value="healthy">✓ Saludable</option>
+      <option value="warning">⚠ Margen bajo</option>
+      <option value="danger">❌ Margen crítico</option>
+      <option value="unknown">— Sin Costos</option>
+    </select>
+  </div>
 
-<div class="table-wrap mt-3">
-  <table class="table">
+  {# ── Tabla ── #}
+  <table class="wc-table">
     <thead>
       <tr>
         <th style="width: 60px;">Foto</th>
@@ -52,10 +55,13 @@
       </tr>
     </thead>
     <tbody id="products-tbody">
-      <tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Cargando…</td></tr>
+      <tr><td colspan="10"><p class="wc-empty">Cargando…</p></td></tr>
     </tbody>
   </table>
-</div>
+</section>
+
+{# ── Toast WowColor ── #}
+<div class="wc-toast" id="wcToast"></div>
 
 <!--
   Form template clonado por JS al abrir el modal.
@@ -314,7 +320,7 @@
 
     // ── Validación defensiva: si no hay tenant activo, mostrar mensaje claro
     if (!tenant || !tenant.tenant_id) {
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10"><p class="wc-empty">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</p></td></tr>`;
       return;
     }
 
@@ -338,8 +344,7 @@
         tenantId: tenant.tenant_id,
         ts: new Date().toISOString(),
       }, null, 2);
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="padding: 30px;">
-        <div style="color: var(--accent-err); font-weight: 600; margin-bottom: 8px;">Error cargando productos</div>
+      tbody.innerHTML = `<tr><td colspan="10"><p class="wc-empty" style="color:var(--wc-danger)">Error cargando productos</p>
         <div class="text-muted" style="font-size: 13px; margin-bottom: 12px;">${escapeHtml(msg)}</div>
         <details style="text-align:left; max-width:600px; margin:0 auto 12px; font-size:12px; color:var(--fg-dim);">
           <summary style="cursor:pointer; color:var(--accent-err);">🔍 Detalles técnicos (click para expandir)</summary>
@@ -371,7 +376,7 @@
       items = data.items;
     } else {
       console.error("[products] unexpected data shape:", data);
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">Respuesta inesperada del servidor. <button class="btn btn-sm" data-action="retry">Reintentar</button></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10"><p class="wc-empty">Respuesta inesperada del servidor.</p></td></tr>`;
       const retryBtn = tbody.querySelector("button[data-action=retry]");
       if (retryBtn) retryBtn.addEventListener("click", () => load());
       return;
@@ -379,7 +384,7 @@
     if (healthFilter) items = items.filter(p => (p.health || "unknown") === healthFilter);
 
     if (items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="icon">📦</div>No hay productos. Crea el primero.</div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10"><p class="wc-empty">📦 No hay productos. Crea el primero.</p></td></tr>`;
       return;
     }
     // XSS: todos los campos que vienen del backend se escapan antes de
@@ -584,7 +589,7 @@
       } catch (_) {}
     }
     if (!tenant || !tenant.tenant_id) {
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding: 30px;">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10"><p class="wc-empty">No tienes un negocio activo. Crea uno desde <a href="/dashboard">Resumen</a>.</p></td></tr>`;
       return;
     }
     await loadCategories();

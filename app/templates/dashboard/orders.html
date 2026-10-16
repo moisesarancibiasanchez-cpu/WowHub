@@ -2,39 +2,44 @@
 {% block dash_title %}Pedidos — WowHub{% endblock %}
 
 {% block dash_content %}
-<section class="dash-page" style="padding: 24px;">
-  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 16px;">
+<section class="wc-panel" style="margin: 0;">
+  {# ── Header ── #}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
     <div>
-      <h1 style="margin: 0;">Pedidos</h1>
-      <p class="text-muted" style="margin: 4px 0 0;">Vista Kanban: arrastra las tarjetas o usa los botones para avanzar el estado.</p>
+      <div class="wc-panel-title" style="margin:0;font-size:24px;">Pedidos</div>
+      <div class="wc-panel-sub" style="margin:4px 0 0;">Vista Kanban: arrastra las tarjetas o usa los botones para avanzar el estado.</div>
     </div>
-    <div class="flex" style="gap: 8px;">
-      <input id="search-input" class="form-input" placeholder="Buscar por nº, cliente…" style="width: 240px;">
-      <select id="branch-filter" class="form-input" style="width: 180px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input id="search-input" placeholder="Buscar por nº, cliente…"
+             style="width:240px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
+      <select id="branch-filter" style="width:180px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
         <option value="">Todas las sucursales</option>
       </select>
-      <button class="btn" id="refresh-btn">Actualizar</button>
+      <button class="wc-btn wc-btn-secondary" id="refresh-btn">Actualizar</button>
     </div>
   </div>
 
-  <!-- KPIs -->
-  <div id="kpis" class="flex" style="gap: 12px; margin-bottom: 20px; flex-wrap: wrap;"></div>
+  {# ── KPIs ── #}
+  <div id="kpis" style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;"></div>
 
   <div id="alert"></div>
-  <div id="kanban" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; min-height: 60vh;">
-    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  <div id="kanban" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;min-height:60vh;">
+    <p class="wc-empty">Cargando…</p>
   </div>
 </section>
 
+{# ── Toast WowColor ── #}
+<div class="wc-toast" id="wcToast"></div>
+
 <!-- Modal: detalle de pedido -->
-<div id="order-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-card" style="max-width: 720px; width: 95%;">
-    <div class="modal-head">
-      <h3 id="order-modal-title">Pedido</h3>
-      <button class="btn btn-ghost btn-sm" id="order-modal-close">✕</button>
+<div id="order-modal" style="display:none;">
+  <div style="max-width:720px;width:95%;background:#fff;border-radius:13px;padding:22px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="order-modal-title" style="margin:0;font-size:18px;font-weight:700;">Pedido</h3>
+      <button class="wc-btn wc-btn-secondary" id="order-modal-close">×</button>
     </div>
-    <div class="modal-body" id="order-modal-body"></div>
-    <div class="modal-foot" id="order-modal-foot"></div>
+    <div id="order-modal-body"></div>
+    <div id="order-modal-foot"></div>
   </div>
 </div>
 {% endblock %}
@@ -189,7 +194,7 @@ function renderKanban() {
               </div>
             </div>
           `;
-          }).join("") || '<div class="text-muted" style="font-size:12px; padding: 12px; text-align: center;">Vacío</div>'}
+          }).join("") || '<p class="wc-empty">Vacío</p>'}
         </div>
       </div>
     `;

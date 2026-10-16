@@ -2,15 +2,17 @@
 {% block dash_title %}Cotizaciones — WowHub{% endblock %}
 
 {% block dash_content %}
-<section class="dash-page" style="padding: 40px 24px;">
-  <div class="flex" style="justify-content: space-between; align-items: center; margin-bottom: 16px;">
+<section class="wc-panel" style="margin: 0;">
+  {# ── Header ── #}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
     <div>
-      <h1 style="margin: 0;">Cotizaciones</h1>
-      <p class="text-muted" style="margin: 4px 0 0;">Crea presupuestos para tus clientes y conviértelos en pedidos al aceptar.</p>
+      <div class="wc-panel-title" style="margin:0;font-size:24px;">Cotizaciones</div>
+      <div class="wc-panel-sub" style="margin:4px 0 0;">Crea presupuestos para tus clientes y conviértelos en pedidos al aceptar.</div>
     </div>
-    <div class="flex" style="gap: 8px;">
-      <input id="search-input" class="form-input" placeholder="Buscar por nº, título o cliente…" style="width: 260px;">
-      <select id="status-filter" class="form-input" style="width: 180px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input id="search-input" placeholder="Buscar por nº, título o cliente…"
+             style="width:260px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
+      <select id="status-filter" style="width:180px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:13px;">
         <option value="">Todos los estados</option>
         <option value="draft">Borrador</option>
         <option value="sent">Enviadas</option>
@@ -19,28 +21,31 @@
         <option value="rejected">Rechazadas</option>
         <option value="expired">Vencidas</option>
       </select>
-      <button class="btn" id="new-quote-btn">+ Nueva cotización</button>
+      <button class="wc-btn wc-btn-primary" id="new-quote-btn">+ Nueva cotización</button>
     </div>
   </div>
 
-  <!-- KPIs -->
-  <div id="kpis" class="flex" style="gap: 12px; margin-bottom: 20px; flex-wrap: wrap;"></div>
+  {# ── KPIs ── #}
+  <div id="kpis" style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;"></div>
 
   <div id="alert"></div>
-  <div id="quotes-list" class="card" style="padding: 0;">
-    <p class="text-muted text-center" style="padding: 40px;">Cargando…</p>
+  <div id="quotes-list" style="background:#fff;border:1px solid var(--wc-line);border-radius:12px;overflow:hidden;">
+    <p class="wc-empty">Cargando…</p>
   </div>
 </section>
 
+{# ── Toast WowColor ── #}
+<div class="wc-toast" id="wcToast"></div>
+
 <!-- Modal: nueva/editar cotización -->
-<div id="quote-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-card" style="max-width: 820px; width: 95%;">
-    <div class="modal-head">
-      <h3 id="modal-title">Nueva cotización</h3>
-      <button class="btn btn-ghost btn-sm" id="modal-close">✕</button>
+<div id="quote-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:820px;width:95%;background:#fff;border-radius:13px;padding:22px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="modal-title" style="margin:0;font-size:18px;font-weight:700;">Nueva cotización</h3>
+      <button class="wc-btn wc-btn-secondary" id="modal-close">×</button>
     </div>
     <div class="modal-body">
-      <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <label class="form-field"><span>Título *</span>
           <input id="f_title" class="form-input" placeholder="Ej: Pedido mensual cafetería">
         </label>
