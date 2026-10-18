@@ -238,29 +238,38 @@
 </div>
 
 <div class="template-grid" id="templateGrid">
-  <!-- 1. Default WowHub (SaaS) -->
-  <div class="template-card" data-template="default">
+  <!-- 1. Dashboard SaaS (default site-wide) -->
+  <div class="template-card" data-template="dashboard">
     <div class="template-preview">
-      <span class="template-preview-label">DEFAULT · SaaS</span>
-      <div class="preview-default">
-        <div class="mini-top"></div>
-        <div class="mini-card">
-          Producto Demo<br>
-          <span style="color:#73809a; font-weight:400">$1.500</span>
-          <div class="mini-btn">Comprar</div>
+      <span class="template-preview-label">DEFAULT · DASHBOARD</span>
+      <div class="preview-dashboard">
+        <div class="mini-sidebar">
+          <div class="mini-side-item active">📊</div>
+          <div class="mini-side-item">📦</div>
+          <div class="mini-side-item">👥</div>
+          <div class="mini-side-item">⚙️</div>
+        </div>
+        <div class="mini-main">
+          <div class="mini-topbar"></div>
+          <div class="mini-cards">
+            <div class="mini-card">KPI 1<br><span class="mini-num">42</span></div>
+            <div class="mini-card">KPI 2<br><span class="mini-num">128</span></div>
+            <div class="mini-card">KPI 3<br><span class="mini-num">$5k</span></div>
+          </div>
         </div>
       </div>
     </div>
     <div class="template-info">
-      <h3>WowHub Default</h3>
-      <p>Estética SaaS estándar. Sidebar claro, púrpura de acento, tipografía 14-16px.</p>
+      <h3>Dashboard SaaS <span class="template-default-badge">DEFAULT</span></h3>
+      <p>Estética SaaS WowHub. Sidebar 280px, topbar 56px, cards con border sutil, acento púrpura #6c5ce7.</p>
       <div class="template-meta">
         <span>--accent: #6c5ce7</span>
         <span>radius 14</span>
         <span>weight 600</span>
+        <span>sidebar 280px</span>
       </div>
       <div class="template-actions">
-        <span class="template-status">SaaS estándar</span>
+        <span class="template-status">Activa por defecto</span>
         <button class="btn btn-select" data-action="select">Aplicar</button>
       </div>
     </div>
@@ -318,6 +327,34 @@
       </div>
       <div class="template-actions">
         <span class="template-status">Night mode</span>
+        <button class="btn btn-select" data-action="select">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Default legacy (sin template) -->
+  <div class="template-card" data-template="default">
+    <div class="template-preview">
+      <span class="template-preview-label">LEGACY · SIN TEMPLATE</span>
+      <div class="preview-default">
+        <div class="mini-top"></div>
+        <div class="mini-card">
+          Producto Demo<br>
+          <span style="color:#73809a; font-weight:400">$1.500</span>
+          <div class="mini-btn">Comprar</div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <h3>Sin plantilla (legacy)</h3>
+      <p>Sin clase CSS aplicada. Usa los tokens.css puros. Para diagnóstico o compatibilidad con código viejo.</p>
+      <div class="template-meta">
+        <span>tokens.css puro</span>
+        <span>sin scope</span>
+        <span>compatibilidad</span>
+      </div>
+      <div class="template-actions">
+        <span class="template-status">Solo diagnóstico</span>
         <button class="btn btn-select" data-action="select">Aplicar</button>
       </div>
     </div>

@@ -5,24 +5,27 @@
  *
  * Catálogo de plantillas (debe coincidir con dashboard/templates.html):
  *   - default   → sin clase especial (tokens.css puro)
- *   - wowprint  → .template-wowprint (WowPrint V1354 R2)
+ *   - dashboard → .template-dashboard (SaaS WowHub - DEFAULT site-wide)
+ *   - wowprint  → .template-wowprint (WowPrint V1354 R2, kiosk)
  *   - dark      → data-theme="dark" sobre default
  *
  * API:
  *   TemplateSelector.apply('wowprint')  // aplica
- *   TemplateSelector.current()          // 'wowprint' | 'default' | 'dark' | null
- *   TemplateSelector.reset()            // vuelve al default
+ *   TemplateSelector.current()          // 'wowprint' | 'default' | 'dashboard' | 'dark' | null
+ *   TemplateSelector.reset()            // vuelve al default (dashboard)
  * ============================================================= */
 (function () {
   "use strict";
 
   var STORAGE_KEY = "wowhub.template";
   var API_BASE = (typeof window !== "undefined" && window.WH_API) || "/api/v1";
+  var DEFAULT_TEMPLATE = "dashboard";
 
   var CATALOG = {
-    default:  { className: "",              dataTheme: null,        css: null },
-    wowprint: { className: "template-wowprint", dataTheme: null,     css: "/static/css/templates/wowprint.css" },
-    dark:     { className: "",              dataTheme: "dark",      css: null }
+    default:  { className: "",                 dataTheme: null,        css: null,                                         label: "WowHub Default" },
+    dashboard:{ className: "template-dashboard",   dataTheme: null,    css: "/static/css/templates/dashboard.css",      label: "Dashboard SaaS" },
+    wowprint: { className: "template-wowprint",    dataTheme: null,    css: "/static/css/templates/wowprint.css",       label: "WowPrint Kiosk" },
+    dark:     { className: "",                 dataTheme: "dark",      css: null,                                         label: "Dark Mode" }
   };
 
   function ensureCssLoaded(templateId) {
@@ -59,9 +62,9 @@
       var d = CATALOG[k];
       if (d.className) body.classList.remove(d.className);
     });
-    if (html.dataset.theme && !def.dataTheme) {
-      // No pisar el dark default si el user lo había activado a mano
-      // (decisión: solo se sobrescribe si el user eligió explícitamente "dark")
+    // Limpiar data-theme si el nuevo template no es dark
+    if (!def.dataTheme && html.dataset.theme) {
+      html.removeAttribute("data-theme");
     }
 
     return ensureCssLoaded(templateId).then(function () {
@@ -88,13 +91,16 @@
     try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
   }
 
-  function reset() { return apply("default"); }
+  function reset() { return apply(DEFAULT_TEMPLATE); }
 
   // Auto-apply al cargar
   document.addEventListener("DOMContentLoaded", function () {
     var saved = current();
     if (saved && CATALOG[saved]) {
       apply(saved);
+    } else {
+      // Sin selección previa: aplicar dashboard SaaS por defecto (site-wide)
+      apply(DEFAULT_TEMPLATE);
     }
     // Conectar botones [data-action="select"] dentro de tarjetas [data-template]
     document.querySelectorAll("[data-template]").forEach(function (card) {

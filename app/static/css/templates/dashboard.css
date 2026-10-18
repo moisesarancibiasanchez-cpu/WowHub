@@ -1,0 +1,478 @@
+/* =============================================================
+ * Dashboard Template v1.0 — Sistema de templates WowHub
+ * =============================================================
+ *
+ * Inspirado en la estética SaaS del dashboard WowHub:
+ *   - Sidebar colapsable 280px con bg #ffffff y border-right #e8ecf3
+ *   - Topbar 56px sticky bg white con shadow soft
+ *   - Cards 14px radius con border #e8ecf3
+ *   - Color de acento: #6c5ce7 (púrpura WowHub)
+ *   - Tipografía: 14-16px regular, weight 600 para títulos
+ *   - Sombras suaves, jerarquía clara
+ *
+ * APLICACIÓN: añadir clase `template-dashboard` al <body> o
+ * al contenedor raíz. La plantilla sobreescribe los tokens
+ * de `tokens.css` solo dentro de su scope (cero leaking).
+ * ============================================================= */
+
+.template-dashboard,
+.template-dashboard [data-theme] {
+  /* ── Paleta SaaS WowHub ───────────────────────────────────── */
+  --wc-bg:            #f5f7fb;
+  --wc-bg-elev:      #ffffff;
+  --wc-bg-elev-2:    #fbfbff;
+  --wc-fg:            #172033;
+  --wc-fg-muted:      #73809a;
+  --wc-border:        #e8ecf3;
+  --wc-border-strong: #d6dbe6;
+  --wc-accent:        #6c5ce7;
+  --wc-accent-hover:  #5b4cd1;
+  --wc-accent-2:      #00d4a8;
+  --wc-success:       #00b894;
+  --wc-warning:       #fdcb6e;
+  --wc-danger:        #d63031;
+  --wc-info:          #0984e3;
+
+  /* Override de tokens semánticos de tokens.css */
+  --bg:              var(--wc-bg);
+  --bg-elev:         var(--wc-bg-elev);
+  --bg-elev-2:       var(--wc-bg-elev-2);
+  --fg:              var(--wc-fg);
+  --fg-muted:        var(--wc-fg-muted);
+  --border:          var(--wc-border);
+  --border-strong:   var(--wc-border-strong);
+  --accent:          var(--wc-accent);
+  --accent-hover:    var(--wc-accent-hover);
+  --accent-2:        var(--wc-accent-2);
+
+  /* ── Topbar 56px sticky ────────────────────────────────────── */
+  --topbar-bg:       #ffffff;
+  --topbar-fg:       var(--wc-fg);
+  --topbar-height:   56px;
+  --topbar-padding:  0 20px;
+  --topbar-shadow:   0 1px 3px rgba(26, 34, 58, 0.06);
+
+  /* ── Sidebar 280px colapsable ──────────────────────────────── */
+  --sidebar-bg:        #ffffff;
+  --sidebar-fg:        var(--wc-fg);
+  --sidebar-fg-muted:  var(--wc-fg-muted);
+  --sidebar-border:    var(--wc-border);
+  --sidebar-width:     280px;
+  --sidebar-width-collapsed: 64px;
+  --sidebar-shadow:    2px 0 8px rgba(26, 34, 58, 0.04);
+
+  /* ── Cards 14px radius ────────────────────────────────────── */
+  --radius:          14px;
+  --radius-sm:       8px;
+  --radius-lg:       18px;
+  --radius-card:     14px;
+  --radius-panel:    12px;
+  --radius-control:  10px;
+  --radius-button:   10px;
+
+  --shadow-sm:       0 1px 2px rgba(26, 34, 58, 0.04);
+  --shadow:          0 4px 12px rgba(26, 34, 58, 0.06);
+  --shadow-lg:       0 12px 32px rgba(26, 34, 58, 0.12);
+  --shadow-card:     0 2px 8px rgba(26, 34, 58, 0.04);
+  --shadow-modal:    0 20px 60px rgba(26, 34, 58, 0.18);
+
+  /* ── Tipografía balanceada ────────────────────────────────── */
+  --font-weight-regular:  400;
+  --font-weight-strong:   600;
+  --font-weight-display:  700;
+  --btn-weight:           600;
+  --brand-weight:         700;
+  --brand-letter-spacing: -0.3px;
+  --hero-size:            32px;
+  --hero-weight:          700;
+  --hero-letter-spacing:  -0.5px;
+  --hero-line-height:     1.15;
+  --format-size:          16px;
+  --format-weight:        600;
+  --format-letter-spacing: -0.1px;
+  --price-size:           18px;
+  --price-weight:         700;
+  --size-meta-size:       12px;
+
+  /* ── Transiciones suaves ───────────────────────────────────── */
+  --modal-zoom-duration: 0.2s;
+  --modal-zoom-bezier:   cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Grid de catálogo ─────────────────────────────────────── */
+  --catalog-min-card: 300px;
+  --catalog-gap:      24px;
+
+  /* ── Brand mark ───────────────────────────────────────────── */
+  --brand-font-size:  20px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Topbar 56px blanco con shadow soft
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .public-header,
+.template-dashboard .topbar,
+.template-dashboard .app-topbar,
+.template-dashboard header.app-header {
+  height: 56px !important;
+  min-height: 56px;
+  padding: var(--topbar-padding) !important;
+  background: var(--topbar-bg) !important;
+  color: var(--topbar-fg) !important;
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--topbar-shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: none;
+}
+
+.template-dashboard .public-header a,
+.template-dashboard .topbar a,
+.template-dashboard .app-topbar a,
+.template-dashboard header.app-header a,
+.template-dashboard .public-header .brand,
+.template-dashboard .topbar .brand {
+  color: var(--fg) !important;
+  font-size: var(--brand-font-size);
+  font-weight: var(--brand-weight);
+  letter-spacing: var(--brand-letter-spacing);
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Sidebar estilo SaaS (bg blanco, border-right)
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .sidebar,
+.template-dashboard aside.sidebar,
+.template-dashboard [data-sidebar] {
+  background: var(--sidebar-bg) !important;
+  color: var(--sidebar-fg) !important;
+  border-right: 1px solid var(--sidebar-border) !important;
+  box-shadow: var(--sidebar-shadow);
+  width: var(--sidebar-width);
+  transition: width 0.2s var(--modal-zoom-bezier);
+}
+
+.template-dashboard .sidebar.is-collapsed,
+.template-dashboard aside.sidebar.is-collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+.template-dashboard .sidebar .nav-item,
+.template-dashboard aside.sidebar .nav-item {
+  color: var(--sidebar-fg);
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  margin: 2px 8px;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.15s var(--modal-zoom-bezier);
+}
+
+.template-dashboard .sidebar .nav-item:hover,
+.template-dashboard aside.sidebar .nav-item:hover {
+  background: rgba(108, 92, 231, 0.08);
+  color: var(--accent);
+}
+
+.template-dashboard .sidebar .nav-item.is-active,
+.template-dashboard aside.sidebar .nav-item.is-active {
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Hero 32/700 SaaS (no agresivo como WowPrint)
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard h1.hero,
+.template-dashboard .hero h1,
+.template-dashboard .hero-title--print {
+  font-size: var(--hero-size);
+  font-weight: var(--hero-weight);
+  letter-spacing: var(--hero-letter-spacing);
+  line-height: var(--hero-line-height);
+  margin: 0 0 12px;
+  color: var(--fg);
+}
+
+.template-dashboard .hero p {
+  font-size: 15px;
+  color: var(--fg-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Cards con border sutil, sombra suave
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .card,
+.template-dashboard .product-card,
+.template-dashboard .card-product-info,
+.template-dashboard .card--paper {
+  background: var(--bg-elev) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  transition: all 0.18s var(--modal-zoom-bezier);
+}
+
+.template-dashboard .card:hover,
+.template-dashboard .product-card:hover,
+.template-dashboard .card-product-info:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow) !important;
+  transform: translateY(-1px);
+}
+
+/* Tipografía de catálogo (suave, no agresiva) */
+.template-dashboard .format,
+.template-dashboard .product-name,
+.template-dashboard .card-title {
+  font-size: var(--format-size);
+  font-weight: var(--format-weight);
+  letter-spacing: var(--format-letter-spacing);
+  line-height: 1.3;
+  margin: 6px 0;
+  color: var(--fg);
+}
+
+.template-dashboard .price,
+.template-dashboard .product-price,
+.template-dashboard .card-price {
+  font-size: var(--price-size);
+  font-weight: var(--price-weight);
+  margin: 8px 0;
+  color: var(--accent);
+}
+
+.template-dashboard .size,
+.template-dashboard .product-meta,
+.template-dashboard .card-meta {
+  color: var(--fg-muted);
+  font-size: var(--size-meta-size);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Botones redondeados, púrpura primary
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .btn,
+.template-dashboard button.btn,
+.template-dashboard a.btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  padding: 10px 16px;
+  font-weight: var(--btn-weight);
+  cursor: pointer;
+  transition: all 0.15s var(--modal-zoom-bezier);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.template-dashboard .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.template-dashboard .btn.primary,
+.template-dashboard .btn--primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.template-dashboard .btn.primary:hover,
+.template-dashboard .btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.template-dashboard .btn.light,
+.template-dashboard .btn--secondary {
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.template-dashboard .btn.disabled,
+.template-dashboard .btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Grid de catálogo
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .grid,
+.template-dashboard .catalog-grid,
+.template-dashboard .products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--catalog-min-card), 1fr));
+  gap: var(--catalog-gap);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Modales con animación fade + scale sutil
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .modal,
+.template-dashboard .modalbox,
+.template-dashboard [role="dialog"] {
+  background: rgba(26, 34, 58, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.template-dashboard .modal.show .box,
+.template-dashboard .modalbox.show,
+.template-dashboard [role="dialog"] > .modal-content {
+  animation: wowDashboardModalZoom var(--modal-zoom-duration) var(--modal-zoom-bezier);
+}
+
+@keyframes wowDashboardModalZoom {
+  0%   { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.template-dashboard .box,
+.template-dashboard .modal-content {
+  background: var(--bg-elev);
+  border-radius: 16px;
+  box-shadow: var(--shadow-modal);
+  padding: 24px;
+  border: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QR section (SaaS style)
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .qr,
+.template-dashboard .qr-section {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin: 24px 0 32px;
+  box-shadow: var(--shadow-card);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Badges y chips (acento púrpura)
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard .template-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.10);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.template-dashboard .orientation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--bg-elev-2);
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Formularios (clean, modernos)
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard input[type="text"],
+.template-dashboard input[type="email"],
+.template-dashboard input[type="password"],
+.template-dashboard input[type="number"],
+.template-dashboard input[type="search"],
+.template-dashboard select,
+.template-dashboard textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-elev);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  transition: border-color 0.15s var(--modal-zoom-bezier);
+}
+
+.template-dashboard input:focus,
+.template-dashboard select:focus,
+.template-dashboard textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+}
+
+.template-dashboard .control {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-elev);
+}
+
+.template-dashboard .control label {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Focus styles accesibles
+   ═══════════════════════════════════════════════════════════ */
+.template-dashboard *:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Respeto por prefers-reduced-motion
+   ═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .template-dashboard *,
+  .template-dashboard *::before,
+  .template-dashboard *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Responsive — breakpoints SaaS
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 980px) {
+  .template-dashboard .card,
+  .template-dashboard .product-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .template-dashboard .hero h1,
+  .template-dashboard .hero-title--print {
+    font-size: 26px;
+  }
+  .template-dashboard .sidebar,
+  .template-dashboard aside.sidebar {
+    position: fixed;
+    left: -100%;
+    transition: left 0.2s var(--modal-zoom-bezier);
+  }
+  .template-dashboard .sidebar.is-open,
+  .template-dashboard aside.sidebar.is-open {
+    left: 0;
+  }
+}
