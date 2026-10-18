@@ -54,6 +54,7 @@ from app.api.v1 import (
     ocr,               # HU_33 — OCR de comprobantes (HU_33)
     reports,           # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
     admin_observability,  # HU_07 — Admin observability dashboard (Otel + Sentry + Prom)
+    templates,             # V2.01 — Plantillas estéticas (Moderna, WowPrint, Dark, Default)
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -253,6 +254,7 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")  # platform admin
 app.include_router(tenant_site_config.router, prefix="/api/v1")  # V134.2: per-tenant site-config
 app.include_router(sites.router, prefix="/api/v1")  # HU_42: /api/v1/sites (flat, tenant from JWT)
+app.include_router(templates.router, prefix="/api/v1")  # V2.01: /tenants/{id}/template (selector de plantillas)
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(superadmin.router, prefix="/api/v1")
