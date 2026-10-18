@@ -20,4 +20,5 @@ from app.api.v1 import (  # noqa: F401
     ocr,  # HU_33 — OCR de comprobantes (recibos, facturas, payment proof)
     reports,  # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
     admin_observability,  # HU_07 — Dashboard admin de observabilidad (Otel + Sentry + Prom)
+    templates,  # V2.01 — Selector de plantillas estéticas del dashboard
 )
