@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>{{ tenant.name or "WowPrint Kiosk" }} · WowHub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/templates/wowprint.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing-pro.css') }}">
+</head>
+<body class="template-wowprint pub-page">
+  <header class="topbar public-header">
+    <div class="brand" style="display:flex;align-items:center;gap:12px">
+      <div style="width:96px;height:54px;background:#111827;border-radius:10px;display:grid;place-items:center;overflow:hidden">
+        {% if tenant and tenant.logo_url %}
+        <img src="{{ tenant.logo_url }}" alt="{{ tenant.name }}" style="max-width:88px;max-height:48px;object-fit:contain">
+        {% else %}
+        <span style="color:#fff;font-weight:900;font-size:22px;letter-spacing:-.4px">{{ tenant.name[0] if tenant and tenant.name else "W" }}</span>
+        {% endif %}
+      </div>
+      <span>{{ tenant.name or "WowPrint Kiosk" }}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <a class="btn light" href="/u/{{ tenant.slug }}/catalogo">Catálogo</a>
+      <a class="btn primary" href="/u/{{ tenant.slug }}/booking">Reservar</a>
+    </div>
+  </header>
+
+  <main class="wrap" style="max-width:1240px;margin:0 auto;padding:34px 28px 80px">
+    <section class="hero" style="text-align:left;margin:10px 0 22px">
+      <h1>{{ landing.hero_title or "¿Qué quieres imprimir?" }}</h1>
+      <p>{{ landing.hero_subtitle or "Elegí el tamaño, prepará tus fotos y nosotros hacemos el resto." }}</p>
+    </section>
+
+    {% if landing.qr_url %}
+    <div class="qr">
+      <img src="{{ landing.qr_url }}" alt="QR" style="width:120px;height:120px;border-radius:12px;background:#fff"/>
+      <div>
+        <b>¿Tenés las fotos en tu teléfono?</b>
+        <div class="small" style="color:var(--kiosk-muted);font-size:13px">
+          Escaneá este QR. Tu teléfono se conectará a esta sesión y las fotos aparecerán aquí automáticamente.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="grid" id="products">
+      {% for p in products or [] %}
+      <div class="card product-card">
+        <div class="card-product-photo">
+          {% if p.photo_data or p.photo_url %}
+          <img src="{{ p.photo_data or p.photo_url }}" alt="{{ p.name }}">
+          {% else %}
+          <span class="small">Sin imagen</span>
+          {% endif %}
+        </div>
+        <div class="card-product-info">
+          <div class="small" style="color:var(--kiosk-muted);font-size:11.5px">{{ p.category or "" }}</div>
+          <div class="format">{{ p.name }}</div>
+          {% if p.size %}<div class="size">{{ p.size }}</div>{% endif %}
+          <div class="small" style="color:var(--kiosk-muted);font-size:11px;margin-top:5px">
+            {{ p.description or "Preparado para producción" }}
+          </div>
+          <div class="price">${{ "{:,}".format(p.price or 0).replace(",", ".") }}</div>
+          <button class="btn primary" onclick="startOrder('{{ p.id }}')">Elegir</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <div class="modal" id="modal">
+    <div class="box" id="box"></div>
+  </div>
+
+  <script>
+    function startOrder(productId) {
+      window.location.href = "/u/{{ tenant.slug }}/catalogo?product=" + productId;
+    }
+    // Auto-apply template (en caso de que la página se sirva con caché)
+    if (window.TemplateSelector) {
+      window.TemplateSelector.apply("wowprint");
+    } else {
+      document.body.classList.add("template-wowprint");
+    }
+  </script>
+  <script src="{{ url_for('static', filename='js/template-selector.js') }}"></script>
+</body>
+</html>

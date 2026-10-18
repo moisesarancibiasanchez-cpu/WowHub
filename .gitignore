@@ -29,3 +29,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+
+# ---- Secrets & runtime state (Multi-Agent) ----
+.env
+.env.local
+.env.*.local
+multi-agent-wowhub/.env
+multi-agent-wowhub/state/session_*.json
+multi-agent-wowhub/agent_health.json
+multi-agent-wowhub/audit_results.json
+multi-agent-wowhub/*.log
+multi-agent-wowhub/cache/
+*.egg-info/
+.venv/
+venv/
+.DS_Store

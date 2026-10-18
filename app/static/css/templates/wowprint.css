@@ -1,0 +1,400 @@
+/* =============================================================
+ * WowPrint V1354 R2 — Template estético
+ * Sistema de templates WowHub (selector en /dashboard/templates)
+ *
+ * Inspirado en WowPrint Kiosk V1354 R2:
+ *   - Topbar 76px sticky negro sólido
+ *   - Cards 20px radius + shadow 0,12,30 rgba(0,0,0,.10)
+ *   - Tipografía 800-900, hero 38/-1
+ *   - Botones 11px radius / weight 800
+ *   - Paleta monocromática (#111 principal)
+ *
+ * APLICACIÓN: añadir clase `template-wowprint` al <body> o
+ * al contenedor raíz. La plantilla sobreescribe los tokens
+ * de `tokens.css` solo dentro de su scope (cero leaking).
+ * ============================================================= */
+
+.template-wowprint,
+.template-wowprint [data-theme] {
+  /* ── Paleta Kiosk monocromática ───────────────────────── */
+  --kiosk:           #111111;
+  --kiosk-bg:        #f4f4f4;
+  --kiosk-panel:     #ffffff;
+  --kiosk-ink:       #111111;
+  --kiosk-line:      #e5e5e5;
+  --kiosk-muted:     #667085;
+
+  /* Override de tokens semánticos de tokens.css */
+  --bg:              var(--kiosk-bg);
+  --bg-elev:         var(--kiosk-panel);
+  --bg-elev-2:       #fafbfc;
+  --fg:              var(--kiosk-ink);
+  --fg-muted:        var(--kiosk-muted);
+  --border:          var(--kiosk-line);
+  --border-strong:   #d0d5dd;
+  --accent:          var(--kiosk);
+  --accent-hover:    #000000;
+  --accent-2:        #222222;
+
+  /* ── Topbar 76px (vs 14px 28px por defecto) ─────────────── */
+  --topbar-bg:       #111111;
+  --topbar-fg:       #ffffff;
+  --topbar-height:   76px;
+  --topbar-padding:  0 34px;
+
+  /* ── Cards 20px + shadow print ─────────────────────────── */
+  --radius:          14px;
+  --radius-sm:       10px;
+  --radius-lg:       20px;
+  --radius-card:     20px;
+  --radius-panel:    18px;
+  --radius-control:  12px;
+  --radius-button:   11px;
+
+  --shadow-sm:       0 1px 2px rgba(0,0,0,0.06);
+  --shadow:          0 12px 30px rgba(0,0,0,0.10);
+  --shadow-lg:       0 24px 80px rgba(16,24,40,0.32);
+  --shadow-card:     0 12px 30px rgba(0,0,0,0.10);
+  --shadow-modal:    0 24px 80px rgba(16,24,40,0.32);
+  --shadow-paper:    0 12px 35px rgba(16,24,40,0.18);
+
+  /* ── Tipografía pesada (800-900) ───────────────────────── */
+  --font-weight-regular:  500;
+  --font-weight-strong:   800;
+  --font-weight-display:  900;
+  --btn-weight:           800;
+  --brand-weight:         900;
+  --brand-letter-spacing: -0.4px;
+  --hero-size:            38px;
+  --hero-weight:          900;
+  --hero-letter-spacing:  -1px;
+  --hero-line-height:     1.05;
+  --format-size:          18px;
+  --format-weight:        850;
+  --format-letter-spacing: -0.2px;
+  --price-size:           19px;
+  --price-weight:         900;
+  --size-meta-size:       11.5px;
+
+  /* ── Animación zoom in (idéntica a kiosk.wowZoomIn) ────── */
+  --modal-zoom-duration: 0.24s;
+  --modal-zoom-bezier:   cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ── Grid de catálogo (330px min) ──────────────────────── */
+  --catalog-min-card: 330px;
+  --catalog-gap:      28px;
+
+  /* ── Brand mark ───────────────────────────────────────── */
+  --brand-font-size:  24px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Topbar WowPrint 76px
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .public-header,
+.template-wowprint .topbar,
+.template-wowprint .app-topbar,
+.template-wowprint header.app-header {
+  height: 76px !important;
+  min-height: 76px;
+  padding: var(--topbar-padding) !important;
+  background: var(--topbar-bg) !important;
+  color: var(--topbar-fg) !important;
+  border-bottom: 1px solid #1f2532;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: none;
+}
+
+.template-wowprint .public-header a,
+.template-wowprint .topbar a,
+.template-wowprint .app-topbar a,
+.template-wowprint header.app-header a,
+.template-wowprint .public-header .brand,
+.template-wowprint .topbar .brand {
+  color: #ffffff !important;
+  font-size: var(--brand-font-size);
+  font-weight: var(--brand-weight);
+  letter-spacing: var(--brand-letter-spacing);
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Hero h1 WowPrint 38/900/-1
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint h1.hero,
+.template-wowprint .hero h1,
+.template-wowprint .hero-title--print {
+  font-size: var(--hero-size);
+  font-weight: var(--hero-weight);
+  letter-spacing: var(--hero-letter-spacing);
+  line-height: var(--hero-line-height);
+  margin: 0 0 8px;
+}
+
+.template-wowprint .hero p {
+  font-size: 16px;
+  color: var(--kiosk-muted);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Cards paper-style (sin border, radius 20, shadow print)
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .card,
+.template-wowprint .product-card,
+.template-wowprint .card-product-info,
+.template-wowprint .card--paper {
+  background: var(--kiosk-panel) !important;
+  border: 0 !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-card) !important;
+  transition: transform 0.18s var(--modal-zoom-bezier);
+}
+
+.template-wowprint .card:hover,
+.template-wowprint .product-card:hover,
+.template-wowprint .card-product-info:hover {
+  transform: translateY(-2px);
+}
+
+/* Card product (kiosk) layout: photo 48% + info 52% */
+.template-wowprint .card-product-photo {
+  background: transparent;
+  border-radius: var(--radius-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.template-wowprint .card-product-photo img {
+  filter: drop-shadow(0 14px 24px rgba(0,0,0,0.16));
+  width: 112%;
+  height: 112%;
+  object-fit: contain;
+}
+
+/* Tipografía de catálogo (.format, .price) */
+.template-wowprint .format,
+.template-wowprint .product-name,
+.template-wowprint .card-title {
+  font-size: var(--format-size);
+  font-weight: var(--format-weight);
+  letter-spacing: var(--format-letter-spacing);
+  line-height: 1.15;
+  margin: 5px 0;
+}
+
+.template-wowprint .price,
+.template-wowprint .product-price,
+.template-wowprint .card-price {
+  font-size: var(--price-size);
+  font-weight: var(--price-weight);
+  margin: 8px 0;
+}
+
+.template-wowprint .size,
+.template-wowprint .product-meta,
+.template-wowprint .card-meta {
+  color: var(--kiosk-muted);
+  font-size: var(--size-meta-size);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Botones 11px radius / weight 800 / primary negro
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .btn,
+.template-wowprint button.btn,
+.template-wowprint a.btn {
+  border: 0;
+  border-radius: var(--radius-button);
+  padding: 12px 16px;
+  font-weight: var(--btn-weight);
+  cursor: pointer;
+  transition: transform 0.15s var(--modal-zoom-bezier);
+  font-family: inherit;
+}
+
+.template-wowprint .btn:hover {
+  transform: translateY(-1px);
+}
+
+.template-wowprint .btn.primary,
+.template-wowprint .btn--primary {
+  background: var(--kiosk);
+  color: #ffffff;
+}
+
+.template-wowprint .btn.light,
+.template-wowprint .btn--secondary {
+  background: #eef1f5;
+  color: #172033;
+}
+
+.template-wowprint .btn.disabled,
+.template-wowprint .btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Grid de catálogo 330px min
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .grid,
+.template-wowprint .catalog-grid,
+.template-wowprint .products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--catalog-min-card), 1fr));
+  gap: var(--catalog-gap);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Modales con animación zoom-in
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .modal,
+.template-wowprint .modalbox,
+.template-wowprint [role="dialog"] {
+  background: rgba(16, 24, 40, 0.72);
+}
+
+.template-wowprint .modal.show .box,
+.template-wowprint .modalbox.show,
+.template-wowprint [role="dialog"] > .modal-content {
+  animation: wowPrintModalZoom var(--modal-zoom-duration) var(--modal-zoom-bezier);
+}
+
+@keyframes wowPrintModalZoom {
+  0%   { opacity: 0; transform: scale(0.82); }
+  70%  { opacity: 1; transform: scale(1.025); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.template-wowprint .box,
+.template-wowprint .modal-content {
+  background: var(--kiosk-panel);
+  border-radius: 22px;
+  box-shadow: var(--shadow-modal);
+  padding: 22px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QR section (kiosk)
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .qr,
+.template-wowprint .qr-section {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e8ee;
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin: 22px 0 28px;
+  box-shadow: 0 5px 18px rgba(16, 24, 40, 0.03);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Badges y chips
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint .template-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2446a8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.template-wowprint .orientation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f3f5f7;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Formularios
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint input[type="text"],
+.template-wowprint input[type="email"],
+.template-wowprint input[type="password"],
+.template-wowprint input[type="number"],
+.template-wowprint input[type="search"],
+.template-wowprint select,
+.template-wowprint textarea {
+  padding: 9px;
+  border: 1px solid #d0d5dd;
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  font-family: inherit;
+}
+
+.template-wowprint .control {
+  padding: 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: var(--radius-control);
+  background: #ffffff;
+}
+
+.template-wowprint .control label {
+  display: block;
+  font-size: 12px;
+  color: var(--kiosk-muted);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Focus styles (mejor que tokens.css default)
+   ═══════════════════════════════════════════════════════════ */
+.template-wowprint *:focus-visible {
+  outline: 2px solid var(--kiosk);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Respeto por prefers-reduced-motion
+   ═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .template-wowprint *,
+  .template-wowprint *::before,
+  .template-wowprint *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Responsive — breakpoints unificados (kiosk)
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 800px) {
+  .template-wowprint .card,
+  .template-wowprint .product-card {
+    grid-template-columns: minmax(180px, 48%) minmax(0, 1fr);
+    column-gap: 12px;
+    min-height: 320px;
+  }
+  .template-wowprint .hero h1,
+  .template-wowprint .hero-title--print {
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 700px) {
+  .template-wowprint .card-product-photo {
+    height: 255px;
+  }
+  .template-wowprint .format,
+  .template-wowprint .product-name {
+    font-size: 17px;
+  }
+}

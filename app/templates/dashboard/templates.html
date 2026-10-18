@@ -1,0 +1,343 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Plantillas de diseño · WowHub{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/templates/wowprint.css') }}">
+<style>
+  .template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 24px;
+    margin: 24px 0;
+  }
+  .template-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 0;
+    overflow: hidden;
+    transition: transform .18s ease, box-shadow .18s ease;
+    box-shadow: var(--shadow-sm);
+  }
+  .template-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow);
+  }
+  .template-card.is-active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .template-preview {
+    height: 180px;
+    display: grid;
+    place-items: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .template-preview-label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+  }
+  .template-info {
+    padding: 18px 20px;
+  }
+  .template-info h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 800;
+  }
+  .template-info p {
+    margin: 0 0 14px;
+    color: var(--fg-muted);
+    font-size: 13px;
+  }
+  .template-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 14px;
+  }
+  .template-meta span {
+    background: var(--bg-elev-2);
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--fg-muted);
+  }
+  .template-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .template-actions .btn-select {
+    flex: 1;
+  }
+  .template-status {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ok);
+  }
+  .template-status::before {
+    content: "● ";
+  }
+  .template-card.is-active .template-status::before {
+    content: "✓ ";
+  }
+
+  /* Previews mini de cada template (mockup) */
+  .preview-wowprint {
+    background: #f4f4f4;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .preview-wowprint .mini-top {
+    background: #111;
+    height: 28px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    letter-spacing: -0.4px;
+  }
+  .preview-wowprint .mini-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 14px;
+    flex: 1;
+  }
+  .preview-wowprint .mini-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.10);
+    padding: 8px;
+    font-size: 9px;
+    font-weight: 850;
+    line-height: 1.15;
+  }
+  .preview-wowprint .mini-price {
+    font-size: 11px;
+    font-weight: 900;
+    margin-top: 4px;
+  }
+  .preview-wowprint .mini-btn {
+    background: #111;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 8px;
+    font-weight: 800;
+    padding: 3px 6px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .preview-default {
+    background: linear-gradient(135deg, #f5f7fb 0%, #fbfbff 100%);
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .preview-default .mini-top {
+    background: #6c5ce7;
+    height: 24px;
+    border-radius: 6px;
+  }
+  .preview-default .mini-card {
+    background: #fff;
+    border: 1px solid #e8ecf3;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 10px;
+    box-shadow: 0 1px 2px rgba(26,34,58,0.04);
+  }
+  .preview-default .mini-btn {
+    background: #6c5ce7;
+    color: #fff;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 6px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .preview-dark {
+    background: #0b0d12;
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .preview-dark .mini-top {
+    background: #11141b;
+    height: 24px;
+    border-radius: 6px;
+  }
+  .preview-dark .mini-card {
+    background: #161a23;
+    border: 1px solid #1f2532;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 10px;
+    color: #e6e9ef;
+  }
+  .preview-dark .mini-btn {
+    background: #7c5cff;
+    color: #fff;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 3px 6px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--ok);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    box-shadow: var(--shadow-lg);
+    z-index: 9999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all .25s var(--modal-zoom-bezier, cubic-bezier(.2,.8,.2,1));
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 style="font-weight: 800; font-size: 28px; margin: 0;">🎨 Plantillas de diseño</h1>
+  <p class="muted" style="margin: 6px 0 0; color: var(--fg-muted);">
+    Elegí la estética que se aplica automáticamente a todo el proyecto. La selección se persiste por tenant.
+  </p>
+</div>
+
+<div class="template-grid" id="templateGrid">
+  <!-- 1. Default WowHub (SaaS) -->
+  <div class="template-card" data-template="default">
+    <div class="template-preview">
+      <span class="template-preview-label">DEFAULT · SaaS</span>
+      <div class="preview-default">
+        <div class="mini-top"></div>
+        <div class="mini-card">
+          Producto Demo<br>
+          <span style="color:#73809a; font-weight:400">$1.500</span>
+          <div class="mini-btn">Comprar</div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <h3>WowHub Default</h3>
+      <p>Estética SaaS estándar. Sidebar claro, púrpura de acento, tipografía 14-16px.</p>
+      <div class="template-meta">
+        <span>--accent: #6c5ce7</span>
+        <span>radius 14</span>
+        <span>weight 600</span>
+      </div>
+      <div class="template-actions">
+        <span class="template-status">SaaS estándar</span>
+        <button class="btn btn-select" data-action="select">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. WowPrint V1354 R2 (Kiosk) -->
+  <div class="template-card" data-template="wowprint">
+    <div class="template-preview">
+      <span class="template-preview-label">WOWPRINT · KIOSK</span>
+      <div class="preview-wowprint">
+        <div class="mini-top">WowPrint Kiosk</div>
+        <div class="mini-cards">
+          <div class="mini-card">Polaroid 10x15<div class="mini-price">$1.200</div><div class="mini-btn">Elegir</div></div>
+          <div class="mini-card">Cuadrado 13x13<div class="mini-price">$900</div><div class="mini-btn">Elegir</div></div>
+          <div class="mini-card">A4 Premium<div class="mini-price">$2.500</div><div class="mini-btn">Elegir</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <h3>WowPrint V1354 R2</h3>
+      <p>Estética Kiosk impresa. Topbar negra 76px, cards 20px + shadow print, tipografía 800-900.</p>
+      <div class="template-meta">
+        <span>--kiosk: #111</span>
+        <span>radius 20</span>
+        <span>weight 800-900</span>
+        <span>topbar 76px</span>
+      </div>
+      <div class="template-actions">
+        <span class="template-status">Kiosk print</span>
+        <button class="btn btn-select" data-action="select">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Dark -->
+  <div class="template-card" data-template="dark">
+    <div class="template-preview">
+      <span class="template-preview-label">DARK · NIGHT</span>
+      <div class="preview-dark">
+        <div class="mini-top"></div>
+        <div class="mini-card">
+          Producto Demo<br>
+          <span style="color:#9aa3b2; font-weight:400">$1.500</span>
+          <div class="mini-btn">Comprar</div>
+        </div>
+      </div>
+    </div>
+    <div class="template-info">
+      <h3>Dark Mode</h3>
+      <p>Modo nocturno persistente. Acento púrpura #7c5cff, contrastes WCAG AA, óptimo para sesiones largas.</p>
+      <div class="template-meta">
+        <span>--bg: #0b0d12</span>
+        <span>--accent: #7c5cff</span>
+        <span>--fg: #e6e9ef</span>
+      </div>
+      <div class="template-actions">
+        <span class="template-status">Night mode</span>
+        <button class="btn btn-select" data-action="select">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 24px; padding: 18px 22px;">
+  <h3 style="margin: 0 0 8px; font-size: 15px;">ℹ️ Cómo funciona</h3>
+  <ol style="margin: 0; padding-left: 20px; color: var(--fg-muted); line-height: 1.7;">
+    <li>Seleccionás una plantilla arriba. Se aplica en este dispositivo inmediatamente.</li>
+    <li>Se persiste en <code>localStorage["wowhub.template"]</code> y en <code>PUT /api/v1/tenants/{id}/template</code>.</li>
+    <li>El helper <code>static/js/template-selector.js</code> aplica la clase <code>.template-wowprint</code> al <code>&lt;body&gt;</code>.</li>
+    <li>El alcance es <strong>solo CSS scopeado</strong>: no rompe el dark-mode ni los widgets del dashboard.</li>
+    <li>Para volver al default, recargá la página o seleccioná "WowHub Default".</li>
+  </ol>
+</div>
+
+<div class="toast" id="toast">✓ Plantilla aplicada</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/template-selector.js') }}"></script>
+{% endblock %}
