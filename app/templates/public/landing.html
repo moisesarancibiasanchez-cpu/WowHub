@@ -1,10 +1,22 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title id="page-title">{{ slug }} — WowHub</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("wowhub.theme");
+        var theme = stored || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (_) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/css/tokens.css?v=unified-2026-08-23">
+  <link rel="stylesheet" href="/static/css/app.css?v=unified-2026-08-23">
   <style id="custom-css"></style>
 </head>
 <body>
@@ -20,6 +32,8 @@
     </div>
     <span class="spacer" style="flex:1;"></span>
     <a class="btn btn-sm" href="/u/{{ slug }}/catalogo">Ver catálogo</a>
+    <a class="btn btn-sm" href="/u/{{ slug }}/reservar" id="nav-bookings" style="display:none;">Reservar</a>
+    <a class="btn btn-sm" href="/u/{{ slug }}/tarjeta" id="nav-loyalty" style="display:none;">★ Mi tarjeta</a>
   </div>
 </header>
 
@@ -28,7 +42,7 @@
     <h1 id="hero-title">…</h1>
     <p class="lead" id="hero-subtitle"></p>
     <div class="cta">
-      <a class="btn btn-primary btn-lg" id="hero-cta" href="#">Ver catálogo</a>
+      <a class="btn btn-primary btn-lg" id="hero-cta" href="/u/{{ slug }}/catalogo">Ver catálogo</a>
     </div>
   </div>
 </section>
@@ -82,6 +96,17 @@ const slug = {{ slug | tojson }};
       fetch(`/api/v1/public/t/${slug}/branches`).then(r => r.ok ? r.json() : []),
     ]);
 
+    // Detectar si el tenant tiene bookings y loyalty activos (Fase 8)
+    // Si el endpoint responde OK → tiene la feature → mostrar el link.
+    // Si responde 404/403/500 → no la tiene → mantener oculto.
+    Promise.all([
+      fetch(`/u/${slug}/reservar`, { method: "HEAD" }).then(r => r.ok).catch(() => false),
+      fetch(`/u/${slug}/tarjeta`, { method: "HEAD" }).then(r => r.ok).catch(() => false),
+    ]).then(([hasBookings, hasLoyalty]) => {
+      if (hasBookings) document.getElementById("nav-bookings").style.display = "";
+      if (hasLoyalty) document.getElementById("nav-loyalty").style.display = "";
+    });
+
     document.title = `${profile.display_name} — WowHub`;
     document.getElementById("brand-name").textContent = profile.display_name;
     document.getElementById("industry").textContent = profile.industry;
@@ -103,7 +128,13 @@ const slug = {{ slug | tojson }};
     if (landing) {
       document.getElementById("hero-title").textContent = landing.hero_title;
       document.getElementById("hero-subtitle").textContent = landing.hero_subtitle || "";
-      document.getElementById("hero-cta").textContent = landing.hero_cta_text || "Ver catálogo";
+      const heroCta = document.getElementById("hero-cta");
+      heroCta.textContent = landing.hero_cta_text || "Ver catálogo";
+      // Si el landing define un hero_cta_url custom, respétalo;
+      // si no, el href estático del template (/u/{slug}/catalogo)
+      // sigue apuntando al catálogo. Esto evita el bug donde
+      // el JS cambiaba solo el texto y el href quedaba en "#".
+      if (landing.hero_cta_url) heroCta.href = landing.hero_cta_url;
       if (landing.hero_image_url) {
         const hero = document.getElementById("hero-section");
         hero.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${landing.hero_image_url}')`;
