@@ -87,10 +87,28 @@
     </div>
     <div class="modal-body">
       <form id="booking-form">
+        {# ── V2.01 Quick-Context Creation (max 3 clics) ───────────────
+           El form de reserva usa TEXT inputs (no selectores). El helper
+           JS (quick-create.js) abre un modal in-place para crear el
+           cliente y luego el callback onCreated auto-rellena los campos
+           b_name, b_phone, b_email del form padre. El modal padre NO se
+           cierra. Clics: [+ Nuevo] → [Nombre+Precio] → [Crear y volver]. ── #}
         <div class="form-row">
-          <div class="form-group">
+          <div class="form-group" style="flex:1;">
             <label class="form-label">Nombre *</label>
-            <input class="form-input" id="b_name" required minlength="2" maxlength="160">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <input class="form-input" id="b_name" required minlength="2" maxlength="160" style="flex:1;">
+              <button type="button" class="qc-btn-new"
+                      data-qc-type="customer"
+                      data-qc-label="Cliente"
+                      data-qc-oncreated="function(item){
+                        var n=document.getElementById('b_name'); if(n) n.value = item.full_name || item.name || '';
+                        var p=document.getElementById('b_phone'); if(p && item.phone) p.value = item.phone;
+                        var e=document.getElementById('b_email'); if(e && item.email) e.value = item.email;
+                        if(window.wcShowToast) wcShowToast('Cliente creado y datos copiados al form.');
+                      }"
+                      title="Crear cliente nuevo sin salir de esta reserva">+ Nuevo</button>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Teléfono *</label>
@@ -558,4 +576,11 @@
 </style>
 
 </section>
+{# ── V2.01 Quick-Context Creation — helper reusable para crear cliente
+   sin salir del form de reserva. Ver /static/js/quick-create.js. ── #}
+{% block scripts %}
+{{ super() }}
+<script src="/static/js/quick-create.js?v=v2.01-qc"></script>
+{% include "_partials/quick_create_modal.html" %}
+{% endblock %}
 {% endblock %}

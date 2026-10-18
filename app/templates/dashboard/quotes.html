@@ -50,7 +50,22 @@
           <input id="f_title" class="form-input" placeholder="Ej: Pedido mensual cafetería">
         </label>
         <label class="form-field"><span>Cliente destinatario *</span>
-          <input id="f_recipient" class="form-input" placeholder="Nombre del cliente">
+          {# ── V2.01 Quick-Context Creation — crea cliente desde el form
+             de cotización sin salir. Al confirmar, auto-rellena
+             f_recipient / f_email / f_phone. ── #}
+          <div style="display:flex; gap:6px;">
+            <input id="f_recipient" class="form-input" placeholder="Nombre del cliente" style="flex:1;">
+            <button type="button" class="qc-btn-new"
+                    data-qc-type="customer"
+                    data-qc-label="Cliente"
+                    data-qc-oncreated="function(item){
+                      var n=document.getElementById('f_recipient'); if(n) n.value = item.full_name || item.name || '';
+                      var e=document.getElementById('f_email'); if(e && item.email) e.value = item.email;
+                      var p=document.getElementById('f_phone'); if(p && item.phone) p.value = item.phone;
+                      if(window.wcShowToast) wcShowToast('Cliente creado y datos copiados a la cotizacion.');
+                    }"
+                    title="Crear cliente nuevo sin salir de esta cotizacion">+ Nuevo</button>
+          </div>
         </label>
         <label class="form-field"><span>Email</span>
           <input id="f_email" class="form-input" type="email" placeholder="cliente@empresa.cl">
@@ -252,10 +267,28 @@ function renderItems() {
   $("items-body").innerHTML = items.map((it, idx) => `
     <tr>
       <td>
-        <select onchange="onProductChange(${idx}, this.value)">
-          <option value="">— personalizado —</option>
-          ${products.map(p => `<option value="${p.id}" data-name="${p.name}" data-price="${p.price_cents || 0}" ${it.product_id === p.id ? "selected" : ""}>${p.name}</option>`).join("")}
-        </select>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <select id="qc-prod-target-${idx}" onchange="onProductChange(${idx}, this.value)" style="flex:1;">
+            <option value="">— personalizado —</option>
+            ${products.map(p => `<option value="${p.id}" data-name="${p.name}" data-price="${p.price_cents || 0}" ${it.product_id === p.id ? "selected" : ""}>${p.name}</option>`).join("")}
+          </select>
+          {# ── V2.01 Quick-Context Creation — crea producto desde esta
+             linea sin salir del modal de cotizacion. El helper
+             appendea la opcion nueva al select del row + auto-selecciona.
+             Al final, refresca el array `products` desde API para futuras
+             lineas y dispara onProductChange. ── #}
+          <button type="button" class="qc-btn-new"
+                  title="Crear producto nuevo en linea"
+                  onclick="window.QuickCreate && window.QuickCreate.open('product', {
+                    target: '#qc-prod-target-${idx}',
+                    onCreated: function(created){
+                      // Append local al array para que la proxima fila ya lo incluya
+                      products.push({id: created.id, name: created.name, price_cents: created.base_price_cents || 0});
+                      onProductChange(${idx}, created.id);
+                      if(window.wcShowToast) wcShowToast('Producto creado y agregado a la linea.');
+                    }
+                  });">+ Nuevo</button>
+        </div>
         <input class="form-input" style="margin-top:4px;" placeholder="Nombre" value="${(it.product_name || "").replace(/"/g, "&quot;")}" oninput="items[${idx}].product_name=this.value; recalc();">
       </td>
       <td><input type="number" min="1" value="${it.quantity}" oninput="items[${idx}].quantity=+this.value||1; recalc();" style="width:70px;"></td>
@@ -429,4 +462,8 @@ $("search-input").addEventListener("input", () => {
   }
 })();
 </script>
+{# ── V2.01 Quick-Context Creation — helper reusable para crear
+   cliente o producto sin salir del modal de cotizacion. ── #}
+<script src="/static/js/quick-create.js?v=v2.01-qc"></script>
+{% include "_partials/quick_create_modal.html" %}
 {% endblock %}
