@@ -398,10 +398,15 @@ def reset_password_page(request: Request, token: str = ""):
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_page(request: Request):
-    # TOBE v134.2-Producción-v2 (2026-10-16):
-    # Dashboard DEFAULT cambiado a WowColor v2.0 (estética WowPrint + nuevas features).
-    # Para volver al dashboard legacy: /dashboard/v1
-    return templates.TemplateResponse(request, "dashboard/wowcolor.html", {"settings": settings})
+    # V2.01 FIX — Antes esta ruta renderizaba dashboard/wowcolor.html (con su
+    # propio sidebar wc-side y estética WowPrint). Eso causaba que el usuario
+    # viera DOS sidebars distintos en el sitio: el "moderno" (dash-side)
+    # en /dashboard/customers, /dashboard/products, etc., y el "wowcolor"
+    # solo en /dashboard. La queja era: "los menús están demasiado distintos".
+    # Ahora /dashboard usa dashboard/index.html que extiende dashboard/base.html
+    # y comparte el MISMO sidebar Moderna unificado. Para volver al legacy
+    # WowColor (sidebar wc-side), sigue accesible en /dashboard/v1.
+    return templates.TemplateResponse(request, "dashboard/index.html", {"settings": settings})
 
 
 @app.get("/dashboard/v1", response_class=HTMLResponse, include_in_schema=False)

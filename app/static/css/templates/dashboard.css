@@ -154,14 +154,18 @@
 }
 
 .template-moderna .dash-side .nav-link:hover,
+.template-moderna .dash-side .nav-link.active:hover,
 .template-moderna .dash-side a[data-route]:hover,
+.template-moderna .dash-side a[data-route].active:hover,
 .template-moderna .sidebar .nav-item:hover {
   background: rgba(108, 92, 231, 0.10);
   color: var(--mod-sidebar-fg-active) !important;
 }
 
 .template-moderna .dash-side .nav-link.is-active,
+.template-moderna .dash-side .nav-link.active,
 .template-moderna .dash-side a[data-route].is-active,
+.template-moderna .dash-side a[data-route].active,
 .template-moderna .sidebar .nav-item.is-active,
 .template-moderna .sidebar .nav-item.active {
   background: var(--mod-accent) !important;
