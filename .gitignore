@@ -40,7 +40,13 @@ multi-agent-wowhub/agent_health.json
 multi-agent-wowhub/audit_results.json
 multi-agent-wowhub/*.log
 multi-agent-wowhub/cache/
+multi-agent-wowhub/.pytest_cache*/
+multi-agent-wowhub/__pycache__*/
 *.egg-info/
 .venv/
 venv/
 .DS_Store
+# Backups de carpetas obsoletas (preservadas localmente, no en repo)
+_archive_*/
+_obsolete_*/
+_delete_me_*/
