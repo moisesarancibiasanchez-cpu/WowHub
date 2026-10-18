@@ -415,6 +415,29 @@ def dashboard_page_legacy(request: Request):
     return templates.TemplateResponse(request, "dashboard/index.html", {"settings": settings})
 
 
+# V2.01 — Stub routes para links huerfanos del menu legacy WowColor
+# (dashboard/wowcolor.html, archivado). El sidebar legacy apunta a
+# /dashboard/production, /dashboard/analytics y /dashboard/settings, pero
+# esas rutas NUNCA fueron creadas. En lugar de devolver 404 (mala
+# experiencia), redirigimos a las paginas modernas equivalentes.
+@app.get("/dashboard/production", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_production_redirect():
+    """Legacy: 'Produccion' en WowColor → KDS (Cocina) en Moderna."""
+    return RedirectResponse(url="/dashboard/kds", status_code=307)
+
+
+@app.get("/dashboard/analytics", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_analytics_redirect():
+    """Legacy: 'Analytics' en WowColor → Estadisticas en Moderna."""
+    return RedirectResponse(url="/dashboard/stats", status_code=307)
+
+
+@app.get("/dashboard/settings", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_settings_redirect():
+    """Legacy: 'Configuracion' en WowColor → Apariencia (templates) en Moderna."""
+    return RedirectResponse(url="/dashboard/templates", status_code=307)
+
+
 @app.get("/dashboard/products", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_products(request: Request):
     return templates.TemplateResponse(request, "dashboard/products.html", {"settings": settings})
