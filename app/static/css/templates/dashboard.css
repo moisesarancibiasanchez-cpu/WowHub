@@ -1,65 +1,79 @@
 /* =============================================================
- * Dashboard Template v1.0 — Sistema de templates WowHub
+ * MODERNA — Template oficial unificado WowHub v1.0
  * =============================================================
  *
- * Inspirado en la estética SaaS del dashboard WowHub:
- *   - Sidebar colapsable 280px con bg #ffffff y border-right #e8ecf3
- *   - Topbar 56px sticky bg white con shadow soft
- *   - Cards 14px radius con border #e8ecf3
- *   - Color de acento: #6c5ce7 (púrpura WowHub)
- *   - Tipografía: 14-16px regular, weight 600 para títulos
- *   - Sombras suaves, jerarquía clara
+ * Sistema de templates WowHub (selector en /dashboard/templates).
+ * Esta plantilla consolida la estética del Dashboard en una sola
+ * fuente de verdad aplicable a TODO el sitio.
  *
- * APLICACIÓN: añadir clase `template-dashboard` al <body> o
+ * Estética Moderna (basada en /dashboard):
+ *   - Sidebar 260px oscuro bg #0b0d12 con text #e6e9ef
+ *   - Topbar 56px sticky bg #ffffff con shadow soft
+ *   - Cards 14px radius, border #e8ecf3, shadow #0a0d1230
+ *   - Color de acento: #6c5ce7 (púrpura WowHub) + #00d4a8 (acento-2)
+ *   - Tipografía: Inter, sans-serif, 14-15px base, weight 600
+ *   - Sombras suaves, jerarquía clara
+ *   - Botones 10px radius, weight 600
+ *
+ * APLICACIÓN: añadir clase `template-moderna` al <body> o
  * al contenedor raíz. La plantilla sobreescribe los tokens
  * de `tokens.css` solo dentro de su scope (cero leaking).
+ *
+ * Para activar como default site-wide, ver base.html y
+ * template-selector.js.
  * ============================================================= */
 
-.template-dashboard,
-.template-dashboard [data-theme] {
-  /* ── Paleta SaaS WowHub ───────────────────────────────────── */
-  --wc-bg:            #f5f7fb;
-  --wc-bg-elev:      #ffffff;
-  --wc-bg-elev-2:    #fbfbff;
-  --wc-fg:            #172033;
-  --wc-fg-muted:      #73809a;
-  --wc-border:        #e8ecf3;
-  --wc-border-strong: #d6dbe6;
-  --wc-accent:        #6c5ce7;
-  --wc-accent-hover:  #5b4cd1;
-  --wc-accent-2:      #00d4a8;
-  --wc-success:       #00b894;
-  --wc-warning:       #fdcb6e;
-  --wc-danger:        #d63031;
-  --wc-info:          #0984e3;
+.template-moderna,
+.template-moderna [data-theme] {
+  /* ── Paleta Moderna ───────────────────────────────────────── */
+  --mod-bg:           #f5f7fb;
+  --mod-bg-elev:      #ffffff;
+  --mod-bg-elev-2:    #fbfbff;
+  --mod-sidebar-bg:   #0b0d12;
+  --mod-sidebar-fg:   #e6e9ef;
+  --mod-sidebar-fg-2: #9aa3b2;
+  --mod-fg:           #172033;
+  --mod-fg-muted:     #73809a;
+  --mod-border:       #e8ecf3;
+  --mod-border-strong:#d6dbe6;
+  --mod-accent:       #6c5ce7;
+  --mod-accent-hover: #5b4cd1;
+  --mod-accent-2:     #00d4a8;
+  --mod-success:      #00b894;
+  --mod-warning:      #fdcb6e;
+  --mod-danger:       #d63031;
+  --mod-info:         #0984e3;
 
   /* Override de tokens semánticos de tokens.css */
-  --bg:              var(--wc-bg);
-  --bg-elev:         var(--wc-bg-elev);
-  --bg-elev-2:       var(--wc-bg-elev-2);
-  --fg:              var(--wc-fg);
-  --fg-muted:        var(--wc-fg-muted);
-  --border:          var(--wc-border);
-  --border-strong:   var(--wc-border-strong);
-  --accent:          var(--wc-accent);
-  --accent-hover:    var(--wc-accent-hover);
-  --accent-2:        var(--wc-accent-2);
+  --bg:              var(--mod-bg);
+  --bg-elev:         var(--mod-bg-elev);
+  --bg-elev-2:       var(--mod-bg-elev-2);
+  --fg:              var(--mod-fg);
+  --fg-muted:        var(--mod-fg-muted);
+  --border:          var(--mod-border);
+  --border-strong:   var(--mod-border-strong);
+  --accent:          var(--mod-accent);
+  --accent-hover:    var(--mod-accent-hover);
+  --accent-2:        var(--mod-accent-2);
 
-  /* ── Topbar 56px sticky ────────────────────────────────────── */
+  /* ── Sidebar 260px oscura (estilo Dashboard) ───────────────── */
+  --sidebar-bg:        #0b0d12;
+  --sidebar-fg:        #e6e9ef;
+  --sidebar-fg-muted:  #9aa3b2;
+  --sidebar-fg-active: #ffffff;
+  --sidebar-width:     260px;
+  --sidebar-width-collapsed: 64px;
+  --sidebar-border:    #1f2532;
+  --sidebar-shadow:    2px 0 8px rgba(11, 13, 18, 0.3);
+  --sidebar-item-active-bg: var(--mod-accent);
+
+  /* ── Topbar 56px claro ─────────────────────────────────────── */
   --topbar-bg:       #ffffff;
-  --topbar-fg:       var(--wc-fg);
+  --topbar-fg:       var(--mod-fg);
   --topbar-height:   56px;
   --topbar-padding:  0 20px;
   --topbar-shadow:   0 1px 3px rgba(26, 34, 58, 0.06);
-
-  /* ── Sidebar 280px colapsable ──────────────────────────────── */
-  --sidebar-bg:        #ffffff;
-  --sidebar-fg:        var(--wc-fg);
-  --sidebar-fg-muted:  var(--wc-fg-muted);
-  --sidebar-border:    var(--wc-border);
-  --sidebar-width:     280px;
-  --sidebar-width-collapsed: 64px;
-  --sidebar-shadow:    2px 0 8px rgba(26, 34, 58, 0.04);
+  --topbar-border:   var(--mod-border);
 
   /* ── Cards 14px radius ────────────────────────────────────── */
   --radius:          14px;
@@ -74,7 +88,7 @@
   --shadow:          0 4px 12px rgba(26, 34, 58, 0.06);
   --shadow-lg:       0 12px 32px rgba(26, 34, 58, 0.12);
   --shadow-card:     0 2px 8px rgba(26, 34, 58, 0.04);
-  --shadow-modal:    0 20px 60px rgba(26, 34, 58, 0.18);
+  --shadow-modal:    0 20px 60px rgba(11, 13, 18, 0.35);
 
   /* ── Tipografía balanceada ────────────────────────────────── */
   --font-weight-regular:  400;
@@ -95,7 +109,7 @@
   --size-meta-size:       12px;
 
   /* ── Transiciones suaves ───────────────────────────────────── */
-  --modal-zoom-duration: 0.2s;
+  --modal-zoom-duration: 0.18s;
   --modal-zoom-bezier:   cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── Grid de catálogo ─────────────────────────────────────── */
@@ -103,22 +117,83 @@
   --catalog-gap:      24px;
 
   /* ── Brand mark ───────────────────────────────────────────── */
-  --brand-font-size:  20px;
+  --brand-font-size:  18px;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Topbar 56px blanco con shadow soft
+   Sidebar 260px oscura (estilo Dashboard)
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .public-header,
-.template-dashboard .topbar,
-.template-dashboard .app-topbar,
-.template-dashboard header.app-header {
+.template-moderna .dash-side,
+.template-moderna .sidebar,
+.template-moderna aside.sidebar,
+.template-moderna [data-sidebar] {
+  background: var(--mod-sidebar-bg) !important;
+  color: var(--mod-sidebar-fg) !important;
+  width: var(--sidebar-width) !important;
+  border-right: 1px solid var(--sidebar-border) !important;
+  box-shadow: var(--sidebar-shadow) !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.template-moderna .dash-side .nav-link,
+.template-moderna .dash-side a[data-route],
+.template-moderna .sidebar .nav-item,
+.template-moderna aside.sidebar .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mod-sidebar-fg) !important;
+  padding: 10px 16px;
+  margin: 2px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transition: background 0.15s var(--modal-zoom-bezier), color 0.15s var(--modal-zoom-bezier);
+}
+
+.template-moderna .dash-side .nav-link:hover,
+.template-moderna .dash-side a[data-route]:hover,
+.template-moderna .sidebar .nav-item:hover {
+  background: rgba(108, 92, 231, 0.10);
+  color: var(--mod-sidebar-fg-active) !important;
+}
+
+.template-moderna .dash-side .nav-link.is-active,
+.template-moderna .dash-side a[data-route].is-active,
+.template-moderna .sidebar .nav-item.is-active,
+.template-moderna .sidebar .nav-item.active {
+  background: var(--mod-accent) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.35);
+}
+
+.template-moderna .dash-side h4,
+.template-moderna .sidebar h4 {
+  color: var(--mod-sidebar-fg-2) !important;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 18px 20px 8px;
+  padding: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Topbar 56px claro
+   ═══════════════════════════════════════════════════════════ */
+.template-moderna .public-header,
+.template-moderna .topbar,
+.template-moderna .app-topbar,
+.template-moderna header.app-header {
   height: 56px !important;
   min-height: 56px;
   padding: var(--topbar-padding) !important;
   background: var(--topbar-bg) !important;
   color: var(--topbar-fg) !important;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--topbar-border);
   box-shadow: var(--topbar-shadow);
   position: sticky;
   top: 0;
@@ -126,12 +201,12 @@
   backdrop-filter: none;
 }
 
-.template-dashboard .public-header a,
-.template-dashboard .topbar a,
-.template-dashboard .app-topbar a,
-.template-dashboard header.app-header a,
-.template-dashboard .public-header .brand,
-.template-dashboard .topbar .brand {
+.template-moderna .public-header a,
+.template-moderna .topbar a,
+.template-moderna .app-topbar a,
+.template-moderna header.app-header a,
+.template-moderna .public-header .brand,
+.template-moderna .topbar .brand {
   color: var(--fg) !important;
   font-size: var(--brand-font-size);
   font-weight: var(--brand-weight);
@@ -140,54 +215,12 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Sidebar estilo SaaS (bg blanco, border-right)
+   Hero 32/700 (no agresivo como WowPrint)
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .sidebar,
-.template-dashboard aside.sidebar,
-.template-dashboard [data-sidebar] {
-  background: var(--sidebar-bg) !important;
-  color: var(--sidebar-fg) !important;
-  border-right: 1px solid var(--sidebar-border) !important;
-  box-shadow: var(--sidebar-shadow);
-  width: var(--sidebar-width);
-  transition: width 0.2s var(--modal-zoom-bezier);
-}
-
-.template-dashboard .sidebar.is-collapsed,
-.template-dashboard aside.sidebar.is-collapsed {
-  width: var(--sidebar-width-collapsed);
-}
-
-.template-dashboard .sidebar .nav-item,
-.template-dashboard aside.sidebar .nav-item {
-  color: var(--sidebar-fg);
-  padding: 10px 16px;
-  border-radius: var(--radius-control);
-  margin: 2px 8px;
-  font-weight: 500;
-  font-size: 14px;
-  transition: all 0.15s var(--modal-zoom-bezier);
-}
-
-.template-dashboard .sidebar .nav-item:hover,
-.template-dashboard aside.sidebar .nav-item:hover {
-  background: rgba(108, 92, 231, 0.08);
-  color: var(--accent);
-}
-
-.template-dashboard .sidebar .nav-item.is-active,
-.template-dashboard aside.sidebar .nav-item.is-active {
-  background: var(--accent);
-  color: #ffffff;
-  font-weight: 600;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Hero 32/700 SaaS (no agresivo como WowPrint)
-   ═══════════════════════════════════════════════════════════ */
-.template-dashboard h1.hero,
-.template-dashboard .hero h1,
-.template-dashboard .hero-title--print {
+.template-moderna h1.hero,
+.template-moderna .hero h1,
+.template-moderna .hero-title--print,
+.template-moderna h1 {
   font-size: var(--hero-size);
   font-weight: var(--hero-weight);
   letter-spacing: var(--hero-letter-spacing);
@@ -196,7 +229,8 @@
   color: var(--fg);
 }
 
-.template-dashboard .hero p {
+.template-moderna .hero p,
+.template-moderna p.sub {
   font-size: 15px;
   color: var(--fg-muted);
   margin: 0;
@@ -204,31 +238,35 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Cards con border sutil, sombra suave
+   Cards 14px radius, border sutil
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .card,
-.template-dashboard .product-card,
-.template-dashboard .card-product-info,
-.template-dashboard .card--paper {
-  background: var(--bg-elev) !important;
-  border: 1px solid var(--border) !important;
+.template-moderna .card,
+.template-moderna .product-card,
+.template-moderna .card-product-info,
+.template-moderna .card--paper,
+.template-moderna .wc-panel,
+.template-moderna .dash-metrics .metric,
+.template-moderna .panel {
+  background: var(--mod-bg-elev) !important;
+  border: 1px solid var(--mod-border) !important;
   border-radius: var(--radius-card) !important;
   box-shadow: var(--shadow-card) !important;
   transition: all 0.18s var(--modal-zoom-bezier);
 }
 
-.template-dashboard .card:hover,
-.template-dashboard .product-card:hover,
-.template-dashboard .card-product-info:hover {
-  border-color: var(--border-strong);
+.template-moderna .card:hover,
+.template-moderna .product-card:hover,
+.template-moderna .card-product-info:hover,
+.template-moderna .wc-panel:hover {
+  border-color: var(--mod-border-strong);
   box-shadow: var(--shadow) !important;
   transform: translateY(-1px);
 }
 
-/* Tipografía de catálogo (suave, no agresiva) */
-.template-dashboard .format,
-.template-dashboard .product-name,
-.template-dashboard .card-title {
+/* Tipografía de catálogo */
+.template-moderna .format,
+.template-moderna .product-name,
+.template-moderna .card-title {
   font-size: var(--format-size);
   font-weight: var(--format-weight);
   letter-spacing: var(--format-letter-spacing);
@@ -237,18 +275,18 @@
   color: var(--fg);
 }
 
-.template-dashboard .price,
-.template-dashboard .product-price,
-.template-dashboard .card-price {
+.template-moderna .price,
+.template-moderna .product-price,
+.template-moderna .card-price {
   font-size: var(--price-size);
   font-weight: var(--price-weight);
   margin: 8px 0;
-  color: var(--accent);
+  color: var(--mod-accent);
 }
 
-.template-dashboard .size,
-.template-dashboard .product-meta,
-.template-dashboard .card-meta {
+.template-moderna .size,
+.template-moderna .product-meta,
+.template-moderna .card-meta {
   color: var(--fg-muted);
   font-size: var(--size-meta-size);
 }
@@ -256,9 +294,9 @@
 /* ═══════════════════════════════════════════════════════════
    Botones redondeados, púrpura primary
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .btn,
-.template-dashboard button.btn,
-.template-dashboard a.btn {
+.template-moderna .btn,
+.template-moderna button.btn,
+.template-moderna a.btn {
   border: 1px solid transparent;
   border-radius: var(--radius-button);
   padding: 10px 16px;
@@ -268,35 +306,46 @@
   font-family: inherit;
   font-size: 14px;
   line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-.template-dashboard .btn:hover {
+.template-moderna .btn:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow);
 }
 
-.template-dashboard .btn.primary,
-.template-dashboard .btn--primary {
-  background: var(--accent);
-  color: #ffffff;
-  border-color: var(--accent);
+.template-moderna .btn.primary,
+.template-moderna .btn--primary,
+.template-moderna .btn-primary {
+  background: var(--mod-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--mod-accent) !important;
 }
 
-.template-dashboard .btn.primary:hover,
-.template-dashboard .btn--primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+.template-moderna .btn.primary:hover,
+.template-moderna .btn--primary:hover,
+.template-moderna .btn-primary:hover {
+  background: var(--mod-accent-hover) !important;
+  border-color: var(--mod-accent-hover) !important;
 }
 
-.template-dashboard .btn.light,
-.template-dashboard .btn--secondary {
-  background: var(--bg-elev-2);
-  color: var(--fg);
-  border-color: var(--border);
+.template-moderna .btn.light,
+.template-moderna .btn--secondary,
+.template-moderna .btn-ghost {
+  background: transparent !important;
+  color: var(--fg) !important;
+  border-color: var(--mod-border) !important;
 }
 
-.template-dashboard .btn.disabled,
-.template-dashboard .btn[disabled] {
+.template-moderna .btn-ghost:hover {
+  background: var(--mod-bg-elev-2) !important;
+}
+
+.template-moderna .btn.disabled,
+.template-moderna .btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
@@ -305,54 +354,54 @@
 /* ═══════════════════════════════════════════════════════════
    Grid de catálogo
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .grid,
-.template-dashboard .catalog-grid,
-.template-dashboard .products-grid {
+.template-moderna .grid,
+.template-moderna .catalog-grid,
+.template-moderna .products-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--catalog-min-card), 1fr));
   gap: var(--catalog-gap);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Modales con animación fade + scale sutil
+   Modales con animación fade + scale
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .modal,
-.template-dashboard .modalbox,
-.template-dashboard [role="dialog"] {
-  background: rgba(26, 34, 58, 0.45);
+.template-moderna .modal,
+.template-moderna .modalbox,
+.template-moderna [role="dialog"] {
+  background: rgba(11, 13, 18, 0.45);
   backdrop-filter: blur(2px);
 }
 
-.template-dashboard .modal.show .box,
-.template-dashboard .modalbox.show,
-.template-dashboard [role="dialog"] > .modal-content {
-  animation: wowDashboardModalZoom var(--modal-zoom-duration) var(--modal-zoom-bezier);
+.template-moderna .modal.show .box,
+.template-moderna .modalbox.show,
+.template-moderna [role="dialog"] > .modal-content {
+  animation: modFadeIn var(--modal-zoom-duration) var(--modal-zoom-bezier);
 }
 
-@keyframes wowDashboardModalZoom {
+@keyframes modFadeIn {
   0%   { opacity: 0; transform: scale(0.95) translateY(-8px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-.template-dashboard .box,
-.template-dashboard .modal-content {
-  background: var(--bg-elev);
+.template-moderna .box,
+.template-moderna .modal-content {
+  background: var(--mod-bg-elev);
   border-radius: 16px;
   box-shadow: var(--shadow-modal);
   padding: 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--mod-border);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   QR section (SaaS style)
+   QR section
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .qr,
-.template-dashboard .qr-section {
+.template-moderna .qr,
+.template-moderna .qr-section {
   display: flex;
   gap: 20px;
   align-items: center;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  background: var(--mod-bg-elev);
+  border: 1px solid var(--mod-border);
   border-radius: var(--radius-lg);
   padding: 18px 20px;
   margin: 24px 0 32px;
@@ -360,68 +409,68 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Badges y chips (acento púrpura)
+   Badges y chips
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard .template-badge {
+.template-moderna .template-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
   background: rgba(108, 92, 231, 0.10);
-  color: var(--accent);
+  color: var(--mod-accent);
   font-size: 12px;
   font-weight: 600;
 }
 
-.template-dashboard .orientation-badge {
+.template-moderna .orientation-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
-  background: var(--bg-elev-2);
+  background: var(--mod-bg-elev-2);
   color: var(--fg-muted);
   font-size: 12px;
   font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Formularios (clean, modernos)
+   Formularios clean
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard input[type="text"],
-.template-dashboard input[type="email"],
-.template-dashboard input[type="password"],
-.template-dashboard input[type="number"],
-.template-dashboard input[type="search"],
-.template-dashboard select,
-.template-dashboard textarea {
+.template-moderna input[type="text"],
+.template-moderna input[type="email"],
+.template-moderna input[type="password"],
+.template-moderna input[type="number"],
+.template-moderna input[type="search"],
+.template-moderna select,
+.template-moderna textarea {
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--mod-border);
   border-radius: var(--radius-control);
-  background: var(--bg-elev);
+  background: var(--mod-bg-elev);
   font-family: inherit;
   font-size: 14px;
   color: var(--fg);
   transition: border-color 0.15s var(--modal-zoom-bezier);
 }
 
-.template-dashboard input:focus,
-.template-dashboard select:focus,
-.template-dashboard textarea:focus {
+.template-moderna input:focus,
+.template-moderna select:focus,
+.template-moderna textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--mod-accent);
   box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
 }
 
-.template-dashboard .control {
+.template-moderna .control {
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--mod-border);
   border-radius: var(--radius-control);
-  background: var(--bg-elev);
+  background: var(--mod-bg-elev);
 }
 
-.template-dashboard .control label {
+.template-moderna .control label {
   display: block;
   font-size: 12px;
   color: var(--fg-muted);
@@ -432,47 +481,84 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Focus styles accesibles
+   Tablas (estilo Dashboard)
    ═══════════════════════════════════════════════════════════ */
-.template-dashboard *:focus-visible {
-  outline: 2px solid var(--accent);
+.template-moderna table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.template-moderna table thead th {
+  background: var(--mod-bg-elev-2);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--mod-border);
+}
+
+.template-moderna table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mod-border);
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.template-moderna table tbody tr:hover td {
+  background: var(--mod-bg-elev-2);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Focus accesible
+   ═══════════════════════════════════════════════════════════ */
+.template-moderna *:focus-visible {
+  outline: 2px solid var(--mod-accent);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Respeto por prefers-reduced-motion
+   prefers-reduced-motion
    ═══════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
-  .template-dashboard *,
-  .template-dashboard *::before,
-  .template-dashboard *::after {
+  .template-moderna *,
+  .template-moderna *::before,
+  .template-moderna *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Responsive — breakpoints SaaS
+   Responsive
    ═══════════════════════════════════════════════════════════ */
 @media (max-width: 980px) {
-  .template-dashboard .card,
-  .template-dashboard .product-card {
+  .template-moderna .dash-side,
+  .template-moderna .sidebar,
+  .template-moderna aside.sidebar {
+    position: fixed;
+    left: -100%;
+    z-index: 200;
+    transition: left 0.2s var(--modal-zoom-bezier);
+  }
+  .template-moderna .dash-side.is-open,
+  .template-moderna .sidebar.is-open,
+  .template-moderna aside.sidebar.is-open {
+    left: 0;
+  }
+  .template-moderna .card,
+  .template-moderna .product-card,
+  .template-moderna .card-product-info,
+  .template-moderna .wc-panel {
     grid-template-columns: 1fr;
     min-height: 0;
   }
-  .template-dashboard .hero h1,
-  .template-dashboard .hero-title--print {
+  .template-moderna h1,
+  .template-moderna .hero h1,
+  .template-moderna .hero-title--print {
     font-size: 26px;
-  }
-  .template-dashboard .sidebar,
-  .template-dashboard aside.sidebar {
-    position: fixed;
-    left: -100%;
-    transition: left 0.2s var(--modal-zoom-bezier);
-  }
-  .template-dashboard .sidebar.is-open,
-  .template-dashboard aside.sidebar.is-open {
-    left: 0;
   }
 }

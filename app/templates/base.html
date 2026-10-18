@@ -26,13 +26,12 @@
   <script>
     (function () {
       try {
-        var tpl = localStorage.getItem("wowhub.template") || "dashboard";
-        if (tpl === "dashboard") document.body && document.body.classList.add("template-dashboard");
+        var tpl = localStorage.getItem("wowhub.template") || "moderna";
+        // Compatibilidad: "dashboard" legacy -> "moderna"
+        if (tpl === "dashboard") tpl = "moderna";
+        if (tpl === "moderna") document.body && document.body.classList.add("template-moderna");
         else if (tpl === "wowprint") document.body && document.body.classList.add("template-wowprint");
-        // 'default' y 'dark' se manejan via data-theme
-        if (tpl === "default" || tpl === "dashboard") {
-          document.body && document.body.classList.add("template-default");
-        }
+        // 'default' se maneja sin clase
       } catch (_) { /* noop */ }
     })();
   </script>

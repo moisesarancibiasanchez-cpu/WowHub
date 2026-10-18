@@ -4,28 +4,33 @@
  * WowHub y la persiste por tenant + por dispositivo.
  *
  * Catálogo de plantillas (debe coincidir con dashboard/templates.html):
- *   - default   → sin clase especial (tokens.css puro)
- *   - dashboard → .template-dashboard (SaaS WowHub - DEFAULT site-wide)
+ *   - moderna  → .template-moderna (Moderna unificada - DEFAULT site-wide)
+ *   - dashboard → .template-dashboard (legacy, alias de moderna)
  *   - wowprint  → .template-wowprint (WowPrint V1354 R2, kiosk)
  *   - dark      → data-theme="dark" sobre default
+ *   - default   → sin clase especial (tokens.css puro, diagnóstico)
  *
  * API:
- *   TemplateSelector.apply('wowprint')  // aplica
- *   TemplateSelector.current()          // 'wowprint' | 'default' | 'dashboard' | 'dark' | null
- *   TemplateSelector.reset()            // vuelve al default (dashboard)
+ *   TemplateSelector.apply('moderna')  // aplica
+ *   TemplateSelector.current()          // 'moderna' | 'wowprint' | 'dark' | 'default' | null
+ *   TemplateSelector.reset()            // vuelve al default (moderna)
  * ============================================================= */
 (function () {
   "use strict";
 
   var STORAGE_KEY = "wowhub.template";
   var API_BASE = (typeof window !== "undefined" && window.WH_API) || "/api/v1";
-  var DEFAULT_TEMPLATE = "dashboard";
+  var DEFAULT_TEMPLATE = "moderna";
+
+  // Compatibilidad: si el usuario tenia "dashboard" seleccionado, mantenerlo
+  var LEGACY_ALIASES = { "dashboard": "moderna" };
 
   var CATALOG = {
-    default:  { className: "",                 dataTheme: null,        css: null,                                         label: "WowHub Default" },
-    dashboard:{ className: "template-dashboard",   dataTheme: null,    css: "/static/css/templates/dashboard.css",      label: "Dashboard SaaS" },
-    wowprint: { className: "template-wowprint",    dataTheme: null,    css: "/static/css/templates/wowprint.css",       label: "WowPrint Kiosk" },
-    dark:     { className: "",                 dataTheme: "dark",      css: null,                                         label: "Dark Mode" }
+    moderna:  { className: "template-moderna",    dataTheme: null,    css: "/static/css/templates/dashboard.css", label: "Moderna" },
+    dashboard:{ className: "template-moderna",    dataTheme: null,    css: "/static/css/templates/dashboard.css", label: "Moderna (legacy)" },
+    wowprint: { className: "template-wowprint",    dataTheme: null,    css: "/static/css/templates/wowprint.css",  label: "WowPrint Kiosk" },
+    dark:     { className: "",                    dataTheme: "dark",   css: null,                                  label: "Dark Mode" },
+    default:  { className: "",                    dataTheme: null,     css: null,                                  label: "Sin plantilla" }
   };
 
   function ensureCssLoaded(templateId) {
@@ -49,7 +54,9 @@
   }
 
   function apply(templateId) {
-    var def = CATALOG[templateId];
+    // Compatibilidad con alias legacy: "dashboard" -> "moderna"
+    var resolvedId = LEGACY_ALIASES[templateId] || templateId;
+    var def = CATALOG[resolvedId];
     if (!def) {
       console.warn("[template-selector] template desconocido:", templateId);
       return;
@@ -96,10 +103,13 @@
   // Auto-apply al cargar
   document.addEventListener("DOMContentLoaded", function () {
     var saved = current();
-    if (saved && CATALOG[saved]) {
-      apply(saved);
+    if (saved) {
+      // Resolver alias legacy antes de aplicar
+      var resolved = LEGACY_ALIASES[saved] || saved;
+      if (CATALOG[resolved]) apply(resolved);
+      else apply(DEFAULT_TEMPLATE);
     } else {
-      // Sin selección previa: aplicar dashboard SaaS por defecto (site-wide)
+      // Sin selección previa: aplicar Moderna por defecto (site-wide)
       apply(DEFAULT_TEMPLATE);
     }
     // Conectar botones [data-action="select"] dentro de tarjetas [data-template]

@@ -1,7 +1,8 @@
 {% extends "dashboard/base.html" %}
-{% block title %}Plantillas de diseño · WowHub{% endblock %}
+{% block title %}Apariencia — Plantillas{% endblock %}
 
 {% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/templates/dashboard.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/templates/wowprint.css') }}">
 <style>
   .template-grid {
@@ -14,10 +15,10 @@
     background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    padding: 0;
     overflow: hidden;
     transition: transform .18s ease, box-shadow .18s ease;
     box-shadow: var(--shadow-sm);
+    position: relative;
   }
   .template-card:hover {
     transform: translateY(-3px);
@@ -25,14 +26,28 @@
   }
   .template-card.is-active {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+  }
+  .template-card.is-active::after {
+    content: "✓ ACTIVA";
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
   }
   .template-preview {
     height: 180px;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: stretch;
     border-bottom: 1px solid var(--border);
     position: relative;
+    overflow: hidden;
   }
   .template-preview-label {
     position: absolute;
@@ -40,11 +55,12 @@
     left: 12px;
     background: rgba(0,0,0,0.7);
     color: #fff;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 6px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    z-index: 5;
   }
   .template-info {
     padding: 18px 20px;
@@ -52,12 +68,17 @@
   .template-info h3 {
     margin: 0 0 4px;
     font-size: 18px;
-    font-weight: 800;
+    font-weight: 700;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .template-info p {
     margin: 0 0 14px;
     color: var(--fg-muted);
     font-size: 13px;
+    line-height: 1.5;
   }
   .template-meta {
     display: flex;
@@ -70,7 +91,7 @@
     padding: 3px 8px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--fg-muted);
   }
   .template-actions {
@@ -83,17 +104,78 @@
   }
   .template-status {
     font-size: 12px;
-    font-weight: 700;
-    color: var(--ok);
-  }
-  .template-status::before {
-    content: "● ";
-  }
-  .template-card.is-active .template-status::before {
-    content: "✓ ";
+    font-weight: 600;
+    color: var(--ok, #00b894);
   }
 
-  /* Previews mini de cada template (mockup) */
+  /* Preview Moderna (sidebar oscura + cards claras) */
+  .preview-moderna {
+    background: #f5f7fb;
+    width: 100%;
+    height: 100%;
+    display: flex;
+  }
+  .preview-moderna .mini-side {
+    width: 60px;
+    background: #0b0d12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 6px;
+    gap: 8px;
+  }
+  .preview-moderna .mini-side-item {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    display: grid;
+    place-items: center;
+    color: #9aa3b2;
+    font-size: 10px;
+  }
+  .preview-moderna .mini-side-item.active {
+    background: #6c5ce7;
+    color: #fff;
+  }
+  .preview-moderna .mini-main {
+    flex: 1;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .preview-moderna .mini-topbar {
+    height: 16px;
+    background: #fff;
+    border: 1px solid #e8ecf3;
+    border-radius: 4px;
+  }
+  .preview-moderna .mini-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    flex: 1;
+  }
+  .preview-moderna .mini-card {
+    background: #fff;
+    border: 1px solid #e8ecf3;
+    border-radius: 6px;
+    padding: 6px;
+    font-size: 9px;
+    font-weight: 600;
+    color: #172033;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .preview-moderna .mini-card .mini-num {
+    font-size: 13px;
+    color: #6c5ce7;
+    font-weight: 800;
+  }
+
+  /* Preview WowPrint (kiosk negra) */
   .preview-wowprint {
     background: #f4f4f4;
     width: 100%;
@@ -144,39 +226,7 @@
     text-align: center;
   }
 
-  .preview-default {
-    background: linear-gradient(135deg, #f5f7fb 0%, #fbfbff 100%);
-    width: 100%;
-    height: 100%;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .preview-default .mini-top {
-    background: #6c5ce7;
-    height: 24px;
-    border-radius: 6px;
-  }
-  .preview-default .mini-card {
-    background: #fff;
-    border: 1px solid #e8ecf3;
-    border-radius: 8px;
-    padding: 8px;
-    font-size: 10px;
-    box-shadow: 0 1px 2px rgba(26,34,58,0.04);
-  }
-  .preview-default .mini-btn {
-    background: #6c5ce7;
-    color: #fff;
-    border-radius: 5px;
-    font-size: 9px;
-    font-weight: 600;
-    padding: 3px 6px;
-    margin-top: 4px;
-    text-align: center;
-  }
-
+  /* Preview Dark */
   .preview-dark {
     background: #0b0d12;
     width: 100%;
@@ -199,31 +249,44 @@
     font-size: 10px;
     color: #e6e9ef;
   }
-  .preview-dark .mini-btn {
-    background: #7c5cff;
-    color: #fff;
-    border-radius: 5px;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 3px 6px;
-    margin-top: 4px;
-    text-align: center;
+
+  /* Preview Default (legacy) */
+  .preview-default {
+    background: linear-gradient(135deg, #f5f7fb 0%, #fbfbff 100%);
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .preview-default .mini-top {
+    background: #6c5ce7;
+    height: 24px;
+    border-radius: 6px;
+  }
+  .preview-default .mini-card {
+    background: #fff;
+    border: 1px solid #e8ecf3;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 10px;
   }
 
   .toast {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: var(--ok);
+    background: var(--ok, #00b894);
     color: #fff;
     padding: 12px 20px;
     border-radius: 10px;
-    font-weight: 700;
+    font-weight: 600;
     box-shadow: var(--shadow-lg);
     z-index: 9999;
     transform: translateY(100px);
     opacity: 0;
-    transition: all .25s var(--modal-zoom-bezier, cubic-bezier(.2,.8,.2,1));
+    transition: all .25s ease;
   }
   .toast.show { transform: translateY(0); opacity: 1; }
 </style>
@@ -231,42 +294,43 @@
 
 {% block content %}
 <div class="page-header">
-  <h1 style="font-weight: 800; font-size: 28px; margin: 0;">🎨 Plantillas de diseño</h1>
+  <h1 style="font-weight: 700; font-size: 28px; margin: 0;">🎨 Apariencia — Plantillas</h1>
   <p class="muted" style="margin: 6px 0 0; color: var(--fg-muted);">
-    Elegí la estética que se aplica automáticamente a todo el proyecto. La selección se persiste por tenant.
+    Elegí la estética que se aplica automáticamente a todo el sitio. La selección se persiste por tenant.
   </p>
 </div>
 
 <div class="template-grid" id="templateGrid">
-  <!-- 1. Dashboard SaaS (default site-wide) -->
-  <div class="template-card" data-template="dashboard">
+  <!-- 1. MODERNA (default site-wide) -->
+  <div class="template-card" data-template="moderna">
     <div class="template-preview">
-      <span class="template-preview-label">DEFAULT · DASHBOARD</span>
-      <div class="preview-dashboard">
-        <div class="mini-sidebar">
-          <div class="mini-side-item active">📊</div>
-          <div class="mini-side-item">📦</div>
+      <span class="template-preview-label">DEFAULT · MODERNA</span>
+      <div class="preview-moderna">
+        <div class="mini-side">
+          <div class="mini-side-item active">⌂</div>
           <div class="mini-side-item">👥</div>
+          <div class="mini-side-item">📦</div>
+          <div class="mini-side-item">📊</div>
           <div class="mini-side-item">⚙️</div>
         </div>
         <div class="mini-main">
           <div class="mini-topbar"></div>
           <div class="mini-cards">
-            <div class="mini-card">KPI 1<br><span class="mini-num">42</span></div>
-            <div class="mini-card">KPI 2<br><span class="mini-num">128</span></div>
-            <div class="mini-card">KPI 3<br><span class="mini-num">$5k</span></div>
+            <div class="mini-card">Cotiz.<span class="mini-num">0</span></div>
+            <div class="mini-card">Pedidos<span class="mini-num">0</span></div>
+            <div class="mini-card">Stock<span class="mini-num">0</span></div>
           </div>
         </div>
       </div>
     </div>
     <div class="template-info">
-      <h3>Dashboard SaaS <span class="template-default-badge">DEFAULT</span></h3>
-      <p>Estética SaaS WowHub. Sidebar 280px, topbar 56px, cards con border sutil, acento púrpura #6c5ce7.</p>
+      <h3>Moderna <span class="template-badge">DEFAULT</span></h3>
+      <p>Estética unificada del Dashboard. Sidebar 260px oscura + topbar claro + cards con border sutil. Aplica a TODO el sitio.</p>
       <div class="template-meta">
+        <span>--sidebar: #0b0d12</span>
         <span>--accent: #6c5ce7</span>
         <span>radius 14</span>
         <span>weight 600</span>
-        <span>sidebar 280px</span>
       </div>
       <div class="template-actions">
         <span class="template-status">Activa por defecto</span>
@@ -275,7 +339,7 @@
     </div>
   </div>
 
-  <!-- 2. WowPrint V1354 R2 (Kiosk) -->
+  <!-- 2. WowPrint (kiosk) -->
   <div class="template-card" data-template="wowprint">
     <div class="template-preview">
       <span class="template-preview-label">WOWPRINT · KIOSK</span>
@@ -313,7 +377,6 @@
         <div class="mini-card">
           Producto Demo<br>
           <span style="color:#9aa3b2; font-weight:400">$1.500</span>
-          <div class="mini-btn">Comprar</div>
         </div>
       </div>
     </div>
@@ -332,7 +395,7 @@
     </div>
   </div>
 
-  <!-- 4. Default legacy (sin template) -->
+  <!-- 4. Default legacy (sin template, diagnostico) -->
   <div class="template-card" data-template="default">
     <div class="template-preview">
       <span class="template-preview-label">LEGACY · SIN TEMPLATE</span>
@@ -341,7 +404,6 @@
         <div class="mini-card">
           Producto Demo<br>
           <span style="color:#73809a; font-weight:400">$1.500</span>
-          <div class="mini-btn">Comprar</div>
         </div>
       </div>
     </div>
@@ -366,9 +428,9 @@
   <ol style="margin: 0; padding-left: 20px; color: var(--fg-muted); line-height: 1.7;">
     <li>Seleccionás una plantilla arriba. Se aplica en este dispositivo inmediatamente.</li>
     <li>Se persiste en <code>localStorage["wowhub.template"]</code> y en <code>PUT /api/v1/tenants/{id}/template</code>.</li>
-    <li>El helper <code>static/js/template-selector.js</code> aplica la clase <code>.template-wowprint</code> al <code>&lt;body&gt;</code>.</li>
+    <li>El helper <code>static/js/template-selector.js</code> aplica la clase <code>.template-moderna</code> al <code>&lt;body&gt;</code>.</li>
     <li>El alcance es <strong>solo CSS scopeado</strong>: no rompe el dark-mode ni los widgets del dashboard.</li>
-    <li>Para volver al default, recargá la página o seleccioná "WowHub Default".</li>
+    <li>Para volver a Moderna (default), recargá la página o seleccioná "Moderna".</li>
   </ol>
 </div>
 

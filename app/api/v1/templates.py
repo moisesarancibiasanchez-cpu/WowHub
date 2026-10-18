@@ -17,11 +17,12 @@ import logging
 router = APIRouter(prefix="/tenants", tags=["templates"])
 logger = logging.getLogger(__name__)
 
-VALID_TEMPLATES = ("default", "dashboard", "wowprint", "dark")
+VALID_TEMPLATES = ("default", "moderna", "dashboard", "wowprint", "dark")
+# Alias legacy: "dashboard" se mapea a "moderna" (mismo template)
 
 
 class TemplateUpdate(BaseModel):
-    template: Literal["default", "dashboard", "wowprint", "dark"] = Field(..., description="ID de la plantilla")
+    template: Literal["default", "moderna", "dashboard", "wowprint", "dark"] = Field(..., description="ID de la plantilla (moderna=default)")
 
 
 def get_db_session():
