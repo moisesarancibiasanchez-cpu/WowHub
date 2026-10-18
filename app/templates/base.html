@@ -22,15 +22,24 @@
   {# ── Anti-flash: aplica la plantilla (template) ANTES del primer paint ──
      Si el usuario eligió wowprint, dark, o cualquier otro template, lo
      aplicamos aquí para evitar el "flash" con el default antes de que
-     template-selector.js se cargue.  ── #}
+     template-selector.js se cargue.
+
+     IMPORTANTE: este script corre en <head>, ANTES de que <body> exista.
+     Por eso aplicamos la clase a `document.documentElement` (<html>) y
+     NO a `document.body` (que sería null y no haría nada → FOUC visible).
+     El template-selector.js (que corre al final del body, en DOMContentLoaded)
+     propaga la misma clase a <body> por redundancia, pero el primer paint
+     ya tiene la clase en <html> y el CSS scoped (.template-moderna) aplica
+     desde el primer render. ── #}
   <script>
     (function () {
       try {
         var tpl = localStorage.getItem("wowhub.template") || "moderna";
         // Compatibilidad: "dashboard" legacy -> "moderna"
         if (tpl === "dashboard") tpl = "moderna";
-        if (tpl === "moderna") document.body && document.body.classList.add("template-moderna");
-        else if (tpl === "wowprint") document.body && document.body.classList.add("template-wowprint");
+        var html = document.documentElement;
+        if (tpl === "moderna") html.classList.add("template-moderna");
+        else if (tpl === "wowprint") html.classList.add("template-wowprint");
         // 'default' se maneja sin clase
       } catch (_) { /* noop */ }
     })();

@@ -454,6 +454,18 @@ def dashboard_site(request: Request):
     return templates.TemplateResponse(request, "dashboard/site.html", {"settings": settings})
 
 
+# V2.01 — Selector de plantillas estéticas (Moderna, WowPrint, Dark, Default).
+# Antes de este fix, el sidebar "Apariencia" apuntaba a /dashboard/site que
+# renderizaba un selector de tema de portada pública (dark/pro), no las
+# plantillas del dashboard. El template dashboard/templates.html ya existía
+# desde V2.01 pero NUNCA fue enrutado: el usuario veía solo 2 opciones.
+@app.get("/dashboard/templates", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_templates(request: Request):
+    """Admin UI: selector de plantilla estética del dashboard.
+    4 opciones: Moderna (default), WowPrint (kiosk), Dark, Default (legacy)."""
+    return templates.TemplateResponse(request, "dashboard/templates.html", {"settings": settings})
+
+
 # Nuevas páginas de dashboard (v0.2.0)
 @app.get("/dashboard/orders", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_orders(request: Request):

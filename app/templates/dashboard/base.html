@@ -151,8 +151,14 @@
     <a href="/dashboard/mi-sitio-web" class="nav-link" data-route="mi-sitio-web">
       <span class="ico">🎨</span> Mi sitio web
     </a>
-    <a href="/dashboard/site" class="nav-link" data-route="site">
-      <span class="ico">🌗</span> Apariencia
+    {# ── V2.01 FIX — Antes el link Apariencia apuntaba a /dashboard/site
+       (que es el selector de tema de PORTADA PÚBLICA dark/pro, no las
+       plantillas del dashboard). Ahora apunta al nuevo /dashboard/templates
+       donde están las 4 opciones: Moderna (default), WowPrint, Dark,
+       Default legacy. ── #}
+    <a href="/dashboard/templates" class="nav-link" data-route="templates"
+       title="Plantillas estéticas del dashboard: Moderna, WowPrint, Dark, Default">
+      <span class="ico">🎨</span> Apariencia
     </a>
     <a href="/dashboard/marketing" class="nav-link" data-route="marketing">
       <span class="ico">✨</span> Marketing IA
