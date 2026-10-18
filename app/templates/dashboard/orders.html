@@ -210,6 +210,22 @@ async function openOrder(id) {
         <div>
           <strong>${o.customer_name || "—"}</strong>${o.customer_phone ? " · " + o.customer_phone : ""}${o.customer_email ? "<br>" + o.customer_email : ""}
           <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${WH.fmtTime(o.created_at)} · ${o.source || "web"}</div>
+          {# ── V2.01 Quick-Context Creation: si el pedido no tiene cliente,
+             permite crear uno in-place y asignarlo a este pedido via PATCH
+             /orders/{id}/customer. 3 clics: [+] → [Guardar nombre] → [Asignar]. ── #}
+          ${!o.customer_id ? `
+            <div style="margin-top:8px;">
+              <button type="button" class="qc-btn-new"
+                      data-qc-type="customer"
+                      data-qc-target="#qc-customer-hidden"
+                      data-qc-label="Cliente"
+                      data-qc-oncreated="function(item){ window.__qcAssignCustomer && window.__qcAssignCustomer('${o.id}', item); }"
+                      title="Crear cliente nuevo y asignarlo a este pedido">+ Crear y asignar cliente</button>
+              <input type="hidden" id="qc-customer-hidden" />
+            </div>` : `
+            <div style="margin-top:8px; font-size:12px; color:var(--text-muted,#9ca3af);">
+              Cliente ID: <code style="font-size:11px;">${(o.customer_id || "").slice(0,8)}</code>
+            </div>`}
         </div>
         <span class="badge badge-${(o.status || "recibido").toLowerCase()}">${(o.status || "recibido").toUpperCase()}</span>
       </div>
@@ -306,5 +322,32 @@ setInterval(loadOrders, 30000);
     $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
   }
 })();
+
+// ── V2.01 Quick-Context: callback invocado por quick-create.js
+//    cuando el operador crea un cliente desde el modal del pedido.
+//    Llama al nuevo endpoint POST /orders/{id}/customer (backend)
+//    para asignar el cliente recién creado al pedido en curso. ──
+window.__qcAssignCustomer = async function (orderId, item) {
+  try {
+    await WH.api.post(
+      `/api/v1/tenants/${currentTenantId}/orders/${orderId}/customer`,
+      { customer_id: item.id }
+    );
+    $("alert").innerHTML = `<div class="alert alert-success">✓ Cliente <strong>${item.full_name || item.name || ""}</strong> creado y asignado al pedido.</div>`;
+    // Refrescar modal y Kanban
+    $("order-modal").style.display = "none";
+    await loadOrders();
+    openOrder(orderId);
+  } catch (err) {
+    $("alert").innerHTML = `<div class="alert alert-error">Cliente creado pero no se pudo asignar al pedido: ${err.message || err}</div>`;
+  }
+  setTimeout(() => { $("alert").innerHTML = ""; }, 5000);
+};
 </script>
+
+{# ── V2.01 Quick-Context Creation ─────────────────────────────────
+   Helper reusable: permite crear cliente/producto desde el contexto
+   actual sin navegar. Ver /static/js/quick-create.js. ── #}
+<script src="/static/js/quick-create.js?v=v2.01-qc"></script>
+{% include "_partials/quick_create_modal.html" %}
 {% endblock %}

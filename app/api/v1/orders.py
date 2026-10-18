@@ -30,6 +30,14 @@ from app.services.plugin_hooks import trigger_hooks
 class ApplyDiscountBody(BaseModel):
     code: str = Field(..., min_length=1, max_length=40, description="Código del cupón/promoción")
 
+
+# V2.01 — Body para asignar (o reasignar) un cliente a un pedido
+# existente. Usado por la UI Quick-Context Creation: el operador crea
+# un cliente nuevo desde el modal del pedido y queda vinculado al
+# pedido en curso en un único flujo (max 3 clicks).
+class AssignCustomerBody(BaseModel):
+    customer_id: UUID = Field(..., description="UUID del cliente a asignar")
+
 router = APIRouter(prefix="/tenants/{tenant_id}/orders", tags=["orders"])
 
 
@@ -432,6 +440,42 @@ def apply_discount(
         0,
         order.subtotal_cents + order.shipping_cents + order.tax_cents - discount_cents,
     )
+    db.commit()
+    db.refresh(order)
+    return _to_out(order)
+
+
+# V2.01 — Asigna (o reasignar) un cliente a un pedido existente.
+# Endpoint nuevo, liviano: valida que el cliente pertenezca al
+# tenant y que el pedido esté en un estado no terminal. Devuelve el
+# OrderOut actualizado para que la UI refresque sin recargar.
+@router.post("/{order_id}/customer", response_model=OrderOut)
+@requires_permission("order", "write")
+def assign_customer(
+    tenant_id: UUID,
+    order_id: UUID,
+    payload: AssignCustomerBody,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    order = OrderService(db).get(tenant_id, order_id)
+    if order.status in (OrderStatus.ENTREGADO, OrderStatus.PAGADO, OrderStatus.CANCELADO):
+        raise ConflictError(
+            f"No se puede reasignar cliente a un pedido en estado {order.status.value}"
+        )
+
+    # Validar que el cliente exista y pertenezca al tenant
+    from app.models.customer import Customer
+    cust = db.get(Customer, payload.customer_id)
+    if not cust or cust.tenant_id != order.tenant_id:
+        raise NotFoundError("Cliente no encontrado en este tenant")
+
+    order.customer_id = cust.id
+    # Propagar snapshot (denormalizado en el pedido) para que la
+    # lista/Kanban muestre el nombre sin un JOIN extra.
+    order.customer_name = cust.full_name
+    order.customer_phone = cust.phone
+    order.customer_email = cust.email
     db.commit()
     db.refresh(order)
     return _to_out(order)

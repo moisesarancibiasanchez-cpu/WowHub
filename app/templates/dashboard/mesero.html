@@ -364,9 +364,20 @@
     <form id="mes-item-form">
       <div class="form-field">
         <label>Producto</label>
-        <select id="mes-item-product" required>
-          <option value="">— Cargando… —</option>
-        </select>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select id="mes-item-product" required style="flex:1;">
+            <option value="">— Cargando… —</option>
+          </select>
+          {# ── V2.01 Quick-Context Creation (max 3 clicks) ──
+             Botón que abre modal in-place para crear producto sin salir del
+             pedido. Una vez creado, el <select> recibe la nueva opción
+             auto-seleccionada y el modal padre sigue abierto. #}
+          <button type="button" class="qc-btn-new"
+                  data-qc-type="product"
+                  data-qc-target="#mes-item-product"
+                  data-qc-label="Producto"
+                  title="Crear producto nuevo sin salir de este pedido">+ Nuevo</button>
+        </div>
       </div>
       <div class="form-row">
         <div class="form-field">
@@ -938,6 +949,21 @@
   window.addEventListener('beforeunload', () => {
     if (refreshTimer) clearInterval(refreshTimer);
   });
+
+  // ── V2.01 Quick-Context: hook global para que quick-create.js
+  //    refresque el <select> cuando el modal cree un producto nuevo.
+  //    El helper JS llama a wcRefreshProductSelect() si existe. ──
+  window.wcRefreshProductSelect = function () {
+    loadProducts().then(() => toast('Catálogo de productos actualizado.'));
+  };
 })();
 </script>
+
+{# ── V2.01 Quick-Context Creation ─────────────────────────────────
+   Script helper reusable: crea recursos (cliente, producto, mesa…)
+   desde el contexto actual sin navegar. Ver /static/js/quick-create.js. #}
+<script src="/static/js/quick-create.js?v=v2.01-qc"></script>
+
+{# Modal compartido usado por quick-create.js (cliente/producto/más). #}
+{% include "_partials/quick_create_modal.html" %}
 {% endblock %}

@@ -1,0 +1,112 @@
+{# ── Partial: quick_create_modal.html ─────────────────────────────────
+   Modal compartido para creación rápida "in-place" (sin salir del
+   formulario padre). Usado por quick-create.js (V2.01).
+
+   Incluir UNA vez en cualquier template que tenga flujos con
+   botones [data-qc-type] (cliente, producto, etc.):
+
+   {% include "_partials/quick_create_modal.html" %}
+
+   El script que activa el modal es /static/js/quick-create.js
+   (lo carga base.html automáticamente con defer).
+   ──────────────────────────────────────────────────────────────── #}
+<div class="qc-overlay" id="qc-modal" role="dialog" aria-modal="true"
+     aria-labelledby="qc-modal-title" style="display:none;">
+  <div class="qc-box">
+    <div class="qc-head">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="qc-icon" id="qc-modal-icon" style="font-size:20px;">➕</span>
+        <h3 id="qc-modal-title" style="margin:0;font-size:17px;font-weight:700;color:#172033;">Crear</h3>
+      </div>
+      <button type="button" class="qc-close" aria-label="Cerrar"
+              onclick="window.QuickCreate && window.QuickCreate.close()"
+              style="background:transparent;border:0;color:#73809a;font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:6px;">×</button>
+    </div>
+    <div class="qc-body" id="qc-modal-body" style="padding:16px 20px;">
+      <!-- El form se inyecta via JS -->
+    </div>
+    <div class="qc-foot" style="padding:10px 20px;border-top:1px solid #e8ecf3;font-size:12px;color:#73809a;background:#fbfbff;border-radius:0 0 12px 12px;">
+      💡 El item creado se insertará en la lista y quedará seleccionado. Esta ventana se cerrará automáticamente.
+    </div>
+  </div>
+</div>
+
+<style>
+  .qc-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 13, 18, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: qcFade 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes qcFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .qc-box {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(11, 13, 18, 0.35);
+    overflow: hidden;
+    animation: qcZoom 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes qcZoom {
+    from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .qc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid #e8ecf3;
+    background: #fbfbff;
+  }
+  .qc-body {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .qc-close:hover {
+    background: #eef1f5 !important;
+    color: #172033 !important;
+  }
+  .qc-field label { display: block; }
+  .qc-field input:focus {
+    outline: none;
+    border-color: #6c5ce7 !important;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.12);
+  }
+  .qc-btn-cancel:hover { background: #f5f7fb !important; }
+  .qc-btn-save:hover { background: #5b4cd1 !important; }
+  .qc-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+  /* Botón "+ Nuevo" en formularios padres */
+  .qc-btn-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    color: #6c5ce7;
+    border: 1px dashed #6c5ce7;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-left: 6px;
+  }
+  .qc-btn-new:hover {
+    background: rgba(108, 92, 231, 0.08);
+    color: #5b4cd1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .qc-overlay, .qc-box { animation: none !important; }
+  }
+</style>
