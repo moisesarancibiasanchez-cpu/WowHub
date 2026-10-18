@@ -1,5 +1,6 @@
 {% extends "dashboard/base.html" %}
 {% block title %}Apariencia — Plantillas{% endblock %}
+{% block dash_title %}Apariencia — Plantillas{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/templates/dashboard.css') }}">
@@ -292,13 +293,12 @@
 </style>
 {% endblock %}
 
-{# ── V2.01 FIX — Antes este template usaba {% block content %} lo cual
-   SOBRESCRIBÍA el bloque completo de dashboard/base.html que incluye
-   el sidebar (aside.dash-side). Resultado: /dashboard/templates
-   renderizaba SIN sidebar y/o disparaba 500 porque esperaba variables
-   que el padre inyectaba. Ahora usa {% block dash_content %} que es
-   el bloque correcto para inyectar contenido DENTRO del layout
-   (sidebar + main wrapper provistos por el padre). ── #}
+{# ── V2.01 FIX — Antes este template usaba block content (incorrecto).
+   Eso sobrescribia el wrapper completo de dashboard/base.html (sidebar
+   + main), perdiendo variables del padre y disparando 500 en algunas
+   configuraciones. Ahora usa block dash_content, el sub-bloque
+   correcto para inyectar contenido DENTRO del layout preservando el
+   sidebar y el topbar. Ver commit 4a1ecbb para el fix original. ── #}
 {% block dash_content %}
 <div class="page-header">
   <h1 style="font-weight: 700; font-size: 28px; margin: 0;">🎨 Apariencia — Plantillas</h1>

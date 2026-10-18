@@ -1,33 +1,237 @@
 {% extends "dashboard/base.html" %}
 {% block dash_title %}Estadísticas — WowHub{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* Stats grid denso */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .stat-card .label {
+    color: var(--fg-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .stat-card .value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--fg);
+    margin-top: 4px;
+  }
+  .stat-card .delta {
+    font-size: 12px;
+    color: var(--success, #00b894);
+    margin-top: 4px;
+  }
+  .stat-card .delta.negative { color: var(--err, #d63031); }
+
+  /* Channels breakdown */
+  .channel-bar {
+    display: grid;
+    grid-template-columns: 80px 1fr 80px;
+    gap: 8px;
+    align-items: center;
+    margin: 6px 0;
+    font-size: 13px;
+  }
+  .channel-bar .label { color: var(--fg-muted); font-weight: 600; }
+  .channel-bar .bar-bg {
+    background: var(--bg-elev-2);
+    border-radius: 4px;
+    height: 12px;
+    overflow: hidden;
+  }
+  .channel-bar .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #8b5cf6);
+    border-radius: 4px;
+  }
+  .channel-bar .value { text-align: right; font-weight: 700; color: var(--fg); }
+
+  /* Gráfico serie diaria con barras horizontales */
+  .series-day {
+    display: grid;
+    grid-template-columns: 80px 1fr 90px;
+    gap: 8px;
+    align-items: center;
+    margin: 2px 0;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+  }
+  .series-day .date { color: var(--fg-muted); }
+  .series-day .bar-bg {
+    background: var(--bg-elev-2);
+    border-radius: 3px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .series-day .bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width .3s ease;
+  }
+  .series-day .value { text-align: right; color: var(--fg); }
+
+  /* Top list items */
+  .top-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .top-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .top-list li:last-child { border-bottom: 0; }
+  .top-list .rank {
+    background: var(--accent);
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+
+  .row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+</style>
+{% endblock %}
+
 {% block dash_content %}
-<section class="dash-page" style="padding: 40px 24px;">
-  <h1>Estadísticas</h1>
-  <p class="text-muted">Resumen de los últimos 30 días.</p>
+<section class="dash-page" style="padding: 24px;">
+  <div class="row-between" style="margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h1 style="margin: 0;">📊 Estadísticas</h1>
+      <p class="text-muted" style="margin: 4px 0 0;">Resumen de los últimos 30 días.</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <select class="form-input" id="period-select" style="width: 140px;">
+        <option value="7">Últimos 7 días</option>
+        <option value="30" selected>Últimos 30 días</option>
+        <option value="90">Últimos 90 días</option>
+      </select>
+      <button class="btn" id="refresh-btn">↻ Actualizar</button>
+    </div>
+  </div>
 
   <div id="alert"></div>
 
-  <div class="grid grid-4 mb-4" id="kpi-cards">
-    <div class="card"><div class="text-muted">Pedidos</div><h2 id="kpi-orders">—</h2></div>
-    <div class="card"><div class="text-muted">Ingresos</div><h2 id="kpi-revenue">—</h2></div>
-    <div class="card"><div class="text-muted">Ticket promedio</div><h2 id="kpi-ticket">—</h2></div>
-    <div class="card"><div class="text-muted">Escaneos QR</div><h2 id="kpi-scans">—</h2></div>
+  <!-- KPIs principales -->
+  <div class="stats-grid" id="kpi-cards">
+    <div class="stat-card">
+      <div class="label">Pedidos totales</div>
+      <div class="value" id="kpi-orders">—</div>
+      <div class="delta" id="kpi-orders-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Ingresos</div>
+      <div class="value" id="kpi-revenue">—</div>
+      <div class="delta" id="kpi-revenue-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Ticket promedio</div>
+      <div class="value" id="kpi-ticket">—</div>
+      <div class="delta" id="kpi-ticket-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Clientes únicos</div>
+      <div class="value" id="kpi-customers">—</div>
+      <div class="delta" id="kpi-customers-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Escaneos QR</div>
+      <div class="value" id="kpi-scans">—</div>
+      <div class="delta" id="kpi-scans-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Tasa conversión</div>
+      <div class="value" id="kpi-conversion">—</div>
+      <div class="delta" id="kpi-conversion-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Reservas</div>
+      <div class="value" id="kpi-bookings">—</div>
+      <div class="delta" id="kpi-bookings-delta">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Cancelaciones</div>
+      <div class="value" id="kpi-cancellations">—</div>
+      <div class="delta negative" id="kpi-cancellations-delta">—</div>
+    </div>
   </div>
 
-  <div class="card mb-4">
-    <h3>Top productos</h3>
-    <div id="top-products">Cargando…</div>
+  <div class="grid" style="grid-template-columns: 1.4fr 1fr; gap: 24px;">
+    <!-- Serie diaria -->
+    <div class="card">
+      <div class="row-between" style="margin-bottom: 14px;">
+        <h3 style="margin: 0;">📈 Serie diaria</h3>
+        <span class="text-muted" style="font-size: 12px;">Ingresos por día (últimos 30 días)</span>
+      </div>
+      <div id="daily-series" style="max-height: 360px; overflow-y: auto; padding-right: 4px;">
+        <div class="text-muted" style="padding: 24px; text-align: center;">Cargando…</div>
+      </div>
+    </div>
+
+    <!-- Canales -->
+    <div class="card">
+      <h3 style="margin: 0 0 14px;">🌐 Canales de venta</h3>
+      <div id="channels-breakdown">
+        <div class="text-muted" style="padding: 24px; text-align: center;">Cargando…</div>
+      </div>
+    </div>
   </div>
 
-  <div class="card mb-4">
-    <h3>QRs más escaneados</h3>
-    <div id="top-qrs">Cargando…</div>
+  <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px;">
+    <!-- Top productos -->
+    <div class="card">
+      <h3 style="margin: 0 0 14px;">🏆 Top productos</h3>
+      <div id="top-products">
+        <div class="text-muted" style="padding: 24px; text-align: center;">Cargando…</div>
+      </div>
+    </div>
+
+    <!-- Top QRs -->
+    <div class="card">
+      <h3 style="margin: 0 0 14px;">📷 QRs más escaneados</h3>
+      <div id="top-qrs">
+        <div class="text-muted" style="padding: 24px; text-align: center;">Cargando…</div>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>Serie diaria (últimos 30 días)</h3>
-    <div id="daily-series" style="font-family: monospace; white-space: pre; font-size: 12px;">Cargando…</div>
+  <!-- Distribución horaria -->
+  <div class="card" style="margin-top: 24px;">
+    <h3 style="margin: 0 0 14px;">⏰ Distribución horaria de pedidos</h3>
+    <p class="text-muted" style="font-size: 12px; margin: 0 0 14px;">Cuándo compran tus clientes (hora local)</p>
+    <div id="hourly-distribution" style="display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 80px; align-items: end;">
+      <div class="text-muted" style="grid-column: 1 / -1; text-align: center; padding: 24px;">Cargando…</div>
+    </div>
   </div>
 </section>
 {% endblock %}
@@ -35,38 +239,107 @@
 {% block scripts %}
 <script>
 async function loadStats() {
-  const memberships = await WH.api.get("/api/v1/me/memberships");
-  if (!memberships.length) {
-    document.getElementById("kpi-orders").textContent = "0";
-    return;
+  const days = document.getElementById("period-select").value;
+  try {
+    const memberships = await WH.api.get("/api/v1/me/memberships");
+    if (!memberships.length) {
+      setEmpty("kpi-orders", "0", "Sin membresías");
+      return;
+    }
+    const tenantId = memberships[0].tenant_id;
+    const stats = await WH.api.get(`/api/v1/tenants/${tenantId}/stats/overview?days=${days}`);
+
+    // KPIs principales
+    setKpi("kpi-orders", "kpi-orders-delta", stats.orders_count || 0, stats.orders_delta_pct, "");
+    setKpi("kpi-revenue", "kpi-revenue-delta", ((stats.revenue_cents||0)/100).toLocaleString('es-CL', {style:'currency', currency:'CLP', maximumFractionDigits:0}), stats.revenue_delta_pct, "");
+    setKpi("kpi-ticket", "kpi-ticket-delta", ((stats.avg_ticket_cents||0)/100).toLocaleString('es-CL', {style:'currency', currency:'CLP', maximumFractionDigits:0}), stats.ticket_delta_pct, "");
+    setKpi("kpi-customers", "kpi-customers-delta", stats.unique_customers || 0, stats.customers_delta_pct, "");
+    setKpi("kpi-scans", "kpi-scans-delta", stats.qr_scans || 0, stats.scans_delta_pct, "");
+    setKpi("kpi-conversion", "kpi-conversion-delta", ((stats.conversion_rate || 0) * 100).toFixed(1) + "%", stats.conversion_delta_pct, "%");
+    setKpi("kpi-bookings", "kpi-bookings-delta", stats.bookings_count || 0, stats.bookings_delta_pct, "");
+    setKpi("kpi-cancellations", "kpi-cancellations-delta", stats.cancellations || 0, null, "");
+
+    // Top productos
+    const topProducts = stats.top_products || [];
+    document.getElementById("top-products").innerHTML = topProducts.length
+      ? `<ol class="top-list">${topProducts.slice(0, 8).map((p, i) =>
+          `<li><div style="display:flex;align-items:center;"><span class="rank">${i+1}</span><span>${escapeHtml(p.name)}</span></div><strong>${p.quantity} uds · $${(p.revenue_cents/100).toLocaleString('es-CL')}</strong></li>`
+        ).join("")}</ol>`
+      : '<p class="text-muted">Sin datos aún.</p>';
+
+    // Top QRs
+    const topQrs = stats.top_qrs || [];
+    document.getElementById("top-qrs").innerHTML = topQrs.length
+      ? `<ol class="top-list">${topQrs.slice(0, 8).map((q, i) =>
+          `<li><div style="display:flex;align-items:center;"><span class="rank">${i+1}</span><span>${escapeHtml(q.label || q.short_code)}</span></div><strong>${q.scans} escaneos</strong></li>`
+        ).join("")}</ol>`
+      : '<p class="text-muted">Sin datos aún.</p>';
+
+    // Serie diaria (barras horizontales)
+    const series = stats.daily_series || [];
+    const max = Math.max(1, ...series.map(s => s.revenue_cents || 0));
+    document.getElementById("daily-series").innerHTML = series.length
+      ? series.slice().reverse().map(d => {
+          const pct = ((d.revenue_cents || 0) / max) * 100;
+          return `<div class="series-day">
+            <span class="date">${d.date}</span>
+            <div class="bar-bg"><div class="bar-fill" style="width: ${pct.toFixed(1)}%;"></div></div>
+            <span class="value">$${((d.revenue_cents||0)/100).toLocaleString('es-CL', {maximumFractionDigits:0})}</span>
+          </div>`;
+        }).join("")
+      : '<p class="text-muted">Sin datos.</p>';
+
+    // Canales (channels breakdown)
+    const channels = stats.channels || {};
+    const channelNames = {web:"🌐 Web", pos:"🖥️ POS", qr:"📷 QR", kiosk:"🏬 Kiosko", whatsapp:"📱 WhatsApp", api:"🔌 API", test:"🧪 Test"};
+    const channelEntries = Object.entries(channels).sort((a,b)=>b[1]-a[1]);
+    const maxCh = Math.max(1, ...channelEntries.map(([k,v])=>v));
+    document.getElementById("channels-breakdown").innerHTML = channelEntries.length
+      ? channelEntries.map(([k,v]) => {
+          const pct = (v/maxCh)*100;
+          return `<div class="channel-bar">
+            <span class="label">${channelNames[k] || k}</span>
+            <div class="bar-bg"><div class="bar-fill" style="width:${pct.toFixed(1)}%;"></div></div>
+            <span class="value">${v}</span>
+          </div>`;
+        }).join("")
+      : '<p class="text-muted">Sin datos aún.</p>';
+
+    // Distribución horaria
+    const hourly = stats.hourly_distribution || [];
+    const maxHour = Math.max(1, ...hourly);
+    document.getElementById("hourly-distribution").innerHTML = hourly.length
+      ? hourly.map((v, h) => {
+          const pct = (v / maxHour) * 100;
+          return `<div title="${h}:00 — ${v} pedidos" style="height: ${pct}%; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 4px;"></div>`;
+        }).join("") + `<div style="grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-muted); margin-top: 4px;"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>`
+      : '<p class="text-muted" style="grid-column: 1 / -1; text-align: center; padding: 24px;">Sin datos aún.</p>';
+  } catch (err) {
+    document.getElementById("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
   }
-  const tenantId = memberships[0].tenant_id;
-  const stats = await WH.api.get(`/api/v1/tenants/${tenantId}/stats/overview?days=30`);
-
-  document.getElementById("kpi-orders").textContent = stats.orders_count || 0;
-  document.getElementById("kpi-revenue").textContent = `$${((stats.revenue_cents||0)/100).toFixed(2)}`;
-  document.getElementById("kpi-ticket").textContent = `$${((stats.avg_ticket_cents||0)/100).toFixed(2)}`;
-  document.getElementById("kpi-scans").textContent = stats.qr_scans || 0;
-
-  document.getElementById("top-products").innerHTML = (stats.top_products || []).length
-    ? "<ol>" + stats.top_products.map(p =>
-        `<li>${p.name} — ${p.quantity} uds · $${(p.revenue_cents/100).toFixed(2)}</li>`).join("") + "</ol>"
-    : '<p class="text-muted">Sin datos aún.</p>';
-
-  document.getElementById("top-qrs").innerHTML = (stats.top_qrs || []).length
-    ? "<ol>" + stats.top_qrs.map(q =>
-        `<li>${q.label || q.short_code} — ${q.scans} escaneos</li>`).join("") + "</ol>"
-    : '<p class="text-muted">Sin datos aún.</p>';
-
-  const series = stats.daily_series || [];
-  const max = Math.max(1, ...series.map(s => s.revenue_cents || 0));
-  const lines = series.map(d => {
-    const bar = "█".repeat(Math.round(((d.revenue_cents || 0) / max) * 30));
-    return `${d.date}  $${((d.revenue_cents||0)/100).toFixed(0).padStart(7)}  ${bar}`;
-  });
-  document.getElementById("daily-series").textContent = lines.join("\n") || "Sin datos";
 }
 
+function setKpi(valueId, deltaId, value, deltaPct, suffix) {
+  document.getElementById(valueId).textContent = value + suffix;
+  const deltaEl = document.getElementById(deltaId);
+  if (deltaPct == null) { deltaEl.textContent = ""; return; }
+  const arrow = deltaPct > 0 ? "↑" : (deltaPct < 0 ? "↓" : "→");
+  const sign = deltaPct > 0 ? "+" : "";
+  deltaEl.textContent = `${arrow} ${sign}${deltaPct.toFixed(1)}% vs período anterior`;
+  deltaEl.classList.toggle("negative", deltaPct < 0);
+}
+
+function setEmpty(id, value, msg) {
+  document.getElementById(id).textContent = value;
+  document.getElementById(id + "-delta").textContent = msg;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+document.getElementById("period-select").addEventListener("change", loadStats);
+document.getElementById("refresh-btn").addEventListener("click", loadStats);
 loadStats();
 </script>
 {% endblock %}
