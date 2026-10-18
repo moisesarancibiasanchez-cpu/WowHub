@@ -1,0 +1,135 @@
+name: multi-agent-ci
+
+# CI del sistema multi-agente de WowHub.
+# Ejecuta los 29 tests del subdirectorio multi-agent-wowhub/ en cada push a main
+# y en cada Pull Request. Usa MockLLM (no requiere API key real).
+
+on:
+  pull_request:
+    paths:
+      - "multi-agent-wowhub/**"
+      - ".github/workflows/multi-agent-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "multi-agent-wowhub/**"
+      - ".github/workflows/multi-agent-ci.yml"
+  workflow_dispatch:
+
+# Cancelar la corrida anterior del mismo PR/ref para no gastar minutos.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # 1) Suite completa de tests del multi-agent (29 tests).
+  # ─────────────────────────────────────────────────────────────────
+  multi-agent-pytest:
+    name: multi-agent pytest (29 tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: multi-agent-wowhub/pyproject.toml
+
+      - name: Install multi-agent dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd multi-agent-wowhub
+          pip install -e ".[dev]"
+
+      - name: Run multi-agent test suite
+        env:
+          # Forzar MockLLM (no requiere MM_API_KEY real)
+          MM_USE_MOCK: "true"
+          # Path al documento de CPs (relativo al repo root)
+          CP_DOC: "docs/TEST_CASES_V134_2.md"
+        run: |
+          cd multi-agent-wowhub
+          python -m pytest tests/ -v --tb=short --color=yes -p no:cacheprovider --maxfail=20
+
+  # ─────────────────────────────────────────────────────────────────
+  # 2) Sintaxis de los .py (chequeo barato, atrapa typos).
+  # ─────────────────────────────────────────────────────────────────
+  syntax-check:
+    name: syntax check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile all multi-agent .py files
+        run: |
+          cd multi-agent-wowhub
+          python -m py_compile \
+            main.py \
+            agents/base_agent.py \
+            agents/orchestrator.py \
+            agents/researcher.py \
+            agents/coder.py \
+            agents/validator.py \
+            runner/cp_index.py \
+            runner/cp_runner.py \
+            runner/hu_endpoint_map.py \
+            runner/fixtures.py \
+            mock_server.py \
+            && echo "✓ Sintaxis OK"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 3) Sanity check: el parser de CPs puede indexar el documento.
+  # ─────────────────────────────────────────────────────────────────
+  cp-index-smoke:
+    name: CP index smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install multi-agent dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd multi-agent-wowhub
+          pip install -e ".[dev]"
+
+      - name: Verify CP index parses
+        env:
+          MM_USE_MOCK: "true"
+          CP_DOC: "docs/TEST_CASES_V134_2.md"
+        run: |
+          cd multi-agent-wowhub
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from runner.cp_index import CPIndex
+          idx = CPIndex(doc_path='../docs/TEST_CASES_V134_2.md').load(force_reparse=True)
+          total = len(idx.all())
+          hus = len(idx.by_hu_id.__self__._by_hu_id)
+          print(f'CPs parseados: {total}')
+          print(f'HUs cubiertas: {hus}')
+          assert total >= 300, f'Esperaba >=300 CPs, encontre {total}'
+          assert hus == 49, f'Esperaba 49 HUs, encontre {hus}'
+          print('OK CP index parseado correctamente')
+          "
