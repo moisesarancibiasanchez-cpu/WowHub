@@ -485,7 +485,10 @@ img { max-width: 100%; height: auto; }
 /* ── Mock variants (8 visuales del showcase) ────────────────────────
    V2.01 FIX: background explícito en cada variante para que el contenido
    SIEMPRE se vea sobre fondo claro, sin importar el contexto del phone
-   (cuyo frame es dark #1a1d28). */
+   (cuyo frame es dark #1a1d28).
+   V2.002: simplificado a <img> realistas servidas desde
+   /static/img/hero/ (catalog.png, qr.png, etc.). Solo necesitamos
+   el wrapper .mock-image-wrap + la imagen .mock-image. */
 .mock-page,
 .mock-catalog,
 .mock-qr,
@@ -501,14 +504,35 @@ img { max-width: 100%; height: auto; }
   box-sizing: border-box;
   min-height: 0;
 }
-.mock-page     { padding: 18px 14px; }
-.mock-catalog { padding: 14px 12px; display: grid; gap: 10px; }
-.mock-qr      { padding: 22px 16px; text-align: center; }
-.mock-orders  { padding: 14px 12px; display: grid; gap: 10px; }
-.mock-payment { padding: 28px 18px; text-align: center; display: grid; gap: 8px; justify-items: center; }
-.mock-bookings { padding: 14px 12px; display: grid; gap: 10px; }
-.mock-promos  { padding: 14px 12px; display: grid; gap: 10px; }
-.mock-stats   { padding: 16px 12px; display: grid; gap: 8px; }
+.mock-page     { padding: 0; }
+.mock-catalog  { padding: 0; }
+.mock-qr       { padding: 0; }
+.mock-orders   { padding: 0; }
+.mock-payment  { padding: 0; }
+.mock-bookings { padding: 0; }
+.mock-promos   { padding: 0; }
+.mock-stats    { padding: 0; }
+
+/* V2.002 — Imagen realista del contenido. El wrapper ocupa todo
+   el screen y la <img> mantiene aspect-ratio 9:16 (phone screen). */
+.mock-image-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--landing-bg-elev-2);
+  overflow: hidden;
+}
+.mock-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
 
 /* mock-page — V2.99b: avatar mas prominente, lineas mas visibles */
 .mock-page__hero {
