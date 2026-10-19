@@ -259,10 +259,22 @@
       // Update panel accessible label
       panel.setAttribute('aria-labelledby', 'hero-tab-' + tab.id);
 
-      // Render mockup content with fade transition
+      // Render mockup content with fade transition.
+      // V2.01 FIX: inyectamos DENTRO de .phone__screen (que tiene bg #fff)
+      // en vez de reemplazar innerHTML del .phone (que tiene bg #1a1d28).
+      // Antes el contenido dinámico quedaba sobre el frame oscuro del
+      // teléfono → mockups invisibles.
+      var screen = mockup.querySelector('.phone__screen');
+      if (!screen) {
+        // Fallback defensivo: si por algún motivo no existe phone__screen,
+        // lo creamos para no romper la experiencia.
+        screen = document.createElement('div');
+        screen.className = 'phone__screen';
+        mockup.appendChild(screen);
+      }
       mockup.classList.add('is-switching');
       window.setTimeout(function () {
-        mockup.innerHTML = visualHTML(tab);
+        screen.innerHTML = visualHTML(tab);
         mockup.setAttribute('data-visual', tab.visual);
         mockup.classList.remove('is-switching');
       }, TRANSITION_MS / 2);

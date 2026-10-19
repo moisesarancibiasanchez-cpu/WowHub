@@ -145,7 +145,12 @@ img { max-width: 100%; height: auto; }
   max-width: var(--landing-container);
   margin: 0 auto;
 }
-.hero__left { max-width: 540px; justify-self: start; }
+.hero__left {
+  max-width: 540px;
+  justify-self: start;
+  text-align: left;  /* V2.01 FIX: garantizar alineación izquierda
+                       incluso si un padre aplica center */
+}
 .hero__right { justify-self: center; }
 .hero__badges {
   display: flex;
@@ -418,13 +423,17 @@ img { max-width: 100%; height: auto; }
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 580px;
+  min-height: 620px;
+  padding-top: 56px;  /* V2.01 FIX: espacio para tooltip arriba del phone */
+  padding-bottom: 16px;
 }
 
-/* Tooltip contextual (cambia con el tab activo, ARIA live) */
+/* Tooltip contextual (cambia con el tab activo, ARIA live).
+   V2.01 FIX: ahora se posiciona ARRIBA del teléfono con suficiente espacio
+   para no solapar la pantalla. */
 .hero-tooltip {
   position: absolute;
-  top: -10px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--landing-fg);
@@ -470,7 +479,25 @@ img { max-width: 100%; height: auto; }
 }
 .phone__screen > * { width: 100%; }
 
-/* ── Mock variants (8 visuales del showcase) ──────────────────────── */
+/* ── Mock variants (8 visuales del showcase) ────────────────────────
+   V2.01 FIX: background explícito en cada variante para que el contenido
+   SIEMPRE se vea sobre fondo claro, sin importar el contexto del phone
+   (cuyo frame es dark #1a1d28). */
+.mock-page,
+.mock-catalog,
+.mock-qr,
+.mock-orders,
+.mock-payment,
+.mock-bookings,
+.mock-promos,
+.mock-stats {
+  background: var(--landing-bg);
+  color: var(--landing-fg);
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+}
 .mock-page     { padding: 18px 14px; }
 .mock-catalog { padding: 14px 12px; display: grid; gap: 10px; }
 .mock-qr      { padding: 22px 16px; text-align: center; }
@@ -804,9 +831,9 @@ img { max-width: 100%; height: auto; }
   }
   .hero-showcase__tabs::-webkit-scrollbar { display: none; }
   .hero-tab { scroll-snap-align: start; flex-shrink: 0; }
-  .hero-tooltip { font-size: 11px; padding: 6px 10px; top: -6px; }
+  .hero-tooltip { font-size: 11px; padding: 6px 10px; top: 6px; }
   .hero-tooltip__subtitle { font-size: 10px; }
-  .hero-showcase__viewport { min-height: 520px; }
+  .hero-showcase__viewport { min-height: 560px; padding-top: 44px; }
 }
 
 /* ── Trust bar ──────────────────────────────────────────────────── */
