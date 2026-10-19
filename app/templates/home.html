@@ -41,30 +41,7 @@
 {% block content %}
 <a href="#hero" class="skip-link">Saltar al contenido</a>
 
-<!-- ════════════════════════════════════════════════════════════════════
-     TOPBAR
-     ════════════════════════════════════════════════════════════════════ -->
-<header class="topbar" style="border-bottom: 1px solid var(--landing-border, #e8ebf3); background: var(--landing-bg-elev, #fff); position: sticky; top: 0; z-index: 50;">
-  <div class="container" style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px;">
-    <a class="brand" href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
-      <span style="width: 32px; height: 32px; border-radius: 8px; background: var(--landing-accent, #6c5ce7); color: #fff; display: grid; place-items: center; font-weight: 800;">W</span>
-      <strong style="color: var(--landing-fg, #172033); font-size: 17px;">WowHub</strong>
-    </a>
-    <nav class="topbar__nav" style="display: flex; align-items: center; gap: 18px;" aria-label="Principal">
-      <a href="/docs" style="color: var(--landing-fg-muted, #6c7080); font-size: 14px; text-decoration: none;">API Docs</a>
-      <a href="https://github.com/moisesarancibiasanchez-cpu/WowHub" target="_blank" rel="noopener" style="color: var(--landing-fg-muted, #6c7080); font-size: 14px; text-decoration: none;">Repo</a>
-      <button type="button" id="theme-toggle" aria-label="Cambiar tema" aria-pressed="false" title="Cambiar tema claro/oscuro" style="background: transparent; border: 0; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--landing-fg, #172033);">
-        <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-      </button>
-      <a class="btn btn--ghost" href="/login" style="font-size: 14px;">Ingresar</a>
-      <a class="btn btn--primary" href="/register" style="font-size: 14px;">Crear cuenta</a>
-    </nav>
-    <button type="button" class="mobile-menu-btn" aria-label="Abrir menú" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </button>
-  </div>
-</header>
+<!-- NOTA: el <header> (topbar) lo provee base.html — NO se duplica aqui. -->
 
 <main>
 <!-- ════════════════════════════════════════════════════════════════════
@@ -82,8 +59,8 @@
       <h1 class="hero__title">Tu negocio online,<br><span>en minutos.</span></h1>
 
       <p class="hero__lead">
-        Crea tu página, catálogo, QR, promociones, pedidos y reservas sin código.
-        Diseñado para PyMEs de LATAM.
+        La plataforma todo-en-uno para PyMEs de Latinoamérica.<br>
+        Crea, vende y crece sin complicaciones.
       </p>
 
       <div class="hero__cta">
@@ -93,21 +70,29 @@
         </a>
         <a class="btn btn--outline btn--lg" href="#" data-demo-target="modal-demo"
            aria-label="Ver demo de una tienda">
-          Ver demo de una tienda
+          Ver demo
         </a>
       </div>
 
       <p class="hero__trust">
-        ✓ Sin tarjeta de crédito &nbsp;·&nbsp; ✓ Cancela cuando quieras &nbsp;·&nbsp; ✓ Soporte en español
+        <span><span class="trust-tick">✓</span> Sin tarjeta</span>
+        <span><span class="trust-tick">✓</span> Cancela cuando quieras</span>
+        <span><span class="trust-tick">✓</span> Soporte en español</span>
       </p>
     </div>
 
     <div class="hero__mockup" aria-hidden="true">
+      <!-- Floating card: nuevo pedido -->
       <div class="float-card float-card--top">
-        <div class="float-card__icon">●</div>
+        <div class="float-card__icon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
         <span>Nuevo pedido Mesa 4</span>
       </div>
 
+      <!-- Smartphone mockup (19.5:9, Dynamic Island sutil) -->
       <div class="phone">
         <div class="phone__notch"></div>
         <div class="phone__screen">
@@ -119,22 +104,62 @@
             </div>
           </div>
           <div class="phone__image">
-            ☕
+            <!-- Taza con vapor estilizado (SVG inline) -->
+            <svg viewBox="0 0 64 64" width="68" height="68" aria-hidden="true">
+              <defs>
+                <linearGradient id="cupGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#f4f1ec"/>
+                  <stop offset="100%" stop-color="#d4c5b3"/>
+                </linearGradient>
+              </defs>
+              <!-- Vapor -->
+              <path d="M20 8 Q22 4 20 0" stroke="#ffffff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.8"/>
+              <path d="M28 10 Q30 6 28 2" stroke="#ffffff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+              <path d="M36 8 Q38 4 36 0" stroke="#ffffff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.8"/>
+              <!-- Taza -->
+              <path d="M16 28 L48 28 L46 50 Q46 54 42 54 L22 54 Q18 54 18 50 Z" fill="url(#cupGrad)" stroke="#a08570" stroke-width="1.5"/>
+              <!-- Café líquido -->
+              <ellipse cx="32" cy="28" rx="16" ry="3" fill="#3e2723"/>
+              <!-- Asa -->
+              <path d="M48 32 Q56 32 56 40 Q56 48 48 48" stroke="#a08570" stroke-width="2" fill="none"/>
+              <!-- Plato -->
+              <ellipse cx="32" cy="56" rx="22" ry="3" fill="#d4c5b3" opacity="0.5"/>
+            </svg>
             <div class="phone__promo-badge">-20%</div>
           </div>
           <div class="phone__body">
             <div class="phone__product-name">Latte Artesanal</div>
             <div class="phone__price">$3.500 CLP</div>
             <div class="phone__btn">
-              <span>💬</span>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+              </svg>
               Pedir por WhatsApp
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Floating card: QR escaneado -->
       <div class="float-card float-card--bottom">
-        <div class="float-card__icon">◆</div>
+        <div class="float-card__icon">
+          <!-- Icono QR real -->
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="5" y="5" width="3" height="3" fill="white"/>
+            <rect x="16" y="5" width="3" height="3" fill="white"/>
+            <rect x="5" y="16" width="3" height="3" fill="white"/>
+            <rect x="14" y="14" width="3" height="3"/>
+            <rect x="17" y="17" width="3" height="3"/>
+            <rect x="14" y="20" width="3" height="1"/>
+            <rect x="20" y="14" width="1" height="3"/>
+            <rect x="18" y="9" width="3" height="1"/>
+            <rect x="9" y="9" width="1" height="3"/>
+            <rect x="11" y="14" width="1" height="3"/>
+          </svg>
+        </div>
         <span>QR escaneado · Catálogo digital</span>
       </div>
     </div>
@@ -142,15 +167,15 @@
 </section>
 
 <!-- ════════════════════════════════════════════════════════════════════
-     TRUST BAR (5 items discretos)
+     TRUST BAR (5 píldoras individuales con check verde)
      ════════════════════════════════════════════════════════════════════ -->
 <div class="trust-bar">
   <div class="trust-bar__inner">
-    <span class="trust-bar__item">Pensado para PyMEs de LATAM</span>
-    <span class="trust-bar__item">Español nativo</span>
-    <span class="trust-bar__item">Pagos con MercadoPago</span>
-    <span class="trust-bar__item">Compatible con WhatsApp</span>
-    <span class="trust-bar__item">Dominio propio disponible</span>
+    <span class="trust-pill"><span class="trust-pill__check">✓</span> Datos seguros</span>
+    <span class="trust-pill"><span class="trust-pill__check">✓</span> Optimizado para SEO</span>
+    <span class="trust-pill"><span class="trust-pill__check">✓</span> Rápido y escalable</span>
+    <span class="trust-pill"><span class="trust-pill__check">✓</span> Integraciones fáciles</span>
+    <span class="trust-pill"><span class="trust-pill__check">✓</span> Actualizaciones gratuitas</span>
   </div>
 </div>
 
