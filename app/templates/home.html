@@ -1,337 +1,605 @@
 {% extends "base.html" %}
 {% block title %}WowHub — Tu negocio online, en minutos{% endblock %}
+{% block head_extra %}
+<!-- ── Meta tags (SEO + Social) ────────────────────────────────────── -->
+<meta name="description" content="Crea tu página, catálogo, QR, promociones, pedidos y reservas sin código. Diseñado para PyMEs de LATAM (Chile, México, Colombia, Argentina y Brasil). Plan gratuito disponible.">
+<link rel="canonical" href="{{ request.url_for('home') if request else '/' }}">
+<meta property="og:title" content="WowHub — Tu negocio online, en minutos">
+<meta property="og:description" content="El sistema operativo para PyMEs de LATAM. Página + catálogo + QR + pedidos + pagos + reservas, sin código.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ request.url if request else '/' }}">
+<meta property="og:image" content="{{ request.url_root if request else '' }}static/img/og-default.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="WowHub — Tu negocio online, en minutos">
+<meta name="twitter:description" content="El sistema operativo para PyMEs de LATAM.">
+<!-- ── JSON-LD (Organization schema) ─────────────────────────────── -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "WowHub",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "Sistema operativo para PyMEs de LATAM. Página web, catálogo digital, QR, promociones, pedidos, pagos y reservas sin código.",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "ratingCount": "127"
+  }
+}
+</script>
+<!-- ── Stylesheets específicos de landing ─────────────────────────── -->
+<link rel="stylesheet" href="/static/css/templates/landing.css?v=v2.01-landing">
+<link rel="stylesheet" href="/static/css/templates/components.css?v=v2.01-landing">
+{% endblock %}
 
 {% block content %}
-<!-- ═══════════════════════════════════════════════════════════════════
-     HERO
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%); padding: 80px 24px 60px;">
-  <div style="max-width: 1100px; margin: 0 auto; text-align: center;">
-    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px;">
-      <span style="background: #6c5ce7; color: #fff; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;">MVP v0.2</span>
-      <span style="background: #00b894; color: #fff; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;">Multi-tenant</span>
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;">LATAM-first</span>
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;">PWA</span>
-    </div>
+<a href="#hero" class="skip-link">Saltar al contenido</a>
 
-    <h1 style="font-size: clamp(36px, 6vw, 64px); line-height: 1.1; font-weight: 800; color: #172033; margin: 0 0 24px; letter-spacing: -0.02em;">
-      Tu negocio online,<br>
-      <span style="color: #6c5ce7;">en minutos.</span>
-    </h1>
-
-    <p style="font-size: 19px; color: #4a5573; max-width: 720px; margin: 0 auto 32px; line-height: 1.5;">
-      Página, catálogo, QR, promociones, pedidos, pagos y reservas. Sin código.
-      Sin enredarse. Hecho para PyMEs en
-      <strong style="color: #172033;">Chile, México, Colombia, Argentina y Brasil</strong>.
-    </p>
-
-    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px;">
-      <a href="/register"
-         style="background: #6c5ce7; color: #fff; padding: 16px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; text-decoration: none; box-shadow: 0 4px 14px rgba(108,92,231,0.35); display: inline-flex; align-items: center; gap: 8px;">
-        Crea tu cuenta gratis
-        <span style="font-size: 18px;">→</span>
-      </a>
-      <a href="/docs" target="_blank"
-         style="background: #fff; color: #172033; padding: 16px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; border: 1.5px solid #d8dce8;">
-        Ver API
-      </a>
-    </div>
-
-    <p style="color: #6c7080; font-size: 13px; margin: 16px 0 0;">
-      ✓ Sin tarjeta de crédito &nbsp;·&nbsp; ✓ Cancela cuando quieras &nbsp;·&nbsp; ✓ Soporte en español
-    </p>
+<!-- ════════════════════════════════════════════════════════════════════
+     TOPBAR
+     ════════════════════════════════════════════════════════════════════ -->
+<header class="topbar" style="border-bottom: 1px solid var(--landing-border, #e8ebf3); background: var(--landing-bg-elev, #fff); position: sticky; top: 0; z-index: 50;">
+  <div class="container" style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px;">
+    <a class="brand" href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <span style="width: 32px; height: 32px; border-radius: 8px; background: var(--landing-accent, #6c5ce7); color: #fff; display: grid; place-items: center; font-weight: 800;">W</span>
+      <strong style="color: var(--landing-fg, #172033); font-size: 17px;">WowHub</strong>
+    </a>
+    <nav class="topbar__nav" style="display: flex; align-items: center; gap: 18px;" aria-label="Principal">
+      <a href="/docs" style="color: var(--landing-fg-muted, #6c7080); font-size: 14px; text-decoration: none;">API Docs</a>
+      <a href="https://github.com/moisesarancibiasanchez-cpu/WowHub" target="_blank" rel="noopener" style="color: var(--landing-fg-muted, #6c7080); font-size: 14px; text-decoration: none;">Repo</a>
+      <button type="button" id="theme-toggle" aria-label="Cambiar tema" aria-pressed="false" title="Cambiar tema claro/oscuro" style="background: transparent; border: 0; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--landing-fg, #172033);">
+        <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display: none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+      <a class="btn btn--ghost" href="/login" style="font-size: 14px;">Ingresar</a>
+      <a class="btn btn--primary" href="/register" style="font-size: 14px;">Crear cuenta</a>
+    </nav>
+    <button type="button" class="mobile-menu-btn" aria-label="Abrir menú" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
   </div>
-</section>
+</header>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     FUNCIONES DEL MVP (8 cards)
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="padding: 80px 24px; background: #ffffff;">
-  <div style="max-width: 1100px; margin: 0 auto;">
-    <div style="text-align: center; margin-bottom: 56px;">
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Funciones</span>
-      <h2 style="font-size: 40px; font-weight: 800; color: #172033; margin: 16px 0 12px; letter-spacing: -0.02em;">Funciones del MVP</h2>
-      <p style="font-size: 17px; color: #6c7080; max-width: 600px; margin: 0 auto;">
-        Lo mínimo viable, más todo lo que tu PyME necesita el día 1.
+<main>
+<!-- ════════════════════════════════════════════════════════════════════
+     HERO (2 columnas desktop, apilado mobile)
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="hero" id="hero">
+  <div class="hero__inner">
+    <div class="hero__left">
+      <div class="hero__badges">
+        <span class="hero__badge hero__badge--accent">Nuevo · MVP v0.2</span>
+        <span class="hero__badge hero__badge--soft">LATAM-first</span>
+        <span class="hero__badge hero__badge--success">Multi-tenant</span>
+      </div>
+
+      <h1 class="hero__title">Tu negocio online,<br><span>en minutos.</span></h1>
+
+      <p class="hero__lead">
+        Crea tu página, catálogo, QR, promociones, pedidos y reservas sin código.
+        Diseñado para PyMEs de LATAM.
+      </p>
+
+      <div class="hero__cta">
+        <a class="btn btn--primary btn--lg" href="/register" aria-label="Crear mi tienda gratis">
+          Crear mi tienda gratis
+          <span aria-hidden="true">→</span>
+        </a>
+        <a class="btn btn--outline btn--lg" href="#" data-demo-target="modal-demo"
+           aria-label="Ver demo de una tienda">
+          Ver demo de una tienda
+        </a>
+      </div>
+
+      <p class="hero__trust">
+        ✓ Sin tarjeta de crédito &nbsp;·&nbsp; ✓ Cancela cuando quieras &nbsp;·&nbsp; ✓ Soporte en español
       </p>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
-      <!-- Card template — todas usan el mismo style -->
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">⚡</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Página</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Landing pública de tu negocio con tu marca, colores, contacto y bloques custom.</p>
+    <div class="hero__mockup" aria-hidden="true">
+      <div class="float-card float-card--top">
+        <div class="float-card__icon">●</div>
+        <span>Nuevo pedido Mesa 4</span>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">📦</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Catálogo</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Productos, categorías, precios, stock, fotos. Optimizado para mobile y WhatsApp.</p>
+      <div class="phone">
+        <div class="phone__notch"></div>
+        <div class="phone__screen">
+          <div class="phone__header">
+            <div class="phone__logo">N</div>
+            <div>
+              <div class="phone__title">Café Norte</div>
+              <div class="phone__sub">Santiago, Chile</div>
+            </div>
+          </div>
+          <div class="phone__image">
+            ☕
+            <div class="phone__promo-badge">-20%</div>
+          </div>
+          <div class="phone__body">
+            <div class="phone__product-name">Latte Artesanal</div>
+            <div class="phone__price">$3.500 CLP</div>
+            <div class="phone__btn">
+              <span>💬</span>
+              Pedir por WhatsApp
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">📱</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">QR</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Genera QRs para tus mesas, locales, productos o categorías. Mide cada escaneo.</p>
-      </div>
-
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">🎉</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Promociones</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Porcentajes, 2x1, cupones. Aplica a productos o categorías. Vigencia y límites.</p>
-      </div>
-
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">🧾</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Pedidos</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Flujo completo: PENDIENTE → CONFIRMADO → PREPARANDO → LISTO → ENTREGADO.</p>
-      </div>
-
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">💳</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Pagos</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">MercadoPago, transferencia, efectivo o contra entrega. Webhooks firmados.</p>
-      </div>
-
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">📅</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Reservas</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Ideal para servicios: belleza, salud, educación. Confirma por WhatsApp.</p>
-      </div>
-
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 14px; padding: 24px; transition: transform 0.15s, box-shadow 0.15s;"
-           onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 12px 24px rgba(108,92,231,0.10)';"
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
-        <div style="width: 48px; height: 48px; background: #f0efff; border-radius: 12px; display: grid; place-items: center; font-size: 24px; margin-bottom: 16px;">📊</div>
-        <h3 style="font-size: 17px; font-weight: 700; color: #172033; margin: 0 0 8px;">Estadísticas</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Ventas, top productos, QRs más escaneados, serie diaria, ticket promedio.</p>
+      <div class="float-card float-card--bottom">
+        <div class="float-card__icon">◆</div>
+        <span>QR escaneado · Catálogo digital</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     STATS SHOWCASE (4 stat cards)
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="padding: 80px 24px; background: #f5f7fb;">
-  <div style="max-width: 1100px; margin: 0 auto;">
-    <div style="text-align: center; margin-bottom: 48px;">
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Sistema operativo</span>
-      <h2 style="font-size: 40px; font-weight: 800; color: #172033; margin: 16px 0 12px; letter-spacing: -0.02em;">El sistema operativo de tu PyME</h2>
-      <p style="font-size: 17px; color: #6c7080; max-width: 600px; margin: 0 auto;">Todo conectado, todo en un solo lugar, sin enredarte.</p>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
-      <div style="background: #fff; border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <div style="font-size: 44px; font-weight: 800; color: #6c5ce7; line-height: 1;">10 min</div>
-        <div style="color: #6c7080; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Para tener tu tienda online</div>
-      </div>
-      <div style="background: #fff; border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <div style="font-size: 44px; font-weight: 800; color: #6c5ce7; line-height: 1;">5</div>
-        <div style="color: #6c7080; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Países LATAM soportados</div>
-      </div>
-      <div style="background: #fff; border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <div style="font-size: 44px; font-weight: 800; color: #6c5ce7; line-height: 1;">24/7</div>
-        <div style="color: #6c7080; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Tus clientes compran solos</div>
-      </div>
-      <div style="background: #fff; border-radius: 14px; padding: 28px 24px; text-align: center; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <div style="font-size: 44px; font-weight: 800; color: #6c5ce7; line-height: 1;">1 sola</div>
-        <div style="color: #6c7080; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">API para todo</div>
-      </div>
-    </div>
+<!-- ════════════════════════════════════════════════════════════════════
+     TRUST BAR (5 items discretos)
+     ════════════════════════════════════════════════════════════════════ -->
+<div class="trust-bar">
+  <div class="trust-bar__inner">
+    <span class="trust-bar__item">Pensado para PyMEs de LATAM</span>
+    <span class="trust-bar__item">Español nativo</span>
+    <span class="trust-bar__item">Pagos con MercadoPago</span>
+    <span class="trust-bar__item">Compatible con WhatsApp</span>
+    <span class="trust-bar__item">Dominio propio disponible</span>
   </div>
-</section>
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     CÓMO FUNCIONA (3 pasos)
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="padding: 80px 24px; background: #ffffff;">
-  <div style="max-width: 1100px; margin: 0 auto;">
+<!-- ════════════════════════════════════════════════════════════════════
+     FUNCIONES (8 cards)
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="funciones">
+  <div class="container">
     <div style="text-align: center; margin-bottom: 56px;">
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">3 pasos</span>
-      <h2 style="font-size: 40px; font-weight: 800; color: #172033; margin: 16px 0 12px; letter-spacing: -0.02em;">¿Cómo funciona?</h2>
-      <p style="font-size: 17px; color: #6c7080; max-width: 600px; margin: 0 auto;">De cero a vendiendo en 3 pasos.</p>
+      <span class="section-eyebrow">Funciones</span>
+      <h2 class="section-title">Todo lo que necesitas para vender</h2>
+      <p class="section-subtitle">Desde tu primera venta hasta la gestión diaria de tu negocio.</p>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 16px; padding: 32px; text-align: center;">
-        <div style="width: 56px; height: 56px; margin: 0 auto 16px; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 800; box-shadow: 0 4px 12px rgba(108,92,231,0.30);">1</div>
-        <h3 style="font-size: 19px; font-weight: 700; color: #172033; margin: 0 0 8px;">Crea tu cuenta</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Email + password. Sin tarjeta de crédito. Toma 30 segundos.</p>
-      </div>
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 16px; padding: 32px; text-align: center;">
-        <div style="width: 56px; height: 56px; margin: 0 auto 16px; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 800; box-shadow: 0 4px 12px rgba(108,92,231,0.30);">2</div>
-        <h3 style="font-size: 19px; font-weight: 700; color: #172033; margin: 0 0 8px;">Configura tu negocio</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Nombre, logo, colores. Agrega productos, categorías, sucursales.</p>
-      </div>
-      <div style="background: #fff; border: 1px solid #e8ebf3; border-radius: 16px; padding: 32px; text-align: center;">
-        <div style="width: 56px; height: 56px; margin: 0 auto 16px; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 800; box-shadow: 0 4px 12px rgba(108,92,231,0.30);">3</div>
-        <h3 style="font-size: 19px; font-weight: 700; color: #172033; margin: 0 0 8px;">Comparte tu link o QR</h3>
-        <p style="font-size: 14px; color: #6c7080; line-height: 1.5; margin: 0;">Tus clientes compran online. Tú ves todo en el dashboard.</p>
-      </div>
+    <div class="grid grid--features">
+      <article class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3 class="feature-title">Página web</h3>
+        <p class="feature-benefit">Tu negocio presente en internet</p>
+        <p class="feature-text">Landing con tu logo, colores, contacto y contenido personalizado.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-page">Ver ejemplo de página →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3 class="feature-title">Catálogo digital</h3>
+        <p class="feature-benefit">Muestra tus productos con estilo</p>
+        <p class="feature-text">Productos, categorías, fotos, precios, stock y ficha de producto.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-catalog">Ver catálogo demo →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3 class="feature-title">QR inteligentes</h3>
+        <p class="feature-benefit">Conecta el mundo físico con tu tienda</p>
+        <p class="feature-text">Genera QR para mesas, locales, productos o categorías y mide cada escaneo.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-qr">Ver ejemplo de QR →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">🎉</div>
+        <h3 class="feature-title">Promociones</h3>
+        <p class="feature-benefit">Atrae más clientes</p>
+        <p class="feature-text">Descuentos, 2x1, cupones y promociones por producto o categoría.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-promos">Ver promociones demo →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">🧾</div>
+        <h3 class="feature-title">Pedidos</h3>
+        <p class="feature-benefit">Recibe pedidos sin perder detalles</p>
+        <p class="feature-text">Flujo completo desde pendiente hasta entregado.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-orders">Ver flujo de pedidos →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">💳</div>
+        <h3 class="feature-title">Pagos</h3>
+        <p class="feature-benefit">Cobra como tu negocio lo necesita</p>
+        <p class="feature-text">MercadoPago, transferencia, efectivo o pago contra entrega.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-payments">Ver opciones de pago →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h3 class="feature-title">Reservas</h3>
+        <p class="feature-benefit">Agenda tus servicios fácilmente</p>
+        <p class="feature-text">Ideal para belleza, salud, educación y servicios con confirmación por WhatsApp.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-bookings">Ver demo de reservas →</a>
+      </article>
+
+      <article class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3 class="feature-title">Estadísticas</h3>
+        <p class="feature-benefit">Toma mejores decisiones</p>
+        <p class="feature-text">Ventas, productos más vendidos, QR escaneados y ticket promedio.</p>
+        <a href="#" class="feature-link" data-demo-target="modal-stats">Ver dashboard demo →</a>
+      </article>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     TESTIMONIOS (3 cards)
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="padding: 80px 24px; background: #f5f7fb;">
-  <div style="max-width: 1100px; margin: 0 auto;">
+<!-- ════════════════════════════════════════════════════════════════════
+     STATS SHOWCASE
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section section--alt" id="stats">
+  <div class="container">
     <div style="text-align: center; margin-bottom: 48px;">
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Testimonios</span>
-      <h2 style="font-size: 40px; font-weight: 800; color: #172033; margin: 16px 0 12px; letter-spacing: -0.02em;">Lo que dicen nuestros socios</h2>
-      <p style="font-size: 17px; color: #6c7080; max-width: 600px; margin: 0 auto;">PyMEs reales de Chile, México y Colombia.</p>
+      <span class="section-eyebrow">Sistema operativo</span>
+      <h2 class="section-title">Un solo lugar para gestionar tu negocio</h2>
+      <p class="section-subtitle">Todo conectado, todo en un solo lugar, sin enredarte.</p>
     </div>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
-      <article style="background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <p style="font-size: 15px; color: #2d3748; line-height: 1.6; font-style: italic; margin: 0 0 20px;">
-          "En 10 minutos tenía mi cafetería con catálogo y pedidos por WhatsApp. Lo que antes me tomaba una tarde con otra plataforma."
-        </p>
-        <div style="display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid #e8ebf3;">
-          <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">MC</div>
-          <div>
-            <div style="font-size: 14px; font-weight: 700; color: #172033;">María Contreras</div>
-            <div style="font-size: 12px; color: #6c7080;">Café Norte · Santiago, CL</div>
-          </div>
-        </div>
-      </article>
-
-      <article style="background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <p style="font-size: 15px; color: #2d3748; line-height: 1.6; font-style: italic; margin: 0 0 20px;">
-          "Los QRs para las mesas cambiaron mi restaurante. Cada mesa sabe qué pidió y yo no pierdo pedidos en papel."
-        </p>
-        <div style="display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid #e8ebf3;">
-          <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">JR</div>
-          <div>
-            <div style="font-size: 14px; font-weight: 700; color: #172033;">Javier Reyes</div>
-            <div style="font-size: 12px; color: #6c7080;">Taquería Don Julio · CDMX, MX</div>
-          </div>
-        </div>
-      </article>
-
-      <article style="background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 2px 8px rgba(23,32,51,0.04);">
-        <p style="font-size: 15px; color: #2d3748; line-height: 1.6; font-style: italic; margin: 0 0 20px;">
-          "Las reservas online me ahorraron 2 horas al día coordinando por WhatsApp. Mis clientas reservan solas."
-        </p>
-        <div style="display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid #e8ebf3;">
-          <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #6c5ce7, #5b4cd1); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">AP</div>
-          <div>
-            <div style="font-size: 14px; font-weight: 700; color: #172033;">Andrea Pérez</div>
-            <div style="font-size: 12px; color: #6c7080;">Salón Andrea · Bogotá, CO</div>
-          </div>
-        </div>
-      </article>
+    <div class="grid grid--stats">
+      <div class="stat-card">
+        <div class="stat-card__value">10 min</div>
+        <div class="stat-card__label">Para tener tu tienda online</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">5</div>
+        <div class="stat-card__label">Países LATAM soportados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">24/7</div>
+        <div class="stat-card__label">Tus clientes compran solos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">1 sola</div>
+        <div class="stat-card__label">API para todo</div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     FAQ
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="padding: 80px 24px; background: #ffffff;">
-  <div style="max-width: 760px; margin: 0 auto;">
+<!-- ════════════════════════════════════════════════════════════════════
+     CÓMO FUNCIONA (3 pasos)
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="como-funciona">
+  <div class="container">
+    <div style="text-align: center; margin-bottom: 56px;">
+      <span class="section-eyebrow">3 pasos</span>
+      <h2 class="section-title">Empieza en 3 simples pasos</h2>
+      <p class="section-subtitle">De cero a vendiendo en minutos.</p>
+    </div>
+    <div class="grid grid--steps">
+      <div class="step-card">
+        <div class="step-card__number">1</div>
+        <h3 class="step-card__title">Crea tu cuenta</h3>
+        <p class="step-card__text">Email + password. Sin tarjeta de crédito. Toma 30 segundos.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-card__number">2</div>
+        <h3 class="step-card__title">Configura tu negocio</h3>
+        <p class="step-card__text">Nombre, logo, colores. Agrega productos, categorías, sucursales.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-card__number">3</div>
+        <h3 class="step-card__title">Comparte tu link o QR</h3>
+        <p class="step-card__text">Tus clientes compran online. Tú ves todo en el dashboard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PRICING (3 planes)
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section section--alt" id="precios">
+  <div class="container">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <span class="section-eyebrow">Precios</span>
+      <h2 class="section-title">Planes simples para crecer</h2>
+      <p class="section-subtitle">Empieza gratis y escala cuando tu negocio lo necesite.</p>
+    </div>
+
+    <div style="text-align: center;">
+      <div class="pricing-toggle" role="group" aria-label="Período de facturación">
+        <button type="button" class="pricing-toggle__btn" data-period="monthly" aria-pressed="true">Mensual</button>
+        <button type="button" class="pricing-toggle__btn" data-period="yearly" aria-pressed="false">Anual <span style="opacity:.8;">(ahorra 20%)</span></button>
+      </div>
+    </div>
+
+    <div class="grid grid--pricing">
+      <div class="pricing-card">
+        <h3 class="pricing-card__name">Gratis</h3>
+        <p class="pricing-card__audience">Emprender y validar tu idea</p>
+        <div class="pricing-card__price">
+          <span class="pricing-card__price-amount">$0</span>
+        </div>
+        <p class="pricing-card__price-note">✓ Sin tarjeta de crédito</p>
+        <ul class="pricing-card__features">
+          <li>Página pública</li>
+          <li>Catálogo básico</li>
+          <li>Hasta 20 productos</li>
+          <li>QR básico</li>
+          <li>Botón de WhatsApp</li>
+        </ul>
+        <a class="btn btn--outline pricing-card__cta" href="/register">Crear cuenta gratis</a>
+      </div>
+
+      <div class="pricing-card pricing-card--highlight">
+        <span class="pricing-card__badge">Más elegido</span>
+        <h3 class="pricing-card__name">Pro</h3>
+        <p class="pricing-card__audience">Negocios en crecimiento</p>
+        <div class="pricing-card__price">
+          <span style="font-size: 16px; color: var(--landing-fg-muted);">Desde</span>
+          <span class="pricing-card__price-amount" data-price="$5.990" data-price-yearly="$4.790">$5.990</span>
+          <span class="pricing-card__price-period" data-price-period>/ mes</span>
+        </div>
+        <p class="pricing-card__price-note">Moneda local según país (CLP / MXN / COP / ARS / BRL)</p>
+        <ul class="pricing-card__features">
+          <li>Todo lo del plan Gratis</li>
+          <li>Productos ilimitados</li>
+          <li>Promociones y cupones</li>
+          <li>Pedidos</li>
+          <li>Reservas</li>
+          <li>Estadísticas avanzadas</li>
+          <li>Dominio propio</li>
+        </ul>
+        <a class="btn btn--primary pricing-card__cta" href="/register?plan=pro">Probar Pro gratis</a>
+      </div>
+
+      <div class="pricing-card">
+        <h3 class="pricing-card__name">Business</h3>
+        <p class="pricing-card__audience">Cadenas, franquicias y negocios con varias sucursales</p>
+        <div class="pricing-card__price">
+          <span class="pricing-card__price-amount" style="font-size: 28px;">Personalizado</span>
+        </div>
+        <p class="pricing-card__price-note" style="visibility: hidden;">.</p>
+        <ul class="pricing-card__features">
+          <li>Todo lo del plan Pro</li>
+          <li>Multi-sucursal</li>
+          <li>Roles y permisos</li>
+          <li>Integraciones</li>
+          <li>Soporte prioritario</li>
+        </ul>
+        <a class="btn btn--outline pricing-card__cta" href="/contact-sales">Hablar con ventas</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     TESTIMONIOS
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="testimonios">
+  <div class="container">
     <div style="text-align: center; margin-bottom: 48px;">
-      <span style="background: #f0efff; color: #6c5ce7; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">FAQ</span>
-      <h2 style="font-size: 40px; font-weight: 800; color: #172033; margin: 16px 0 12px; letter-spacing: -0.02em;">Preguntas frecuentes</h2>
+      <span class="section-eyebrow">Testimonios</span>
+      <h2 class="section-title">Lo que dicen nuestros socios</h2>
+      <p class="section-subtitle">PyMEs reales de Chile, México y Colombia.</p>
     </div>
+    <div class="grid grid--testimonials">
+      <article class="testimonial-card">
+        <p class="testimonial-card__quote">"Con WowHub publicamos nuestro catálogo y recibimos pedidos por WhatsApp sin depender de papel."</p>
+        <div class="testimonial-card__author">
+          <div class="testimonial-card__avatar">MC</div>
+          <div>
+            <div class="testimonial-card__name">María Contreras</div>
+            <div class="testimonial-card__role">Café Norte · Santiago, Chile</div>
+          </div>
+        </div>
+      </article>
+      <article class="testimonial-card">
+        <p class="testimonial-card__quote">"Los QR para las mesas cambiaron mi restaurante. Cada mesa sabe qué pidió y yo no pierdo pedidos."</p>
+        <div class="testimonial-card__author">
+          <div class="testimonial-card__avatar">JR</div>
+          <div>
+            <div class="testimonial-card__name">Javier Reyes</div>
+            <div class="testimonial-card__role">Taquería Don Julio · CDMX, México</div>
+          </div>
+        </div>
+      </article>
+      <article class="testimonial-card">
+        <p class="testimonial-card__quote">"Las reservas online me ahorraron 2 horas al día coordinando por WhatsApp. Mis clientas reservan solas."</p>
+        <div class="testimonial-card__author">
+          <div class="testimonial-card__avatar">AP</div>
+          <div>
+            <div class="testimonial-card__name">Andrea Pérez</div>
+            <div class="testimonial-card__role">Salón Andrea · Bogotá, Colombia</div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
 
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      <details style="background: #fff; border: 1px solid #e8ebf3; border-radius: 12px; padding: 20px 24px;">
-        <summary style="cursor: pointer; font-weight: 700; color: #172033; font-size: 16px; list-style: none;">¿Necesito tarjeta de crédito para empezar?</summary>
-        <p style="color: #4a5573; line-height: 1.6; margin: 12px 0 0;">No. El plan gratuito te permite operar sin tarjeta. Solo pagas cuando superas los límites o quieres funciones premium.</p>
+<!-- ════════════════════════════════════════════════════════════════════
+     FAQ (7 preguntas)
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section section--alt" id="faq">
+  <div class="container">
+    <div style="text-align: center; margin-bottom: 48px;">
+      <span class="section-eyebrow">FAQ</span>
+      <h2 class="section-title">Preguntas frecuentes</h2>
+    </div>
+    <div class="faq">
+      <details class="faq__item">
+        <summary class="faq__summary">¿Necesito saber de programación?</summary>
+        <p class="faq__answer">No. WowHub es 100% visual: clickeas botones, escribes textos y subes fotos. Si sos desarrollador, también tenés una API REST documentada.</p>
       </details>
-
-      <details style="background: #fff; border: 1px solid #e8ebf3; border-radius: 12px; padding: 20px 24px;">
-        <summary style="cursor: pointer; font-weight: 700; color: #172033; font-size: 16px; list-style: none;">¿Necesito conocimientos de programación?</summary>
-        <p style="color: #4a5573; line-height: 1.6; margin: 12px 0 0;">No. WowHub es 100% visual: clickeas botones, escribes textos y subes fotos. Si sos desarrollador, también tenés una API REST documentada.</p>
+      <details class="faq__item">
+        <summary class="faq__summary">¿Puedo usar mi propio dominio?</summary>
+        <p class="faq__answer">Sí, en el plan Pro. Configurás un CNAME y tu tienda aparece en mitienda.cl en lugar de wowhub.app/tu-negocio.</p>
       </details>
-
-      <details style="background: #fff; border: 1px solid #e8ebf3; border-radius: 12px; padding: 20px 24px;">
-        <summary style="cursor: pointer; font-weight: 700; color: #172033; font-size: 16px; list-style: none;">¿Puedo usar mi propio dominio?</summary>
-        <p style="color: #4a5573; line-height: 1.6; margin: 12px 0 0;">Sí, en el plan Pro. Configurás un CNAME y tu tienda aparece en mitienda.cl en lugar de wowhub.app/tu-negocio.</p>
+      <details class="faq__item">
+        <summary class="faq__summary">¿Puedo recibir pedidos por WhatsApp?</summary>
+        <p class="faq__answer">Sí. Cada producto tiene un botón "Pedir por WhatsApp" que abre un chat pre-llenado con el detalle del pedido y el nombre del cliente.</p>
       </details>
-
-      <details style="background: #fff; border: 1px solid #e8ebf3; border-radius: 12px; padding: 20px 24px;">
-        <summary style="cursor: pointer; font-weight: 700; color: #172033; font-size: 16px; list-style: none;">¿Qué medios de pago soportan?</summary>
-        <p style="color: #4a5573; line-height: 1.6; margin: 12px 0 0;">MercadoPago, transferencia bancaria, efectivo contra entrega, y Stripe (próximamente). Los webhooks están firmados y validados.</p>
+      <details class="faq__item">
+        <summary class="faq__summary">¿Qué medios de pago puedo aceptar?</summary>
+        <p class="faq__answer">MercadoPago (LATAM), transferencia bancaria, efectivo contra entrega, y próximamente Stripe. Los webhooks están firmados y validados.</p>
+      </details>
+      <details class="faq__item">
+        <summary class="faq__summary">¿Puedo usar WowHub desde el celular?</summary>
+        <p class="faq__answer">Sí. El dashboard es mobile-first y la tienda pública es una PWA que tus clientes pueden instalar como app.</p>
+      </details>
+      <details class="faq__item">
+        <summary class="faq__summary">¿Puedo cancelar cuando quiera?</summary>
+        <p class="faq__answer">Sí. Sin contratos, sin cláusulas de permanencia. Cancelás desde tu dashboard cuando quieras y se respetan los datos hasta el final del ciclo.</p>
+      </details>
+      <details class="faq__item">
+        <summary class="faq__summary">¿WowHub sirve para más de una sucursal?</summary>
+        <p class="faq__answer">Sí. En el plan Business tenés multi-sucursal con roles, permisos e inventario por local.</p>
       </details>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════════════
+<!-- ════════════════════════════════════════════════════════════════════
      CTA FINAL
-     ═══════════════════════════════════════════════════════════════════ -->
-<section style="background: linear-gradient(135deg, #6c5ce7 0%, #5b4cd1 100%); padding: 80px 24px;">
-  <div style="max-width: 720px; margin: 0 auto; text-align: center;">
-    <h2 style="font-size: 40px; font-weight: 800; color: #fff; margin: 0 0 16px; letter-spacing: -0.02em;">¿Listo para empezar?</h2>
-    <p style="font-size: 18px; color: rgba(255,255,255,0.9); margin: 0 0 32px;">Tu tienda online en 10 minutos. Sin código. Sin tarjeta.</p>
-    <a href="/register"
-       style="display: inline-block; background: #fff; color: #6c5ce7; padding: 16px 40px; border-radius: 10px; font-size: 17px; font-weight: 700; text-decoration: none; box-shadow: 0 6px 20px rgba(0,0,0,0.15); transition: transform 0.15s;"
-       onmouseover="this.style.transform='translateY(-2px)';"
-       onmouseout="this.style.transform='translateY(0)';">
-      Crear mi cuenta gratis →
-    </a>
+     ════════════════════════════════════════════════════════════════════ -->
+<section class="section section--dark" id="cta-final">
+  <div class="container" style="text-align: center; max-width: 720px;">
+    <h2 class="section-title">Crea tu tienda online hoy</h2>
+    <p class="section-subtitle">Sin código, sin tarjeta de crédito y con soporte en español.</p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px;">
+      <a class="btn btn--lg" href="/register"
+         style="background: #fff; color: var(--landing-accent); font-weight: 700;">
+        Crear mi cuenta gratis
+        <span aria-hidden="true">→</span>
+      </a>
+      <a class="btn btn--outline btn--lg" href="#" data-demo-target="modal-demo"
+         style="background: transparent; color: #fff; border-color: rgba(255,255,255,0.50);">
+        Ver demo
+      </a>
+    </div>
+    <p style="margin-top: 20px; color: rgba(255,255,255,0.85); font-size: 14px;">Tu primera tienda puede estar lista en minutos.</p>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     FOOTER
-     ═══════════════════════════════════════════════════════════════════ -->
-<footer style="background: #0f1421; color: #c0c8d4; padding: 48px 24px 24px;">
-  <div style="max-width: 1100px; margin: 0 auto;">
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; margin-bottom: 32px;">
-      <div>
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-          <div style="width: 32px; height: 32px; border-radius: 8px; background: #6c5ce7; color: #fff; display: grid; place-items: center; font-weight: 800;">W</div>
-          <strong style="color: #fff; font-size: 16px;">WowHub</strong>
+<!-- ════════════════════════════════════════════════════════════════════
+     FOOTER (4 columnas)
+     ════════════════════════════════════════════════════════════════════ -->
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner">
+    <div class="footer__grid">
+      <div class="footer__col">
+        <div class="footer__brand">
+          <div class="footer__brand-mark">W</div>
+          <span class="footer__brand-name">WowHub</span>
         </div>
-        <p style="font-size: 13px; color: #8a92a4; line-height: 1.5; margin: 0;">El sistema operativo para PyMEs en LATAM.</p>
+        <p class="footer__tagline">El sistema operativo para PyMEs de LATAM.</p>
+        <div class="footer__social">
+          <a href="https://github.com/moisesarancibiasanchez-cpu/WowHub" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.7 5.5.7 11.8c0 5 3.2 9.2 7.7 10.7.6.1.8-.3.8-.6v-2c-3.1.7-3.8-1.5-3.8-1.5-.5-1.3-1.2-1.6-1.2-1.6-1-.7.1-.7.1-.7 1.1.1 1.7 1.2 1.7 1.2 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.5-.3-5.1-1.2-5.1-5.5 0-1.2.4-2.2 1.2-3-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2.9-.3 1.9-.4 2.9-.4s2 .1 2.9.4c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3 0 4.3-2.6 5.2-5.1 5.5.4.3.8 1 .8 2v3c0 .3.2.7.8.6 4.5-1.5 7.7-5.7 7.7-10.7C23.3 5.5 18.3.5 12 .5z"/></svg>
+          </a>
+          <a href="#" aria-label="Twitter">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a href="#" aria-label="LinkedIn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+        </div>
       </div>
-      <div>
-        <h4 style="color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px;">Producto</h4>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-          <li style="margin-bottom: 8px;"><a href="/docs" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">API Docs</a></li>
-          <li style="margin-bottom: 8px;"><a href="/docs" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">OpenAPI</a></li>
-          <li style="margin-bottom: 8px;"><a href="/dashboard/templates" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Apariencia</a></li>
+
+      <div class="footer__col">
+        <h4>Producto</h4>
+        <ul>
+          <li><a href="#funciones">Página web</a></li>
+          <li><a href="#funciones">Catálogo</a></li>
+          <li><a href="#funciones">QR</a></li>
+          <li><a href="#funciones">Promociones</a></li>
+          <li><a href="#funciones">Pedidos</a></li>
+          <li><a href="#funciones">Reservas</a></li>
         </ul>
       </div>
-      <div>
-        <h4 style="color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px;">Empresa</h4>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-          <li style="margin-bottom: 8px;"><a href="/legal/terms" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Términos</a></li>
-          <li style="margin-bottom: 8px;"><a href="/legal/privacy" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Privacidad</a></li>
-          <li style="margin-bottom: 8px;"><a href="/legal/cookies" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Cookies</a></li>
+
+      <div class="footer__col">
+        <h4>Recursos</h4>
+        <ul>
+          <li><a href="/help">Centro de ayuda</a></li>
+          <li><a href="/guides">Guías para PyMEs</a></li>
+          <li><a href="/status">Estado del servicio</a></li>
+          <li><a href="/contact">Contacto</a></li>
         </ul>
       </div>
-      <div>
-        <h4 style="color: #fff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px;">Acceso</h4>
-        <ul style="list-style: none; padding: 0; margin: 0;">
-          <li style="margin-bottom: 8px;"><a href="/login" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Ingresar</a></li>
-          <li style="margin-bottom: 8px;"><a href="/register" style="color: #c0c8d4; text-decoration: none; font-size: 14px;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#c0c8d4';">Registrarme</a></li>
+
+      <div class="footer__col">
+        <h4>Desarrolladores</h4>
+        <ul>
+          <li><a href="/docs">Documentación API</a></li>
+          <li><a href="/docs">OpenAPI</a></li>
+          <li><a href="/docs/webhooks">Webhooks</a></li>
+          <li><a href="/status">Estado de la API</a></li>
         </ul>
       </div>
     </div>
-    <div style="padding-top: 24px; border-top: 1px solid #1f2535; text-align: center; font-size: 12px; color: #6c7080;">
-      © 2026 WowHub. Hecho con 💜 para PyMEs en LATAM.
+
+    <div class="footer__bottom">
+      <div class="footer__legal">
+        <a href="/legal/terms">Términos y condiciones</a>
+        <a href="/legal/privacy">Política de privacidad</a>
+        <a href="/legal/cookies">Política de cookies</a>
+      </div>
+      <select class="footer__country-select" aria-label="País y moneda">
+        <option value="CL">🇨🇱 Chile (CLP)</option>
+        <option value="MX">🇲🇽 México (MXN)</option>
+        <option value="CO">🇨🇴 Colombia (COP)</option>
+        <option value="AR">🇦🇷 Argentina (ARS)</option>
+        <option value="BR">🇧🇷 Brasil (BRL)</option>
+      </select>
+      <div>© 2026 WowHub. Hecho con 💜 para PyMEs en LATAM.</div>
     </div>
   </div>
 </footer>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     DEMO MODALS (accesibles, focus trap)
+     ════════════════════════════════════════════════════════════════════ -->
+<div id="modal-demo" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-demo-title">
+  <div class="demo-modal__content">
+    <button type="button" class="demo-modal__close" aria-label="Cerrar">×</button>
+    <h3 id="modal-demo-title" style="margin: 0 0 12px;">Demo de WowHub</h3>
+    <p style="color: var(--landing-fg-muted);">Próximamente: vista interactiva de una tienda real creada con la plataforma. Mientras tanto, crea tu cuenta gratis y prueba todas las funciones.</p>
+    <a class="btn btn--primary" href="/register" style="margin-top: 16px;">Crear mi cuenta gratis</a>
+  </div>
+</div>
+
+<div id="modal-page" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-page-title">
+  <div class="demo-modal__content">
+    <button type="button" class="demo-modal__close" aria-label="Cerrar">×</button>
+    <h3 id="modal-page-title" style="margin: 0 0 12px;">Ejemplo de página</h3>
+    <p style="color: var(--landing-fg-muted);">Tu landing pública con tu logo, colores, contacto y bloques custom. Sin código.</p>
+  </div>
+</div>
+
+<div id="modal-catalog" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Catálogo demo</h3><p style="color: var(--landing-fg-muted);">Productos con foto, precio, stock, descripción y botón de WhatsApp.</p></div>
+</div>
+<div id="modal-qr" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>QR inteligente</h3><p style="color: var(--landing-fg-muted);">Genera QRs por mesa, producto, categoría o sucursal. Mide cada escaneo.</p></div>
+</div>
+<div id="modal-promos" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Promociones</h3><p style="color: var(--landing-fg-muted);">Descuentos, 2x1, cupones por producto o categoría con vigencia y límites.</p></div>
+</div>
+<div id="modal-orders" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Flujo de pedidos</h3><p style="color: var(--landing-fg-muted);">PENDIENTE → CONFIRMADO → PREPARANDO → LISTO → ENTREGADO.</p></div>
+</div>
+<div id="modal-payments" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Opciones de pago</h3><p style="color: var(--landing-fg-muted);">MercadoPago, transferencia, efectivo contra entrega, próximamente Stripe.</p></div>
+</div>
+<div id="modal-bookings" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Demo de reservas</h3><p style="color: var(--landing-fg-muted);">Agenda online con confirmación por WhatsApp. Ideal para servicios.</p></div>
+</div>
+<div id="modal-stats" class="demo-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="demo-modal__content"><button type="button" class="demo-modal__close" aria-label="Cerrar">×</button><h3>Dashboard demo</h3><p style="color: var(--landing-fg-muted);">Ventas, top productos, QR escaneados, ticket promedio, serie diaria.</p></div>
+</div>
+
+</main>
+
+<script src="/static/js/landing.js?v=v2.01-landing"></script>
 {% endblock %}
