@@ -563,12 +563,42 @@ img { max-width: 100%; height: auto; }
   box-shadow: 0 1px 3px rgba(23,32,51,0.04);
 }
 .mock-product__img {
-  width: 52px; height: 52px;
+  width: 60px; height: 60px;
   border-radius: var(--landing-radius-sm);
   display: grid; place-items: center;
   font-size: 28px;
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+  position: relative;
+  overflow: hidden;
+}
+.mock-product__img svg { position: relative; z-index: 1; }
+.mock-product__img--latte {
+  background: linear-gradient(135deg, #fde68a 0%, #fb923c 50%, #f87171 100%);
+}
+.mock-product__img--latte::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%);
+}
+.mock-product__img--cake {
+  background: linear-gradient(135deg, #c084fc 0%, #ec4899 50%, #db2777 100%);
+}
+.mock-product__img--cake::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 30%, rgba(255,255,255,0.3), transparent 60%);
+}
+.mock-product__img--salad {
+  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 50%, #74b9ff 100%);
+}
+.mock-product__img--salad::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 70%, rgba(255,255,255,0.25), transparent 60%);
 }
 .mock-product__info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .mock-product__info strong {
@@ -587,42 +617,55 @@ img { max-width: 100%; height: auto; }
   align-self: flex-start;
 }
 
-/* mock-qr */
+/* mock-qr — V2.99c: SVG QR realista con 3 finder patterns + datos */
 .mock-qr__label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--landing-fg);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--landing-accent-soft);
+  border-radius: var(--landing-radius-pill);
 }
-.mock-qr__pattern {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 12px;
+.mock-qr__label::before { content: "🪑"; font-size: 12px; }
+.mock-qr__svg-wrap {
+  position: relative;
+  width: 144px;
+  height: 144px;
+  margin: 0 auto 8px;
+  padding: 8px;
+  background: #ffffff;
+  border: 2px solid var(--landing-border);
+  border-radius: var(--landing-radius);
+  box-shadow: 0 4px 12px rgba(23,32,51,0.08);
 }
-.qr-cell {
-  background: var(--landing-fg);
-  border-radius: 2px;
+.mock-qr__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
-.qr-cell.c2, .qr-cell.c4, .qr-cell.c6, .qr-cell.c8 { opacity: 0.25; }
-.qr-cell.c5 { background: var(--landing-accent); }
 .mock-qr__scan {
-  width: 96px;
+  position: absolute;
+  left: 8px; right: 8px;
   height: 2px;
-  background: var(--landing-accent);
-  margin: 6px auto 12px;
+  background: linear-gradient(90deg, transparent, var(--landing-accent), transparent);
   border-radius: 2px;
   animation: qrScan 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  top: 12px;
 }
 @keyframes qrScan {
   0%, 100% { transform: translateY(0); opacity: 1; }
-  50%      { transform: translateY(80px); opacity: 0.6; }
+  50%      { transform: translateY(116px); opacity: 0.6; }
 }
 .mock-qr__footer {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--landing-fg-muted);
+  font-weight: 500;
 }
 
 /* mock-orders — V2.99b: numeros mas grandes y dots mas prominentes */
