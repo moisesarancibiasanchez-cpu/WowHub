@@ -10,6 +10,7 @@
   --landing-accent-hover:     #5b4cd1;
   --landing-accent-soft:      #f0efff;
   --landing-success:          #00b894;
+  --landing-success-soft:     #d4f4ea;
   --landing-danger:           #ff6b6b;
   --landing-warning:          #fdcb6e;
   --landing-info:             #74b9ff;
@@ -53,6 +54,7 @@
   --landing-shadow:            0 2px 8px rgba(0,0,0,0.30);
   --landing-shadow-md:         0 4px 14px rgba(0,0,0,0.40);
   --landing-accent-soft:      rgba(108,92,231,0.15);
+  --landing-success-soft:     rgba(0,184,148,0.18);
 }
 
 /* ── Reset base ─────────────────────────────────────────────────── */
@@ -342,6 +344,375 @@ img { max-width: 100%; height: auto; }
   50% { transform: translateY(-6px) rotate(2deg); }
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   HERO SHOWCASE INTERACTIVO (8 tabs ARIA + mockup dinámico)
+   Reemplaza al hero__mockup estático a partir de V2.01.
+   ════════════════════════════════════════════════════════════════════ */
+.hero-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 460px;
+  position: relative;
+}
+
+/* Tabs (píldoras horizontales con scroll-snap en mobile) */
+.hero-showcase__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px;
+  background: var(--landing-bg-elev);
+  border: 1px solid var(--landing-border);
+  border-radius: var(--landing-radius-lg);
+  box-shadow: var(--landing-shadow-sm);
+}
+
+.hero-tab {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 8px 12px;
+  border-radius: var(--landing-radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--landing-fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--landing-transition),
+    color var(--landing-transition),
+    transform var(--landing-transition),
+    box-shadow var(--landing-transition);
+  white-space: nowrap;
+}
+
+.hero-tab:hover {
+  background: var(--landing-accent-soft);
+  color: var(--landing-accent);
+}
+
+.hero-tab:focus-visible {
+  outline: 2px solid var(--landing-accent);
+  outline-offset: 2px;
+}
+
+.hero-tab.is-active {
+  background: var(--landing-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.30);
+  transform: translateY(-1px);
+}
+
+.hero-tab__icon { font-size: 14px; line-height: 1; }
+.hero-tab__label { letter-spacing: 0.01em; }
+
+/* Viewport: contiene el mockup + las floating cards + tooltip */
+.hero-showcase__viewport {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 580px;
+}
+
+/* Tooltip contextual (cambia con el tab activo, ARIA live) */
+.hero-tooltip {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--landing-fg);
+  color: var(--landing-bg);
+  padding: 8px 14px;
+  border-radius: var(--landing-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--landing-shadow-md);
+  text-align: center;
+  z-index: 5;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.hero-tooltip__title { display: block; font-weight: 700; }
+.hero-tooltip__subtitle {
+  display: block;
+  font-weight: 500;
+  opacity: 0.85;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.hero-tooltip::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--landing-fg);
+}
+
+/* Mockup dinámico: el contenido cambia por JS al cambiar tab */
+[data-hero-mockup].is-switching .phone__screen {
+  opacity: 0;
+  transform: scale(0.97);
+}
+[data-hero-mockup] .phone__screen {
+  transition:
+    opacity 175ms ease,
+    transform 175ms ease;
+}
+.phone__screen > * { width: 100%; }
+
+/* ── Mock variants (8 visuales del showcase) ──────────────────────── */
+.mock-page     { padding: 18px 14px; }
+.mock-catalog { padding: 14px 12px; display: grid; gap: 10px; }
+.mock-qr      { padding: 22px 16px; text-align: center; }
+.mock-orders  { padding: 14px 12px; display: grid; gap: 10px; }
+.mock-payment { padding: 28px 18px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+.mock-bookings { padding: 14px 12px; display: grid; gap: 10px; }
+.mock-promos  { padding: 14px 12px; display: grid; gap: 10px; }
+.mock-stats   { padding: 16px 12px; display: grid; gap: 8px; }
+
+/* mock-page */
+.mock-page__hero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.mock-page__avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--landing-accent);
+  color: #fff;
+  display: grid; place-items: center;
+  font-weight: 700;
+}
+.mock-page__hero strong { display: block; font-size: 13px; color: var(--landing-fg); }
+.mock-page__hero small  { display: block; font-size: 10px; color: var(--landing-fg-muted); }
+.mock-page__lines .mock-line {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--landing-bg-elev);
+  margin-bottom: 8px;
+}
+.mock-page__lines .w-80 { width: 80%; }
+.mock-page__lines .w-60 { width: 60%; margin-left: auto; }
+.mock-page__lines .w-90 { width: 90%; }
+.mock-page__cta {
+  margin-top: 14px;
+  background: var(--landing-accent);
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: var(--landing-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* mock-catalog */
+.mock-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--landing-bg);
+  border: 1px solid var(--landing-border);
+  border-radius: var(--landing-radius-sm);
+  padding: 8px;
+}
+.mock-product__img {
+  width: 38px; height: 38px;
+  border-radius: var(--landing-radius-sm);
+  display: grid; place-items: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.mock-product__info { display: flex; flex-direction: column; flex: 1; }
+.mock-product__info strong { font-size: 12px; color: var(--landing-fg); }
+.mock-product__info span   { font-size: 11px; color: var(--landing-accent); font-weight: 600; }
+
+/* mock-qr */
+.mock-qr__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--landing-fg);
+  margin-bottom: 12px;
+}
+.mock-qr__pattern {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 12px;
+}
+.qr-cell {
+  background: var(--landing-fg);
+  border-radius: 2px;
+}
+.qr-cell.c2, .qr-cell.c4, .qr-cell.c6, .qr-cell.c8 { opacity: 0.25; }
+.qr-cell.c5 { background: var(--landing-accent); }
+.mock-qr__scan {
+  width: 96px;
+  height: 2px;
+  background: var(--landing-accent);
+  margin: 6px auto 12px;
+  border-radius: 2px;
+  animation: qrScan 2s ease-in-out infinite;
+}
+@keyframes qrScan {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%      { transform: translateY(80px); opacity: 0.6; }
+}
+.mock-qr__footer {
+  font-size: 10px;
+  color: var(--landing-fg-muted);
+}
+
+/* mock-orders */
+.mock-order {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--landing-radius-sm);
+  background: var(--landing-bg);
+  border: 1px solid var(--landing-border);
+}
+.mock-order > div { flex: 1; display: flex; flex-direction: column; }
+.mock-order strong { font-size: 12px; color: var(--landing-fg); }
+.mock-order small  { font-size: 10px; color: var(--landing-fg-muted); }
+.mock-order .amt    { font-size: 11px; font-weight: 700; color: var(--landing-accent); }
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.ok   { background: var(--landing-success); }
+.dot.proc { background: var(--landing-warning); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* mock-payment */
+.mock-payment__icon {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--landing-success-soft);
+  color: var(--landing-success);
+  display: grid; place-items: center;
+}
+.mock-payment__amount {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--landing-fg);
+}
+.mock-payment__status {
+  font-size: 11px;
+  color: var(--landing-success);
+  font-weight: 700;
+}
+.mock-payment__method {
+  font-size: 10px;
+  color: var(--landing-fg-muted);
+}
+
+/* mock-bookings */
+.mock-bookings__date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--landing-fg);
+  text-align: center;
+}
+.mock-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.slot {
+  font-size: 10px;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: var(--landing-radius-sm);
+  font-weight: 600;
+}
+.slot.ok   { background: var(--landing-success-soft); color: var(--landing-success); }
+.slot.busy { background: var(--landing-bg-elev);    color: var(--landing-fg-muted); text-decoration: line-through; }
+.mock-bookings__hint {
+  font-size: 10px;
+  color: var(--landing-fg-muted);
+  text-align: center;
+}
+
+/* mock-promos */
+.mock-promo-card {
+  position: relative;
+  padding: 14px 12px;
+  background: linear-gradient(135deg, var(--landing-accent-soft), var(--landing-bg));
+  border: 1px solid var(--landing-border);
+  border-radius: var(--landing-radius);
+  text-align: center;
+}
+.mock-promo-card__badge {
+  position: absolute;
+  top: -8px; right: -8px;
+  background: var(--landing-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: var(--landing-radius-pill);
+  box-shadow: var(--landing-shadow-sm);
+}
+.mock-promo-card__emoji {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+.mock-promo-card strong { display: block; font-size: 12px; color: var(--landing-fg); }
+.mock-promo-card small  { display: block; font-size: 10px; color: var(--landing-fg-muted); margin-bottom: 4px; }
+.mock-promo-card__code {
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+  background: var(--landing-bg);
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--landing-fg-muted);
+  display: inline-block;
+}
+
+/* mock-stats */
+.mock-stat-bar {
+  display: grid;
+  grid-template-columns: 28px 1fr 36px;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  color: var(--landing-fg-muted);
+}
+.mock-stat-bar .bar {
+  height: 28px;
+  background: var(--landing-bg-elev);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+.mock-stat-bar .fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--landing-accent), var(--landing-accent-hover));
+  border-radius: 4px 4px 0 0;
+  transition: height 0.5s ease;
+}
+.mock-stat-bar small { text-align: right; color: var(--landing-fg); font-weight: 600; }
+
 /* Trust bar (píldoras individuales con check verde) */
 .trust-pill {
   display: inline-flex;
@@ -420,6 +791,22 @@ img { max-width: 100%; height: auto; }
   .hero__cta { justify-content: center; }
   .hero__trust { justify-content: center; }
   .hero__mockup { order: 2; }
+
+  /* Hero Showcase: tabs a swipe horizontal con scroll-snap */
+  .hero-showcase { max-width: 360px; margin: 0 auto; }
+  .hero-showcase__tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    justify-content: flex-start;
+    padding: 4px;
+  }
+  .hero-showcase__tabs::-webkit-scrollbar { display: none; }
+  .hero-tab { scroll-snap-align: start; flex-shrink: 0; }
+  .hero-tooltip { font-size: 11px; padding: 6px 10px; top: -6px; }
+  .hero-tooltip__subtitle { font-size: 10px; }
+  .hero-showcase__viewport { min-height: 520px; }
 }
 
 /* ── Trust bar ──────────────────────────────────────────────────── */
