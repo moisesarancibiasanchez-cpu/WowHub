@@ -99,6 +99,71 @@ templates.env.globals["_t"] = _t
 templates.env.globals["settings"] = settings
 
 
+# V2.01 — FIX: ``url_for('static', filename='...')`` no funciona con Starlette
+# ≥ 0.36 cuando el StaticFiles está montado con name='static' (el keyword
+# cambió de ``filename`` a ``path``). Esto rompía TODAS las páginas de
+# dashboard que usaban ``url_for('static', filename='css/...')`` en el
+# bloque head_extra — el template lanzaba NoMatchFound en runtime y la
+# página quedaba en 500 silencioso (porque Starlette renderea 500 con
+# HTML básico que oculta la traza).
+#
+# Shim: si name==="static" y se pasa filename= lo traducimos a path=.
+# Si se pasa path= lo dejamos pasar. Si name no es 'static', usamos el
+# url_for por defecto del Request.
+def _url_for_shim(name: str, **path_params) -> str:
+    """Shim de url_for para Jinja2 — soporta tanto 'filename' (legacy)
+    como 'path' (Starlette ≥0.36) en mounted StaticFiles."""
+    from starlette.requests import Request
+    import sys
+    request = None
+    # Buscamos el request en el contexto de Jinja2 vía thread-local.
+    # Más limpio: usamos pass_context.
+    ctx = sys.modules.get("__jinja_context__", {})
+    request = ctx.get("request") if isinstance(ctx, dict) else None
+    if request is None:
+        # Fallback: sin request (ej. tests unitarios de render) usamos
+        # un path relativo — evita que se rompa el render en seco.
+        if name == "static" and "filename" in path_params:
+            return "/static/" + path_params["filename"].lstrip("/")
+        return "/" + name
+    if name == "static":
+        if "filename" in path_params and "path" not in path_params:
+            path_params["path"] = "/" + str(path_params.pop("filename")).lstrip("/")
+    try:
+        return request.url_for(name, **path_params)
+    except Exception:
+        # NoMatchFound para 'static' sin path: fallback al mount literal.
+        if name == "static" and "filename" in path_params:
+            return "/static/" + str(path_params["filename"]).lstrip("/")
+        raise
+
+
+# Mejor enfoque: usar pass_context para que el context se inyecte
+# automáticamente por Jinja2.
+import jinja2
+
+
+@jinja2.pass_context
+def _url_for_pass_context(context: dict, name: str, **path_params) -> str:
+    request = context.get("request")
+    if request is None:
+        if name == "static" and "filename" in path_params:
+            return "/static/" + path_params["filename"].lstrip("/")
+        return "/" + name
+    if name == "static":
+        if "filename" in path_params and "path" not in path_params:
+            path_params["path"] = "/" + str(path_params.pop("filename")).lstrip("/")
+    try:
+        return request.url_for(name, **path_params)
+    except Exception:
+        if name == "static" and "filename" in path_params:
+            return "/static/" + str(path_params["filename"]).lstrip("/")
+        raise
+
+
+templates.env.globals["url_for"] = _url_for_pass_context
+
+
 # ── Context processor: inyecta estado de onboarding en todos los templates ──
 def _onboarding_processor(request: Request) -> dict:
     """Lee el estado de onboarding del tenant actual y lo inyecta en el context.
@@ -328,7 +393,7 @@ app.include_router(admin_observability.router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/", response_class=HTMLResponse, include_in_schema=False, name="home")
 def home(request: Request):
     """Portada: renderiza home.html (tema dark) o home_pro.html (tema pro)
     según la configuración global SiteConfig.home_theme."""
@@ -382,6 +447,16 @@ def api_stats_alias():
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 def register_page(request: Request):
     return templates.TemplateResponse(request, "auth/register.html", {"settings": settings})
+
+
+# V2.01 — /pricing público: redirige a la sección #pricing de la home.
+# Antes: 404 silencioso si el usuario tipeaba /pricing directamente o llegaba
+# desde un link externo (compartido por email, redes, etc.). Ahora: 307
+# hacia /#pricing con scroll automático a la grilla de 3 tiers.
+@app.get("/pricing", response_class=RedirectResponse, include_in_schema=False)
+def pricing_redirect():
+    """Legacy/SEO: /pricing → /#pricing (sección de tiers en la home)."""
+    return RedirectResponse(url="/#pricing", status_code=307)
 
 
 @app.get("/forgot-password", response_class=HTMLResponse, include_in_schema=False)
