@@ -8,7 +8,9 @@
 (function () {
   'use strict';
 
-  var AUTOPLAY_MS = 4500;
+  var AUTOPLAY_MS = 3000;  // V2.003 — bajado de 4500ms a 3000ms
+                            //          por feedback del usuario (mas
+                            //          dinamico, mejor engagement).
   var TRANSITION_MS = 350;
 
   /**
