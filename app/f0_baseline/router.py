@@ -86,6 +86,16 @@ INTERNAL_MODELS_ALLOWLIST: frozenset[str] = frozenset({
     "RBACPolicy",             # policies RBAC, config server-side (HU_38)
     "Receipt",                # comprobantes emitidos, server-side only
     "TenantSiteConfig",       # config de sitio por tenant, vía /api/v1/site (HU_42)
+    # ── TOBE v134.2-Produccion-v2 (HU_50-HU_65) ─────────────────────────────
+    # Modelos API-served: el Kanban, pagos manuales, ajustes de deuda y
+    # notificaciones se sirven vía /api/v1/production|... no se siembran en
+    # localStorage del frontend.
+    "ProductionJob",          # HU_52, HU_53 — Kanban de producción
+    "InsumoMovement",         # HU_65 — movimientos de stock de insumos
+    "PaymentRecord",          # HU_56 — pagos manuales
+    "DebtAdjustment",         # HU_57 — ajustes manuales de deuda
+    "NotificationTemplate",   # HU_62 — plantillas de notificación
+    "NotificationLog",        # HU_63 — log de envíos
 })
 
 

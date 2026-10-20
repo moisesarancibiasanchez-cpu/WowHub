@@ -74,7 +74,7 @@ class AutomationExecution(BaseModel):
         index=True,
     )
     status: Mapped[AutomationStatus] = mapped_column(
-        Enum(AutomationStatus, name="automation_status"),
+        Enum(AutomationStatus, name="automation_status", values_callable=lambda obj: [e.value for e in obj]),
         default=AutomationStatus.SUCCEEDED,
         nullable=False,
         index=True,

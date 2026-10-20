@@ -53,10 +53,13 @@ from app.api.v1 import (
     status_health,     # GET /api/v1/status/health (público, sin auth)
     ocr,               # HU_33 — OCR de comprobantes (HU_33)
     reports,           # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
-    admin_observability,  # HU_07 — Admin observability dashboard (Otel + Sentry + Prom)
+admin_observability,  # HU_07 — Admin observability dashboard (Otel + Sentry + Prom)
     templates as templates_api,  # V2.01 — Plantillas estéticas. Se renombra
                                   # para no chocar con la variable `templates`
                                   # (Jinja2Templates) definida mas abajo.
+    # TOBE v134.2-Produccion-v2 (HU_50-HU_65)
+    production,        # HU_52, HU_53, HU_55, HU_65 - Kanban de produccion
+    payment_records,   # HU_56, HU_57 - Pagos manuales y ajustes de deuda
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -390,6 +393,18 @@ app.include_router(ocr.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
 # HU_07 — Dashboard admin de observabilidad (Otel + Sentry + Prom)
 app.include_router(admin_observability.router, prefix="/api/v1")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOBE v134.2-Producción-v2 (HU_50–HU_65) — S5+S6
+# ═══════════════════════════════════════════════════════════════════════════
+# HU_52, HU_53, HU_55, HU_65 — Kanban de producción + alertas stock
+app.include_router(production.router, prefix="/api/v1")
+# HU_56, HU_57 — Pagos manuales parciales y ajustes de deuda
+app.include_router(payment_records.router, prefix="/api/v1")
+# HU_62, HU_63 — Templates de notificación y log (HU_62/63 merge en notifications.py)
+app.include_router(notifications.templates_router, prefix="/api/v1")
+app.include_router(notifications.log_router, prefix="/api/v1")
+app.include_router(notifications.send_router, prefix="/api/v1")
 
 
 # ── Rutas de UI (server-rendered) ────────────────────────

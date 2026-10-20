@@ -37,12 +37,22 @@ class Payment(BaseModel, TenantMixin):
     )
 
     method: Mapped[PaymentMethod] = mapped_column(
-        Enum(PaymentMethod, name="payment_method"),
+        # FIX 2026-10-16: values_callable para serializar por .value
+        Enum(
+            PaymentMethod,
+            name="payment_method",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=PaymentMethod.MERCADO_PAGO,
         nullable=False,
     )
     status: Mapped[PaymentStatus] = mapped_column(
-        Enum(PaymentStatus, name="payment_status"),
+        # FIX 2026-10-16: idem
+        Enum(
+            PaymentStatus,
+            name="payment_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=PaymentStatus.PENDING,
         nullable=False,
         index=True,

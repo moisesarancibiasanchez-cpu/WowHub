@@ -43,18 +43,18 @@ class Tenant(BaseModel):
     legal_name: Mapped[str] = mapped_column(String(200), nullable=False)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     industry: Mapped[Industry] = mapped_column(
-        Enum(Industry, name="industry"),
+        Enum(Industry, name="industry", values_callable=lambda obj: [e.value for e in obj]),
         default=Industry.OTHER,
         nullable=False,
         index=True,
     )
     plan: Mapped[TenantPlan] = mapped_column(
-        Enum(TenantPlan, name="tenant_plan"),
+        Enum(TenantPlan, name="tenant_plan", values_callable=lambda obj: [e.value for e in obj]),
         default=TenantPlan.FREE,
         nullable=False,
     )
     status: Mapped[TenantStatus] = mapped_column(
-        Enum(TenantStatus, name="tenant_status"),
+        Enum(TenantStatus, name="tenant_status", values_callable=lambda obj: [e.value for e in obj]),
         default=TenantStatus.TRIAL,
         nullable=False,
         index=True,
@@ -109,7 +109,7 @@ class TenantMembership(BaseModel):
 )
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="membership_role"),
+        Enum(UserRole, name="membership_role", values_callable=lambda obj: [e.value for e in obj]),
         default=UserRole.STAFF,
         nullable=False,
     )
