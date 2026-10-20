@@ -26,7 +26,7 @@ class AuthToken(BaseModel):
     )
     token: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     type: Mapped[TokenType] = mapped_column(
-        Enum(TokenType, name="token_type", values_callable=lambda obj: [e.value for e in obj]),
+        Enum(TokenType, name="token_type"),
         nullable=False,
         index=True,
     )

@@ -19,13 +19,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_membership, get_tenant_for_membership
+from app.deps import get_tenant_for_membership
 from app.models.tenant import Tenant
 from app.schemas.notifications import (
     NotificationListOut,
@@ -187,99 +186,3 @@ def list_notifications(
         total_by_category=by_cat,
         items=[NotificationOut(**_normalize(n)) for n in items],
     )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# TOBE v134.2-Produccion-v2 (HU_62, HU_63) — Templates + Log de envios
-# ═══════════════════════════════════════════════════════════════════════════
-# Endpoint prefijo distinto para no chocar con /notifications (engine).
-templates_router = APIRouter(
-    prefix="/tenants/{tenant_id}/notification-templates",
-    tags=["notification-templates"],
-)
-
-
-@templates_router.get("", response_model=list)
-def list_templates(
-    tenant_id: UUID,
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_62 — listar templates de notificacion del tenant."""
-    from app.schemas.notification import NotificationTemplateOut
-    from app.services.notification_service_v2 import NotificationService
-    tpls = NotificationService(db).list_templates(tenant_id)
-    return [NotificationTemplateOut.model_validate(t) for t in tpls]
-
-
-@templates_router.put("", response_model=dict)
-def upsert_template(
-    tenant_id: UUID,
-    payload: dict,
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_62 — crear/actualizar template de notificacion."""
-    from app.schemas.notification import NotificationTemplateCreate
-    from app.services.notification_service_v2 import NotificationService
-    tpl = NotificationService(db).upsert_template(tenant_id, NotificationTemplateCreate(**payload))
-    return {"id": str(tpl.id), "event": tpl.event, "channel": tpl.channel}
-
-
-@templates_router.post("/init-defaults")
-def init_default_templates(
-    tenant_id: UUID,
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_62 — cargar los 7 templates default (de WowPrint)."""
-    from app.services.notification_service_v2 import NotificationService
-    created = NotificationService(db).ensure_default_templates(tenant_id)
-    return {"created": created, "total": 7}
-
-
-# Log de envios (HU_63)
-log_router = APIRouter(
-    prefix="/tenants/{tenant_id}/notification-logs",
-    tags=["notification-logs"],
-)
-
-
-@log_router.get("", response_model=list)
-def list_logs(
-    tenant_id: UUID,
-    customer_id: Optional[UUID] = Query(None),
-    status_filter: Optional[str] = Query(None, alias="status"),
-    limit: int = Query(50, ge=1, le=200),
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_63 — listar logs de notificaciones enviadas."""
-    from app.services.notification_service_v2 import NotificationService
-    return NotificationService(db).list_logs(tenant_id, customer_id, status_filter, limit)
-
-
-# Send (HU_62)
-send_router = APIRouter(
-    prefix="/tenants/{tenant_id}/notification-send",
-    tags=["notification-send"],
-)
-
-
-@send_router.post("")
-def send_notification(
-    tenant_id: UUID,
-    payload: dict,
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_62 — enviar notificacion usando template."""
-    from app.schemas.notification import NotificationSendRequest
-    from app.services.notification_service_v2 import NotificationService
-    log = NotificationService(db).send(tenant_id, NotificationSendRequest(**payload))
-    return {
-        "id": str(log.id),
-        "status": log.status,
-        "content_rendered": log.content_rendered,
-        "sent_at": log.sent_at.isoformat() if log.sent_at else None,
-    }

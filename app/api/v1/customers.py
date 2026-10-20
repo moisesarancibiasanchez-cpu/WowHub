@@ -26,7 +26,6 @@ from app.schemas.customer import (
     CustomerOut,
     CustomerUpdate,
 )
-from app.schemas.inline import CustomerInlineCreate  # HU_50 — inline customer creation
 from app.schemas.order_list import CustomerOrderListItem, CustomerTimelineEvent
 from app.services.plugin_hooks import trigger_hooks
 
@@ -784,57 +783,3 @@ def customer_insights(
         segmento=segmento,
         next_action=next_action,
     )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# TOBE v134.2-Producción-v2: HU_50 — Inline creation de cliente desde pedido
-# ═══════════════════════════════════════════════════════════════════════════
-@router.post("/inline", response_model=CustomerOut, status_code=201)
-@requires_permission("customer", "write")
-def create_customer_inline(
-    tenant_id: UUID,
-    payload: CustomerInlineCreate,
-    membership: TenantMembership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
-):
-    """HU_50 — crea un cliente sin salir del modal de pedido.
-    
-    Validaciones:
-    - Al menos uno de (phone, email) es requerido
-    - Si ya existe cliente con mismo (tenant, phone/email) → 409 Conflict
-    - Devuelve el cliente creado para selección automática en el pedido
-    """
-    from sqlalchemy import select, or_
-
-    if not payload.phone and not payload.email:
-        raise ValidationError("Al menos uno de (phone, email) es requerido")
-
-    # Buscar duplicado
-    q = select(Customer).where(Customer.tenant_id == tenant_id)
-    if payload.email:
-        q = q.where(Customer.email == payload.email.lower())
-    if payload.phone:
-        q = q.where(Customer.phone == payload.phone)
-    if payload.email and payload.phone:
-        q = q.where(or_(Customer.email == payload.email.lower(), Customer.phone == payload.phone))
-    existing = db.execute(q).scalar_one_or_none()
-    if existing:
-        raise ConflictError(
-            f"Cliente ya existe: {existing.full_name} (id={existing.id}). "
-            f"Reutilícelo en el pedido en lugar de crear duplicado."
-        )
-
-    c = Customer(
-        tenant_id=str(tenant_id),
-        full_name=payload.name,
-        email=payload.email.lower() if payload.email else None,
-        phone=payload.phone,
-        customer_type=payload.customer_type,
-        marketing_email_status="authorized" if payload.marketing_consent else "pending",
-        marketing_whatsapp_status="authorized" if payload.marketing_consent else "pending",
-        notes=payload.notes,
-    )
-    db.add(c)
-    db.commit()
-    db.refresh(c)
-    return to_out(c)

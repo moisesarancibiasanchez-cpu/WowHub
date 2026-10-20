@@ -1,4 +1,4 @@
-﻿"""User: usuario global de WowHub. Puede pertenecer a varios tenants via Membership."""
+"""User: usuario global de WowHub. Puede pertenecer a varios tenants via Membership."""
 import enum
 from uuid import UUID
 
@@ -25,7 +25,7 @@ class User(BaseModel):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     default_role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", values_callable=lambda obj: [e.value for e in obj]),
+        Enum(UserRole, name="user_role"),
         # FIX 2026-09-27: era OWNER y el registro NUNCA lo asignaba, de modo que
         # todo usuario autogistrado quedaba con rol de plataforma. El rol real
         # de un usuario en un negocio vive en `TenantMembership.role`; este

@@ -39,13 +39,7 @@ class Booking(BaseModel, TenantMixin):
     )  # servicio reservado
 
     status: Mapped[BookingStatus] = mapped_column(
-        # FIX 2026-10-16: mismo fix que OrderStatus — usar values_callable
-        # para serializar por .value (lowercase) en vez del NOMBRE del member.
-        Enum(
-            BookingStatus,
-            name="booking_status",
-            values_callable=lambda obj: [e.value for e in obj],
-        ),
+        Enum(BookingStatus, name="booking_status"),
         default=BookingStatus.PENDING,
         nullable=False,
         index=True,
