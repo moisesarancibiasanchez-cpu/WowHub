@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Integer, JSON, String, Text,
+    Boolean, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,7 +40,7 @@ class Quote(BaseModel, TenantMixin):
     number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[QuoteStatus] = mapped_column(
-        Enum(QuoteStatus, name="quote_status"),
+        Enum(QuoteStatus, name="quote_status", values_callable=lambda obj: [e.value for e in obj]),
         default=QuoteStatus.DRAFT,
         nullable=False,
         index=True,
@@ -120,5 +120,43 @@ class QuoteItem(BaseModel):
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     discount_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TOBE v134.2-Producción-v2 (HU_54, HU_58)
+    # ═══════════════════════════════════════════════════════════════════════
+    # HU_54 — Template de impresión predefinido (de WowPrint V1354_R2).
+    # Valores válidos: flyer-a5, flyer-a6, poster-a3, poster-a4, magnet-5x7,
+    # magnet-9x7, business-card, trovicel, pvc, custom.
+    template_type: Mapped[Optional[str]] = mapped_column(
+        String(30), nullable=True,
+        comment="HU_54: template de impresión predefinido",
+    )
+    # HU_58 — Medidas en cm (para templates con dimensiones custom)
+    width_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    height_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # HU_58 — Caras de impresión (1 o 2). Default 1.
+    faces: Mapped[int] = mapped_column(
+        Integer, default=1, nullable=False,
+        comment="HU_54, HU_58: 1|2 caras",
+    )
+    # HU_58 — Precio sugerido calculado automáticamente al cotizar.
+    suggested_price_cents: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False,
+        comment="HU_58: precio sugerido por compute_quote_line_suggested()",
+    )
+    # HU_58 — Costo unitario (materiales + mano de obra + merma)
+    cost_unit_cents: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False,
+        comment="HU_58: costo unitario calculado",
+    )
+    # HU_58 — Pack options (HU_54) — empaquetado comercial
+    pack_qty: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        comment="HU_54: cantidad de packs (opcional)",
+    )
+    pack_size: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True,
+        comment="HU_54: unidades por pack",
+    )
 
     quote: Mapped["Quote"] = relationship(back_populates="items")

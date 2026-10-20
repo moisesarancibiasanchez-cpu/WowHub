@@ -53,7 +53,17 @@ class Order(BaseModel, TenantMixin):
     # /opportunities, /analytics/...) se aborda en un PR separado, ya con
     # pruebas contra PG real.
     status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, name="order_status"),
+        # FIX 2026-10-16 (TOBE v134.2-Producción-v2 / Diagnóstico Railway 502):
+        # SQLAlchemy serializa miembros de enum por NOMBRE (UPPERCASE: 'RECIBIDO')
+        # por defecto, pero el PG ENUM order_status NO contiene esos labels
+        # (solo 'recibido' lowercase). values_callable fuerza a usar el .value.
+        # Sin este fix, /notifications/summary, /stats/overview, /opportunities,
+        # /analytics/* devuelven 500 con "invalid input value for enum order_status".
+        Enum(
+            OrderStatus,
+            name="order_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         default=OrderStatus.RECIBIDO,
         nullable=False,
         index=True,
@@ -105,6 +115,13 @@ class Order(BaseModel, TenantMixin):
     qr_code_id: Mapped[Optional[str]] = mapped_column(GUID(), nullable=True, index=True)
 
     items: Mapped[list["OrderItem"]] = relationship(  # noqa: F821
+        back_populates="order",
+        cascade="all, delete-orphan",
+    )
+    # HU_52 — ProductionJob derivados del pedido (1:N)
+    # Se crean automáticamente al transicionar a CONFIRMADO si algún item
+    # tiene product_type ∈ (print, m2, production_only).
+    production_jobs: Mapped[list["ProductionJob"]] = relationship(  # noqa: F821
         back_populates="order",
         cascade="all, delete-orphan",
     )
