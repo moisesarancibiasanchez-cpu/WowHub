@@ -32,6 +32,7 @@ from app.schemas.product import (
     MarginSimulateIn,
     MarginSimulateOut,
 )
+from app.schemas.inline import ProductInlineCreate  # HU_51 — inline product creation
 from app.services.product_pricing import (
     ProductPricing,
     compute_for_product,
@@ -290,3 +291,88 @@ def delete_product(
     svc = ProductService(db)
     p = svc.get(tenant.id, product_id)
     svc.delete(p)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOBE v134.2-Producción-v2: HU_51 — Inline creation de producto desde pedido
+# ═══════════════════════════════════════════════════════════════════════════
+@router.post("/inline", response_model=ProductOut, status_code=201)
+@requires_permission("product", "write")
+def create_product_inline(
+    tenant_id: UUID,
+    payload: ProductInlineCreate,
+    membership: TenantMembership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+):
+    """HU_51 — crea un producto sin salir del modal de pedido.
+    
+    Si add_to_order=True y return_to_order_id presente, agrega el producto
+    como OrderItem del pedido y crea ProductionJob si product_type ∈ (print, m2).
+    """
+    from sqlalchemy import select
+    import re
+
+    # Validar product_type para templates
+    if payload.product_type in ("print", "m2") and not payload.template_type:
+        raise ValidationError(
+            f"product_type='{payload.product_type}' requiere template_type"
+        )
+
+    # Validar SKU único
+    slug = re.sub(r"[^a-z0-9]+", "-", payload.name.lower()).strip("-")[:220]
+    existing = db.execute(
+        select(Product).where(
+            Product.tenant_id == tenant_id,
+            Product.sku == payload.sku,
+        )
+    ).scalar_one_or_none()
+    if existing:
+        raise ConflictError(
+            f"SKU '{payload.sku}' ya existe (producto: {existing.name})"
+        )
+
+    p = Product(
+        tenant_id=str(tenant_id),
+        sku=payload.sku,
+        name=payload.name,
+        slug=slug or f"product-{int(datetime.utcnow().timestamp())}",
+        price_cents=payload.price_cents,
+        cost_cents=payload.cost_cents,
+        production_time_min=payload.production_time_min,
+        product_type=payload.product_type,
+        template_type=payload.template_type,
+        m2_price_cents=payload.m2_price_cents,
+        category_id=str(payload.category_id) if payload.category_id else None,
+        status="active",
+    )
+    db.add(p)
+    db.flush()  # get p.id
+
+    # Si add_to_order, agregar como OrderItem
+    if payload.add_to_order and payload.return_to_order_id:
+        from app.models.order import Order, OrderItem
+        order = db.get(Order, payload.return_to_order_id)
+        if not order or str(order.tenant_id) != str(tenant_id):
+            raise NotFoundError("Order")
+        item = OrderItem(
+            tenant_id=str(tenant_id),
+            order_id=str(order.id),
+            product_id=str(p.id),
+            product_name=p.name,
+            product_sku=p.sku,
+            quantity=payload.quantity,
+            unit_price_cents=p.price_cents,
+            total_cents=p.price_cents * payload.quantity,
+        )
+        db.add(item)
+
+        # Si product_type requiere producción, crear ProductionJob
+        if payload.product_type in ("print", "m2", "production_only"):
+            from app.services.production_service import ProductionService
+            db.commit()  # commit to ensure order is fresh
+            db.refresh(order)
+            ProductionService(db).create_for_order(order)
+
+    db.commit()
+    db.refresh(p)
+    return _to_product_out(p)

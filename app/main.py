@@ -53,10 +53,10 @@ from app.api.v1 import (
     status_health,     # GET /api/v1/status/health (público, sin auth)
     ocr,               # HU_33 — OCR de comprobantes (HU_33)
     reports,           # HU_31 — Reportes PDF/Excel programables (catálogo + scheduling)
-    admin_observability,  # HU_07 — Admin observability dashboard (Otel + Sentry + Prom)
-    templates as templates_api,  # V2.01 — Plantillas estéticas. Se renombra
-                                  # para no chocar con la variable `templates`
-                                  # (Jinja2Templates) definida mas abajo.
+    admin_observability,  # HU_07
+    # TOBE v134.2-Produccion-v2 (HU_50-HU_65)
+    production,        # HU_52, HU_53, HU_55, HU_65 - Kanban de produccion
+    payment_records,   # HU_56, HU_57 - Pagos manuales y ajustes de deuda
 )
 from app.f0_baseline.router import router as f0_baseline_router  # F0 — Baseline & Auditoría (alias del APIRouter)
 from app.models.user import UserRole
@@ -97,71 +97,6 @@ templates.env.globals["_t"] = _t
 # Exponer el objeto settings completo para que los templates puedan usar
 # `{{ settings.* }}` directamente.
 templates.env.globals["settings"] = settings
-
-
-# V2.01 — FIX: ``url_for('static', filename='...')`` no funciona con Starlette
-# ≥ 0.36 cuando el StaticFiles está montado con name='static' (el keyword
-# cambió de ``filename`` a ``path``). Esto rompía TODAS las páginas de
-# dashboard que usaban ``url_for('static', filename='css/...')`` en el
-# bloque head_extra — el template lanzaba NoMatchFound en runtime y la
-# página quedaba en 500 silencioso (porque Starlette renderea 500 con
-# HTML básico que oculta la traza).
-#
-# Shim: si name==="static" y se pasa filename= lo traducimos a path=.
-# Si se pasa path= lo dejamos pasar. Si name no es 'static', usamos el
-# url_for por defecto del Request.
-def _url_for_shim(name: str, **path_params) -> str:
-    """Shim de url_for para Jinja2 — soporta tanto 'filename' (legacy)
-    como 'path' (Starlette ≥0.36) en mounted StaticFiles."""
-    from starlette.requests import Request
-    import sys
-    request = None
-    # Buscamos el request en el contexto de Jinja2 vía thread-local.
-    # Más limpio: usamos pass_context.
-    ctx = sys.modules.get("__jinja_context__", {})
-    request = ctx.get("request") if isinstance(ctx, dict) else None
-    if request is None:
-        # Fallback: sin request (ej. tests unitarios de render) usamos
-        # un path relativo — evita que se rompa el render en seco.
-        if name == "static" and "filename" in path_params:
-            return "/static/" + path_params["filename"].lstrip("/")
-        return "/" + name
-    if name == "static":
-        if "filename" in path_params and "path" not in path_params:
-            path_params["path"] = "/" + str(path_params.pop("filename")).lstrip("/")
-    try:
-        return request.url_for(name, **path_params)
-    except Exception:
-        # NoMatchFound para 'static' sin path: fallback al mount literal.
-        if name == "static" and "filename" in path_params:
-            return "/static/" + str(path_params["filename"]).lstrip("/")
-        raise
-
-
-# Mejor enfoque: usar pass_context para que el context se inyecte
-# automáticamente por Jinja2.
-import jinja2
-
-
-@jinja2.pass_context
-def _url_for_pass_context(context: dict, name: str, **path_params) -> str:
-    request = context.get("request")
-    if request is None:
-        if name == "static" and "filename" in path_params:
-            return "/static/" + path_params["filename"].lstrip("/")
-        return "/" + name
-    if name == "static":
-        if "filename" in path_params and "path" not in path_params:
-            path_params["path"] = "/" + str(path_params.pop("filename")).lstrip("/")
-    try:
-        return request.url_for(name, **path_params)
-    except Exception:
-        if name == "static" and "filename" in path_params:
-            return "/static/" + str(path_params["filename"]).lstrip("/")
-        raise
-
-
-templates.env.globals["url_for"] = _url_for_pass_context
 
 
 # ── Context processor: inyecta estado de onboarding en todos los templates ──
@@ -321,7 +256,6 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(site_config.router, prefix="/api/v1")  # platform admin
 app.include_router(tenant_site_config.router, prefix="/api/v1")  # V134.2: per-tenant site-config
 app.include_router(sites.router, prefix="/api/v1")  # HU_42: /api/v1/sites (flat, tenant from JWT)
-app.include_router(templates_api.router, prefix="/api/v1")  # V2.01: /tenants/{id}/template (selector de plantillas)
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(admin_ai.router, prefix="/api/v1")
 app.include_router(superadmin.router, prefix="/api/v1")
@@ -391,9 +325,21 @@ app.include_router(reports.router, prefix="/api/v1")
 # HU_07 — Dashboard admin de observabilidad (Otel + Sentry + Prom)
 app.include_router(admin_observability.router, prefix="/api/v1")
 
+# ═══════════════════════════════════════════════════════════════════════════
+# TOBE v134.2-Producción-v2 (HU_50–HU_65) — S5+S6
+# ═══════════════════════════════════════════════════════════════════════════
+# HU_52, HU_53, HU_55, HU_65 — Kanban de producción + alertas stock
+app.include_router(production.router, prefix="/api/v1")
+# HU_56, HU_57 — Pagos manuales parciales y ajustes de deuda
+app.include_router(payment_records.router, prefix="/api/v1")
+# HU_62, HU_63 — Templates de notificación y log (HU_62/63 merge en notifications.py)
+app.include_router(notifications.templates_router, prefix="/api/v1")
+app.include_router(notifications.log_router, prefix="/api/v1")
+app.include_router(notifications.send_router, prefix="/api/v1")
+
 
 # ── Rutas de UI (server-rendered) ────────────────────────
-@app.get("/", response_class=HTMLResponse, include_in_schema=False, name="home")
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def home(request: Request):
     """Portada: renderiza home.html (tema dark) o home_pro.html (tema pro)
     según la configuración global SiteConfig.home_theme."""
@@ -449,16 +395,6 @@ def register_page(request: Request):
     return templates.TemplateResponse(request, "auth/register.html", {"settings": settings})
 
 
-# V2.01 — /pricing público: redirige a la sección #pricing de la home.
-# Antes: 404 silencioso si el usuario tipeaba /pricing directamente o llegaba
-# desde un link externo (compartido por email, redes, etc.). Ahora: 307
-# hacia /#pricing con scroll automático a la grilla de 3 tiers.
-@app.get("/pricing", response_class=RedirectResponse, include_in_schema=False)
-def pricing_redirect():
-    """Legacy/SEO: /pricing → /#pricing (sección de tiers en la home)."""
-    return RedirectResponse(url="/#pricing", status_code=307)
-
-
 @app.get("/forgot-password", response_class=HTMLResponse, include_in_schema=False)
 def forgot_password_page(request: Request):
     return templates.TemplateResponse(request, "auth/forgot_password.html", {"settings": settings})
@@ -473,44 +409,7 @@ def reset_password_page(request: Request, token: str = ""):
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_page(request: Request):
-    # V2.01 FIX — Antes esta ruta renderizaba dashboard/wowcolor.html (con su
-    # propio sidebar wc-side y estética WowPrint). Eso causaba que el usuario
-    # viera DOS sidebars distintos en el sitio: el "moderno" (dash-side)
-    # en /dashboard/customers, /dashboard/products, etc., y el "wowcolor"
-    # solo en /dashboard. La queja era: "los menús están demasiado distintos".
-    # Ahora /dashboard usa dashboard/index.html que extiende dashboard/base.html
-    # y comparte el MISMO sidebar Moderna unificado. Para volver al legacy
-    # WowColor (sidebar wc-side), sigue accesible en /dashboard/v1.
     return templates.TemplateResponse(request, "dashboard/index.html", {"settings": settings})
-
-
-@app.get("/dashboard/v1", response_class=HTMLResponse, include_in_schema=False)
-def dashboard_page_legacy(request: Request):
-    """Dashboard legacy (pre-TOBE v134.2). Mantener accesible por compatibilidad."""
-    return templates.TemplateResponse(request, "dashboard/index.html", {"settings": settings})
-
-
-# V2.01 — Stub routes para links huerfanos del menu legacy WowColor
-# (dashboard/wowcolor.html, archivado). El sidebar legacy apunta a
-# /dashboard/production, /dashboard/analytics y /dashboard/settings, pero
-# esas rutas NUNCA fueron creadas. En lugar de devolver 404 (mala
-# experiencia), redirigimos a las paginas modernas equivalentes.
-@app.get("/dashboard/production", response_class=RedirectResponse, include_in_schema=False)
-def dashboard_production_redirect():
-    """Legacy: 'Produccion' en WowColor → KDS (Cocina) en Moderna."""
-    return RedirectResponse(url="/dashboard/kds", status_code=307)
-
-
-@app.get("/dashboard/analytics", response_class=RedirectResponse, include_in_schema=False)
-def dashboard_analytics_redirect():
-    """Legacy: 'Analytics' en WowColor → Estadisticas en Moderna."""
-    return RedirectResponse(url="/dashboard/stats", status_code=307)
-
-
-@app.get("/dashboard/settings", response_class=RedirectResponse, include_in_schema=False)
-def dashboard_settings_redirect():
-    """Legacy: 'Configuracion' en WowColor → Apariencia (templates) en Moderna."""
-    return RedirectResponse(url="/dashboard/templates", status_code=307)
 
 
 @app.get("/dashboard/products", response_class=HTMLResponse, include_in_schema=False)
@@ -559,18 +458,6 @@ def dashboard_landing(request: Request):
 def dashboard_site(request: Request):
     """Admin UI: cambiar tema de la portada (dark | pro)."""
     return templates.TemplateResponse(request, "dashboard/site.html", {"settings": settings})
-
-
-# V2.01 — Selector de plantillas estéticas (Moderna, WowPrint, Dark, Default).
-# Antes de este fix, el sidebar "Apariencia" apuntaba a /dashboard/site que
-# renderizaba un selector de tema de portada pública (dark/pro), no las
-# plantillas del dashboard. El template dashboard/templates.html ya existía
-# desde V2.01 pero NUNCA fue enrutado: el usuario veía solo 2 opciones.
-@app.get("/dashboard/templates", response_class=HTMLResponse, include_in_schema=False)
-def dashboard_templates(request: Request):
-    """Admin UI: selector de plantilla estética del dashboard.
-    4 opciones: Moderna (default), WowPrint (kiosk), Dark, Default (legacy)."""
-    return templates.TemplateResponse(request, "dashboard/templates.html", {"settings": settings})
 
 
 # Nuevas páginas de dashboard (v0.2.0)

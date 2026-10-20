@@ -62,3 +62,21 @@ from app.models.report_run import ReportRun  # noqa: F401
 # HU_03 — RefreshToken persistence + rotation y TokenBlacklist para access tokens
 from app.models.refresh_token import RefreshToken, RefreshTokenRevokeReason  # noqa: F401
 from app.models.token_blacklist import TokenBlacklist  # noqa: F401
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOBE v134.2-Producción-v2 (HU_50–HU_65, Épica E8+E9, S5+S6)
+# ═══════════════════════════════════════════════════════════════════════════
+# HU_52, HU_53 — Kanban de producción (7 etapas)
+from app.models.production import ProductionJob, ProductionJobStatus, PRODUCTION_JOB_TRANSITIONS  # noqa: F401
+# HU_55 — Tracking de consumo de materia prima (InsumoMovement)
+from app.models.insumo_movement import InsumoMovement, InsumoMovementType  # noqa: F401
+# HU_56, HU_57 — Pagos manuales parciales y condonaciones de deuda
+from app.models.payment_record import PaymentRecord, DebtAdjustment  # noqa: F401
+# HU_62, HU_63 — Plantillas de notificación (WhatsApp/Email) y log de envíos
+from app.models.notification import (  # noqa: F401
+    NotificationTemplate, NotificationLog,
+    NotificationEvent, NotificationChannel, NotificationStatus,
+)
+# NOTE: PaymentMethod para HU_56/HU_57 está en app.models.payment_record.
+# Se importa con alias para no chocar con Payment.PaymentMethod.
+from app.models.payment_record import PaymentMethod as PaymentMethodManual  # noqa: F401,E402
