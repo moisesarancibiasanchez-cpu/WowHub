@@ -47,10 +47,9 @@ class PaymentRecord(BaseModel, TenantMixin):
     )
 
     amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    payment_method: Mapped[PaymentMethod] = mapped_column(
-        Enum(PaymentMethod, name="payment_method"),
-        default=PaymentMethod.CASH,
-        nullable=False,
+    payment_method: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="cash",
+        comment="cash | transfer | credit | debit | other — ver PaymentMethod",
     )
     reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 

@@ -37,10 +37,9 @@ class InsumoMovement(BaseModel, TenantMixin):
     )
     tenant_id: Mapped[str] = mapped_column(GUID(), nullable=False, index=True)
 
-    type: Mapped[InsumoMovementType] = mapped_column(
-        Enum(InsumoMovementType, name="insumo_movement_type"),
-        nullable=False,
-        index=True,
+    type: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True,
+        comment="entrada | salida | ajuste | merma — ver InsumoMovementType",
     )
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     # positivo = entrada; negativo = salida/ajuste/merma

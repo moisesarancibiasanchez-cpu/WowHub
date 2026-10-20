@@ -50,13 +50,13 @@ class NotificationTemplate(BaseModel, TenantMixin):
 
     tenant_id: Mapped[str] = mapped_column(GUID(), nullable=False, index=True)
 
-    event: Mapped[NotificationEvent] = mapped_column(
-        Enum(NotificationEvent, name="notification_event"),
-        nullable=False,
+    event: Mapped[str] = mapped_column(
+        String(40), nullable=False,
+        comment="Event key — ver NotificationEvent",
     )
-    channel: Mapped[NotificationChannel] = mapped_column(
-        Enum(NotificationChannel, name="notification_channel"),
-        nullable=False,
+    channel: Mapped[str] = mapped_column(
+        String(20), nullable=False,
+        comment="whatsapp | email | sms — ver NotificationChannel",
     )
 
     template_body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -90,19 +90,17 @@ class NotificationLog(BaseModel, TenantMixin):
         index=True,
     )
 
-    channel: Mapped[NotificationChannel] = mapped_column(
-        Enum(NotificationChannel, name="notification_channel_log", create_type=False),
-        nullable=False,
+    channel: Mapped[str] = mapped_column(
+        String(20), nullable=False,
+        comment="whatsapp | email | sms — ver NotificationChannel",
     )
-    event: Mapped[NotificationEvent] = mapped_column(
-        Enum(NotificationEvent, name="notification_event_log", create_type=False),
-        nullable=False,
+    event: Mapped[str] = mapped_column(
+        String(40), nullable=False,
+        comment="Event key — ver NotificationEvent",
     )
-    status: Mapped[NotificationStatus] = mapped_column(
-        Enum(NotificationStatus, name="notification_status"),
-        default=NotificationStatus.PENDING,
-        nullable=False,
-        index=True,
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="pending", index=True,
+        comment="pending | sent | failed | rate_limited — ver NotificationStatus",
     )
 
     content_rendered: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

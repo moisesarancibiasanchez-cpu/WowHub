@@ -107,11 +107,11 @@ class ProductionJob(BaseModel, TenantMixin):
     height_cm: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Pipeline
-    status: Mapped[ProductionJobStatus] = mapped_column(
-        Enum(ProductionJobStatus, name="production_job_status"),
-        default=ProductionJobStatus.NUEVO,
-        nullable=False,
-        index=True,
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="nuevo", index=True,
+        comment="nuevo | archivo_aprobado | preparando | imprimiendo | "
+                "terminacion | listo | entregado | cancelado — "
+                "ver ProductionJobStatus",
     )
 
     # Prioridad (heredada del pedido)
