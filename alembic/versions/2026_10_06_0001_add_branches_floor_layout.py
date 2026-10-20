@@ -1,7 +1,7 @@
 """HU_42 follow-up — agregar ``floor_layout`` a la tabla ``branches``.
 
 Revision ID: 2026_10_06_0001
-Revises: 9ac7d3705ee1
+Revises: 2026_10_04_hu39_encrypt_phone
 Create Date: 2026-10-06
 
 Contexto
@@ -29,7 +29,7 @@ from alembic import op
 from sqlalchemy import text
 
 revision = "2026_10_06_0001"
-down_revision = "9ac7d3705ee1"
+down_revision = "2026_10_04_hu39_encrypt_phone"
 branch_labels = None
 depends_on = None
 
