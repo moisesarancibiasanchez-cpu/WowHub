@@ -19,12 +19,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_tenant_for_membership
+from app.deps import get_current_membership, get_tenant_for_membership
 from app.models.tenant import Tenant
 from app.schemas.notifications import (
     NotificationListOut,

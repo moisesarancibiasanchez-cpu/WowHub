@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 # revision identifiers
 revision = "2026_10_16_hu50_65"
-down_revision = "2026_10_07_0002_plugin_runtime_hu45"
+down_revision = "2026_10_07_0002"
 branch_labels = None
 depends_on = None
 

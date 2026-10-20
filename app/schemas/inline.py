@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models.production import ProductionJobStatus
 
@@ -61,6 +61,16 @@ class ProductInlineCreate(BaseModel):
     add_to_order: bool = False
     return_to_order_id: Optional[UUID] = None
     quantity: int = Field(1, ge=1, le=999)
+
+    @model_validator(mode="after")
+    def print_requires_template(self) -> "ProductInlineCreate":
+        # HU_51: si es producto de tipo impresión, debe especificar template.
+        if self.product_type == "print" and not self.template_type:
+            raise ValueError(
+                "template_type es obligatorio cuando product_type='print' "
+                "(HU_51: producto de impresión requiere template predefinido)."
+            )
+        return self
 
 
 # ═══════════════════════════════════════════════════════════════════════════

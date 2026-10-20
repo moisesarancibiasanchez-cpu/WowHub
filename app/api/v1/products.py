@@ -32,6 +32,7 @@ from app.schemas.product import (
     MarginSimulateIn,
     MarginSimulateOut,
 )
+from app.schemas.inline import ProductInlineCreate  # HU_51 — inline product creation
 from app.services.product_pricing import (
     ProductPricing,
     compute_for_product,
@@ -299,7 +300,7 @@ def delete_product(
 @requires_permission("product", "write")
 def create_product_inline(
     tenant_id: UUID,
-    payload: "ProductInlineCreate",
+    payload: ProductInlineCreate,
     membership: TenantMembership = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ):
@@ -308,7 +309,6 @@ def create_product_inline(
     Si add_to_order=True y return_to_order_id presente, agrega el producto
     como OrderItem del pedido y crea ProductionJob si product_type ∈ (print, m2).
     """
-    from app.schemas.inline import ProductInlineCreate
     from sqlalchemy import select
     import re
 

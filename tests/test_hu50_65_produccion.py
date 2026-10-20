@@ -345,7 +345,15 @@ class TestMigrationStructure:
 # Smoke test: routers registrados en main.py
 # ═══════════════════════════════════════════════════════════════════════════
 class TestMainRouterRegistration:
-    """Verifica que los 3 routers nuevos están en main.py."""
+    """Verifica que los routers nuevos están en main.py.
+
+    El documento INFORME_IMPLEMENTACION_HU50_65_V1342.md consolidó
+    HU_62/HU_63 en `app/api/v1/notifications.py` mediante tres subrouters
+    (`templates_router`, `log_router`, `send_router`), en lugar de crear
+    un módulo `notifications_v2.py` separado. Por eso verificamos que
+    `notifications.router` (engine) y los tres subrouters estén
+    registrados en main.py.
+    """
 
     def test_production_router_registered(self):
         from pathlib import Path
@@ -357,7 +365,19 @@ class TestMainRouterRegistration:
         content = Path("app/main.py").read_text(encoding="utf-8")
         assert "payment_records.router" in content, "payment_records.router no registrado en main.py"
 
-    def test_notifications_v2_router_registered(self):
+    def test_notifications_subrouters_registered(self):
+        """HU_62/HU_63: templates, log y send registrados en main.py."""
         from pathlib import Path
         content = Path("app/main.py").read_text(encoding="utf-8")
-        assert "notifications_v2.router" in content, "notifications_v2.router no registrado en main.py"
+        assert "notifications.router" in content, (
+            "notifications.router (engine + summary) no registrado en main.py"
+        )
+        assert "notifications.templates_router" in content, (
+            "notifications.templates_router no registrado en main.py (HU_62)"
+        )
+        assert "notifications.log_router" in content, (
+            "notifications.log_router no registrado en main.py (HU_63)"
+        )
+        assert "notifications.send_router" in content, (
+            "notifications.send_router no registrado en main.py (HU_62)"
+        )

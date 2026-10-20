@@ -26,6 +26,7 @@ from app.schemas.customer import (
     CustomerOut,
     CustomerUpdate,
 )
+from app.schemas.inline import CustomerInlineCreate  # HU_50 — inline customer creation
 from app.schemas.order_list import CustomerOrderListItem, CustomerTimelineEvent
 from app.services.plugin_hooks import trigger_hooks
 
@@ -792,7 +793,7 @@ def customer_insights(
 @requires_permission("customer", "write")
 def create_customer_inline(
     tenant_id: UUID,
-    payload: "CustomerInlineCreate",
+    payload: CustomerInlineCreate,
     membership: TenantMembership = Depends(get_current_membership),
     db: Session = Depends(get_db),
 ):
@@ -803,7 +804,6 @@ def create_customer_inline(
     - Si ya existe cliente con mismo (tenant, phone/email) → 409 Conflict
     - Devuelve el cliente creado para selección automática en el pedido
     """
-    from app.schemas.inline import CustomerInlineCreate
     from sqlalchemy import select, or_
 
     if not payload.phone and not payload.email:
