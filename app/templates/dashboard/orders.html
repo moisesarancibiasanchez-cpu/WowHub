@@ -16,6 +16,10 @@
         <option value="">Todas las sucursales</option>
       </select>
       <button class="wc-btn wc-btn-secondary" id="refresh-btn">Actualizar</button>
+      {# ── V2.009: "+ Crear pedido" (Inline creation max 3 clicks).
+         Operador puede crear cliente + producto inline antes de salir
+         del modal padre. Cumple principio "no navigation". ── #}
+      <button class="wc-btn wc-btn-primary" id="new-order-btn">+ Crear pedido</button>
     </div>
   </div>
 
@@ -33,6 +37,7 @@
 
 <!-- Modal: detalle de pedido -->
 <div id="order-modal" style="display:none;">
+
   <div style="max-width:720px;width:95%;background:#fff;border-radius:13px;padding:22px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 id="order-modal-title" style="margin:0;font-size:18px;font-weight:700;">Pedido</h3>
@@ -310,6 +315,12 @@ $("search-input").addEventListener("input", () => {
 $("refresh-btn").addEventListener("click", loadOrders);
 $("order-modal-close").addEventListener("click", () => $("order-modal").style.display = "none");
 
+// ── V2.009: Botón "+ Crear pedido" ──
+const NEW_ORDER_BTN = $("new-order-btn");
+if (NEW_ORDER_BTN) {
+  NEW_ORDER_BTN.addEventListener("click", openNewOrderModal);
+}
+
 // Auto-refresh cada 30s
 setInterval(loadOrders, 30000);
 
@@ -348,6 +359,273 @@ window.__qcAssignCustomer = async function (orderId, item) {
 {# ── V2.01 Quick-Context Creation ─────────────────────────────────
    Helper reusable: permite crear cliente/producto desde el contexto
    actual sin navegar. Ver /static/js/quick-create.js. ── #}
-<script src="/static/js/quick-create.js?v=v2.01-qc"></script>
+<!-- ── V2.009 Modal: Crear pedido (max 3 clicks, sin salir) ── -->
+<div id="new-order-modal" style="display:none;">
+  <div class="modal-backdrop" style="position:fixed;inset:0;background:rgba(11,13,18,0.55);backdrop-filter:blur(2px);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div class="modal" style="background:#fff;border-radius:14px;width:100%;max-width:560px;box-shadow:0 20px 60px rgba(11,13,18,0.35);overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e8ecf3;background:#fbfbff;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📝</span>
+          <h3 style="margin:0;font-size:17px;font-weight:700;color:#172033;">Crear pedido</h3>
+        </div>
+        <button type="button" id="new-order-modal-close" aria-label="Cerrar"
+                style="background:transparent;border:0;color:#73809a;font-size:22px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:6px;">×</button>
+      </div>
+      <form id="new-order-form" style="padding:18px 20px;">
+        <div class="form-field" style="margin-bottom:14px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#172033;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">
+            Cliente
+          </label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <select id="no-customer" required style="flex:1;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:14px;">
+              <option value="">— Cargando clientes… —</option>
+            </select>
+            <button type="button" class="qc-btn-new"
+                    data-qc-type="customer"
+                    data-qc-target="#no-customer"
+                    data-qc-label="Cliente"
+                    title="Crear cliente nuevo sin salir de este pedido">+ Nuevo</button>
+          </div>
+        </div>
+        <div class="form-field" style="margin-bottom:14px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#172033;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">
+            Items
+          </label>
+          <div id="no-items" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <button type="button" id="no-add-item" class="qc-btn-new"
+                  style="margin-top:8px;"
+                  title="Agregar otra línea al pedido">+ Agregar item</button>
+        </div>
+        <div class="form-field" style="margin-bottom:14px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#172033;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">
+            Sucursal (opcional)
+          </label>
+          <select id="no-branch" style="width:100%;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:14px;">
+            <option value="">— Sin asignar —</option>
+          </select>
+        </div>
+        <div class="form-field" style="margin-bottom:14px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#172033;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">
+            Notas (opcional)
+          </label>
+          <textarea id="no-notes" rows="2" maxlength="2000"
+                    style="width:100%;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+        </div>
+        <div id="no-error" style="display:none;background:#fee;color:#c00;padding:8px 12px;border-radius:6px;margin-bottom:14px;font-size:13px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+          <button type="button" class="qc-btn-cancel" id="no-cancel"
+                  style="background:transparent;color:#172033;border:1px solid #e8ecf3;padding:9px 14px;border-radius:8px;font-weight:600;cursor:pointer;">
+            Cancelar
+          </button>
+          <button type="submit" class="qc-btn-save" id="no-submit"
+                  style="background:#10b981;color:#fff;border:0;padding:9px 16px;border-radius:8px;font-weight:700;cursor:pointer;">
+            Crear pedido
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/quick-create.js?v=v2.009-inline"></script>
 {% include "_partials/quick_create_modal.html" %}
 {% endblock %}
+
+<script>
+// ── V2.009 Inline-Creation: Modal "Crear pedido" ──
+async function openNewOrderModal() {
+  const tid = currentTenantId;
+  if (!tid) return;
+  // Cargar clientes, productos, sucursales
+  try {
+    const customers = await WH.api.get(`/api/v1/tenants/${tid}/customers?page_size=200`);
+    const products = await WH.api.get(`/api/v1/tenants/${tid}/products?page_size=200`);
+    const branches = await WH.api.get(`/api/v1/tenants/${tid}/branches`).catch(() => []);
+    fillCustomerSelect(document.getElementById("no-customer"), customers.items || customers || [], true);
+    fillBranchSelect(document.getElementById("no-branch"), branches || []);
+    newOrderProductsCache = (products.items || products || []);
+    newOrderAddItemRow();
+  } catch (err) {
+    newOrderProductsCache = [];
+    newOrderAddItemRow();
+  }
+  document.getElementById("new-order-modal").style.display = "block";
+  document.getElementById("no-customer").focus();
+}
+
+let newOrderProductsCache = [];
+
+function newOrderAddItemRow() {
+  const container = document.getElementById("no-items");
+  const idx = container.children.length;
+  const row = document.createElement("div");
+  row.className = "no-item-row";
+  row.dataset.idx = idx;
+  row.style.cssText = "display:flex;align-items:center;gap:8px;";
+  row.innerHTML = `
+    <select class="no-item-product" required style="flex:1;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:14px;">
+      <option value="">— Producto —</option>
+    </select>
+    <input type="number" class="no-item-qty" min="1" max="50" value="1"
+           style="width:80px;padding:9px 11px;border:1px solid var(--wc-line-2);border-radius:7px;background:#fff;font-size:14px;"
+           title="Cantidad">
+    <button type="button" class="qc-btn-new no-item-product-new"
+            data-qc-type="product"
+            data-qc-target=".no-item-product:last"
+            data-qc-label="Producto"
+            title="Crear producto nuevo sin salir de este pedido">+ Nuevo</button>
+    <button type="button" class="no-item-remove"
+            style="background:transparent;color:#c00;border:1px solid #e8ecf3;padding:7px 10px;border-radius:7px;font-size:13px;cursor:pointer;"
+            title="Quitar item">×</button>
+  `;
+  fillProductSelect(row.querySelector(".no-item-product"), newOrderProductsCache);
+  // Remove handler
+  row.querySelector(".no-item-remove").onclick = () => row.remove();
+  container.appendChild(row);
+  // Re-bind QC buttons (los nuevos botones hay que bindearlos de nuevo
+  // porque quick-create.js busca al cargar la página).
+  if (window.QuickCreate) window.QuickCreate.bind(row);
+}
+
+function fillCustomerSelect(sel, list, includePlaceholder) {
+  if (!sel) return;
+  sel.innerHTML = "";
+  if (includePlaceholder) {
+    const opt = document.createElement("option");
+    opt.value = ""; opt.textContent = "— Selecciona cliente —";
+    sel.appendChild(opt);
+  }
+  list.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.full_name || c.name || `Cliente ${c.id.slice(0,8)}`;
+    sel.appendChild(opt);
+  });
+}
+
+function fillProductSelect(sel, list) {
+  if (!sel) return;
+  sel.innerHTML = "";
+  const opt = document.createElement("option");
+  opt.value = ""; opt.textContent = "— Producto —";
+  sel.appendChild(opt);
+  list.forEach(p => {
+    const o = document.createElement("option");
+    o.value = p.id;
+    const price = p.price_cents ? ` ($${Math.round(p.price_cents/100).toLocaleString("es-CL")})` : "";
+    o.textContent = (p.name || p.title || "Producto") + price;
+    sel.appendChild(o);
+  });
+}
+
+function fillBranchSelect(sel, list) {
+  if (!sel) return;
+  // Mantener el placeholder "Sin asignar"
+  sel.innerHTML = '<option value="">— Sin asignar —</option>';
+  list.forEach(b => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = b.name || `Sucursal ${b.id.slice(0,8)}`;
+    sel.appendChild(opt);
+  });
+}
+
+// Hook para que cuando QC cree un producto nuevo, se refresque el select
+// de productos en el modal "nuevo pedido" sin tener que recargar todo.
+window.wcRefreshProductoSelect = function(created) {
+  // Insertar el nuevo producto al cache y al select activo.
+  newOrderProductsCache.push({
+    id: created.id,
+    name: created.name || created.title || "Nuevo producto",
+    price_cents: created.price_cents || 0
+  });
+  // Actualizar todos los selects de producto en el modal.
+  document.querySelectorAll("#no-items .no-item-product").forEach(sel => {
+    // Solo agregar si no existe ya.
+    if (![...sel.options].some(o => o.value === created.id)) {
+      const o = document.createElement("option");
+      o.value = created.id;
+      const price = created.price_cents ? ` ($${Math.round(created.price_cents/100).toLocaleString("es-CL")})` : "";
+      o.textContent = (created.name || "Producto") + price;
+      o.selected = true;
+      sel.appendChild(o);
+    }
+  });
+};
+window.wcRefreshClienteSelect = function(created) {
+  // Añadir al <select> principal del modal
+  const sel = document.getElementById("no-customer");
+  if (sel && ![...sel.options].some(o => o.value === created.id)) {
+    const o = document.createElement("option");
+    o.value = created.id;
+    o.textContent = created.name || created.full_name || "Nuevo cliente";
+    o.selected = true;
+    sel.appendChild(o);
+  }
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  const noAdd = document.getElementById("no-add-item");
+  if (noAdd) noAdd.addEventListener("click", newOrderAddItemRow);
+  const noCancel = document.getElementById("no-cancel");
+  if (noCancel) noCancel.addEventListener("click", () => {
+    document.getElementById("new-order-modal").style.display = "none";
+  });
+  const noClose = document.getElementById("new-order-modal-close");
+  if (noClose) noClose.addEventListener("click", () => {
+    document.getElementById("new-order-modal").style.display = "none";
+  });
+  const form = document.getElementById("new-order-form");
+  if (form) form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await submitNewOrder();
+  });
+});
+
+async function submitNewOrder() {
+  const errBox = document.getElementById("no-error");
+  errBox.style.display = "none";
+  const tid = currentTenantId;
+  const customerId = document.getElementById("no-customer").value;
+  if (!customerId) {
+    errBox.textContent = "Selecciona un cliente o créalo con '+ Nuevo'.";
+    errBox.style.display = "block";
+    return;
+  }
+  const items = [];
+  document.querySelectorAll("#no-items .no-item-row").forEach(row => {
+    const pid = row.querySelector(".no-item-product").value;
+    const qty = parseInt(row.querySelector(".no-item-qty").value, 10) || 1;
+    if (pid) items.push({ product_id: pid, quantity: qty });
+  });
+  if (items.length === 0) {
+    errBox.textContent = "Agrega al menos un item al pedido (o créalo con '+ Nuevo').";
+    errBox.style.display = "block";
+    return;
+  }
+  const body = {
+    customer_id: customerId,
+    branch_id: document.getElementById("no-branch").value || null,
+    notes: document.getElementById("no-notes").value || null,
+    source: "dashboard",
+    items: items
+  };
+  const btn = document.getElementById("no-submit");
+  btn.disabled = true; btn.textContent = "Creando…";
+  try {
+    const order = await WH.api.post(`/api/v1/tenants/${tid}/orders`, body);
+    document.getElementById("new-order-modal").style.display = "none";
+    document.getElementById("no-items").innerHTML = "";
+    document.getElementById("no-notes").value = "";
+    if (window.wcShowToast) wcShowToast("✓ Pedido creado");
+    // Refrescar Kanban
+    await loadOrders();
+    openOrder(order.id);
+  } catch (err) {
+    errBox.textContent = "Error: " + (err.message || err);
+    errBox.style.display = "block";
+  } finally {
+    btn.disabled = false; btn.textContent = "Crear pedido";
+  }
+}
+</script>

@@ -35,28 +35,76 @@
 
   var CONFIG = {
     customer: {
-      endpoint: function (tid) { return "/api/v1/tenants/" + tid + "/customers"; },
-      // Mapear campo UI → campo del schema backend.
-      // CustomerCreate usa full_name (no name) en WowHub.
-      fieldMap: { "name": "full_name" },
+      // ── V2.009 — Usar endpoint inline HU_50 (POST /customers/inline)
+      //    dedicado a creacion in-place. Acepta (name|phone|email|name) sin
+      //    requerir campos pesados (no tags, no rfm, no source). Schema:
+      //    - name: required
+      //    - phone: Optional[str]
+      //    - email: Optional[str]
+      //    - customer_type: "particular" | "empresa" (default "particular")
+      //    - marketing_consent: bool (default false)
+      //    - notes: Optional[str]
+      //    El endpoint valida phone XOR email obligatorio.
+      endpoint: function (tid) { return "/api/v1/tenants/" + tid + "/customers/inline"; },
+      fieldMap: { /* inline coincide 1:1 */ },
       minFields: [
         { name: "name", label: "Nombre", type: "text", required: true, placeholder: "Ej: Juan Pérez" },
         { name: "phone", label: "Teléfono (opcional)", type: "tel", required: false, placeholder: "+56 9 1234 5678" },
         { name: "email", label: "Email (opcional)", type: "email", required: false, placeholder: "juan@test.com" }
       ],
+      validate: function (payload) {
+        // El endpoint valida phone XOR email en backend. Aqui duplicamos
+        // para feedback instantáneo.
+        if (!payload.phone && !payload.email) {
+          return "Ingresa al menos teléfono o email.";
+        }
+        return null;
+      },
+      // Mapear respuesta → { id, name, ... } consistente.
+      map: function (r) {
+        return {
+          id: r.id || r.uuid,
+          name: r.full_name || r.name,
+          phone: r.phone || "",
+          email: r.email || ""
+        };
+      },
       label: "Cliente",
       icon: "👤"
     },
     product: {
-      endpoint: function (tid) { return "/api/v1/tenants/" + tid + "/products"; },
-      // Mapear campo UI → campo del schema backend.
-      // ProductCreate usa base_price_cents (no price). El valor en pesos
-      // CLP lo multiplicamos por 100 para convertir a centavos.
-      fieldMap: { "price": "base_price_cents" },
+      // ── V2.009 — Usar endpoint inline HU_51 (POST /products/inline)
+      //    que crea y, si add_to_order=True, agrega como OrderItem.
+      //    Como aqui NO tenemos aún un order_id (es previo al pedido),
+      //    mandamos add_to_order=False. El operador agregara el item
+      //    al pedido luego en el mismo flujo.
+      endpoint: function (tid) { return "/api/v1/tenants/" + tid + "/products/inline"; },
+      // Auto-generar SKU desde el nombre (regla HU_51: SKU es required).
+      fieldMap: { "price_cents_ui": "price_cents" },
+      preSend: function (payload, form) {
+        // payload ya tiene {name, price_cents}.
+        // Generar SKU desde nombre: slug limpio + timestamp corto.
+        var name = (payload.name || "").trim().toLowerCase();
+        var slug = name.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24);
+        if (!slug) slug = "prod";
+        var ts = Date.now().toString(36).slice(-5);
+        payload.sku = slug + "-" + ts;
+        // product_type default (standard).
+        if (!payload.product_type) payload.product_type = "standard";
+        // Eliminar helper que no es schema field.
+        delete payload.price_cents_ui;
+      },
       minFields: [
         { name: "name", label: "Nombre", type: "text", required: true, placeholder: "Ej: Café Americano" },
-        { name: "price", label: "Precio (CLP)", type: "number", required: true, min: 0, step: 1, placeholder: "1500" }
+        { name: "price_cents_ui", label: "Precio (CLP)", type: "number", required: true, min: 0, step: 1, placeholder: "1500" }
       ],
+      map: function (r) {
+        return {
+          id: r.id || r.uuid,
+          name: r.name || r.title,
+          price_cents: r.price_cents || 0
+        };
+      },
       label: "Producto",
       icon: "📦"
     }
@@ -215,21 +263,43 @@
       var v = form.elements[f.name].value.trim();
       if (!v) return;
       var backendKey = (cfg.fieldMap && cfg.fieldMap[f.name]) || f.name;
-      // Conversiones específicas:
-      // - price (UI en CLP) → base_price_cents (backend, *100).
-      // - price_cents (legacy) se respeta si llega ya en centavos.
-      if (f.name === "price") {
+      // Conversion CLP -> cents (solo cuando el campo UI es numerico
+      // con type=number y queremos cents en backend; los *_cents_ui
+      // son centavos puros, los *_clp_ui serian pesos).
+      // Regla: si el backendKey acaba en "_cents" y el campo no es
+      // *_cents_ui (sufijo preservado literal), multiplicar por 100.
+      var isCents = backendKey.indexOf("_cents") >= 0;
+      var isAlreadyCentsUi = f.name.indexOf("_cents") >= 0;
+      var isPureCents = isCents && isAlreadyCentsUi;
+      if (f.type === "number" && isCents && !isPureCents) {
+        // UI en CLP, backend en cents. CLP * 100 = cents.
         payload[backendKey] = Math.round(parseFloat(v) * 100) || 0;
+      } else if (f.type === "number") {
+        // Numero entero plano.
+        payload[backendKey] = parseInt(v, 10) || 0;
       } else {
-        payload[backendKey] = f.type === "number" ? parseInt(v, 10) || 0 : v;
+        payload[backendKey] = v;
       }
     });
 
-    // Validar requeridos (sobre el nombre UI, no el backendKey)
+    // Hook preSend (ej. SKU auto-generado).
+    if (typeof cfg.preSend === "function") {
+      cfg.preSend(payload, form);
+    }
+
+    // Validar requeridos (sobre el nombre UI, no el backendKey).
     var missing = cfg.minFields.filter(function (f) { return f.required && !form.elements[f.name].value.trim(); });
     if (missing.length) {
       showError(form, "Faltan campos requeridos: " + missing.map(function (f) { return f.label; }).join(", "));
       return;
+    }
+    // Hook validate cross-field (ej. phone XOR email).
+    if (typeof cfg.validate === "function") {
+      var verr = cfg.validate(payload);
+      if (verr) {
+        showError(form, verr);
+        return;
+      }
     }
 
     var btn = form.querySelector(".qc-btn-save");
@@ -248,6 +318,11 @@
       return r.json();
     })
     .then(function (created) {
+      // Normalizar respuesta via cfg.map() (cliente usa full_name, etc.).
+      if (typeof cfg.map === "function") {
+        try { created = cfg.map(created); }
+        catch (e) { console.warn("[quick-create] map() falló:", e); }
+      }
       // Hook de refresh específico (si el template expone uno). Útil
       // cuando el <select> padre debe recargarse desde API para incluir
       // campos calculados (ej: price_cents formateado). Se llama ANTES
