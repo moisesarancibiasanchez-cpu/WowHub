@@ -429,8 +429,6 @@ window.__qcAssignCustomer = async function (orderId, item) {
 
 <script src="/static/js/quick-create.js?v=v2.009-inline"></script>
 {% include "_partials/quick_create_modal.html" %}
-{% endblock %}
-
 <script>
 // ── V2.009 Inline-Creation: Modal "Crear pedido" ──
 async function openNewOrderModal() {
@@ -628,4 +626,4 @@ async function submitNewOrder() {
     btn.disabled = false; btn.textContent = "Crear pedido";
   }
 }
-</script>
+{% endblock %}
