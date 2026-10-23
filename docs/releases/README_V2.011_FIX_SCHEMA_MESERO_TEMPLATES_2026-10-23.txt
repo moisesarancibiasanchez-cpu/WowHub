@@ -25,6 +25,13 @@ ERRORES CORREGIDOS EN ESTE RELEASE
   BUG 3  /dashboard/templates -> HTTP 404
          (mostrando "El negocio "" no existe o está inactivo")
 
+  BUG 4  (descubierto al validar el Bug 1 en producción)
+         GET /api/v1/public/t/{slug}/catalog -> HTTP 500
+         psycopg.errors.InvalidTextRepresentation:
+         invalid input value for enum product_status: "active"
+         Estaba ENMASCARADO por el Bug 1: el SELECT fallaba antes por la
+         columna inexistente. Al reparar el esquema quedó expuesto.
+
 
 --------------------------------------------------------------------------------
 1. BASE (contexto)
@@ -164,8 +171,52 @@ DEFECTO ADICIONAL DETECTADO AL RESTAURAR LA RUTA:
     devuelto 500 en vez de 200. Se cambió a rutas literales /static/..., que
     es el patrón que ya usa base.html (base.html:87-88) en todo el proyecto.
 
-═══ DEFECTOS HERMANOS DETECTADOS EN LA AUDITORÍA ═══
+═══ BUG 4 — ENUM product_status / quote_status desalineados ═══
 
+SÍNTOMA (producción, descubierto al validar el fix del Bug 1):
+    GET /api/v1/public/t/cafe-norte/catalog  -> HTTP 500
+    GET /api/v1/public/t/bicifix/catalog      -> HTTP 500
+    DataError: (psycopg.errors.InvalidTextRepresentation)
+    invalid input value for enum product_status: "active"
+
+    Y el detalle de la respuesta lo confirma:
+      SELECT count(*) AS count_1 FROM (SELECT products.sku AS sku,
+        products.name AS name, products.slug AS slug, ...)
+
+CAUSA RAÍZ CONFIRMADA:
+    La migración inicial (2026_09_07_1002) creó los ENUM con labels en
+    MAYÚSCULAS:
+      initial_schema.py:694  sa.Enum('DRAFT', 'ACTIVE', 'OUT_OF_STOCK',
+                                     'ARCHIVED', name='product_status')
+      initial_schema.py:956  sa.Enum('DRAFT', 'SENT', 'VIEWED', 'ACCEPTED',
+                                     'REJECTED', 'EXPIRED', name='quote_status')
+
+    Pero los modelos usan values_callable (es decir, el .value del enum), y
+    para ProductStatus y QuoteStatus esos valores son LOWERCASE:
+      app/models/product.py:101  values_callable=lambda obj: [e.value for e in obj]
+        -> 'draft', 'active', 'out_of_stock', 'archived'
+      app/models/quote.py:43     values_callable=lambda obj: [e.value for e in obj]
+        -> 'draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired'
+
+    PostgreSQL valida el cast contra los miembros del TYPE, así que cualquier
+    filtro WHERE status = 'active' falla.
+
+    El desfase equivalente de order_status YA se había corregido en
+    2026_10_06_0004_order_status_add_lowercase_values.py, pero NO existía
+    migración equivalente para product_status ni quote_status: ese era el hueco.
+
+    Audita de los 27 ENUM del modelo: sólo 3 usan labels lowercase
+    (order_status, product_status, quote_status). Los otros 24 usan los
+    nombres de miembro en mayúsculas y son consistentes.
+
+IMPACTO:
+    GET /api/v1/public/t/{slug}/catalog
+    GET /api/v1/public/t/{slug}/products/{product_slug}
+    GET /api/v1/tenants/{tenant_id}/products
+    GET /api/v1/tenants/{tenant_id}/search/products
+    y los endpoints de cotizaciones (quote_status).
+
+═══ DEFECTOS HERMANOS DETECTADOS EN LA AUDITORÍA ═══
     D1) onboarding.html, admin_marketing.html y admin_scanner.html tenían el
         mismo antipatrón que el Mesero y usaban WH.Auth SIN guard:
             ReferenceError: WH is not defined
@@ -385,6 +436,31 @@ ARCHIVO: app/templates/public/404.html
     Sin impacto en el caso real de tenant: app/main.py:1129 ya pasaba el
     slug explícitamente al renderizar public/404.html para /u/{slug}.
 
+═══ 2.11) commit f9b8258 — fix(db): alinea los ENUM con el modelo ═══
+
+ARCHIVO NUEVO: alembic/versions/2026_10_23_fix_enum_labels.py
+
+    Revisión: 2026_10_23_fix_enum_labels (down_revision: 2026_10_21_fix_drift)
+
+    Funciones: upgrade(), downgrade(), _ensure_type()
+    Datos: ENUMS = [(tipo, labels_legacy, labels_modelo), ...]
+
+    - ALTER TYPE <tipo> ADD VALUE IF NOT EXISTS '<label>' para cada label que
+      el modelo declara. Idempotente (PG 9.6+).
+    - NO recrea el TYPE, NO hace DROP, NO toca filas, NO bloquea la tabla.
+    - Bloque DO que crea el TYPE si no existe (con todos los labels).
+    - El downgrade es un no-op documentado: PG no permite DROP VALUE de un ENUM.
+    - Los labels legacy en mayúsculas se conservan: puede haber filas viejas
+      con esos valores y siguen siendo legibles.
+
+═══ 2.12) commit 3236178 — test(db): regresión de consistencia ENUM ═══
+
+ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
+
+    Compara los labels de cada ENUM del modelo contra la cadena de
+    migraciones y falla si algún TYPE queda sin sus labels alineados. Es la
+    guarda que evita que esta clase de bug vuelva a aparecer.
+
 
 --------------------------------------------------------------------------------
 3. QUÉ NO SE MODIFICÓ
@@ -435,13 +511,17 @@ ARCHIVO: app/templates/public/404.html
 
 4.3) Base de datos
     · La migración 2026_10_21_fix_drift se aplica automáticamente en el
-      deploy (down_revision = 2026_10_16_hu50_65, que es la head actual).
+      deploy (down_revision = 2026_10_16_hu50_65, que era la head actual).
+    · La migración 2026_10_23_fix_enum_labels se aplica automáticamente
+      (down_revision = 2026_10_21_fix_drift). Es la nueva head de la cadena.
     · Si la DB de Railway estuviera en un estado inconsistente (columnas
       ausentes con alembic_version en head), el bootstrap YA NO la sella:
       detecta las columnas faltantes y aplica upgrade head, y el
       reconcile_schema agrega cualquier columna restante.
     · NO se requiere ninguna intervención manual en la DB.
     · NO se requiere restore ni backup para este deploy (todo es aditivo).
+    · La migración de ENUMs usa ALTER TYPE ... ADD VALUE IF NOT EXISTS:
+      no recrea el TYPE, no borra filas y no bloquea las tablas.
 
 4.4) Secrets / env
     · Sin cambios.
@@ -534,6 +614,23 @@ ARCHIVO: app/templates/public/404.html
   Este flujo NO se modificó en V2.011, pero se re-verifica porque el commit
   9fbf363 toca el mismo template (agrega {{ super() }}, nada más).
 
+5.9) Verificar BUG 4 — catálogo público (el ENUM de products)
+  $ for s in cafe-norte bicifix; do
+      printf "%-12s %s\n" "$s" \
+        "$(curl -s -o /dev/null -w '%{http_code}' \
+           https://wowhub-api-production.up.railway.app/api/v1/public/t/$s/catalog)"
+    done
+  Esperado: 200 (antes 500).
+  NUNCA debe aparecer "invalid input value for enum product_status".
+
+  En el log del deploy debe aparecer:
+    [fix_enum_labels] product_status: +'draft' OK
+    [fix_enum_labels] product_status: +'active' OK
+    [fix_enum_labels] product_status: +'out_of_stock' OK
+    [fix_enum_labels] product_status: +'archived' OK
+    [fix_enum_labels] quote_status: +'draft' OK
+    ... (6 labels en total)
+
 
 --------------------------------------------------------------------------------
 6. ROLLBACK
@@ -550,9 +647,20 @@ ARCHIVO: app/templates/public/404.html
   $ git push origin main
 
 Para revertir en orden inverso (más seguro):
-  $ git revert 55a324f 9857d1d d902dc7 9fbf363 bff9602 e926605 70a76b0 \
-      eab765b 5879fb9 391ba30
+  $ git revert 3236178 f9b8258 55a324f 9857d1d d902dc7 9fbf363 bff9602 \
+      e926605 70a76b0 eab765b 5879fb9 391ba30
   $ git push origin main
+
+Notas de rollback:
+  · Revertir 3236178 (test) no tiene efecto funcional.
+  · Revertir f9b8258 (ENUM) NO elimina los labels agregados al TYPE: PG no
+    permite DROP VALUE. El catálogo público volvería a fallar, así que este
+    commit NO se debe revertir mientras el modelo use labels lowercase.
+  · Revertir 5879fb9 y 391ba30 NO elimina las columnas ya agregadas en la DB
+    (el downgrade de la migración es explícito y la operación de producción es
+    aditiva). La DB quedaría con columnas extra no usadas, lo que es inofensivo.
+  · NO revertir 391ba30 sin revertir 5879fb9: el HU_50-65 original
+    fallaría con DuplicateTable en una DB donde sus tablas ya existen.
 
 Sin impacto en datos: las columnas agregadas quedan en la DB (inofensivas,
 no usadas) y no hay DROP de nada.
@@ -580,6 +688,9 @@ Revertir en ese orden (inverso) es seguro.
              op.add_column
   · 55a324f  fix(ui/404): el mensaje "negocio inexistente" solo aparece
              para URLs de tenant
+  · f9b8258  fix(db): alinea los ENUM product_status y quote_status con el
+             modelo
+  · 3236178  test(db): regresion de consistencia ENUM modelo <-> PostgreSQL
 
 7.2) Archivos modificados (18 archivos, +1345 / -55)
   · alembic/versions/2026_10_16_hu50_65_produccion.py   +140 / -27
@@ -610,6 +721,7 @@ Revertir en ese orden (inverso) es seguro.
   · onboarding/marketing/scanner -> bff9602       -> test_dashboard_routes_and_scripts.py
   · orders sin super()       -> 9fbf363          -> test_dashboard_routes_and_scripts.py
   · mensaje "negocio inexistente" -> 55a324f      -> (verificado en el render)
+  · ENUM product_status/quote_status -> f9b8258   -> test_enum_labels_consistency.py
 
 7.4) LIMITACIÓN CONOCIDA (NO corregida en V2.011, por decisión)
 
@@ -676,12 +788,37 @@ SUITE DE TESTS
     Antes de V2.011 el mismo conjunto daba 121 passed + 1 xpassed.
     El delta (+58) son los 58 tests nuevos de regresión de este release.
 
-ONLINE (Railway) — a verificar post-deploy
-  · /health 200
-  · /api/v1/tenants/{id}/products sin UndefinedColumn
-  · /dashboard/mesero sin TypeError en la consola
-  · /dashboard/templates 200 con 4 plantillas
-  · Hero Showcase: 8 imágenes 200, autoplay 3000 ms, 8 tabs ARIA
+ONLINE (Railway) — VERIFICADO tras el deploy de b8b4313
+  · /health 200 {"status":"ok","version":"0.2.0","env":"production",...}
+  · /openapi.json -> 258 paths (sin cambios)
+  · /dashboard/templates -> 200 (22.793 bytes) con las 4 plantillas
+      (Moderna, WowPrint, Dark, Default)
+      sin url_for('static', filename=...) y sin el mensaje "negocio inexistente"
+  · /dashboard/v1         -> 200
+  · /dashboard/settings   -> 307 -> /dashboard/templates
+  · /dashboard/production -> 307 -> /dashboard/kds
+  · /dashboard/analytics  -> 307 -> /dashboard/stats
+  · /pricing              -> 307 -> /#pricing
+  · /dashboard/mesero -> 200 (63.917 bytes)
+      app.js@26746 < primer uso de WH@27679  => ORDEN CORRECTO
+      ningún <script> usa WH sin guard antes de app.js
+      loadTenantAndBranches y window.WH.Auth.ensureSession presentes
+  · /dashboard/orders -> 200 (56.317 bytes)
+      ai.js, ai-context.js, dashboard-compat.js y requireLogin presentes
+      openNewOrderModal, submitNewOrder, wcRefreshProductoSelect presentes
+  · /api/v1/tenants/{id}/products -> 401 (guard de auth), sin 500 y sin
+      UndefinedColumn  => la columna product_type ya no es el problema
+  · HERO SHOWCASE intacto:
+      home 200 (36.436 bytes), 8 tabs role="tab" en el HTML,
+      hero_showcase.js 200 con AUTOPLAY_MS = 3000,
+      las 8 imágenes de /static/img/hero/ responden 200
+      (bookings.png, catalog.png, orders.png, page.png, payments.jpg,
+       promos.png, qr.png, stats.png)
+
+ONLINE (Railway) — PENDIENTE tras el deploy de f9b8258 (fix del BUG 4)
+  · GET /api/v1/public/t/cafe-norte/catalog -> esperado 200 (antes 500)
+  · GET /api/v1/public/t/bicifix/catalog     -> esperado 200 (antes 500)
+  · El catálogo público de cada tenant debe listar sus productos.
 
 
 --------------------------------------------------------------------------------

@@ -229,12 +229,19 @@ def test_migracion_enum_labels_cubre_los_dos_tipos():
 
 
 def test_cadena_alembic_una_sola_head():
-    """Debe seguir habiendo una sola head tras agregar la migración."""
-    from scripts.bootstrap_migrate import _load_migrations
+    """Debe seguir habiendo una sola head tras agregar la migración.
+
+    No se fija el nombre de la head: se comprueba que sea la última de la
+    cadena y que contenga la migración correctiva de ENUM.
+    """
+    from scripts.bootstrap_migrate import _load_migrations, _migrations_in_dependency_order
 
     migs = _load_migrations()
     referenced = {m["down"] for m in migs.values() if m["down"] in migs}
     heads = [rev for rev in migs if rev not in referenced]
 
     assert len(heads) == 1, f"heads múltiples: {heads}"
-    assert heads[0] == "2026_10_23_fix_enum_labels"
+
+    order = _migrations_in_dependency_order(migs)
+    assert order[-1] == heads[0]
+    assert "2026_10_23_fix_enum_labels" in order

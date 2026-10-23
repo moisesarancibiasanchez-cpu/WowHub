@@ -315,21 +315,31 @@ def test_fix_drift_migration_is_idempotent(tmp_path):
 # 7. Estructura de la cadena Alembic
 # ═══════════════════════════════════════════════════════════════════════
 def test_single_alembic_head():
-    """La cadena Alembic debe tener una sola head (``2026_10_21_fix_drift``)."""
+    """La cadena Alembic debe tener una sola head.
+
+    No se fija el NOMBRE de la head (cambia con cada migración nueva): se
+    comprueba que sea la última de la cadena de dependencias y que la
+    migración correctiva de drift esté en ella.
+    """
     mig_dir = str(ROOT / "alembic" / "versions")
     migs = _load_migrations()
     referenced = {m["down"] for m in migs.values() if m["down"] in migs}
     heads = [rev for rev in migs if rev not in referenced]
 
     assert len(heads) == 1, f"heads múltiples: {heads}"
-    assert heads[0] == FIX_DRIFT
+
+    order = _migrations_in_dependency_order(migs)
+    assert order[-1] == heads[0], (
+        f"la head {heads[0]} no es la última de la cadena (última: {order[-1]})"
+    )
+    assert FIX_DRIFT in order
 
 
 def test_migration_chain_is_ordered():
-    """La nueva migración debe ser descendiente de HU_50–HU_65."""
+    """La migración correctiva de drift debe ser descendiente de HU_50–HU_65."""
     mig_dir = str(ROOT / "alembic" / "versions")
     migs = _load_migrations()
     order = _migrations_in_dependency_order(migs)
 
-    assert order.index(FIX_DRIFT) == len(order) - 1
+    assert FIX_DRIFT in order
     assert order.index(HU50_65) < order.index(FIX_DRIFT)
