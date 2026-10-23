@@ -460,6 +460,50 @@ def dashboard_site(request: Request):
     return templates.TemplateResponse(request, "dashboard/site.html", {"settings": settings})
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# FIX 2026-10-21 — Rutas restauradas (regresión de app/main.py)
+# ═══════════════════════════════════════════════════════════════════════
+# Estas 5 rutas se perdieron cuando el commit 9ea9bec sobrescribió
+# app/main.py con una versión anterior a V2.01 (el fix del 502 de Railway).
+# Consecuencia: el sidebar "Apariencia" apuntaba a /dashboard/templates y
+# devolvía 404 → la página pública 404.html mostraba
+# "El negocio "" no existe o está inactivo".
+#
+# El sidebar y varios links legacy siguen apuntando a estas rutas, así que
+# NO deben volver a eliminarse. Ver docs/releases/README_V2.011_*.txt.
+@app.get("/dashboard/templates", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_templates(request: Request):
+    """Admin UI: selector de plantilla estética del dashboard.
+
+    4 opciones: Moderna (default), WowPrint (kiosk), Dark, Default (legacy).
+    """
+    return templates.TemplateResponse(request, "dashboard/templates.html", {"settings": settings})
+
+
+@app.get("/dashboard/v1", response_class=HTMLResponse, include_in_schema=False)
+def dashboard_page_legacy(request: Request):
+    """Dashboard legacy (pre-TOBE v134.2). Mantener accesible por compatibilidad."""
+    return templates.TemplateResponse(request, "dashboard/index.html", {"settings": settings})
+
+
+@app.get("/dashboard/settings", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_settings_redirect():
+    """Legacy: 'Configuracion' en WowColor → Apariencia (templates) en Moderna."""
+    return RedirectResponse(url="/dashboard/templates", status_code=307)
+
+
+@app.get("/dashboard/production", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_production_redirect():
+    """Legacy: 'Produccion' en WowColor → KDS (Cocina) en Moderna."""
+    return RedirectResponse(url="/dashboard/kds", status_code=307)
+
+
+@app.get("/dashboard/analytics", response_class=RedirectResponse, include_in_schema=False)
+def dashboard_analytics_redirect():
+    """Legacy: 'Analytics' en WowColor → Estadisticas en Moderna."""
+    return RedirectResponse(url="/dashboard/stats", status_code=307)
+
+
 # Nuevas páginas de dashboard (v0.2.0)
 @app.get("/dashboard/orders", response_class=HTMLResponse, include_in_schema=False)
 def dashboard_orders(request: Request):
@@ -1046,6 +1090,16 @@ def dashboard_kds(request: Request):
 
 
 # ── Rutas públicas root ──────────────────────────────────
+@app.get("/pricing", response_class=RedirectResponse, include_in_schema=False)
+def pricing_redirect():
+    """Legacy/SEO: ``/pricing`` → la sección de planes de la portada.
+
+    Sin esta ruta, teclear ``/pricing`` (o seguir un link externo compartido
+    por email/redes) devolvía 404. Se redirige con 307 a ``/#pricing``.
+    """
+    return RedirectResponse(url="/#pricing", status_code=307)
+
+
 @app.get("/landing", response_class=HTMLResponse, include_in_schema=False)
 def public_landing(request: Request):
     """Página pública de marketing — sin tenant."""

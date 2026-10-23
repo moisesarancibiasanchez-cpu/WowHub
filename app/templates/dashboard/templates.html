@@ -3,8 +3,12 @@
 {% block dash_title %}Apariencia — Plantillas{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/templates/dashboard.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/templates/wowprint.css') }}">
+{# FIX 2026-10-21 — rutas literales en vez de url_for('static', filename=...).
+   Starlette exige `path=` en Mount.url_path_for (no `filename=`), por lo que
+   url_for('static', filename=...) lanza NoMatchFound y la página devolvía 500.
+   El resto del proyecto (base.html) ya usa rutas literales /static/... . #}
+<link rel="stylesheet" href="/static/css/templates/dashboard.css">
+<link rel="stylesheet" href="/static/css/templates/wowprint.css">
 <style>
   .template-grid {
     display: grid;
@@ -445,5 +449,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/template-selector.js') }}"></script>
+{# FIX 2026-10-21 — ver nota en head_extra (ruta literal /static/...). #}
+<script src="/static/js/template-selector.js?v=2026-10-17"></script>
 {% endblock %}
