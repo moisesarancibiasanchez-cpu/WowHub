@@ -1,9 +1,9 @@
-================================================================================
-README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-21.txt
+﻿================================================================================
+README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-23.txt
 WowHub · Release Notes Atómicos · V2.011
 ================================================================================
 
-FECHA          : 2026-10-21
+FECHA          : 2026-10-23
 BUILD          : rama main (base baaa077)
 ALCANCE        : Corrección de 3 errores de producción reportados por el
                 usuario, más 3 defectos hermanos del mismo patrón detectados
@@ -599,7 +599,7 @@ Revertir en ese orden (inverso) es seguro.
   · scripts/reconcile_schema.py                          +308  (nuevo)
   · tests/test_dashboard_routes_and_scripts.py          +182  (nuevo)
   · tests/test_schema_drift_reconciliation.py            +335  (nuevo)
-  · docs/releases/README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-21.txt
+  · docs/releases/README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-23.txt
                                                 (nuevo)
 
 7.3) Trazabilidad error -> commit -> prueba
@@ -708,5 +708,5 @@ declaraba.
 
 
 ================================================================================
-FIN README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-21.txt
+FIN README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-23.txt
 ================================================================================
