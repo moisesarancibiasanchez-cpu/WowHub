@@ -414,6 +414,31 @@
   </div>
 </div>
 
+
+
+{# ── V2.01 Quick-Context Creation ─────────────────────────────────
+   Script helper reusable: crea recursos (cliente, producto, mesa…)
+   desde el contexto actual sin navegar. Ver /static/js/quick-create.js. #}
+
+
+{# Modal compartido usado por quick-create.js (cliente/producto/más). #}
+{% include "_partials/quick_create_modal.html" %}
+{% endblock %}{# fin de dash_content #}
+
+{#
+  ── FIX 2026-10-21 — orden de carga de scripts ──────────────────────────
+  Este JS estaba dentro de `{% block dash_content %}`, que se materializa en
+  base.html:84 (dentro de <main>), ANTES de `<script src="/static/js/app.js">`
+  (base.html:87). Como el IIFE se ejecuta al parsear, `window.WH` todavía no
+  existía y la línea de carga de sesión fallaba con:
+
+      TypeError: Cannot read properties of undefined (reading 'Auth')
+
+  `{% block dash_scripts %}` se materializa en base.html:104, DESPUÉS de
+  app.js: ahora `window.WH.Auth` está disponible. Además el DOM ya está
+  parseado por completo (incluido el modal de quick-create).
+#}
+{% block dash_scripts %}
 <script>
 /* ── Mesero Virtual JS ────────────────────────────────────────── */
 (function () {
@@ -959,11 +984,5 @@
 })();
 </script>
 
-{# ── V2.01 Quick-Context Creation ─────────────────────────────────
-   Script helper reusable: crea recursos (cliente, producto, mesa…)
-   desde el contexto actual sin navegar. Ver /static/js/quick-create.js. #}
 <script src="/static/js/quick-create.js?v=v2.009-inline"></script>
-
-{# Modal compartido usado por quick-create.js (cliente/producto/más). #}
-{% include "_partials/quick_create_modal.html" %}
 {% endblock %}
