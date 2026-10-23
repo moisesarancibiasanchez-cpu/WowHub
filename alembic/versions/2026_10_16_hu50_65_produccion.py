@@ -24,8 +24,9 @@ la DB en ``head`` **sin ejecutar nunca los 15 ADD COLUMN**. Resultado en
 producción: ``column products.product_type does not exist``.
 
 A partir de este commit cada operación está protegida:
-  - ``op.create_table``  → se omite si la tabla ya existe.
-  - ``op.add_column``    → se omite si la columna ya existe.
+  - ``op.create_table``  → se omite si la tabla ya existe (``_create_table``).
+  - ``op.add_column``    → se omite si la columna ya existe (guard
+    ``if not _has_column(...)`` en cada llamada).
   - ``op.create_index``  → se omite si el índice ya existe.
 
 En una DB donde la migración ya estaba aplicada, Alembic no la vuelve a
@@ -65,15 +66,6 @@ def _create_table(table: str, *columns, **kwargs) -> None:
     if _has_table(table):
         return
     op.create_table(table, *columns, **kwargs)
-
-
-def _add_column(table: str, column: sa.Column) -> None:
-    """``op.add_column`` idempotente: no falla si la columna ya existe."""
-    if not _has_table(table):
-        return
-    if _has_column(table, column.name):
-        return
-    op.add_column(table, column)
 
 
 def _create_index(name: str, table: str, cols: list[str]) -> None:
@@ -219,57 +211,106 @@ def upgrade() -> None:
     # 5. EXTENSIÓN ADITIVA A TABLAS EXISTENTES (HU_50, HU_51, HU_54, HU_58)
     # ═══════════════════════════════════════════════════════════════════════
     # Products (HU_51, HU_52, HU_54)
-    _add_column("products", sa.Column("product_type", sa.String(30), nullable=False, server_default="standard"))
-    _add_column("products", sa.Column("template_type", sa.String(30), nullable=True))
-    _add_column("products", sa.Column("m2_price_cents", sa.Integer, nullable=False, server_default="0"))
+    if not _has_column("products", "product_type"):
+        op.add_column("products", sa.Column("product_type", sa.String(30), nullable=False, server_default="standard"))
+    if not _has_column("products", "template_type"):
+        op.add_column("products", sa.Column("template_type", sa.String(30), nullable=True))
+    if not _has_column("products", "m2_price_cents"):
+        op.add_column("products", sa.Column("m2_price_cents", sa.Integer, nullable=False, server_default="0"))
     _create_index("ix_products_product_type", "products", ["product_type"])
 
     # Customers (HU_50, HU_56, HU_57)
-    _add_column("customers", sa.Column("customer_type", sa.String(20), nullable=False, server_default="particular"))
-    _add_column("customers", sa.Column("marketing_email_status", sa.String(20), nullable=False, server_default="pending"))
-    _add_column("customers", sa.Column("marketing_whatsapp_status", sa.String(20), nullable=False, server_default="pending"))
-    _add_column("customers", sa.Column("current_debt_cents", sa.Integer, nullable=False, server_default="0"))
+    if not _has_column("customers", "customer_type"):
+        op.add_column("customers", sa.Column("customer_type", sa.String(20), nullable=False, server_default="particular"))
+    if not _has_column("customers", "marketing_email_status"):
+        op.add_column("customers", sa.Column("marketing_email_status", sa.String(20), nullable=False, server_default="pending"))
+    if not _has_column("customers", "marketing_whatsapp_status"):
+        op.add_column("customers", sa.Column("marketing_whatsapp_status", sa.String(20), nullable=False, server_default="pending"))
+    if not _has_column("customers", "current_debt_cents"):
+        op.add_column("customers", sa.Column("current_debt_cents", sa.Integer, nullable=False, server_default="0"))
     _create_index("ix_customers_customer_type", "customers", ["customer_type"])
 
     # QuoteItems (HU_54, HU_58)
-    _add_column("quote_items", sa.Column("template_type", sa.String(30), nullable=True))
-    _add_column("quote_items", sa.Column("width_cm", sa.Float, nullable=True))
-    _add_column("quote_items", sa.Column("height_cm", sa.Float, nullable=True))
-    _add_column("quote_items", sa.Column("faces", sa.Integer, nullable=False, server_default="1"))
-    _add_column("quote_items", sa.Column("suggested_price_cents", sa.Integer, nullable=False, server_default="0"))
-    _add_column("quote_items", sa.Column("cost_unit_cents", sa.Integer, nullable=False, server_default="0"))
-    _add_column("quote_items", sa.Column("pack_qty", sa.Integer, nullable=True))
-    _add_column("quote_items", sa.Column("pack_size", sa.Integer, nullable=True))
+    if not _has_column("quote_items", "template_type"):
+        op.add_column("quote_items", sa.Column("template_type", sa.String(30), nullable=True))
+    if not _has_column("quote_items", "width_cm"):
+        op.add_column("quote_items", sa.Column("width_cm", sa.Float, nullable=True))
+    if not _has_column("quote_items", "height_cm"):
+        op.add_column("quote_items", sa.Column("height_cm", sa.Float, nullable=True))
+    if not _has_column("quote_items", "faces"):
+        op.add_column("quote_items", sa.Column("faces", sa.Integer, nullable=False, server_default="1"))
+    if not _has_column("quote_items", "suggested_price_cents"):
+        op.add_column("quote_items", sa.Column("suggested_price_cents", sa.Integer, nullable=False, server_default="0"))
+    if not _has_column("quote_items", "cost_unit_cents"):
+        op.add_column("quote_items", sa.Column("cost_unit_cents", sa.Integer, nullable=False, server_default="0"))
+    if not _has_column("quote_items", "pack_qty"):
+        op.add_column("quote_items", sa.Column("pack_qty", sa.Integer, nullable=True))
+    if not _has_column("quote_items", "pack_size"):
+        op.add_column("quote_items", sa.Column("pack_size", sa.Integer, nullable=True))
+
+
+def _drop_column(table: str, column: str) -> None:
+    """``op.drop_column`` idempotente: no falla si la columna no existe.
+
+    Antes de dropear la columna elimina los índices que la referencian:
+    SQLite rechaza ``DROP COLUMN`` si existe un índice sobre ella
+    ("error in index ... after drop column: no such column").
+    """
+    if not _has_table(table) or not _has_column(table, column):
+        return
+    insp = sa.inspect(op.get_bind())
+    for idx in insp.get_indexes(table):
+        idx_cols = set(idx.get("column_names") or [])
+        if column in idx_cols:
+            op.drop_index(idx["name"], table)
+    op.drop_column(table, column)
+
+
+def _drop_index(name: str, table: str) -> None:
+    """``op.drop_index`` idempotente: no falla si el índice no existe."""
+    if not _has_table(table):
+        return
+    insp = sa.inspect(op.get_bind())
+    if not any(i["name"] == name for i in insp.get_indexes(table)):
+        return
+    op.drop_index(name, table)
+
+
+def _drop_table(table: str) -> None:
+    """``op.drop_table`` idempotente: no falla si la tabla no existe."""
+    if not _has_table(table):
+        return
+    op.drop_table(table)
 
 
 def downgrade() -> None:
     # Drop in reverse order
-    op.drop_column("quote_items", "pack_size")
-    op.drop_column("quote_items", "pack_qty")
-    op.drop_column("quote_items", "cost_unit_cents")
-    op.drop_column("quote_items", "suggested_price_cents")
-    op.drop_column("quote_items", "faces")
-    op.drop_column("quote_items", "height_cm")
-    op.drop_column("quote_items", "width_cm")
-    op.drop_column("quote_items", "template_type")
+    _drop_column("quote_items", "pack_size")
+    _drop_column("quote_items", "pack_qty")
+    _drop_column("quote_items", "cost_unit_cents")
+    _drop_column("quote_items", "suggested_price_cents")
+    _drop_column("quote_items", "faces")
+    _drop_column("quote_items", "height_cm")
+    _drop_column("quote_items", "width_cm")
+    _drop_column("quote_items", "template_type")
 
-    op.drop_index("ix_customers_customer_type", "customers")
-    op.drop_column("customers", "current_debt_cents")
-    op.drop_column("customers", "marketing_whatsapp_status")
-    op.drop_column("customers", "marketing_email_status")
-    op.drop_column("customers", "customer_type")
+    _drop_index("ix_customers_customer_type", "customers")
+    _drop_column("customers", "current_debt_cents")
+    _drop_column("customers", "marketing_whatsapp_status")
+    _drop_column("customers", "marketing_email_status")
+    _drop_column("customers", "customer_type")
 
-    op.drop_index("ix_products_product_type", "products")
-    op.drop_column("products", "m2_price_cents")
-    op.drop_column("products", "template_type")
-    op.drop_column("products", "product_type")
+    _drop_index("ix_products_product_type", "products")
+    _drop_column("products", "m2_price_cents")
+    _drop_column("products", "template_type")
+    _drop_column("products", "product_type")
 
-    op.drop_table("notification_logs")
-    op.drop_table("notification_templates")
-    op.drop_table("debt_adjustments")
-    op.drop_index("ix_payment_records_tenant_created", "payment_records")
-    op.drop_table("payment_records")
-    op.drop_table("insumo_movements")
-    op.drop_index("ix_production_jobs_tenant_due", "production_jobs")
-    op.drop_index("ix_production_jobs_tenant_status", "production_jobs")
-    op.drop_table("production_jobs")
+    _drop_table("notification_logs")
+    _drop_table("notification_templates")
+    _drop_table("debt_adjustments")
+    _drop_index("ix_payment_records_tenant_created", "payment_records")
+    _drop_table("payment_records")
+    _drop_table("insumo_movements")
+    _drop_index("ix_production_jobs_tenant_due", "production_jobs")
+    _drop_index("ix_production_jobs_tenant_status", "production_jobs")
+    _drop_table("production_jobs")

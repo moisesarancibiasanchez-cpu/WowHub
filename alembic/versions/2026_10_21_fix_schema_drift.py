@@ -149,29 +149,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Elimina las columnas e índices declarados por esta migración.
+    """NO-OP documentado.
 
-    Sólo se eliminan si existen (``IF EXISTS``): es seguro aunque la
-    migración de origen ya los hubiera creado.
+    Esta migración NO es propietaria de las columnas que agrega: son las
+    mismas 15 columnas declaradas por ``2026_10_16_hu50_65``. El
+    ``downgrade`` de la migración padre ya las elimina (en orden inverso).
+
+    Si esta migración las eliminara también, el ``downgrade base`` completo
+    fallaría con "no such column" al intentar borrar por segunda vez.
+
+    Qué SÍ es reversible: el estado de la DB vuelve a ser el de antes de
+    HU_50-HU_65 en cuanto se ejecuta el downgrade de la migración padre.
     """
-    bind = op.get_bind()
-    for name, table, _columns in reversed(INDEXES):
-        if bind.dialect.name == "postgresql":
-            op.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
-        else:
-            op.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
-
-    for table, column, _ddl, _nullable in reversed(COLUMNS):
-        if bind.dialect.name == "postgresql":
-            op.execute(text(f'ALTER TABLE "{table}" DROP COLUMN IF EXISTS "{column}"'))
-        else:
-            # SQLite < 3.35 no soporta DROP COLUMN: se omite con aviso.
-            from sqlalchemy.exc import OperationalError
-
-            try:
-                op.execute(text(f'ALTER TABLE "{table}" DROP COLUMN "{column}"'))
-            except OperationalError as exc:
-                logger.warning(
-                    "[fix_drift] downgrade: no se pudo eliminar %s.%s (SQLite): %s",
-                    table, column, exc,
-                )
+    logger.info(
+        "[fix_drift] downgrade sin efecto: las columnas HU_50-HU_65 las "
+        "elimina el downgrade de %s.",
+        "2026_10_16_hu50_65",
+    )
