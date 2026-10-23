@@ -13,6 +13,27 @@ Extiende (additive only, NO modifica columnas existentes):
   - orders: + relationship production_jobs (FK agregada via relationship)
 
 Operación: ADITIVA. 100% backward-compatible con datos existentes.
+
+Idempotencia (FIX 2026-10-21)
+-----------------------------
+Esta migración es la ÚNICA del proyecto que combina ``op.create_table`` con
+``op.add_column``. Eso la hacía vulnerable al defecto del bootstrap que
+detecta DBs "legacy" (creadas con ``Base.metadata.create_all()``): el
+bootstrap las daba por aplicadas sólo porque las 6 tablas existían, y sellaba
+la DB en ``head`` **sin ejecutar nunca los 15 ADD COLUMN**. Resultado en
+producción: ``column products.product_type does not exist``.
+
+A partir de este commit cada operación está protegida:
+  - ``op.create_table``  → se omite si la tabla ya existe.
+  - ``op.add_column``    → se omite si la columna ya existe.
+  - ``op.create_index``  → se omite si el índice ya existe.
+
+En una DB donde la migración ya estaba aplicada, Alembic no la vuelve a
+ejecutar (la revisión ya quedó en ``alembic_version``): este cambio sólo
+afecta a DBs donde estaba PARCIALMENTE aplicada, donde antes fallaba con
+``DuplicateTable`` y dejaba el esquema a medias.
+
+``down_revision`` y el contenido funcional NO cambian.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -25,11 +46,51 @@ branch_labels = None
 depends_on = None
 
 
+# ── Helpers idempotentes ──────────────────────────────────────────────────
+def _has_table(table: str) -> bool:
+    """True si la tabla ya existe en la DB destino."""
+    return sa.inspect(op.get_bind()).has_table(table)
+
+
+def _has_column(table: str, column: str) -> bool:
+    """True si la columna ya existe en la tabla indicada."""
+    insp = sa.inspect(op.get_bind())
+    if not insp.has_table(table):
+        return False
+    return any(c["name"] == column for c in insp.get_columns(table))
+
+
+def _create_table(table: str, *columns, **kwargs) -> None:
+    """``op.create_table`` idempotente: no falla si la tabla ya existe."""
+    if _has_table(table):
+        return
+    op.create_table(table, *columns, **kwargs)
+
+
+def _add_column(table: str, column: sa.Column) -> None:
+    """``op.add_column`` idempotente: no falla si la columna ya existe."""
+    if not _has_table(table):
+        return
+    if _has_column(table, column.name):
+        return
+    op.add_column(table, column)
+
+
+def _create_index(name: str, table: str, cols: list[str]) -> None:
+    """``op.create_index`` idempotente: no falla si el índice ya existe."""
+    if not _has_table(table):
+        return
+    insp = sa.inspect(op.get_bind())
+    if any(i["name"] == name for i in insp.get_indexes(table)):
+        return
+    op.create_index(name, table, cols)
+
+
 def upgrade() -> None:
     # ═══════════════════════════════════════════════════════════════════════
     # 1. PRODUCTION JOBS (HU_52, HU_53)
     # ═══════════════════════════════════════════════════════════════════════
-    op.create_table(
+    _create_table(
         "production_jobs",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
@@ -65,13 +126,13 @@ def upgrade() -> None:
         # Lock optimista
         sa.Column("version", sa.Integer, nullable=False, server_default="1"),
     )
-    op.create_index("ix_production_jobs_tenant_status", "production_jobs", ["tenant_id", "status"])
-    op.create_index("ix_production_jobs_tenant_due", "production_jobs", ["tenant_id", "due_date"])
+    _create_index("ix_production_jobs_tenant_status", "production_jobs", ["tenant_id", "status"])
+    _create_index("ix_production_jobs_tenant_due", "production_jobs", ["tenant_id", "due_date"])
 
     # ═══════════════════════════════════════════════════════════════════════
     # 2. INSUMO MOVEMENTS (HU_55)
     # ═══════════════════════════════════════════════════════════════════════
-    op.create_table(
+    _create_table(
         "insumo_movements",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
@@ -91,11 +152,11 @@ def upgrade() -> None:
     # ═══════════════════════════════════════════════════════════════════════
     # 3. PAYMENT RECORDS + DEBT ADJUSTMENTS (HU_56, HU_57)
     # ═══════════════════════════════════════════════════════════════════════
-    op.create_table(
+    _create_table(
         "payment_records",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now(), index=True),
+        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("customer_id", PG_UUID(as_uuid=True), sa.ForeignKey("customers.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("order_id", PG_UUID(as_uuid=True), sa.ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True),
@@ -107,13 +168,13 @@ def upgrade() -> None:
         sa.Column("order_paid_cents", sa.Integer, nullable=False, server_default="0"),
         sa.Column("order_debt_cents", sa.Integer, nullable=False, server_default="0"),
     )
-    op.create_index("ix_payment_records_tenant_created", "payment_records", ["tenant_id", "created_at"])
+    _create_index("ix_payment_records_tenant_created", "payment_records", ["tenant_id", "created_at"])
 
-    op.create_table(
+    _create_table(
         "debt_adjustments",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now(), index=True),
+        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("customer_id", PG_UUID(as_uuid=True), sa.ForeignKey("customers.id", ondelete="CASCADE"), nullable=False, index=True),
         sa.Column("order_id", PG_UUID(as_uuid=True), sa.ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True),
@@ -125,7 +186,7 @@ def upgrade() -> None:
     # ═══════════════════════════════════════════════════════════════════════
     # 4. NOTIFICATION TEMPLATES + LOGS (HU_62, HU_63)
     # ═══════════════════════════════════════════════════════════════════════
-    op.create_table(
+    _create_table(
         "notification_templates",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
@@ -138,11 +199,11 @@ def upgrade() -> None:
         sa.UniqueConstraint("tenant_id", "event", "channel", name="uq_notif_tpl_tenant_event_channel"),
     )
 
-    op.create_table(
+    _create_table(
         "notification_logs",
         sa.Column("id", PG_UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", PG_UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now(), index=True),
+        sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("customer_id", PG_UUID(as_uuid=True), sa.ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True),
         sa.Column("order_id", PG_UUID(as_uuid=True), sa.ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True),
@@ -158,27 +219,27 @@ def upgrade() -> None:
     # 5. EXTENSIÓN ADITIVA A TABLAS EXISTENTES (HU_50, HU_51, HU_54, HU_58)
     # ═══════════════════════════════════════════════════════════════════════
     # Products (HU_51, HU_52, HU_54)
-    op.add_column("products", sa.Column("product_type", sa.String(30), nullable=False, server_default="standard"))
-    op.add_column("products", sa.Column("template_type", sa.String(30), nullable=True))
-    op.add_column("products", sa.Column("m2_price_cents", sa.Integer, nullable=False, server_default="0"))
-    op.create_index("ix_products_product_type", "products", ["product_type"])
+    _add_column("products", sa.Column("product_type", sa.String(30), nullable=False, server_default="standard"))
+    _add_column("products", sa.Column("template_type", sa.String(30), nullable=True))
+    _add_column("products", sa.Column("m2_price_cents", sa.Integer, nullable=False, server_default="0"))
+    _create_index("ix_products_product_type", "products", ["product_type"])
 
     # Customers (HU_50, HU_56, HU_57)
-    op.add_column("customers", sa.Column("customer_type", sa.String(20), nullable=False, server_default="particular"))
-    op.add_column("customers", sa.Column("marketing_email_status", sa.String(20), nullable=False, server_default="pending"))
-    op.add_column("customers", sa.Column("marketing_whatsapp_status", sa.String(20), nullable=False, server_default="pending"))
-    op.add_column("customers", sa.Column("current_debt_cents", sa.Integer, nullable=False, server_default="0"))
-    op.create_index("ix_customers_customer_type", "customers", ["customer_type"])
+    _add_column("customers", sa.Column("customer_type", sa.String(20), nullable=False, server_default="particular"))
+    _add_column("customers", sa.Column("marketing_email_status", sa.String(20), nullable=False, server_default="pending"))
+    _add_column("customers", sa.Column("marketing_whatsapp_status", sa.String(20), nullable=False, server_default="pending"))
+    _add_column("customers", sa.Column("current_debt_cents", sa.Integer, nullable=False, server_default="0"))
+    _create_index("ix_customers_customer_type", "customers", ["customer_type"])
 
     # QuoteItems (HU_54, HU_58)
-    op.add_column("quote_items", sa.Column("template_type", sa.String(30), nullable=True))
-    op.add_column("quote_items", sa.Column("width_cm", sa.Float, nullable=True))
-    op.add_column("quote_items", sa.Column("height_cm", sa.Float, nullable=True))
-    op.add_column("quote_items", sa.Column("faces", sa.Integer, nullable=False, server_default="1"))
-    op.add_column("quote_items", sa.Column("suggested_price_cents", sa.Integer, nullable=False, server_default="0"))
-    op.add_column("quote_items", sa.Column("cost_unit_cents", sa.Integer, nullable=False, server_default="0"))
-    op.add_column("quote_items", sa.Column("pack_qty", sa.Integer, nullable=True))
-    op.add_column("quote_items", sa.Column("pack_size", sa.Integer, nullable=True))
+    _add_column("quote_items", sa.Column("template_type", sa.String(30), nullable=True))
+    _add_column("quote_items", sa.Column("width_cm", sa.Float, nullable=True))
+    _add_column("quote_items", sa.Column("height_cm", sa.Float, nullable=True))
+    _add_column("quote_items", sa.Column("faces", sa.Integer, nullable=False, server_default="1"))
+    _add_column("quote_items", sa.Column("suggested_price_cents", sa.Integer, nullable=False, server_default="0"))
+    _add_column("quote_items", sa.Column("cost_unit_cents", sa.Integer, nullable=False, server_default="0"))
+    _add_column("quote_items", sa.Column("pack_qty", sa.Integer, nullable=True))
+    _add_column("quote_items", sa.Column("pack_size", sa.Integer, nullable=True))
 
 
 def downgrade() -> None:
