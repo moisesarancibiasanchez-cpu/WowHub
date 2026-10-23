@@ -56,6 +56,19 @@ Base.metadata.create_all(bind=engine)
 print('✔ create_all red de seguridad OK')
 "
 
+# ── FIX 2026-10-21: reconciliación de esquema (columnas faltantes) ────────
+# create_all() sólo crea tablas QUE NO EXISTEN: nunca hace ALTER TABLE sobre
+# tablas ya presentes. Por eso no puede reparar el drift de columnas (el
+# bug de producción: `products.product_type does not exist` → /products 500).
+#
+# reconcile_schema compara Base.metadata contra el esquema real y:
+#   1) crea las tablas que falten,
+#   2) agrega las columnas que falten (con tipo y default del modelo),
+#   3) crea los índices que falten.
+# Es idempotente y agnóstico del estado de Alembic (legacy/stamped/alembic).
+echo "▶ Reconciliando esquema (columnas/índices faltantes)..."
+python -m scripts.reconcile_schema || echo "⚠ reconcile_schema falló (continúa igualmente)"
+
 echo "▶ Aplicando migraciones idempotentes (enum ai_agent_kind 'help')..."
 python -m scripts.migrate_ai_help_enum || echo "⚠ migrate_ai_help_enum falló (continúa igualmente)"
 

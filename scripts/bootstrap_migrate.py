@@ -171,8 +171,46 @@ def _tables_referenced_by_migration(mig_dir: str, rev: str) -> list[str]:
             continue
         if not rev_pattern.search(txt):
             continue
-        tables = re.findall(r"op\.create_table\(\s*['\"]([a-z0-9_]+)['\"]", txt)
+        tables = re.findall(
+            r"(?:op\.|_)?create_table\(\s*['\"]([a-z0-9_]+)['\"]", txt
+        )
         return [t for t in tables if t != "alembic_version"]
+    return []
+
+
+def _columns_added_by_migration(mig_dir: str, rev: str) -> list[tuple[str, str]]:
+    """Devuelve las columnas que la migración `rev` agrega con ``op.add_column``.
+
+    FIX 2026-10-21: esta información es imprescindible. ``2026_10_16_hu50_65``
+    es la única migración del proyecto que combina ``op.create_table`` con
+    ``op.add_column``. Como el bootstrap legacy sólo verificaba las tablas
+    creadas, daba esa migración por aplicada y sellaba la DB en ``head`` sin
+    ejecutar sus 15 ``ADD COLUMN`` (producción: ``column products.product_type
+    does not exist``).
+
+    Formato devuelto: lista de tuplas ``(tabla, columna)``.
+    """
+    import re
+
+    rev_pattern = re.compile(
+        rf"^revision\b[^=\n]*=\s*['\"]({re.escape(rev)})['\"]", re.M
+    )
+    for fname in os.listdir(mig_dir):
+        if not fname.endswith(".py"):
+            continue
+        path = os.path.join(mig_dir, fname)
+        try:
+            txt = open(path, encoding="utf-8").read()
+        except OSError:
+            continue
+        if not rev_pattern.search(txt):
+            continue
+        pairs = re.findall(
+            r"(?:op\.|_)?add_column\(\s*['\"]([a-z0-9_]+)['\"]\s*,\s*"
+            r"sa\.Column\(\s*['\"]([a-z0-9_]+)['\"]",
+            txt,
+        )
+        return [(t, c) for t, c in pairs]
     return []
 
 
@@ -241,8 +279,27 @@ def _highest_fully_applied_revision(
             # estan, `upgrade head` se encargara de re-ejecutar su UPDATE
             # (los UPDATE son idempotentes en este proyecto).
             continue
-        if all(insp.has_table(t) for t in tables):
-            applied.append(rev)
+
+        # FIX 2026-10-21: verificar TAMBIEN las columnas agregadas con
+        # `op.add_column`. Antes sólo se miraban las tablas, y una migración
+        # con create_table + add_column se daba por aplicada aunque sus
+        # columnas faltaran en la DB (bug de produccion: la migracion
+        # HU_50-HU_65 sellada en head sin sus 15 ADD COLUMN, lo que dejaba
+        # `products.product_type` inexistente y `/products` en 500).
+        for tbl, col in _columns_added_by_migration(mig_dir, rev):
+            if not insp.has_table(tbl):
+                break
+            live_cols = {c["name"] for c in insp.get_columns(tbl)}
+            if col not in live_cols:
+                print(
+                    f"[bootstrap_migrate] la migracion '{rev}' agrego {tbl}.{col} "
+                    f"pero la columna NO existe en la DB — no se considera aplicada.",
+                    flush=True,
+                )
+                break
+        else:
+            if all(insp.has_table(t) for t in tables):
+                applied.append(rev)
 
     if not applied:
         return None
