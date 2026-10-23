@@ -8,7 +8,11 @@
 {% block content %}
 <div class="container-sm" style="padding: 80px 24px; text-align: center;">
   <h1 style="font-size: 80px; margin-bottom: 0;">404</h1>
+  {% if slug %}
   <p class="text-muted" style="margin-bottom: 24px;">El negocio "{{ slug }}" no existe o está inactivo.</p>
+  {% else %}
+  <p class="text-muted" style="margin-bottom: 24px;">No encontramos la página que buscas.</p>
+  {% endif %}
   <a class="btn btn-primary" href="/">Volver al inicio</a>
 </div>
 {% endblock %}

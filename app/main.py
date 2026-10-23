@@ -1318,10 +1318,30 @@ def sitemap_xml():
 async def http_error_handler(request: Request, exc: StarletteHTTPException):
     if request.url.path.startswith("/api/"):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    # FIX 2026-10-21 — El mensaje "El negocio "" no existe o está inactivo"
+    # aparecía en CUALQUIER 404, incluso en rutas del dashboard que no tienen
+    # nada que ver con un negocio (por ejemplo /dashboard/templates cuando
+    # su ruta se perdió). La causa: el handler nunca pasaba `slug` al
+    # contexto, y Jinja serializaba el Undefined como cadena vacía.
+    #
+    # Ahora el slug sólo se extrae de las URLs públicas por tenant
+    # (/u/{slug}, /u/{slug}/catalogo). Si la ruta no es de un tenant, la
+    # plantilla muestra un mensaje genérico en vez de un negocio inexistente.
+    slug = None
+    parts = [p for p in request.url.path.split("/") if p]
+    if len(parts) >= 2 and parts[0] == "u":
+        slug = parts[1]
+
     return templates.TemplateResponse(
         request,
         "public/404.html" if exc.status_code == 404 else "public/error.html",
-        {"settings": settings, "detail": exc.detail, "status": exc.status_code},
+        {
+            "settings": settings,
+            "detail": exc.detail,
+            "status": exc.status_code,
+            "slug": slug,
+        },
         status_code=exc.status_code,
     )
 
