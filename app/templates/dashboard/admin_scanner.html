@@ -279,6 +279,24 @@
 </div>
 
 <!-- html5-qrcode desde CDN (es lo que recomienda su doc) -->
+
+</section>
+
+{% endblock %}{# fin de dash_content #}
+
+{#
+  ── FIX 2026-10-21 — orden de carga de scripts ──────────────────────────
+  Este JS estaba dentro de `{% block dash_content %}`, que se materializa en
+  base.html:84 (dentro de <main>), ANTES de `<script src="/static/js/app.js">`
+  (base.html:87). `app.js` es quien define `window.WH`, así que al ejecutarse
+  este bloque `WH` todavía no existía y la página moría con
+  "WH is not defined" / "Cannot read properties of undefined (reading 'Auth')".
+
+  `{% block dash_scripts %}` se materializa en base.html:104, DESPUÉS de
+  app.js: ahora `WH.Auth` está disponible. El patrón es el mismo que usan
+  customers.html, products.html y los demás módulos del dashboard.
+#}
+{% block dash_scripts %}
 <script src="https://unpkg.com/[email protected]/html5-qrcode.min.js"></script>
 <script>
 WH.Auth.requireLogin();
@@ -599,5 +617,4 @@ $("next-scan-btn").addEventListener("click", () => {
   startCounterQrLoop();
 })();
 </script>
-</section>
 {% endblock %}
