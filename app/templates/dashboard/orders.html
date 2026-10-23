@@ -50,6 +50,13 @@
 {% endblock %}
 
 {% block scripts %}
+{# FIX 2026-10-21 — faltaba {{ super() }}.
+   Sin él, esta página perdía todo el bloque `scripts` del padre
+   (dashboard/base.html): ai.js, ai-context.js, WH.Auth.requireLogin(),
+   el listener del botón "Salir", el resaltado del link activo del sidebar
+   y dashboard-compat.js. El patrón correcto (el de customers.html,
+   products.html, etc.) es {{ super() }} al inicio del bloque. #}
+{{ super() }}
 <script>
 let currentTenantId = null;
 let branches = [];
