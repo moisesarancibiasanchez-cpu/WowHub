@@ -277,6 +277,30 @@ html.no-ai-sidebar .dash-content,
   box-sizing: border-box;
 }
 
+/* ── FIX V2.012 (2026-10-23) ────────────────────────────────────────────────
+   Las páginas que NO usan el wrapper `.dash-page` seguían cayendo en el
+   auto-flow del grid de 12 columnas de `.dash-content` y ocupaban una sola
+   celda. Medido sobre el HTML y el CSS reales de producción:
+
+     /dashboard/templates   14%   /dashboard/inventory  27%
+     /dashboard/orders      29%   /dashboard/quotes     31%
+     /dashboard/ai          36%   /dashboard/customers  61%
+
+   El grid de 12 columnas existe para los 10 widgets del Resumen (cada uno
+   con su `data-widget-type` y su `grid-area`). Cualquier otro hijo
+   directo de `.dash-content` es el contenido de una página normal y debe
+   ocupar TODO el ancho del MAIN.
+
+   REGLA: todo hijo directo de `.dash-content` que NO sea un widget del
+   Resumen hace span de las 12 columnas. Así el fix es sistémico: cubre
+   las páginas actuales y las que se añadan en el futuro, sin tocar cada
+   template. Los widgets del Resumen quedan excluidos por su
+   `data-widget-type` y conservan su `grid-area`. */
+.dash-content > :not([data-widget-type]) {
+  grid-column: 1 / -1;
+  min-width: 0;   /* permite que las tablas largas se ajusten al ancho */
+}
+
 /* ── HU_34 · trade-off CSS Grid fix (2026-10-04) ────────────────────
    Los 10 widgets del Resumen viven como hijos DIRECTOS de
    `.dash-content`. Cada uno ocupa su `grid-area` correspondiente
