@@ -2,12 +2,13 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationError
 from app.database import get_db
-from app.deps import get_current_membership
+from app.deps import get_current_membership, get_current_membership_allow_cookie
 from app.models.tenant import TenantMembership
 from app.schemas.upload import UploadOut
 from app.services.upload_service import UploadService
@@ -81,19 +82,28 @@ def delete_upload(
 def get_upload_content(
     tenant_id: UUID,
     upload_id: UUID,
-    membership: TenantMembership = Depends(get_current_membership),
+    membership: TenantMembership = Depends(get_current_membership_allow_cookie),
     db: Session = Depends(get_db),
 ):
     """Sirve el contenido de un archivo, validando pertenencia al tenant.
 
     FIX 2026-09-27 (seguridad): reemplaza el montaje público `app.mount("/storage",
     StaticFiles(...))`, que exponía los archivos de TODOS los tenants sin
-    autenticación. Aquí `get_current_membership` exige membresía activa en
-    `tenant_id`, y se verifica además que el archivo pertenezca a ese tenant.
+    autenticación. Aquí se exige membresía activa en `tenant_id`, y se
+    verifica además que el archivo pertenezca a ese tenant.
+
+    FIX V2.014 (dos correcciones):
+    1) `HTTPException` se importaba desde `fastapi.responses`, donde NO
+       existe → la función moría con ImportError en CADA petición y el
+       endpoint respondía 500. Por eso el preview del dashboard caía
+       siempre en "⚠ No se pudo cargar la imagen".
+    2) Se usa `get_current_membership_allow_cookie`: un `<img src>` no
+       puede mandar el header Authorization, así que las miniaturas
+       nativas del dashboard (catálogo, logos) daba 401. Con la cookie
+       httpOnly de sesión el `<img>` se autentica solo.
     """
     from pathlib import Path
 
-    from fastapi.responses import FileResponse, HTTPException
     from sqlalchemy import select
 
     from app.config import get_settings
@@ -113,6 +123,11 @@ def get_upload_content(
     # ("<hex8>-<nombre><ext>"), NO ``filename`` (el nombre original que
     # subió el usuario). Con ``filename`` la ruta nunca existía y el
     # preview de la imagen cargada daba 404.
+    if not upload.stored_filename:
+        raise HTTPException(
+            status_code=404,
+            detail="El archivo no está disponible en el servidor. Vuelve a subirlo.",
+        )
     candidate = (storage_dir / str(tenant_id) / upload.stored_filename).resolve()
     try:
         # Path traversal: el archivo debe quedar dentro de storage/{tenant_id}/
@@ -121,7 +136,16 @@ def get_upload_content(
         raise HTTPException(status_code=400, detail="Ruta de archivo inválida")
 
     if not candidate.is_file():
-        raise HTTPException(status_code=404, detail="Archivo no encontrado en disco")
+        # FIX V2.014 — mensaje accionable: el registro existe en la DB pero
+        # el archivo no está en disco (típicamente porque el almacenamiento
+        # no es persistente y se perdió en un despliegue).
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "El archivo ya no está en el servidor (se perdió en un "
+                "despliegue). Vuelve a subir la imagen."
+            ),
+        )
 
     return FileResponse(
         candidate,
