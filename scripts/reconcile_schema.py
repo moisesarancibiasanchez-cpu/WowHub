@@ -1,4 +1,4 @@
-"""Reconciliación idempotente de esquema contra la DB real.
+﻿"""Reconciliación idempotente de esquema contra la DB real.
 
 Problema (Bug 1 — producción, 2026-10-21)
 -----------------------------------------
@@ -128,6 +128,219 @@ def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# ENUM de PostgreSQL: labels y datos legacy
+# ═══════════════════════════════════════════════════════════════════════
+# Los TYPE ENUM de PG no admiten DROP VALUE, y el modelo puede usar labels
+# distintos de los con los que la migración original creó el TYPE (típico:
+# migración en MAYÚSCULAS + modelo en minúsculas con ``values_callable``).
+#
+# Casos reales en este proyecto (2026-10-23):
+#   product_status  migración: DRAFT/ACTIVE/OUT_OF_STOCK/ARCHIVED
+#                  modelo   : draft/active/out_of_stock/archived
+#   quote_status    migración: DRAFT/SENT/VIEWED/ACCEPTED/REJECTED/EXPIRED
+#                  modelo   : draft/sent/viewed/accepted/rejected/expired
+#
+# Consecuencia: PG rechaza el bind y SQLAlchemy rechaza la lectura:
+#   DataError: invalid input value for enum product_status: "active"
+#   LookupError: 'ACTIVE' is not among the defined enum values
+#
+# Se reparan aquí (capa agnóstica del estado de Alembic) porque el
+# reconciliador se ejecuta SIEMPRE en el entrypoint, haya funcionado o no
+# ``alembic upgrade head``.
+
+
+def _pg_enum_labels(engine: Engine, type_name: str) -> set[str] | None:
+    """Labels actuales del TYPE ENUM en PostgreSQL. ``None`` si no existe."""
+    sql = text(
+        "SELECT e.enumlabel FROM pg_type t "
+        "JOIN pg_enum e ON e.enumtypid = t.oid "
+        "WHERE t.typname = :name"
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(sql, {"name": type_name}).fetchall()
+    if not rows:
+        # El TYPE no existe o no tiene labels (no es un ENUM).
+        with engine.connect() as conn:
+            exists = conn.execute(
+                text("SELECT 1 FROM pg_type WHERE typname = :name"),
+                {"name": type_name},
+            ).fetchone()
+        return None if exists is None else set()
+    return {r[0] for r in rows}
+
+
+def _model_enum_labels() -> dict[str, set[str]]:
+    """labels declarados por los modelos, por nombre de TYPE."""
+    from sqlalchemy import Enum as SAEnum
+
+    from app.database import Base  # noqa: WPS433 (import local: evita ciclo)
+    import app.models  # noqa: F401,WPS433
+
+    out: dict[str, set[str]] = {}
+    for table in Base.metadata.sorted_tables:
+        for col in table.columns:
+            t = col.type
+            if not isinstance(t, SAEnum) or not t.name:
+                continue
+            if t.enums:
+                labels = set(t.enums)
+            elif t.enum_class:
+                labels = {str(e.value) for e in t.enum_class}
+            else:
+                labels = set()
+            out.setdefault(t.name, set()).update(labels)
+    return out
+
+
+def _enum_columns() -> dict[str, list[tuple[str, str]]]:
+    """Columnas de la metadata que usan cada TYPE ENUM: {tipo: [(tabla, col)]}."""
+    from sqlalchemy import Enum as SAEnum
+
+    from app.database import Base  # noqa: WPS433 (import local: evita ciclo)
+    import app.models  # noqa: F401,WPS433
+
+    out: dict[str, list[tuple[str, str]]] = {}
+    for table in Base.metadata.sorted_tables:
+        for col in table.columns:
+            t = col.type
+            if isinstance(t, SAEnum) and t.name:
+                out.setdefault(t.name, []).append((table.name, col.name))
+    return out
+
+
+def _ensure_enum_labels(engine: Engine, dry_run: bool) -> tuple[list[str], list[str]]:
+    """Agrega a cada TYPE ENUM los labels que el modelo declara.
+
+    Usa ``ALTER TYPE ... ADD VALUE IF NOT EXISTS`` (aditivo, idempotente) y
+    lo ejecuta en AUTOCOMMIT: PostgreSQL restricts ``ALTER TYPE ... ADD
+    VALUE`` dentro de un bloque transaccional en versiones antiguas, y de
+    todos modos no queremos que un fallo en un label contamine la sesión.
+    """
+    added: list[str] = []
+    errors: list[str] = []
+    model_labels = _model_enum_labels()
+
+    for type_name, labels in sorted(model_labels.items()):
+        current = _pg_enum_labels(engine, type_name)
+        if current is None:
+            logger.info(
+                "[reconcile] el TYPE ENUM %s no existe en PostgreSQL — se omite "
+                "(lo crea create_all si la columna depende de él)",
+                type_name,
+            )
+            continue
+
+        faltan = sorted(labels - current)
+        if not faltan:
+            continue
+
+        for label in faltan:
+            logger.info(
+                "[reconcile] ALTER TYPE %s ADD VALUE IF NOT EXISTS '%s'",
+                type_name, label,
+            )
+            added.append(f"{type_name}.{label}")
+            if dry_run:
+                continue
+            try:
+                with engine.connect().execution_options(
+                    isolation_level="AUTOCOMMIT"
+                ) as conn:
+                    conn.execute(
+                        text(f'ALTER TYPE "{type_name}" ADD VALUE IF NOT EXISTS \'{label}\'')
+                    )
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"add enum value {type_name}.{label}: {exc}")
+                logger.error(
+                    "[reconcile] no se pudo agregar %s.%s: %s", type_name, label, exc
+                )
+    return added, errors
+
+
+def _enum_label_mapping(
+    current_labels: set[str], model_labels: set[str]
+) -> dict[str, str]:
+    """Mapeo legacy->model: {'ACTIVE': 'active', ...}.
+
+    Sólo incluye pares donde el equivalente en minúsculas (lower) EXISTE en
+    los labels del modelo. Es un mapeo 1:1 verificable: si el legacy
+    'CANCELED' no tiene equivalente en el modelo (que usa 'cancelado'), no se
+    toca la fila.
+    """
+    mapping: dict[str, str] = {}
+    for label in current_labels:
+        low = label.lower()
+        if low in model_labels and label != low:
+            mapping[label] = low
+    return mapping
+
+
+def _normalize_enum_data(engine: Engine, dry_run: bool) -> tuple[list[str], list[str]]:
+    """Normaliza filas con labels legacy en MAYÚSCULAS a los del modelo.
+
+    El modelo usa ``values_callable`` (minúsculas). Filas escritas por
+    versiones anteriores del código pueden tener el NOMBRE del miembro
+    ('ACTIVE'), que SQLAlchemy no sabe mapear:
+
+        LookupError: 'ACTIVE' is not among the defined enum values
+
+    Sólo se actualizan los valores cuyo equivalente en minúsculas (lower)
+    EXISTE en el modelo: es un mapeo 1:1 verificable. Los labels legacy sin
+    equivalente (p.ej. 'CANCELED' de order_status, cuyo valor en el modelo
+    es 'cancelado') se dejan intactos y se reportan.
+    """
+    updated: list[str] = []
+    errors: list[str] = []
+    model_labels = _model_enum_labels()
+    enum_cols = _enum_columns()
+
+    for type_name, cols in sorted(enum_cols.items()):
+        labels = model_labels.get(type_name, set())
+        if not labels:
+            continue
+        current = _pg_enum_labels(engine, type_name)
+        if not current:
+            continue
+
+        # Mapeo verificable: MAYÚSCULA -> minúscula presente en el modelo.
+        mapping = _enum_label_mapping(current, labels)
+        if not mapping:
+            continue
+
+        for table_name, col_name in cols:
+            for old, new in sorted(mapping.items()):
+                where = f'"{table_name}"."{col_name}" = :old'
+                sql = (
+                    f'UPDATE "{table_name}" SET "{col_name}" = :new '
+                    f"WHERE {where}"
+                )
+                logger.info(
+                    "[reconcile] UPDATE %s.%s: '%s' -> '%s'",
+                    table_name, col_name, old, new,
+                )
+                updated.append(f"{table_name}.{col_name}:{old}->{new}")
+                if dry_run:
+                    continue
+                try:
+                    with engine.begin() as conn:
+                        result = conn.execute(
+                            text(sql), {"old": old, "new": new}
+                        )
+                        if result.rowcount:
+                            logger.info(
+                                "[reconcile] %s.%s: %d fila(s) normalizadas",
+                                table_name, col_name, result.rowcount,
+                            )
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"normalize {table_name}.{col_name}: {exc}")
+                    logger.error(
+                        "[reconcile] no se pudo normalizar %s.%s: %s",
+                        table_name, col_name, exc,
+                    )
+    return updated, errors
+
+
 def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
     """Compara modelos contra el esquema real y repara la diferencia.
 
@@ -146,6 +359,8 @@ def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
         "columns_added": [],
         "columns_skipped_unsafe_type": [],
         "indexes_created": [],
+        "enum_values_added": [],
+        "enum_rows_normalized": [],
         "errors": [],
     }
 
@@ -257,6 +472,21 @@ def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
                 report["errors"].append(f"create index {index.name}: {exc}")
                 logger.error("[reconcile] no se pudo crear el índice %s: %s", index.name, exc)
 
+    # ── 4. ENUM de PostgreSQL: labels ─────────────────────────────────────
+    # Primero los labels (para que PG acepte el bind del modelo) y después
+    # la normalización de las filas legacy en mayúsculas (para que
+    # SQLAlchemy pueda mapearlas).
+    if dialect.name == "postgresql":
+        enum_added, enum_errors = _ensure_enum_labels(engine, dry_run)
+        report["enum_values_added"].extend(enum_added)
+        report["errors"].extend(enum_errors)
+
+        normalized, norm_errors = _normalize_enum_data(engine, dry_run)
+        report["enum_rows_normalized"].extend(normalized)
+        report["errors"].extend(norm_errors)
+    else:
+        logger.info("[reconcile] dialecto %s: sin ENUM de PostgreSQL", dialect.name)
+
     return report
 
 
@@ -283,17 +513,25 @@ def main() -> int:
 
     verb = "se agregaría" if args.dry_run else "se agregó"
     logger.info(
-        "Resumen — tablas %s: %d | %s %d columnas | índices %s: %d | omitidas: %d | errores: %d",
+        "Resumen — tablas %s: %d | %s %d columnas | índices %s: %d | "
+        "enum labels %s: %d | filas enum normalizadas: %d | omitidas: %d | errores: %d",
         "a crear" if args.dry_run else "creadas",
         len(report["tables_created"]),
         verb, len(report["columns_added"]),
         "a crear" if args.dry_run else "creados",
         len(report["indexes_created"]),
+        "a agregar" if args.dry_run else "agregados",
+        len(report["enum_values_added"]),
+        len(report["enum_rows_normalized"]),
         len(report["columns_skipped_unsafe_type"]),
         len(report["errors"]),
     )
     for item in report["columns_added"]:
         logger.info("  + columna %s", item)
+    for item in report["enum_values_added"]:
+        logger.info("  + enum %s", item)
+    for item in report["enum_rows_normalized"]:
+        logger.info("  ~ enum fila %s", item)
     for item in report["columns_skipped_unsafe_type"]:
         logger.warning("  ! omitida %s", item)
     for item in report["errors"]:

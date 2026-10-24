@@ -228,7 +228,77 @@ def test_migracion_enum_labels_cubre_los_dos_tipos():
         )
 
 
-def test_cadena_alembic_una_sola_head():
+def test_mapeo_legacy_enum_es_1a1_y_verificable():
+    """El mapeo de labels legacy (MAYÚSCULAS) debe ser 1:1 y verificable.
+
+    Sólo se mapean los legacy cuyo equivalente en minúsculas EXISTE en los
+    labels del modelo. ``order_status`` no se toca: sus labels legacy están
+    en inglés ('CANCELED') y su equivalente en el modelo es 'cancelado'.
+    """
+    from scripts.reconcile_schema import _enum_label_mapping, _model_enum_labels
+
+    model_labels = _model_enum_labels()
+
+    mapping = _enum_label_mapping(
+        {"DRAFT", "ACTIVE", "OUT_OF_STOCK", "ARCHIVED"},
+        model_labels["product_status"],
+    )
+    assert mapping == {
+        "DRAFT": "draft",
+        "ACTIVE": "active",
+        "OUT_OF_STOCK": "out_of_stock",
+        "ARCHIVED": "archived",
+    }
+
+    mapping = _enum_label_mapping(
+        {"DRAFT", "SENT", "VIEWED", "ACCEPTED", "REJECTED", "EXPIRED"},
+        model_labels["quote_status"],
+    )
+    assert mapping == {
+        "DRAFT": "draft",
+        "SENT": "sent",
+        "VIEWED": "viewed",
+        "ACCEPTED": "accepted",
+        "REJECTED": "rejected",
+        "EXPIRED": "expired",
+    }
+
+    # order_status: los legacy en inglés NO tienen equivalente en el modelo
+    # español, así que no se toca ninguna fila.
+    mapping = _enum_label_mapping(
+        {"PENDING", "CONFIRMED", "PREPARING", "READY", "DELIVERED", "CANCELED"},
+        model_labels["order_status"],
+    )
+    assert mapping == {}, "no debe mapearse ningún legacy de order_status"
+
+
+def test_reconciliador_cubre_los_enums():
+    """``reconcile_schema`` debe reconciliar labels y datos de los ENUM.
+
+    El reconciliador se ejecuta SIEMPRE en el entrypoint (independientemente
+    de si ``alembic upgrade head`` funcionó), así que es la capa que
+    garantiza que los labels existan en PostgreSQL.
+    """
+    from pathlib import Path
+
+    src = (
+        Path(__file__).resolve().parents[1] / "scripts" / "reconcile_schema.py"
+    ).read_text(encoding="utf-8")
+
+    assert "ALTER TYPE" in src, "el reconciliador debe saber agregar labels de ENUM"
+    assert "ADD VALUE IF NOT EXISTS" in src
+    assert "_ensure_enum_labels" in src
+    assert "_normalize_enum_data" in src
+    assert "pg_enum" in src, "debe leer los labels reales del TYPE en PostgreSQL"
+
+
+def test_reconciliador_cubre_las_columnas_de_enum():
+    """Las columnas ENUM del modelo deben estar cubiertas por el reconciliador."""
+    from scripts.reconcile_schema import _enum_columns
+
+    cols = _enum_columns()
+    assert ("products", "status") in cols.get("product_status", [])
+    assert ("quotes", "status") in cols.get("quote_status", [])
     """Debe seguir habiendo una sola head tras agregar la migración.
 
     No se fija el nombre de la head: se comprueba que sea la última de la
