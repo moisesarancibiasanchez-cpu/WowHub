@@ -437,12 +437,12 @@ Fuga de detalle del upload (URL absoluta)       —      test_la_url_de_la_image
   Path /app/storage). Hasta que exista, cada despliegue volverá a borrar
   las imágenes.
 
-7.3) NO HUBO SESIÓN REAL EN EL NAVEGADOR PARA EL UPLOADER
-  La verificación en línea comprobó el endpoint desplegado con la cuenta
-  demo del repo (subida real + lectura real del archivo), pero no se pudo
-  hacer la inspección visual del picker en el dashboard con la cuenta del
-  usuario: en este entorno no hay sesión de WowHub abierta en el navegador.
-  El paso manual 5.1 queda pendiente.
+7.3) LA INSPECCIÓN VISUAL CON LA CUENTA DEL USUARIO QUEDA PENDIENTE
+  El preview se verificó en un navegador real, pero con una imagen de
+  prueba subida por el propio banco y no con la cuenta del usuario: en este
+  entorno no hay sesión de WowHub abierta en el navegador. Con la cuenta
+  real hay que repetir el paso manual 5.1 (subir una imagen en Productos y
+  confirmar que la previsualización aparece).
 
 7.4) LA CADENA DE ALEMBIC DE PRODUCCIÓN SIGUE SIN AVANZAR
   Pendiente heredado de V2.012 §7.1, sin cambios en este release.
@@ -467,5 +467,34 @@ LOCAL (antes del push):
     mismo verificador: idéntico)
   · alembic heads → una sola head: 2026_10_24_fix_rbac_id_type (sin cambios)
 
-ONLINE (post-deploy): ver el commit de documentación que acompaña a esta
-versión.
+ONLINE (post-deploy, Railway):
+  Script de verificación propio contra el sitio desplegado: 17 OK / 0 FAIL.
+  (La cuenta usada es la demo del repo: demo@wowhub.app.)
+
+  · POST /api/v1/tenants/{tid}/uploads → 201, y la URL canónica devuelta es
+    /api/v1/tenants/{tid}/uploads/{uid}/content
+  · GET de esa URL con Bearer → 200 (ya NO 500), content-type image/png y
+    los bytes exactos de la imagen
+  · GET de esa URL con la COOKIE de sesión y SIN header Authorization → 200
+    con los bytes exactos (es el camino del <img> nativo)
+  · GET de esa URL sin ninguna credencial → 401
+  · GET /api/v1/public/t/{slug}/media/{uid} → 200
+  · El app.js desplegado trae previewErrorMessage, devuelve {src, error} y
+    ya no contiene el mensaje que culpaba a la URL
+  · GET /api/v1/loyalty/c/{slug}/campaign → 200 y el logo no apunta a una
+    URL autenticada
+  · DELETE del upload de prueba → 204 (el tenant quedó con sus 12 uploads
+    originales, sin residuos de prueba)
+  · /health → 200, /openapi.json → 200
+
+VERIFICACIÓN EN NAVEGADOR REAL (banco local con el app.js y el backend
+desplegados):
+  Se subió una imagen real (PNG 200x120) al tenant de prueba y se montó un
+  banco local que carga el ImagePicker del app.js DESPLEGADO y reenvía
+  /api/v1/* a producción con el Bearer (para que el fetch del preview sea
+  same-origin, sin CORS). Resultado leído del DOM:
+
+    "OK: la previsualización cargó la imagen (200x120)."
+
+  La imagen se ve renderizada dentro del picker, sin el aviso de error.
+  Es exactamente el síntoma reportado por el usuario.
