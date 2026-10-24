@@ -325,7 +325,15 @@ $("order-modal-close").addEventListener("click", () => $("order-modal").style.di
 // ── V2.009: Botón "+ Crear pedido" ──
 const NEW_ORDER_BTN = $("new-order-btn");
 if (NEW_ORDER_BTN) {
-  NEW_ORDER_BTN.addEventListener("click", openNewOrderModal);
+  // FIX V2.012 — "+ Crear pedido" no hacia nada.
+  // La funcion openNewOrderModal se declara MAS ABAJO, en otro bloque
+  // <script>. Pasarla por referencia (addEventListener("click",
+  // openNewOrderModal)) la evaluaba en el momento de REGISTRAR el
+  // listener: ReferenceError -> el script entero abortaba aqui y nunca
+  // llegaban a ejecutarse el setInterval(loadOrders) ni el init() (el
+  // Kanban se quedaba vacio). Con una arrow function la busqueda se
+  // hace en el momento del clic, cuando ya esta declarada.
+  NEW_ORDER_BTN.addEventListener("click", () => openNewOrderModal());
 }
 
 // Auto-refresh cada 30s
