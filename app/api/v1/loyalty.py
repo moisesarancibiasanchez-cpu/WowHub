@@ -278,6 +278,18 @@ def get_public_campaign(
     # Accedemos al tenant por slug (no hay relationship en el modelo)
     tenant = get_tenant_by_slug(db, slug)
     tenant_name = tenant.display_name if tenant else None
+    # FIX V2.014 — el logo de la campaña se sube desde el dashboard y se
+    # guarda con la URL AUTENTICADA (/api/v1/tenants/{tid}/uploads/{uid}/
+    # content). Esta respuesta es pública (la tarjeta del cliente no tiene
+    # sesión), así que esa URL daba 401 y el logo no cargaba. Se reescribe
+    # a la ruta pública por slug, como ya se hace en landing y catálogo.
+    from app.api.v1.public import _public_media_url
+
+    logo_url = campaign.logo_url
+    icon_url = campaign.icon_url
+    if tenant is not None:
+        logo_url = _public_media_url(logo_url, tenant, db, slug)
+        icon_url = _public_media_url(icon_url, tenant, db, slug)
     return {
         "tenant_slug": slug,
         "tenant_name": tenant_name,
@@ -289,8 +301,8 @@ def get_public_campaign(
             "primary_color": campaign.primary_color,
             "text_color": campaign.text_color,
             "accent_color": campaign.accent_color,
-            "logo_url": campaign.logo_url,
-            "icon_url": campaign.icon_url,
+            "logo_url": logo_url,
+            "icon_url": icon_url,
         },
     }
 

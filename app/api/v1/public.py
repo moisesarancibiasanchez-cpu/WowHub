@@ -49,6 +49,11 @@ _PUBLIC_MEDIA_PURPOSES = frozenset({
     "product_image",
     "promotion",
     "promotion_image",
+    # FIX V2.014 — el logo de la campaña de fidelización se sube desde el
+    # dashboard (admin_loyalty.html) y se muestra en la tarjeta del
+    # cliente, que es una página PÚBLICA sin sesión: sin esta entrada la
+    # URL autenticada devolvía 401 y el logo no cargaba.
+    "loyalty_campaign_logo",
 })
 
 _MEDIA_CONTENT_RE = re.compile(
