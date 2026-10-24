@@ -18,6 +18,27 @@ const TokenStore = {
   currentTenant() { return this.get()?.current_tenant || null; },
 };
 
+// ── Decodificación de JWT (FIX V2.013) ───────────────────────────
+// El payload de un JWT va en base64url: usa '-' y '_' en vez de '+' y '/'
+// y NO lleva relleno (=). Si se pasa tal cual a atob(), el navegador lanza
+// InvalidCharacterError siempre que el largo % 4 != 0 — que es la norma —
+// y el claim se pierde silenciosamente (por eso el item SUPERADMIN nunca
+// aparecía). Se restaura el padding y se decodifica como UTF-8 para no
+// romper nombres con tildes.
+const Jwt = {
+  decode(token) {
+    try {
+      const parts = String(token || "").split(".");
+      if (parts.length < 2) return null;
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4 !== 0) b64 += "=";
+      const bin = atob(b64);
+      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (_) { return null; }
+  },
+};
+
 const api = {
   async request(path, opts = {}) {
     const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
@@ -729,7 +750,7 @@ const Notifications = {
 
 // Expose
 window.WH = {
-  api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore,
+  api, publicApi, Toast, Upload, ImagePicker, Auth, TokenStore, Jwt,
   formatMoney, formatDate, startAutoRefresh,
   escapeHtml, escapeAttr, debounce, Modal, Confirm,
   Notifications, fmtTime, CL_TZ,

@@ -219,23 +219,42 @@
     <a href="/dashboard/webhooks" class="nav-link" data-route="webhooks">
       <span class="ico">🪝</span> Webhooks
     </a>
+    {# ── FIX V2.013 — "API Docs" sube antes de los encabezados con gate
+       para que no quede visualmente colgando de la sección SUPER ADMIN
+       (que sólo se muestra a superusuarios) ni de Administración. ── #}
+    <a href="/docs" target="_blank">
+      <span class="ico">📘</span> API Docs
+    </a>
+
+    {# ── FIX V2.013 — Sección "Administración" (menú restituido).
+       El encabezado lleva el MISMO gate que sus items
+       (data-requires-role="owner,admin") para que un rol sin permisos no
+       vea un título suelto sin contenido. Todo nace en display:none y el
+       guard del cliente (applyRoleGuards) muestra lo que corresponde al
+       rol efectivo del tenant. ── #}
+    <h4 data-requires-role="owner,admin" style="display:none;">Administración</h4>
     <a href="/admin/ai" class="nav-link" data-route="admin-ai"
        data-requires-role="owner,admin"
-       style="display:none;">
+       style="display:none;"
+       title="Administración del AI Core: logs, métricas, trazas y circuit breaker">
       <span class="ico">🛡️</span> Admin IA
     </a>
     <a href="/dashboard/admin-observability" class="nav-link" data-route="admin-observability"
        data-requires-role="owner,admin"
-       style="display:none;">
+       style="display:none;"
+       title="Observabilidad de plataforma: trazas OpenTelemetry, errores Sentry y Prometheus">
       <span class="ico">📊</span> Observabilidad
     </a>
+
+    {# ── FIX V2.013 — Sección "SUPER ADMIN" (menú restituido).
+       Sólo para superusuarios de plataforma: claim `is_superuser` del JWT
+       o `users.is_superuser`. El item apunta al panel de plataforma. ── #}
+    <h4 data-requires-role="superuser" style="display:none;">SUPER ADMIN</h4>
     <a href="/admin/superadmin" class="nav-link" data-route="superadmin"
        data-requires-role="superuser"
-       style="display:none;">
-      <span class="ico">👑</span> SUPERADMIN
-    </a>
-    <a href="/docs" target="_blank">
-      <span class="ico">📘</span> API Docs
+       style="display:none;"
+       title="SUPERADMIN · Panel de plataforma: KPIs, tiendas, usuarios y auditoría">
+      <span class="ico">👑</span> Panel de plataforma
     </a>
   </aside>
 
@@ -331,10 +350,18 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
   }
 
   function decodeJwtPayload(token) {
+    // FIX V2.013 — El payload de un JWT es base64url SIN padding: atob()
+    // lanzaba InvalidCharacterError (largo % 4 != 0) y el banner de
+    // impersonación nunca se alcanzaba a mostrar. Se delega en el
+    // decodificador canónico de app.js (WH.Jwt), con fallback propio.
+    if (window.WH && window.WH.Jwt && typeof window.WH.Jwt.decode === "function") {
+      return window.WH.Jwt.decode(token);
+    }
     try {
       const parts = String(token || "").split(".");
       if (parts.length < 2) return null;
-      const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4 !== 0) b64 += "=";
       return JSON.parse(atob(b64));
     } catch (_) { return null; }
   }
@@ -485,43 +512,66 @@ document.getElementById("logout-btn").addEventListener("click", () => WH.Auth.lo
   init();
 })();
 
-// ── Mostrar/ocultar links según rol ───────────────────────
+// ── Mostrar/ocultar links según rol ───────────────────────────────
+// FIX V2.013 — La fuente de verdad del rol es la MEMBRESÍA del tenant
+// activo (`current_tenant.role` / `current_tenant.is_owner`), NO
+// `user.default_role` (que es sólo el rol por defecto de las membresías
+// nuevas y tiene default STAFF). Con el criterio anterior el dueño del
+// negocio quedaba con rol "staff", no calificaba y sus items de
+// administración desaparecían del menú.
+//
+// El guard además OCULTA (`display:none`) en vez de ELIMINAR el nodo del
+// DOM: un fallo transitorio de sesión ya no borra el menú de forma
+// permanente ni rompe el resaltado de navegación.
 (async function applyRoleGuards() {
   try {
     const session = await WH.Auth.ensureSession();
     const user = session.user || WH.Auth.user();
-    const role = (user && (user.default_role || user.role)) || "";
-    const roleStr = String(role).toLowerCase();
-    // SUPERADMIN: flag a nivel de usuario (no de membresía).
-    // Lo leemos del JWT decodificado o de la sesión si lo expone WH.
-    let isSuperuser = false;
+    const tenant = session.tenant || WH.Auth.tenant();
+
+    // ── Claims del access token (rol de membresía + flag de superuser) ──
+    let claims = null;
     try {
       const tk = (window.WH && window.WH.TokenStore && window.WH.TokenStore.access())
         || localStorage.getItem("wowhub_access_token");
-      if (tk) {
-        const parts = tk.split(".");
-        if (parts.length >= 2) {
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-          isSuperuser = !!payload.is_superuser;
-        }
-      }
+      if (tk) claims = (window.WH && window.WH.Jwt) ? window.WH.Jwt.decode(tk) : null;
     } catch (_) {}
+
+    // ── Rol efectivo del tenant activo ──
+    let roleStr = "";
+    if (tenant) {
+      if (tenant.is_owner) roleStr = "owner";
+      else if (tenant.role) roleStr = String(tenant.role).toLowerCase();
+    }
+    if (!roleStr && claims && claims.role) {
+      roleStr = String(claims.role).toLowerCase();
+    }
+    if (!roleStr && user) {
+      roleStr = String(user.default_role || user.role || "").toLowerCase();
+    }
+
+    // ── SUPERADMIN: flag a nivel de usuario (no de membresía) ──
+    let isSuperuser = !!(claims && claims.is_superuser);
     if (!isSuperuser && user) {
       isSuperuser = !!(user.is_superuser || user.superuser);
     }
+
     document.querySelectorAll("[data-requires-role]").forEach(el => {
       const allowed = (el.dataset.requiresRole || "")
         .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-      // Soporte para "superuser" como rol independiente
-      if (allowed.includes("superuser") && isSuperuser) {
-        el.style.display = "";
-        return;
-      }
-      if (allowed.length === 0 || allowed.includes(roleStr)) {
-        el.style.display = "";
+      let visible;
+      if (allowed.length === 0) {
+        visible = true;
+      } else if (allowed.includes("superuser")) {
+        visible = isSuperuser;
+      } else if (allowed.includes("owner") || allowed.includes("admin")) {
+        // Un superusuario de plataforma administra todo: ve la sección
+        // aunque su rol de membresía en el tenant no sea owner/admin.
+        visible = isSuperuser || allowed.includes(roleStr);
       } else {
-        el.remove();
+        visible = allowed.includes(roleStr);
       }
+      el.style.display = visible ? "" : "none";
     });
   } catch (e) {
     console.warn("[role-guards]", e);
