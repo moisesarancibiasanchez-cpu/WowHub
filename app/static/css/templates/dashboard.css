@@ -369,11 +369,34 @@
 /* ═══════════════════════════════════════════════════════════
    Modales con animación fade + scale
    ═══════════════════════════════════════════════════════════ */
-.template-moderna .modal,
-.template-moderna .modalbox,
-.template-moderna [role="dialog"] {
+
+/* FIX V2.012 (2026-10-23) — el PANEL del modal debe ser BLANCO, igual
+   que el modal "Nuevo cliente" (.wc-modalbox), y no negro translúcido.
+
+   Antes esta regla pintaba de rgba(11,13,18,0.45) a `.modal`,
+   `.modalbox` y `[role="dialog"]`. El modal reutilizable de app.js
+   (.wh-modal-dialog) tiene role="dialog", y su regla base
+   (`.wh-modal-dialog { background: var(--bg-elev, #fff) }`) tiene MENOR
+   especificidad (0,1,0) que este selector (0,2,0): ganaba el fondo
+   oscuro y el texto del formulario quedaba ilegible.
+
+   Ahora el VELO (overlay) sigue siendo oscuro —es lo que va detrás del
+   panel— y los PANELES quedan blancos con texto oscuro. */
+.template-moderna :is(.modal-overlay, .modal-backdrop) {
   background: rgba(11, 13, 18, 0.45);
   backdrop-filter: blur(2px);
+}
+
+/* Paneles: fondo blanco + texto oscuro explícito, para que ningún
+   tema vuelva a repintarlos. La estructura (overlay > panel) evita
+   confundir el velo con la caja: `.modal` se usa como panel cuando
+   es hijo de un overlay, y como overlay en contados casos sueltos. */
+.template-moderna :is(.modal-overlay, .modal-backdrop) > :is(.modal, .modal-card),
+.template-moderna .modalbox,
+.template-moderna .wh-modal-dialog {
+  background: #ffffff;
+  color: #172033;
+  backdrop-filter: none;
 }
 
 .template-moderna .modal.show .box,
