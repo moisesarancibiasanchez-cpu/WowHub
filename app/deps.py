@@ -23,14 +23,19 @@ def _extract_token(authorization: Optional[str]) -> str:
 
 
 def _peek_jwt_payload(request: Request) -> dict:
-    """Lee el payload del JWT del header Authorization sin requerir BD.
+    """Lee el payload del JWT del request sin requerir BD.
     Usado por dependencias que necesitan claims como `tid` antes de
-    resolver el User."""
+    resolver el User. Prioridad: header Authorization → cookie de sesión."""
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    if not auth or not auth.lower().startswith("bearer "):
+    token = ""
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
+    if not token:
+        token = request.cookies.get(ACCESS_COOKIE_NAME) or ""
+    if not token:
         return {}
     try:
-        return decode_token(auth.split(" ", 1)[1].strip()) or {}
+        return decode_token(token) or {}
     except Exception:
         return {}
 
@@ -89,22 +94,12 @@ def _resolve_impersonation(
     return target
 
 
-def get_current_user(
-    request: Request,
-    db: Session = Depends(get_db),
-) -> User:
-    """Resuelve el usuario actual a partir del JWT.
+def _user_from_token(request: Request, db: Session, token: str) -> User:
+    """Núcleo de resolución del usuario actual a partir de un JWT de acceso.
 
-    Si el token está expirado o es inválido, lanza `UnauthorizedError`
-    (que se traduce en 401).
-
-    IMPERSONACIÓN: si el JWT incluye el claim `imp` (sólo lo emite
-    `POST /superadmin/impersonate/{user_id}`), devuelve el usuario
-    impersonado. El admin original queda accesible en
-    `request.state.admin_user` para fines de auditoría.
+    Concentra la lógica que comparten `get_current_user` (header
+    Authorization) y `get_current_user_allow_cookie` (header o cookie).
     """
-    auth = request.headers.get("authorization") or request.headers.get("Authorization")
-    token = _extract_token(auth)
     try:
         payload = decode_token(token)
     except ValueError as e:
@@ -126,6 +121,24 @@ def get_current_user(
     if target is not None:
         return target
     return admin
+
+
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """Resuelve el usuario actual a partir del JWT.
+
+    Si el token está expirado o es inválido, lanza `UnauthorizedError`
+    (que se traduce en 401).
+
+    IMPERSONACIÓN: si el JWT incluye el claim `imp` (sólo lo emite
+    `POST /superadmin/impersonate/{user_id}`), devuelve el usuario
+    impersonado. El admin original queda accesible en
+    `request.state.admin_user` para fines de auditoría.
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    return _user_from_token(request, db, _extract_token(auth))
 
 
 def get_current_user_optional(
@@ -179,6 +192,17 @@ def get_current_membership(
     2) header `X-Tenant-Id`
     3) claim `tid` del JWT (FIX: antes sólo se documentaba, ahora funciona)
     """
+    return _resolve_membership(db, request, user, tenant_id, x_tenant_id)
+
+
+def _resolve_membership(
+    db: Session,
+    request: Request,
+    user: User,
+    tenant_id: Optional[UUID],
+    x_tenant_id: Optional[str],
+) -> TenantMembership:
+    """Núcleo de resolución de membresía (compartido por las dos variantes)."""
     tid: Optional[str] = None
 
     if tenant_id:
@@ -206,6 +230,51 @@ def get_current_membership(
     if not m:
         raise ForbiddenError("No tienes acceso a este tenant")
     return m
+
+
+# ── Cookie de sesión ─────────────────────────────────────────────────────────
+# El login setea una cookie httpOnly ("wowhub_access_token", SameSite=Lax,
+# path=/) con el access token. Un `<img src>` NO puede mandar el header
+# Authorization, así que toda imagen servida por un endpoint autenticado
+# daba 401 en un `<img>` nativo (miniaturas del catálogo, logos, etc.).
+#
+# Estos dos helpers existen SÓLO para endpoints de LECTURA que el browser
+# consume como subrecurso (<img>, <video>). No se usan en ningún endpoint
+# que modifique estado, de modo que no se abre superficie de CSRF: la cookie
+# es SameSite=Lax (no viaja en POST/PUT/DELETE cross-site) y además el
+# token sigue siendo de tipo "access".
+ACCESS_COOKIE_NAME = "wowhub_access_token"
+
+
+def get_current_user_allow_cookie(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """Como `get_current_user`, pero acepta también la cookie de sesión.
+
+    Prioridad: header `Authorization` (API) → cookie httpOnly (`<img>`).
+    """
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    token = ""
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1].strip()
+    if not token:
+        token = request.cookies.get(ACCESS_COOKIE_NAME) or ""
+    return _user_from_token(request, db, token)
+
+
+def get_current_membership_allow_cookie(
+    request: Request,
+    tenant_id: Optional[UUID] = None,
+    x_tenant_id: Optional[str] = Header(default=None, alias="X-Tenant-Id"),
+    user: User = Depends(get_current_user_allow_cookie),
+    db: Session = Depends(get_db),
+) -> TenantMembership:
+    """Como `get_current_membership`, pero aceptando la cookie de sesión.
+
+    Se usa en los endpoints que sirven ARCHIVOS para el dashboard.
+    """
+    return _resolve_membership(db, request, user, tenant_id, x_tenant_id)
 
 
 def get_tenant_for_membership(
