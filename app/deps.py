@@ -241,6 +241,70 @@ def _role_value(membership: TenantMembership) -> str:
     return getattr(role, "value", str(role))
 
 
+def _membership_role_value(membership: TenantMembership) -> str:
+    """Rol efectivo de una membresía en minúsculas.
+
+    ``is_owner=True`` implica "owner" aunque ``role`` diga otra cosa: el
+    flag de propietario es el que el resto del sistema usa como criterio
+    de autorización (mismo criterio que ``require_role``).
+    """
+    if getattr(membership, "is_owner", False):
+        return "owner"
+    return _role_value(membership).strip().lower()
+
+
+def resolve_effective_tenant_role(
+    db: Session,
+    user: User,
+    payload: Optional[dict] = None,
+) -> str:
+    """Rol efectivo del usuario en el tenant activo (string en minúsculas).
+
+    FUENTE DE VERDAD: ``TenantMembership.role`` (+ ``is_owner``), **nunca**
+    ``User.default_role``. ``default_role`` es sólo el rol por defecto que
+    hereda una membresía nueva y su default es ``STAFF``; usarlo como
+    criterio de autorización dejó a los dueños y admins de un tenant sin
+    acceso a las páginas de administración del tenant (FIX V2.013).
+
+    Orden de resolución:
+      1. Claim ``tid`` del JWT → membresía activa de ese tenant.
+      2. Sin ``tid`` → la membresía activa más privilegiada (owner > admin).
+      3. Claim ``role`` del JWT (emitido en el login/refresh).
+      4. ``User.default_role`` (último recurso).
+    """
+    payload = payload or {}
+
+    rows = db.execute(
+        select(TenantMembership).where(
+            TenantMembership.user_id == str(user.id),
+            TenantMembership.is_active == True,  # noqa: E712
+        )
+    ).scalars().all()
+
+    tid = payload.get("tid")
+    if tid:
+        for m in rows:
+            if str(m.tenant_id) == str(tid):
+                return _membership_role_value(m)
+
+    best = ""
+    for m in rows:
+        rv = _membership_role_value(m)
+        if rv == "owner":
+            return "owner"
+        if rv == "admin" and not best:
+            best = "admin"
+    if best:
+        return best
+
+    claim_role = payload.get("role")
+    if isinstance(claim_role, str) and claim_role.strip():
+        return claim_role.strip().lower()
+
+    default_role = getattr(user, "default_role", None)
+    return getattr(default_role, "value", str(default_role or "")).strip().lower()
+
+
 def require_platform_admin(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

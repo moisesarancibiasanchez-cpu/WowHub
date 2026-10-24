@@ -666,6 +666,7 @@ def admin_ai_page(request: Request):
     Requiere rol OWNER o ADMIN — si no, redirige a /dashboard/login."""
     from app.database import SessionLocal
     from app.security import decode_token
+    from app.deps import resolve_effective_tenant_role
 
     token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
     auth_header = request.headers.get("authorization", "")
@@ -688,8 +689,16 @@ def admin_ai_page(request: Request):
         user = db.get(User, user_id)
         if not user:
             return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
-        role = getattr(user, "default_role", None) or getattr(user, "role", None)
-        if role not in (UserRole.OWNER, UserRole.ADMIN):
+        # FIX V2.013 — El rol se resuelve desde la MEMBRESÍA del tenant
+        # (TenantMembership.role), no desde `user.default_role` (que tiene
+        # default STAFF y por eso negaba el acceso al propio dueño del
+        # negocio). Mismo criterio que `require_platform_admin`: superuser
+        # de plataforma o OWNER/ADMIN del tenant activo.
+        role = resolve_effective_tenant_role(db, user, payload)
+        is_superuser = bool(
+            getattr(user, "is_superuser", False) or payload.get("is_superuser")
+        )
+        if role not in (UserRole.OWNER.value, UserRole.ADMIN.value) and not is_superuser:
             return RedirectResponse(
                 url="/dashboard?reason=admin_forbidden",
                 status_code=302,
@@ -698,7 +707,7 @@ def admin_ai_page(request: Request):
     return templates.TemplateResponse(
         request,
         "dashboard/admin_ai.html",
-        {"settings": settings, "user_role": role.value},
+        {"settings": settings, "user_role": role},
     )
 
 
@@ -710,6 +719,7 @@ def admin_observability_page(request: Request):
     Requiere rol OWNER o ADMIN — si no, redirige a /dashboard/login."""
     from app.database import SessionLocal
     from app.security import decode_token
+    from app.deps import resolve_effective_tenant_role
 
     token = request.cookies.get("access_token") or request.cookies.get("wowhub_access_token")
     auth_header = request.headers.get("authorization", "")
@@ -732,8 +742,14 @@ def admin_observability_page(request: Request):
         user = db.get(User, user_id)
         if not user:
             return RedirectResponse(url="/dashboard/login?reason=admin_auth", status_code=302)
-        role = getattr(user, "default_role", None) or getattr(user, "role", None)
-        if role not in (UserRole.OWNER, UserRole.ADMIN):
+        # FIX V2.013 — Mismo criterio que /admin/ai: el rol viene de la
+        # membresía del tenant (TenantMembership.role), no de
+        # `user.default_role` (default STAFF → negaba el acceso al dueño).
+        role = resolve_effective_tenant_role(db, user, payload)
+        is_superuser = bool(
+            getattr(user, "is_superuser", False) or payload.get("is_superuser")
+        )
+        if role not in (UserRole.OWNER.value, UserRole.ADMIN.value) and not is_superuser:
             return RedirectResponse(
                 url="/dashboard?reason=admin_forbidden",
                 status_code=302,
@@ -742,7 +758,7 @@ def admin_observability_page(request: Request):
     return templates.TemplateResponse(
         request,
         "dashboard/admin_observability.html",
-        {"settings": settings, "user_role": role.value},
+        {"settings": settings, "user_role": role},
     )
 
 
