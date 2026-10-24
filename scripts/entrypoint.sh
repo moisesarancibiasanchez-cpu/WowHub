@@ -4,6 +4,41 @@
 
 set -e
 
+# ── FIX V2.015 · Volumen persistente en /app/storage ─────────────────────
+# Railway monta los volúmenes con el usuario `root`. La imagen corre como
+# `wowhub` (no-root), así que sin este bloque el servicio no puede escribir
+# en el volumen: las subidas fallan con
+#   EACCES: permission denied, mkdir '/app/storage/<tenant_id>'
+# (documentado por Railway: "Docker images that run as a non-root UID by
+# default will have permissions issues when performing operations within an
+# attached volume").
+#
+# Solución: el contenedor arranca como root (RAILWAY_RUN_UID=0 en las
+# variables del servicio), el entrypoint da el volumen al usuario de la app
+# y BAJA PRIVILEGIOS antes de arrancar uvicorn. La app sigue corriendo como
+# `wowhub`; sólo el arranque es root.
+if [ "$(id -u)" = "0" ]; then
+    echo "▶ Ajustando permisos del almacenamiento (arranque como root)..."
+    mkdir -p /app/storage /app/data
+    # -R: el volumen puede traer archivos de un arranque anterior como root.
+    chown -R wowhub:wowhub /app/storage /app/data 2>/dev/null || \
+        echo "⚠ No se pudo hacer chown de /app/storage (revisar permisos del volumen)"
+    chmod 755 /app/storage 2>/dev/null || true
+    if command -v gosu >/dev/null 2>&1; then
+        echo "▶ Bajando privilegios a 'wowhub' (gosu)..."
+        exec gosu wowhub /app/entrypoint.sh
+    fi
+    if command -v setpriv >/dev/null 2>&1; then
+        echo "▶ Bajando privilegios a 'wowhub' (setpriv)..."
+        exec setpriv --reuid=wowhub --regid=wowhub --init-groups /app/entrypoint.sh
+    fi
+    if command -v su >/dev/null 2>&1; then
+        echo "▶ Bajando privilegios a 'wowhub' (su)..."
+        exec su -s /bin/sh wowhub -c 'exec /app/entrypoint.sh'
+    fi
+    echo "⚠ No se encontró gosu/setpriv/su: se sigue como root."
+fi
+
 echo "▶ WowHub entrypoint — esperando DB..."
 python -c "
 import os, time, sys
