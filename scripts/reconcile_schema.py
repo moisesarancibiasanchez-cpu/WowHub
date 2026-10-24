@@ -341,6 +341,26 @@ def _normalize_enum_data(engine: Engine, dry_run: bool) -> tuple[list[str], list
     return updated, errors
 
 
+def _alembic_version(engine: Engine) -> str | None:
+    """Revisión actual de ``alembic_version`` (si la tabla existe).
+
+    Se reporta porque la cadena de migraciones puede no estar avanzando (una
+    migración de datos que falla en datos reales, por ejemplo). El
+    reconciliador es la capa que repara el esquema sea cual sea el estado de
+    Alembic, pero conviene dejar la evidencia visible en el log del deploy.
+    """
+    try:
+        insp = inspect(engine)
+        if not insp.has_table("alembic_version"):
+            return None
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
+        return row[0] if row else None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[reconcile] no se pudo leer alembic_version: %s", exc)
+        return None
+
+
 def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
     """Compara modelos contra el esquema real y repara la diferencia.
 
@@ -361,8 +381,16 @@ def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
         "indexes_created": [],
         "enum_values_added": [],
         "enum_rows_normalized": [],
+        "alembic_version": None,
         "errors": [],
     }
+
+    # Estado de Alembic: evidencia visible en el log del deploy.
+    report["alembic_version"] = _alembic_version(engine)
+    logger.info(
+        "[reconcile] alembic_version actual: %s",
+        report["alembic_version"] or "(sin tabla alembic_version)",
+    )
 
     # ── 1. Tablas ─────────────────────────────────────────────────────────
     for table in Base.metadata.sorted_tables:
@@ -513,8 +541,10 @@ def main() -> int:
 
     verb = "se agregaría" if args.dry_run else "se agregó"
     logger.info(
-        "Resumen — tablas %s: %d | %s %d columnas | índices %s: %d | "
-        "enum labels %s: %d | filas enum normalizadas: %d | omitidas: %d | errores: %d",
+        "Resumen — alembic_version: %s | tablas %s: %d | %s %d columnas | "
+        "índices %s: %d | enum labels %s: %d | filas enum normalizadas: %d | "
+        "omitidas: %d | errores: %d",
+        report["alembic_version"] or "(sin tabla)",
         "a crear" if args.dry_run else "creadas",
         len(report["tables_created"]),
         verb, len(report["columns_added"]),
