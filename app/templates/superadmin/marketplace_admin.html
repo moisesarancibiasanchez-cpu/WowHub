@@ -287,9 +287,19 @@
 const API = '/api/v1/admin/marketplace';
 
 function apiHeaders() {
-  const token = document.cookie.match(/(?:^|;\s*)wowhub_access_token=([^;]*)/)?.[1]
-             || document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/)?.[1] || '';
-  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+  // FIX V2.012 — la cookie `wowhub_access_token` es httpOnly: el JS no
+  // puede leerla y el header salía vacío (401 en todos los endpoints del
+  // marketplace de superadmin). Se usa WH.TokenStore (localStorage).
+  var token = '';
+  try {
+    if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === 'function') {
+      token = window.WH.TokenStore.access() || '';
+    }
+  } catch (_) {}
+  if (!token) {
+    try { token = localStorage.getItem('wowhub_access_token') || ''; } catch (_) {}
+  }
+  return { 'Content-Type': 'application/json', 'Authorization': token ? 'Bearer ' + token : '' };
 }
 
 function catIcon(cat) {

@@ -245,7 +245,11 @@
   }
   .mp-modal-overlay.show { display: flex; }
   .mp-modal {
-    background: #1e1e2e;
+    /* FIX V2.012 — panel blanco con texto oscuro, igual que el resto de
+       modales del dashboard (referencia: "Nuevo cliente"). Antes era
+       #1e1e2e (oscuro) y el texto queda ilegible. */
+    background: #ffffff;
+    color: #172033;
     border: 1px solid rgba(124,92,255,0.25);
     border-radius: 16px;
     padding: 2rem;
@@ -253,16 +257,16 @@
     width: 90%;
     text-align: center;
   }
-  .mp-modal h3 { margin: 0 0 0.75rem; font-size: 1.2rem; }
-  .mp-modal p { margin: 0 0 1.5rem; color: #8888a0; font-size: 0.9rem; }
+  .mp-modal h3 { margin: 0 0 0.75rem; font-size: 1.2rem; color: #172033; }
+  .mp-modal p { margin: 0 0 1.5rem; color: #667085; font-size: 0.9rem; }
   .mp-modal-actions { display: flex; gap: 0.75rem; justify-content: center; }
   .mp-modal-actions .mp-btn { padding: 0.6rem 1.5rem; }
   .mp-btn-cancel {
-    background: rgba(255,255,255,0.06);
-    color: #a0a0b0;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: #f3f4f8;
+    color: #475467;
+    border: 1px solid #e4e7ec;
   }
-  .mp-btn-cancel:hover { background: rgba(255,255,255,0.1); }
+  .mp-btn-cancel:hover { background: #e9ebf2; }
   .mp-toast {
     position: fixed; bottom: 2rem; right: 2rem;
     background: #1e1e2e;
@@ -461,6 +465,15 @@
 <!-- ── Toast ────────────────────────────────────────────── -->
 <div class="mp-toast" id="mp-toast"></div>
 
+</section>
+{% endblock %}
+
+{# FIX V2.012 — el script de Marketplace estaba dentro del bloque de
+   contenido del dashboard, que se renderiza ANTES de app.js en
+   base.html. Por eso window.WH no existía y el panel de plugins se
+   quedaba en "Error al cargar tus plugins.". Se mueve al bloque de
+   scripts del dashboard, que se renderiza DESPUES de app.js. #}
+{% block dash_scripts %}
 <script>
 // ── Marketplace UI (HU_45) ─────────────────────────────────────
 const API_BASE = '/api/v1';
@@ -472,12 +485,24 @@ let pendingSlug = null;
 
 // ── Helpers ──────────────────────────────────────────────────────
 function apiHeaders() {
-  const token = document.cookie.match(/(?:^|;\s*)wowhub_access_token=([^;]*)/)?.[1]
-             || document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/)?.[1]
-             || '';
+  // FIX V2.012 — el token NO se puede leer de document.cookie: la cookie
+  // `wowhub_access_token` es httpOnly, así que el JS siempre veía una
+  // cadena vacía y mandaba "Authorization: Bearer " (sin token). El
+  // endpoint respondía 401 y el panel "Mis Plugins Instalados" quedaba
+  // en "Error al cargar tus plugins.". Mismo patrón ya corregido en
+  // widgets.html (FIX HU_34) y kds.html.
+  var token = "";
+  try {
+    if (window.WH && window.WH.TokenStore && typeof window.WH.TokenStore.access === "function") {
+      token = window.WH.TokenStore.access() || "";
+    }
+  } catch (_) {}
+  if (!token) {
+    try { token = localStorage.getItem("wowhub_access_token") || ""; } catch (_) {}
+  }
   return {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + token,
+    'Authorization': token ? 'Bearer ' + token : '',
   };
 }
 
@@ -914,5 +939,4 @@ document.getElementById('mp-modal').addEventListener('click', e => {
 loadMyPlugins();
 loadPlugins(1);
 </script>
-</section>
 {% endblock %}
