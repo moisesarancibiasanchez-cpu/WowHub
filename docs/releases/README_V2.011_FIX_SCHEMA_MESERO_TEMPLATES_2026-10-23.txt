@@ -6,12 +6,16 @@ WowHub · Release Notes Atómicos · V2.011
 FECHA          : 2026-10-23
 BUILD          : rama main (base baaa077)
 ALCANCE        : Corrección de 3 errores de producción reportados por el
-                usuario, más 3 defectos hermanos del mismo patrón detectados
-                durante la auditoría.
-ATOMICIDAD     : 8 commits independientes, cada uno revertible por separado
-                sin arrastrar a los demás.
+                usuario, más 3 defectos hermanos del mismo patrón y 1 error
+                de esquema adicional (ENUM) detectados durante la auditoría.
+ATOMICIDAD     : 18 commits independientes (15 de código y pruebas, 3 de
+                documentación), cada uno revertible por separado sin
+                arrastrar a los demás.
 RIESGO         : BAJO. Todos los cambios son ADITIVOS. No hay DROP de tablas
                 ni de columnas. No hay cambios de comportamiento de negocio.
+VERIFICACIÓN   : Online contra Railway (wowhub-api-production.up.railway.app)
+                después del deploy. Los 4 errores quedaron corregidos y
+                verificados con respuestas HTTP reales (ver sección 8).
 
 ERRORES CORREGIDOS EN ESTE RELEASE
 --------------------------------------------------------------------------------
@@ -239,7 +243,7 @@ IMPACTO:
 2. CAMBIO ÚNICO (qué se hizo)
 --------------------------------------------------------------------------------
 
-El release se compone de 8 commits atómicos. Cada uno es revertible por
+El release se compone de 18 commits atómicos. Cada uno es revertible por
 separado.
 
 ═══ 2.1) commit 391ba30 — fix(db): hace idempotente la migración HU_50-HU_65 ═══
@@ -250,16 +254,22 @@ FUNCIÓNES INTERVENIDAS:
     _has_table(table)            → NUEVA
     _has_column(table, column)   → NUEVA
     _create_table(table, ...)    → NUEVA (reemplaza op.create_table)
-    _add_column(table, column)   → NUEVA (reemplaza op.add_column)
     _create_index(name, ...)     → NUEVA (reemplaza op.create_index)
     upgrade()                    → usa los helpers idempotentes
-    downgrade()                  → sin cambios
+    downgrade()                  → MODIFICADO después en 9857d1d (idempotencia)
 
 QUÉ HACE:
     Cada operación verifica el esquema real antes de actuar:
       - _create_table: omite la tabla si ya existe.
-      - _add_column: omite la columna si ya existe.
+      - op.add_column: conserva el literal (con guard `if not
+        _has_column(...)`) porque tests/test_hu50_65_produccion.py:332-334
+        lo exige. El helper _add_column que se había usado en la primera
+        versión se eliminó en 9857d1d por romper esa garantía.
       - _create_index: omite el índice si ya existe.
+      - _drop_column / _drop_index / _drop_table (downgrade): verifican el
+        esquema real antes de borrar; _drop_column elimina antes los
+        índices que referencian la columna (SQLite rechaza DROP COLUMN
+        si hay un índice sobre ella).
 
 POR QUÉ ES SEGURO:
     En una DB donde la migración YA ESTABA APLICADA, Alembic no la vuelve a
@@ -455,11 +465,81 @@ ARCHIVO NUEVO: alembic/versions/2026_10_23_fix_enum_labels.py
 
 ═══ 2.12) commit 3236178 — test(db): regresión de consistencia ENUM ═══
 
-ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
+ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (31 tests)
 
     Compara los labels de cada ENUM del modelo contra la cadena de
     migraciones y falla si algún TYPE queda sin sus labels alineados. Es la
     guarda que evita que esta clase de bug vuelva a aparecer.
+
+═══ 2.13) commit 5a5d43a — test(db): la cadena Alembic no fija el nombre de la head ═══
+
+ARCHIVOS: tests/ (ajuste de los tests de cadena de migraciones)
+
+    Los tests de cadena comparaban el resultado de `alembic heads` contra el
+    literal "2026_10_21_fix_drift". Cada vez que se agrega una migración ese
+    literal queda obsoleto y el test falla por un motivo que no es un
+    defecto. Se cambió para verificar la INVARIANTE (una sola head, y que la
+    cadena suba y baje limpiamente) en vez del NOMBRE de la head.
+
+   Motivo: no es un fix funcional, es la guarda que permite agregar la
+    migración de ENUM sin romper la suite.
+
+═══ 2.14) commit e3d25b5 — fix(db): el reconciliador también repara los ENUM ═══
+
+ARCHIVO: scripts/reconcile_schema.py
+
+FUNCIÓNES INTERVENIDAS:
+    _ensure_enum_labels(engine, ...)  → NUEVA. Lee pg_type/pg_enum y, si al
+        modelo le falta un label, ejecuta
+            ALTER TYPE <tipo> ADD VALUE IF NOT EXISTS '<label>'
+        en AUTOCOMMIT (PostgreSQL exige que ALTER TYPE ... ADD VALUE se
+        ejecute fuera de una transacción con otras sentencias).
+    _normalize_enum_data(engine, ...) → NUEVA. Normaliza FILAS existentes
+        whose labels están en MAYÚSCULAS al label en minúsculas del modelo.
+    _enum_label_mapping(enum_cls, legacy_labels) → NUEVA (pura, sin DB).
+        Devuelve el mapeo 1:1 legacy -> modelo, sólo si es verificable.
+    reconcile(engine, dry_run)      → MODIFICADA. Invoca las dos funciones
+        anteriores y reporta enum_values_added / enum_rows_normalized.
+
+POR QUÉ FUE NECESARIO (hallazgo en producción):
+    El fix del Bug 4 por MIGRACIÓN (f9b8258) no se aplicó en Railway: la
+    cadena de Alembic no avanza porque alguna migración pendiente falla en
+    la DB real (la DB quedó con alembic_version en una revisión anterior).
+    El catálogo público siguió dando 500 hasta que el reconciliador reparó
+    los ENUM, porque el reconciliador es AGNÓSTICO del estado de Alembic y
+    se ejecuta SIEMPRE en el entrypoint.
+
+    Con esto el ENUM queda cubierto por DOS capas independientes:
+      - migración 2026_10_23_fix_enum_labels (si la cadena avanza)
+      - reconciliador _ensure_enum_labels   (si la cadena NO avanza)
+
+    SEGURIDAD DEL NORMALIZADO DE DATOS:
+    _enum_label_mapping() sólo devuelve un mapeo cuando la correspondencia
+    es 1:1 y sin ambigüedad. Los labels legacy en mayúsculas NO se borran
+    (PostgreSQL no permite DROP VALUE de un ENUM): se AGREGAN los nuevos en
+    minúsculas y las filas viejas se UPDATEan al valor nuevo. Para
+    order_status NO se aplica: su modelo usa labels en español y su TYPE
+    histórico usa nombres en inglés, así que no hay correspondencia 1:1
+    verificable y se deja intacto.
+
+═══ 2.15) commit 6a06c36 — chore(db): el reconciliador reporta alembic_version ═══
+
+ARCHIVO: scripts/reconcile_schema.py
+
+FUNCIÓNES INTERVENIDAS:
+    _alembic_version(engine)  → NUEVA. Lee la revisión actual de la tabla
+        alembic_version (si existe).
+    reconcile(engine, dry_run) → MODIFICADA. Incluye "alembic_version" en el
+        reporte y lo escribe en el log.
+    main()                    → MODIFICADA. El resumen del log ahora empieza
+        con la revisión de Alembic.
+
+POR QUÉ:
+    Como la cadena de Alembic no avanza en la DB de producción (ver 2.14),
+    la revisión real era invisible desde fuera. Con este dato en el log del
+    deploy se puede ver de inmediato en qué revisión está la DB y por qué
+    las migraciones no avanzan. Es instrumentación de diagnóstico: NO
+    cambia el comportamiento de la reconciliación.
 
 
 --------------------------------------------------------------------------------
@@ -476,12 +556,28 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
   8 tabs ARIA): 0 cambios. No se tocó ni la home ni sus assets.
 · Paleta y estilos CSS: 0 cambios. La UI sigue sobria, sin colores nuevos.
   Sólo se cambiaron 7 rutas de assets (url_for -> literales) en 2 templates.
-· Templates del dashboard en general: sólo los 5 listados arriba.
-· Contenido de datos: 0 cambios. Ninguna migración toca datos existentes.
+· Templates del dashboard en general: sólo los 6 listados arriba
+  (mesero, onboarding, admin_marketing, admin_scanner, orders, templates).
+· Lógica de negocio: 0 cambios. Ningún handler de la API cambió de
+  comportamiento, ni de código de estado, ni de validación.
+· Reglas de negocio y cálculos (totales, IVA, descuentos, cotizaciones):
+  0 cambios.
+· Contenido de datos de negocio: 0 cambios. Ninguna migración toca datos de
+  negocio. Única excepción, y es de ETIQUETA, no de negocio:
+  _normalize_enum_data() actualiza filas existentes cuyo ENUM está en
+  MAYÚSCULAS al label en minúsculas del modelo ('ACTIVE' -> 'active').
+  Es una normalización de representación, reversible en el sentido de que
+  el valor sigue significando lo mismo, y sólo aplica a los 2 ENUM con
+  mapeo 1:1 verificable (product_status, quote_status). NO aplica a
+  order_status (su modelo usa labels en español y su TYPE histórico usa
+  nombres en inglés).
+  Los labels legacy en MAYÚSCULAS se CONSERVAN en el TYPE: PostgreSQL no
+  permite DROP VALUE de un ENUM y borrarlos rompería las filas viejas.
 · Variables de entorno / secrets: 0 cambios.
 · Documentos V2.001-V2.010: intactos.
 · No se ejecutó ningún DROP de tabla ni de columna en ninguna DB.
 · No se usó git reset --hard ni git push --force.
+· No se montó app/api/v1/templates.py (ver 7.5).
 
 
 --------------------------------------------------------------------------------
@@ -518,24 +614,46 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
       ausentes con alembic_version en head), el bootstrap YA NO la sella:
       detecta las columnas faltantes y aplica upgrade head, y el
       reconcile_schema agrega cualquier columna restante.
+    · IMPORTANTE — LA CADENA DE ALEMBIC NO AVANZA EN LA DB DE PRODUCCIÓN:
+      está bloqueada en una revisión anterior por una migración que falla
+      sobre los datos reales (no se pudo leer el log de Railway para
+      identificar cuál, por falta de acceso al dashboard y a los logs).
+      Esto NO bloquea el release: la capa que repara el esquema es
+      scripts/reconcile_schema.py, que es AGNÓSTICO del estado de Alembic
+      y se ejecuta SIEMPRE en el entrypoint, haya avanzado o no la cadena.
+      Con el fix del Bug 4 aplicado TAMBIÉN en el reconciliador (2.14), los
+      4 errores quedan reparados aunque la cadena siga quieta.
+      Diagnóstico pendiente para el equipo: leer el log del deploy de
+      Railway para identificar la migración que falla y corregirla en un
+      release posterior (V2.012).
     · NO se requiere ninguna intervención manual en la DB.
     · NO se requiere restore ni backup para este deploy (todo es aditivo).
     · La migración de ENUMs usa ALTER TYPE ... ADD VALUE IF NOT EXISTS:
-      no recrea el TYPE, no borra filas y no bloquea las tablas.
+      no recrea el TYPE, no borra filas y no bloquea las tablas. El
+      reconciliador usa el mismo patrón.
+    · La revisión real de la DB ahora se imprime en el log del deploy:
+        [reconcile] alembic_version actual: <revisión>
+    · IMPORTANTE: la fila de alembic_version NO se modifica a mano. Si se
+      necesita avanzar la cadena, la vía correcta es arreglar la migración
+      que falla, no editar la tabla.
 
 4.4) Secrets / env
     · Sin cambios.
 
 4.5) Rollback
-    · git revert <commit> + push normal a main. El orden sugerido de revert
-      es el inverso al de aplicación (d902dc7 → 9fbf363 → bff9602 →
-      e926605 → 70a76b0 → eab765b → 5879fb9 → 391ba30).
+    · git revert <commit> + push normal a main. El orden de revert es el
+      inverso al de aplicación:
+        6a06c36 → e3d25b5 → 5a5d43a → 3236178 → f9b8258 → b8b4313 →
+        845b468 → 55a324f → 9857d1d → d902dc7 → 9fbf363 → bff9602 →
+        e926605 → 70a76b0 → eab765b → 5879fb9 → 391ba30
     · Importante: revertir 5879fb9 y 391ba30 NO elimina las columnas ya
       agregadas en la DB (el downgrade de la migración es explícito y la
       operación de producción es aditiva). La DB quedaría con columnas extra
       no usadas, lo que es inofensivo.
     · NO revertir 391ba30 sin revertir 5879fb9: el HU_50-65 original
       fallaría con DuplicateTable en una DB donde sus tablas ya existen.
+    · NO revertir e3d25b5 ni f9b8258 mientras el modelo use labels
+      lowercase: el catálogo público volvería a dar 500.
 
 
 --------------------------------------------------------------------------------
@@ -590,8 +708,10 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
 
 5.6) Verificar el esquema reparado (log de Railway)
   En el log del deploy debe aparecer:
-    [reconcile_schema] Resumen — tablas creadas: 0 | se agregó N columnas |
-    índices creados: M | omitidas: 0 | errores: 0
+    [reconcile] alembic_version actual: <revisión>
+    [reconcile_schema] Resumen — alembic_version: <revisión> | tablas
+    creadas: 0 | se agregó N columnas | índices creados: M | enum labels
+    agregados: K | filas enum normalizadas: L | omitidas: 0 | errores: 0
   con N = 15 si la DB tenía el drift, o N = 0 si ya estaba reparada.
   Ambas salidas son correctas (el script es idempotente).
 
@@ -600,6 +720,14 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
     products.product_type pero la columna NO existe en la DB — no se
     considera aplicada.
   (si no aparece esa línea, la DB ya estaba consistente)
+
+  LECTURA DEL DATO DE alembic_version:
+    - Si muestra la head (2026_10_23_fix_enum_labels): la cadena avanzó y
+      todo fue aplicado por Alembic.
+    - Si muestra una revisión ANTERIOR: la cadena está bloqueada por una
+      migración que falla sobre los datos reales. NO es un incidente de
+      este release: el reconciliador ya reparó el esquema y el catálogo
+      público responde 200. Queda como pendiente de diagnóstico (4.3).
 
 5.7) Verificar el Hero Showcase (no debe cambiar)
   $ curl -s https://wowhub-api-production.up.railway.app/ | grep -c "hero"
@@ -623,19 +751,34 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
   Esperado: 200 (antes 500).
   NUNCA debe aparecer "invalid input value for enum product_status".
 
-  En el log del deploy debe aparecer:
-    [fix_enum_labels] product_status: +'draft' OK
-    [fix_enum_labels] product_status: +'active' OK
-    [fix_enum_labels] product_status: +'out_of_stock' OK
-    [fix_enum_labels] product_status: +'archived' OK
-    [fix_enum_labels] quote_status: +'draft' OK
-    ... (6 labels en total)
+  En el log del deploy debe aparecer una de estas dos trazas:
+    (a) la migración aplicó los labels:
+        [fix_enum_labels] product_status: +'draft' OK
+        [fix_enum_labels] product_status: +'active' OK
+        [fix_enum_labels] product_status: +'out_of_stock' OK
+        [fix_enum_labels] product_status: +'archived' OK
+        [fix_enum_labels] quote_status: +'draft' OK
+        ... (6 labels en total)
+    (b) el reconciliador los reparó (si la cadena no avanzó):
+        [reconcile] enum labels agregados: 6
+
+  Ambas son correctas: la garantía es que el TYPE tenga los labels en
+  minúsculas, sin importar qué capa los agregó.
 
 
 --------------------------------------------------------------------------------
 6. ROLLBACK
 --------------------------------------------------------------------------------
 
+  $ git revert 6a06c36   # chore(db) reporte de alembic_version
+  $ git revert e3d25b5   # fix(db) reconciliador repara ENUM
+  $ git revert 5a5d43a   # test(db) cadena Alembic sin nombre fijo de head
+  $ git revert 3236178   # test(db) consistencia ENUM
+  $ git revert f9b8258   # fix(db) migracion de ENUM
+  $ git revert b8b4313   # docs(release) fecha del README
+  $ git revert 845b468   # docs(release) README V2.011
+  $ git revert 55a324f   # fix(ui/404) mensaje de negocio inexistente
+  $ git revert 9857d1d   # fix(db) idempotencia del downgrade HU_50-65
   $ git revert d902dc7   # test(ui)
   $ git revert 9fbf363   # fix(ui/orders)
   $ git revert bff9602   # fix(ui/dashboard)
@@ -646,16 +789,16 @@ ARCHIVO NUEVO: tests/test_enum_labels_consistency.py  (29 tests)
   $ git revert 391ba30   # fix(db) idempotencia HU_50-65
   $ git push origin main
 
-Para revertir en orden inverso (más seguro):
-  $ git revert 3236178 f9b8258 55a324f 9857d1d d902dc7 9fbf363 bff9602 \
-      e926605 70a76b0 eab765b 5879fb9 391ba30
-  $ git push origin main
+El bloque anterior ya está en orden inverso de aplicación (del más reciente
+al más antiguo), que es el orden más seguro.
 
 Notas de rollback:
-  · Revertir 3236178 (test) no tiene efecto funcional.
-  · Revertir f9b8258 (ENUM) NO elimina los labels agregados al TYPE: PG no
-    permite DROP VALUE. El catálogo público volvería a fallar, así que este
-    commit NO se debe revertir mientras el modelo use labels lowercase.
+  · Revertir 3236178 / 5a5d43a / d902dc7 / eab765b (tests) no tiene efecto
+    funcional.
+  · Revertir 6a06c36 sólo quita la línea de diagnóstico del log.
+  · Revertir f9b8258 o e3d25b5 NO elimina los labels agregados al TYPE: PG no
+    permite DROP VALUE. El catálogo público volvería a fallar, así que estos
+    commits NO se deben revertir mientras el modelo use labels lowercase.
   · Revertir 5879fb9 y 391ba30 NO elimina las columnas ya agregadas en la DB
     (el downgrade de la migración es explícito y la operación de producción es
     aditiva). La DB quedaría con columnas extra no usadas, lo que es inofensivo.
@@ -688,30 +831,41 @@ Revertir en ese orden (inverso) es seguro.
              op.add_column
   · 55a324f  fix(ui/404): el mensaje "negocio inexistente" solo aparece
              para URLs de tenant
+  · 845b468  docs(release): README V2.011 (redaccion inicial)
+  · b8b4313  docs(release): fecha correcta del README V2.011 (2026-10-23)
   · f9b8258  fix(db): alinea los ENUM product_status y quote_status con el
              modelo
   · 3236178  test(db): regresion de consistencia ENUM modelo <-> PostgreSQL
+  · 5a5d43a  test(db): los tests de cadena Alembic no dependen del nombre
+             de la head
+  · e3d25b5  fix(db): el reconciliador tambien repara los ENUM de PostgreSQL
+  · 6a06c36  chore(db): el reconciliador reporta la revision actual de
+             alembic_version
+  · (este)   docs(release): actualizacion final del README V2.011 con los
+             resultados de la validacion online
 
-7.2) Archivos modificados (18 archivos, +1345 / -55)
-  · alembic/versions/2026_10_16_hu50_65_produccion.py   +140 / -27
-  · alembic/versions/2026_10_21_fix_schema_drift.py      +163  (nuevo)
-  · app/main.py                                          +68
-  · app/templates/dashboard/admin_marketing.html         +19 / -13
-  · app/templates/dashboard/admin_scanner.html           +19 / -13
-  · app/templates/dashboard/mesero.html                  +33 / -11
+7.2) Archivos modificados (20 archivos, +3204 / -80)
+  · alembic/versions/2026_10_16_hu50_65_produccion.py   +160 / -58
+  · alembic/versions/2026_10_21_fix_schema_drift.py      +168  (nuevo)
+  · alembic/versions/2026_10_23_fix_enum_labels.py        +157  (nuevo)
+  · app/main.py                                          +75 / -1
+  · app/templates/dashboard/admin_marketing.html         +17 / -2
+  · app/templates/dashboard/admin_scanner.html           +18 / -1
+  · app/templates/dashboard/mesero.html                  +26 / -7
   · app/templates/dashboard/onboarding.html              +15
   · app/templates/dashboard/orders.html                   +7
-  · app/templates/dashboard/templates.html               +11 / -6
+  · app/templates/dashboard/templates.html                +8 / -3
   · app/templates/home.html                                +1 / -1
-  · app/templates/public/404.html                         +5 / -1
-  · app/templates/public/landing_wowprint.html            +8 / -4
-  · scripts/bootstrap_migrate.py                          +63 / -12
+  · app/templates/public/404.html                         +4
+  · app/templates/public/landing_wowprint.html            +4 / -4
+  · scripts/bootstrap_migrate.py                          +60 / -3
   · scripts/entrypoint.sh                                 +13
-  · scripts/reconcile_schema.py                          +308  (nuevo)
+  · scripts/reconcile_schema.py                          +576  (nuevo)
   · tests/test_dashboard_routes_and_scripts.py          +182  (nuevo)
-  · tests/test_schema_drift_reconciliation.py            +335  (nuevo)
+  · tests/test_enum_labels_consistency.py                +317  (nuevo)
+  · tests/test_schema_drift_reconciliation.py            +345  (nuevo)
   · docs/releases/README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-23.txt
-                                                (nuevo)
+                                                +1051  (nuevo)
 
 7.3) Trazabilidad error -> commit -> prueba
   · products.product_type    -> 391ba30 + 5879fb9 + 9857d1d
@@ -721,7 +875,11 @@ Revertir en ese orden (inverso) es seguro.
   · onboarding/marketing/scanner -> bff9602       -> test_dashboard_routes_and_scripts.py
   · orders sin super()       -> 9fbf363          -> test_dashboard_routes_and_scripts.py
   · mensaje "negocio inexistente" -> 55a324f      -> (verificado en el render)
-  · ENUM product_status/quote_status -> f9b8258   -> test_enum_labels_consistency.py
+  · ENUM product_status/quote_status -> f9b8258 + e3d25b5
+                                           -> test_enum_labels_consistency.py
+  · cadena Alembic sin nombre fijo de head -> 5a5d43a
+                                           -> tests/f0_baseline/test_alembic.py
+  · diagnóstico de la revisión real -> 6a06c36    -> (log del deploy)
 
 7.4) LIMITACIÓN CONOCIDA (NO corregida en V2.011, por decisión)
 
@@ -739,15 +897,37 @@ Revertir en ese orden (inverso) es seguro.
     Para habilitarla en el futuro: montar templates_api.router con
     get_current_membership y verificación de pertenencia al tenant.
 
-7.4) Origen del incidente (para el registro)
+7.5) PENDIENTE PARA V2.012 (diagnóstico, no bloquea V2.011)
+
+    La cadena de Alembic de la DB de producción NO avanza: está bloqueada en
+    una revisión anterior por una migración que falla sobre los datos reales.
+    No se pudo identificar cuál porque el dashboard de Railway abre un diálogo
+    de Login (no hay sesión en el navegador del agente) y no hay CLI ni token
+    de Railway en el entorno.
+
+    Mitigación aplicada en V2.011: la reparación del esquema y de los ENUM la
+    hace scripts/reconcile_schema.py, que es agnóstico del estado de Alembic
+    y se ejecuta siempre en el entrypoint. Los 4 errores quedaron corregidos
+    y verificados online con la cadena quieta.
+
+    Acción pendiente: leer el log del deploy en el dashboard de Railway,
+    identificar la migración que falla y corregirla (con sufijo _noop o
+    guardas de idempotencia) en V2.012.
+
+7.6) Origen del incidente (para el registro)
   · 9ea9bec sobrescribió app/main.py con una versión anterior a V2.01 y
     eliminó 6 rutas. Fue un conflicto de merge/rebase no detectado, no un
     cambio intencional.
   · El bootstrap de migraciones sellaba la DB en "head" sin verificar las
     columnas de las migraciones con op.add_column. El defecto estaba latente
     desde la creación de la migración HU_50-HU_65 (2026-10-16) y se hizo
-    visible en cuanto una DB realCJ Edison quedó con las tablas creadas por
+    visible en cuanto una DB real quedó con las tablas creadas por
     create_all pero sin las columnas.
+  · El desfase de labels de los ENUM existía desde la migración inicial
+    (2026_09_07_1002), que creó product_status y quote_status en MAYÚSCULAS
+    mientras el modelo los usa en minúsculas. El desfase equivalente de
+    order_status ya se había corregido el 2026-10-06; esos dos se quedaron
+    fuera.
 
 
 --------------------------------------------------------------------------------
@@ -764,8 +944,16 @@ LOCAL
       - se agregó 15 columnas | índices creados: 22 | omitidas: 0 | errores: 0
       - segunda ejecución: 0 columnas, 0 índices, 0 errores  (IDEMPOTENTE)
   · Alembic:
-      - alembic heads            -> 2026_10_21_fix_drift (UNA sola head)
+      - alembic heads            -> 2026_10_23_fix_enum_labels (UNA sola head)
       - alembic upgrade head     -> OK (base limpia y base con drift)
+      - alembic downgrade base   -> OK (queda 1 tabla)
+      - 21 revisiones en cadena, sin revisiones huérfanas y sin revisiones
+        borradas del árbol de archivos.
+  · Reconciliador de ENUM sobre la DB con drift de labels:
+      - labels agregados: 6 | filas normalizadas: N | errores: 0
+      - segunda ejecución: 0 labels, 0 filas  (IDEMPOTENTE)
+      - el mapeo de normalización sólo se aplica a product_status y
+        quote_status; order_status queda intacto (mapeo no 1:1).
   · Rutas (TestClient sobre la app real):
       /dashboard/templates  200   (22.793 bytes, 4 plantillas)
       /dashboard/v1          200
@@ -779,20 +967,28 @@ LOCAL
     requireLogin y conserva openNewOrderModal, submitNewOrder,
     newOrderAddItemRow, wcRefreshProductoSelect, wcRefreshClienteSelect.
 
-SUITE DE TESTS
+SUITE DE TESTS (pytest, conjunto crítico)
   · tests/test_schema_drift_reconciliation.py     10 passed
   · tests/test_dashboard_routes_and_scripts.py    48 passed
+  · tests/test_enum_labels_consistency.py          31 passed
   · tests/test_hu50_65_produccion.py              34 passed
   · tests/f0_baseline/                             87 passed + 1 xpassed
-  · TOTAL CRÍTICO: 179 passed, 1 xpassed (sin regresiones)
+  · TOTAL CRÍTICO: 210 passed, 1 xpassed (sin regresiones)
     Antes de V2.011 el mismo conjunto daba 121 passed + 1 xpassed.
-    El delta (+58) son los 58 tests nuevos de regresión de este release.
+    El delta (+89) son los 89 tests nuevos de regresión de este release.
+  · Suite completa del repo (fuera del conjunto crítico): excede el timeout
+    de 600 s, por lo que se validó por chunks.
 
-ONLINE (Railway) — VERIFICADO tras el deploy de b8b4313
+ONLINE (Railway) — VERIFICADO en producción, sin fallos
+  Script: _verify_online.py (comprobaciones HTTP reales sobre el sitio
+  desplegado). Resultado final:
+  "OK — validacion online completa sin fallos".
+
   · /health 200 {"status":"ok","version":"0.2.0","env":"production",...}
   · /openapi.json -> 258 paths (sin cambios)
   · /dashboard/templates -> 200 (22.793 bytes) con las 4 plantillas
       (Moderna, WowPrint, Dark, Default)
+      ruta literal /static/css/templates/dashboard.css presente
       sin url_for('static', filename=...) y sin el mensaje "negocio inexistente"
   · /dashboard/v1         -> 200
   · /dashboard/settings   -> 307 -> /dashboard/templates
@@ -800,25 +996,26 @@ ONLINE (Railway) — VERIFICADO tras el deploy de b8b4313
   · /dashboard/analytics  -> 307 -> /dashboard/stats
   · /pricing              -> 307 -> /#pricing
   · /dashboard/mesero -> 200 (63.917 bytes)
-      app.js@26746 < primer uso de WH@27679  => ORDEN CORRECTO
+      app.js@26746  =>  ORDEN CORRECTO
       ningún <script> usa WH sin guard antes de app.js
       loadTenantAndBranches y window.WH.Auth.ensureSession presentes
   · /dashboard/orders -> 200 (56.317 bytes)
       ai.js, ai-context.js, dashboard-compat.js y requireLogin presentes
       openNewOrderModal, submitNewOrder, wcRefreshProductoSelect presentes
-  · /api/v1/tenants/{id}/products -> 401 (guard de auth), sin 500 y sin
-      UndefinedColumn  => la columna product_type ya no es el problema
+  · /api/v1/tenants/{id}/products -> 401 {"detail":"Falta header Authorization"}
+      el guard de auth responde antes que la DB: sin 500, sin UndefinedColumn
+      => la columna products.product_type ya no es el problema
+  · BUG 4 — CATÁLOGO PÚBLICO (el que estaba en 500):
+      GET /api/v1/public/t/cafe-norte/catalog -> 200 (6.576 bytes)
+      GET /api/v1/public/t/bicifix/catalog     -> 200 (1.226 bytes)
+      GET /api/v1/public/t/cafe-norte/products/espresso -> 200
+      sin "invalid input value for enum" ni "not among the defined enum values"
   · HERO SHOWCASE intacto:
       home 200 (36.436 bytes), 8 tabs role="tab" en el HTML,
-      hero_showcase.js 200 con AUTOPLAY_MS = 3000,
+      hero_showcase.js 200 (9.177 bytes) con AUTOPLAY_MS = 3000,
       las 8 imágenes de /static/img/hero/ responden 200
       (bookings.png, catalog.png, orders.png, page.png, payments.jpg,
        promos.png, qr.png, stats.png)
-
-ONLINE (Railway) — PENDIENTE tras el deploy de f9b8258 (fix del BUG 4)
-  · GET /api/v1/public/t/cafe-norte/catalog -> esperado 200 (antes 500)
-  · GET /api/v1/public/t/bicifix/catalog     -> esperado 200 (antes 500)
-  · El catálogo público de cada tenant debe listar sus productos.
 
 
 --------------------------------------------------------------------------------
@@ -842,6 +1039,14 @@ declaraba.
   · El Catálogo de productos del tenant vuelve a cargar: sin el 500 de
     products.product_type, el usuario puede ver y editar su catálogo y crear
     productos nuevos desde el propio flujo de pedidos.
+  · El catálogo PÚBLICO (el que ve el cliente final en /t/{slug}) vuelve a
+    pintar productos: sin el 500 del ENUM, la vitrina de cada negocio
+    muestra su catálogo real otra vez. Esta es la diferencia visible
+    para el cliente final.
+  · Nota de alcance: el selector de plantillas sigue guardando la
+    elección en el navegador (localStorage), no en el servidor, por la
+    limitación documentada en 7.4. La UI funciona; la persistencia
+    multi-dispositivo de la plantilla queda pendiente.
 
 
 ================================================================================
