@@ -254,41 +254,82 @@ const ImagePicker = {
     // preview daba 401 y se veía "⚠ No se pudo cargar la imagen".
     // Cuando la URL es de ese endpoint se descarga con fetch + Bearer y
     // se pinta con un object URL. Las URLs públicas se dejan como están.
+    //
+    // FIX V2.014 — si la descarga falla NO se cae en silencio a la URL
+    // cruda (que el <img> tampoco puede autenticar): se devuelve el
+    // motivo real (status + detalle) para poder mostrarlo. La URL
+    // directa se conserva como plan B porque el endpoint acepta la
+    // cookie httpOnly de sesión.
     async function previewSrc(url) {
       if (!/\/api\/v\d+\/tenants\/[^/]+\/uploads\/[^/]+\/content/.test(url)) {
-        return url;
+        return { src: url, error: null };
       }
       const tk = TokenStore.access();
-      if (!tk) return url;
+      if (!tk) {
+        // Sin token en localStorage: se deja la URL directa, que el
+        // endpoint resuelve con la cookie httpOnly de sesión.
+        return { src: url, error: null };
+      }
       try {
         const res = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
-        if (!res.ok) return url;
-        const blob = await res.blob();
-        return URL.createObjectURL(blob);
-      } catch (_) {
-        return url;
+        if (res.ok) {
+          const blob = await res.blob();
+          return { src: URL.createObjectURL(blob), error: null };
+        }
+        const detail = await res.text().catch(() => "");
+        return { src: url, error: { status: res.status, detail: detail.slice(0, 200) } };
+      } catch (e) {
+        return { src: url, error: { status: 0, detail: String(e) } };
       }
+    }
+
+    // Motivo real por el que no se pudo cargar la imagen.
+    function previewErrorMessage(err) {
+      if (!err) return null;
+      const st = err.status;
+      if (st === 401 || st === 403) {
+        return "Tu sesión expiró o no tienes permiso para ver esta imagen. Recarga la página.";
+      }
+      if (st === 404) {
+        return "El archivo ya no está en el servidor (se perdió en un despliegue). Vuelve a subirlo.";
+      }
+      if (st === 0) {
+        return "No se pudo conectar con el servidor.";
+      }
+      if (st >= 500) {
+        return `Error del servidor (${st}). Revisa el log del backend.`;
+      }
+      return `No se pudo cargar la imagen (HTTP ${st}).`;
     }
 
     async function setPreview(url) {
       if (url) {
         preview.dataset.empty = "false";
-        const src = await previewSrc(url);
+        const { src, error } = await previewSrc(url);
+        const motivo = previewErrorMessage(error);
         // onerror: si la URL no carga (host no alcanzable, 404, CORS),
-        // mostramos un mensaje claro en vez de un área vacía silenciosa.
+        // mostramos el motivo REAL. Antes este mensaje acusaba siempre a
+        // la URL, y además era lo que se veía cuando el endpoint estaba
+        // caído con 500 por un import roto en el backend.
         preview.innerHTML = `
           <div class="ip-preview-img-wrap">
             <img src="${escapeAttr(src)}" alt="" referrerpolicy="no-referrer"
-                 style="max-width:100%;max-height:240px;display:block;border-radius:6px;"
-                 onerror="this.parentNode.innerHTML = '<div class=&quot;ip-preview-broken&quot;>⚠ No se pudo cargar la imagen.<br><small>La URL puede haber cambiado o el archivo ya no existe.</small><br><code style=&quot;font-size:10px;word-break:break-all;&quot;></code></div>';">
+                 style="max-width:100%;max-height:240px;display:block;border-radius:6px;">
           </div>`;
         // Si falla la carga, mostramos la URL para diagnóstico
         const img = preview.querySelector("img");
         img.addEventListener("error", () => {
+          const msg = motivo || "No se pudo cargar la imagen.";
+          preview.innerHTML = `
+            <div class="ip-preview-broken">
+              ⚠ ${escapeHtml(msg)}<br>
+              <small>${error ? `HTTP ${error.status}` : "sin respuesta del servidor"}</small><br>
+              <code style="font-size:10px;word-break:break-all;"></code>
+            </div>`;
           const codeEl = preview.querySelector(".ip-preview-broken code");
           if (codeEl) codeEl.textContent = url;
           if (window.WH && window.WH.Toast) {
-            window.WH.Toast.show("La URL de la imagen no carga. ¿El servidor cambió de dominio?", "warning");
+            window.WH.Toast.show(msg, "warning");
           }
         }, { once: true });
         removeBtn.hidden = false;
