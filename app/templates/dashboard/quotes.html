@@ -351,6 +351,12 @@ async function saveQuote() {
     $("alert").innerHTML = `<div class="alert alert-ok">Cotización <strong>${q.number}</strong> creada.</div>`;
     loadQuotes();
     loadStats();
+    // FIX V2.012 — al crear una cotización se abre su PREVISUALIZACIÓN
+    // (el mismo detalle que se ve al hacer clic en la lista), para poder
+    // revisarla y enviarla sin salir del flujo.
+    if (q && q.id) {
+      try { await viewQuote(q.id); } catch (e) { console.warn("[quotes] preview falló:", e); }
+    }
   } catch (err) {
     $("alert").innerHTML = `<div class="alert alert-error">${err.message || err}</div>`;
   }
