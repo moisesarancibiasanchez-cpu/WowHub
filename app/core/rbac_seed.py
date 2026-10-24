@@ -126,12 +126,22 @@ def seed_default_rbac_policies(
     session_factory=None,
     reset: bool = False,
 ) -> int:
-    """Inserta las policies default si la tabla está vacía.
+    """Inserta las policies default que falten.
 
-    Idempotente: si ya hay policies, no duplica. Si ``reset=True``,
-    borra todo primero.
+    Idempotente y **reconciliador**: comprueba una por una las policies
+    declaradas en ``DEFAULT_POLICIES`` y sólo inserta las que faltan. Antes
+    el seed sólo corría cuando la tabla estaba COMPLETAMENTE vacía
+    (``count() == 0``), así que una tabla a medias (o un seed que falló a
+    medias) se quedaba así para siempre.
 
-    Retorna el número de policies insertadas (post-reset si aplica).
+    FIX V2.012 — además, cada INSERT va en su propia transacción: si una
+    policy concreta falla (p. ej. por drift de esquema), no se revierte
+    el resto. Con un único ``commit()`` final, un solo INSERT inválido
+    tumbaba las N filas y la tabla quedaba VACÍA: Casbin no tenía ninguna
+    policy que cargar y denegaba TODAS las operaciones a TODOS los roles
+    → HTTP 403 en 26 endpoints (clientes, productos, pedidos, RFM...).
+
+    Retorna el número total de policies presentes tras la ejecución.
     """
     # Imports lazy para no acoplar seed <-> database en import time.
     if session_factory is None:
@@ -148,31 +158,61 @@ def seed_default_rbac_policies(
             session.commit()
             logger.info("rbac_seed: reset=True — tablas vaciadas")
 
-        existing = session.query(RBACPolicy).count()
-        if existing > 0 and not reset:
-            logger.info(
-                "rbac_seed: %d policies ya existen — no se duplican",
-                existing,
-            )
-            return existing
+        # Qué hay ya: tupla (sub, dom, obj, act).
+        existing_rows = {
+            (row.sub, row.dom, row.obj, row.act)
+            for row in session.query(
+                RBACPolicy.sub, RBACPolicy.dom, RBACPolicy.obj, RBACPolicy.act
+            ).all()
+        }
 
         inserted = 0
+        failed = 0
         for sub, dom, obj, act in DEFAULT_POLICIES:
-            session.add(
-                RBACPolicy(
-                    sub=sub,
-                    dom=dom,
-                    obj=obj,
-                    act=act,
-                    effect="allow",
-                    priority=0,
-                    note="default seed",
+            if (sub, dom, obj, act) in existing_rows:
+                continue
+            try:
+                session.add(
+                    RBACPolicy(
+                        sub=sub,
+                        dom=dom,
+                        obj=obj,
+                        act=act,
+                        effect="allow",
+                        priority=0,
+                        note="default seed",
+                    )
                 )
+                # Commit por policy: un fallo aislado no tumba el resto.
+                session.commit()
+                existing_rows.add((sub, dom, obj, act))
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                session.rollback()
+                logger.error(
+                    "rbac_seed: NO se pudo insertar la policy %s/%s/%s/%s: %s",
+                    sub, dom, obj, act, exc,
+                )
+
+        total = session.query(RBACPolicy).count()
+        if inserted:
+            logger.info(
+                "rbac_seed: insertadas %d policies faltantes (total %d)",
+                inserted, total,
             )
-            inserted += 1
-        session.commit()
-        logger.info("rbac_seed: insertadas %d policies", inserted)
-        return inserted
+        if failed:
+            logger.error(
+                "rbac_seed: %d policies NO se pudieron insertar — "
+                "revisá el drift de esquema (rbac_policies.id / created_at)",
+                failed,
+            )
+        if total == 0:
+            logger.error(
+                "rbac_seed: la tabla rbac_policies quedó VACÍA — Casbin va a "
+                "denegar TODAS las operaciones hasta que se repueblen"
+            )
+        return total
 
 
 def count_policies(session_factory=None) -> int:

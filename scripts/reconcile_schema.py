@@ -361,6 +361,134 @@ def _alembic_version(engine: Engine) -> str | None:
         return None
 
 
+def _model_is_uuid(col: Any) -> bool:
+    """True si la columna del modelo es un UUID (GUID/TypeDecorator o Uuid)."""
+    tname = type(col.type).__name__
+    if tname in ("GUID", "Uuid", "UUID"):
+        return True
+    # Un Enum de un solo valor "uuid" también cuenta.
+    return str(col.type).upper() == "UUID"
+
+
+def _live_is_char32(type_obj: Any) -> bool:
+    """True si el tipo real de la columna es un CHAR/VARCHAR de 32 chars."""
+    t = str(type_obj).upper().replace(" ", "")
+    return t in ("CHAR(32)", "CHARACTER(32)", "VARCHAR(32)", "CHARACTERVARYING(32)")
+
+
+def _repair_column_types(
+    engine: Engine,
+    insp: Any,
+    tables: list[Any],
+    existing_tables: set[str],
+    dry_run: bool,
+    report: dict[str, Any],
+) -> None:
+    """Repara el TIPO y el DEFAULT de columnas ya existentes.
+
+    Drift de tipo (Bug 4 — permisos, 2026-10-23)
+    --------------------------------------------
+    ``alembic/versions/2026_09_30_0003_rbac_casbin.py`` creó las tablas
+    ``rbac_policies`` y ``rbac_groupings`` con DDL crudo:
+
+        id CHAR(32) NOT NULL PRIMARY KEY,
+        created_at TIMESTAMP NOT NULL,
+
+    Pero el ORM (``app/models/base.py``) usa el TypeDecorator ``GUID``, que
+    en PostgreSQL es un **UUID nativo**, y ``TimestampMixin`` con
+    ``server_default=func.now()``.
+
+    Resultado: el seed de políticas fallaba en PostgreSQL (UUID contra
+    char(32), y created_at NOT NULL sin DEFAULT), la transacción entera se
+    revertía, la tabla quedaba VACÍA y Casbin denegaba todas las
+    operaciones a todos los roles → HTTP 403 en 26 endpoints.
+
+    Sólo se reparan dos casos, acotados y verificables:
+
+    1. Columna ``CHAR(32)``/``VARCHAR(32)`` en la DB cuyo modelo es UUID:
+       se convierte a ``uuid``. La conversión usa el cast de entrada de
+       PostgreSQL, que acepta tanto la forma con guiones como los 32 hex
+       sin guiones (``rtrim`` quita el relleno de ``CHAR``).
+    2. Columna NOT NULL sin DEFAULT en la DB cuyo modelo declara
+       ``server_default``: se le pone el DEFAULT del modelo. Sin esto, un
+       INSERT que omita la columna (que es lo que hace SQLAlchemy) viola
+       NOT NULL.
+
+    Es idempotente: si el tipo ya es ``uuid`` o el default ya existe, no
+    hace nada. Nunca hace DROP ni borra datos.
+    """
+    dialect = engine.dialect
+    if dialect.name != "postgresql":
+        # En SQLite el propio ORM usa CHAR(32) para GUID: no hay drift.
+        return
+
+    for table in tables:
+        if table.name not in existing_tables:
+            continue
+        try:
+            live_cols = {c["name"]: c for c in insp.get_columns(table.name)}
+        except Exception as exc:  # noqa: BLE001
+            report["errors"].append(f"inspect columns {table.name}: {exc}")
+            continue
+
+        for col in table.columns:
+            live = live_cols.get(col.name)
+            if live is None:
+                continue  # la columna no existe: la crea el pase de columnas
+
+            # ── 1. Tipo CHAR(32) → uuid ──────────────────────────────────
+            if _model_is_uuid(col) and _live_is_char32(live.get("type")):
+                ddl = (
+                    f"ALTER TABLE {_quote_ident(table.name)} "
+                    f"ALTER COLUMN {_quote_ident(col.name)} TYPE uuid "
+                    f"USING rtrim({_quote_ident(col.name)})::uuid"
+                )
+                logger.info("[reconcile] %s", ddl)
+                report["column_types_fixed"].append(f"{table.name}.{col.name}")
+                if dry_run:
+                    continue
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text(ddl))
+                except Exception as exc:  # noqa: BLE001
+                    report["errors"].append(
+                        f"fix type {table.name}.{col.name}: {exc}"
+                    )
+                    logger.error(
+                        "[reconcile] no se pudo corregir el tipo de %s.%s: %s",
+                        table.name, col.name, exc,
+                    )
+                continue
+
+            # ── 2. DEFAULT faltante en columna NOT NULL ───────────────────
+            if live.get("default") is not None:
+                continue
+            if live.get("nullable", True):
+                continue
+            default_sql = _server_default_sql(col, dialect)
+            if default_sql is None:
+                continue
+            ddl = (
+                f"ALTER TABLE {_quote_ident(table.name)} "
+                f"ALTER COLUMN {_quote_ident(col.name)} SET DEFAULT {default_sql}"
+            )
+            logger.info("[reconcile] %s", ddl)
+            report["column_defaults_fixed"].append(f"{table.name}.{col.name}")
+            if dry_run:
+                continue
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(ddl))
+            except Exception as exc:  # noqa: BLE001
+                report["errors"].append(
+                    f"fix default {table.name}.{col.name}: {exc}"
+                )
+                logger.error(
+                    "[reconcile] no se pudo agregar el default de %s.%s: %s",
+                    table.name, col.name, exc,
+                )
+
+
 def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
     """Compara modelos contra el esquema real y repara la diferencia.
 
@@ -378,6 +506,8 @@ def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
         "tables_created": [],
         "columns_added": [],
         "columns_skipped_unsafe_type": [],
+        "column_types_fixed": [],
+        "column_defaults_fixed": [],
         "indexes_created": [],
         "enum_values_added": [],
         "enum_rows_normalized": [],
@@ -477,6 +607,20 @@ def reconcile(engine: Engine, dry_run: bool = False) -> dict[str, Any]:
                     table.name, col.name, exc,
                 )
 
+    # ── 2b. Tipos y DEFAULTs de columnas ya existentes ───────────────────
+    # Un columna puede existir pero con el TIPO equivocado (CHAR(32) donde
+    # el modelo pide UUID) o sin el DEFAULT que el modelo declara. Eso
+    # rompe los INSERT del ORM aunque la columna "exista". Ver
+    # _repair_column_types() para el caso concreto de rbac_policies.
+    try:
+        _repair_column_types(
+            engine, insp, list(Base.metadata.sorted_tables),
+            existing_tables, dry_run, report,
+        )
+    except Exception as exc:  # noqa: BLE001
+        report["errors"].append(f"repair column types: {exc}")
+        logger.error("[reconcile] no se pudo reparar tipos de columna: %s", exc)
+
     # ── 3. Índices ────────────────────────────────────────────────────────
     for table in Base.metadata.sorted_tables:
         if table.name not in existing_tables:
@@ -542,12 +686,17 @@ def main() -> int:
     verb = "se agregaría" if args.dry_run else "se agregó"
     logger.info(
         "Resumen — alembic_version: %s | tablas %s: %d | %s %d columnas | "
+        "%s %d tipos corregidos | %s %d defaults agregados | "
         "índices %s: %d | enum labels %s: %d | filas enum normalizadas: %d | "
         "omitidas: %d | errores: %d",
         report["alembic_version"] or "(sin tabla)",
         "a crear" if args.dry_run else "creadas",
         len(report["tables_created"]),
         verb, len(report["columns_added"]),
+        "tipos a corregir" if args.dry_run else "tipos corregidos",
+        len(report["column_types_fixed"]),
+        "defaults a agregar" if args.dry_run else "defaults agregados",
+        len(report["column_defaults_fixed"]),
         "a crear" if args.dry_run else "creados",
         len(report["indexes_created"]),
         "a agregar" if args.dry_run else "agregados",
@@ -558,6 +707,10 @@ def main() -> int:
     )
     for item in report["columns_added"]:
         logger.info("  + columna %s", item)
+    for item in report["column_types_fixed"]:
+        logger.info("  ~ tipo corregido %s", item)
+    for item in report["column_defaults_fixed"]:
+        logger.info("  ~ default agregado %s", item)
     for item in report["enum_values_added"]:
         logger.info("  + enum %s", item)
     for item in report["enum_rows_normalized"]:
