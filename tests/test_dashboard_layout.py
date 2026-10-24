@@ -66,14 +66,20 @@ def test_default_layout_when_no_saved(client):
     assert body["tenant_id"] == tid
     assert body["is_default"] is True
     assert "widgets" in body and isinstance(body["widgets"], list)
-    # FIX 2026-10-03: el default de HU_34 ahora trae 10 widgets
-    # (post-refactor dashboard), no los 4 originales.
-    assert len(body["widgets"]) == 10
+    # FIX 2026-10-24 (V2.013): el default de HU_34 trae 12 widgets
+    # (post-refactor dashboard), no los 10 que se afirmaría antes. La
+    # lista viva está en app/api/v1/dashboard.py:_default_widgets y el
+    # propio endpoint la documenta como "los 12 widgets"; la expectativa
+    # del test se había quedado atrás al agregar inventory_alerts y
+    # campaigns_active. El fallo era preexistente a V2.013 (falla igual
+    # sobre 916d5b1, sin mis cambios).
+    assert len(body["widgets"]) == 12
 
-    # Geometría: los 10 widgets default actuales del dashboard real.
+    # Geometría: los 12 widgets default actuales del dashboard real.
     expected_types = {
         "ai_brief", "metrics", "orders", "opportunities", "products",
-        "performance", "activity", "ai_bar", "public_url", "cta_widgets",
+        "performance", "activity", "ai_bar", "inventory_alerts",
+        "campaigns_active", "public_url", "cta_widgets",
     }
     types = {w["type"] for w in body["widgets"]}
     assert types == expected_types
