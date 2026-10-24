@@ -142,7 +142,9 @@
        title="Mesero virtual: ver/abrir sesiones y dividir cuenta">
       <span class="ico">🧑‍🍳</span> Mesero
     </a>
-    <a href="/dashboard/kds/" class="nav-link" data-route="kds" target="_blank">
+    {# FIX V2.012 — KDS se abre en la MISMA pestaña (antes target="_blank"
+       dejaba al usuario fuera del dashboard, en una pestaña aparte). ── #}
+    <a href="/dashboard/kds/" class="nav-link" data-route="kds">
       <span class="ico">🍳</span> Cocina (KDS)
     </a>
     <a href="/dashboard/landing" class="nav-link" data-route="landing">
@@ -204,9 +206,13 @@
     <a href="/dashboard/stats" class="nav-link" data-route="stats">
       <span class="ico">📊</span> Estadísticas
     </a>
-    <a href="/dashboard/pipeline" class="nav-link" data-route="pipeline">
-      <span class="ico">⇆</span> Pipeline
-    </a>
+    {# FIX V2.012 — Se elimina el item "Pipeline" del menú.
+       /dashboard/pipeline es un alias deprecated (301) de /dashboard/orders:
+       el Kanban del embudo vive en Pedidos desde V2.009. Mantenerlo en el
+       menú prometía una vista de pipeline y entregaba Pedidos — el mismo
+       destino que ya tenía el item "Pedidos" 40 líneas más arriba.
+       La ruta /dashboard/pipeline se conserva como alias para marcadores
+       y enlaces guardados. ── #}
     <a href="/dashboard/payments" class="nav-link" data-route="payments">
       <span class="ico">💳</span> Pagos
     </a>
