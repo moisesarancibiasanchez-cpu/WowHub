@@ -98,7 +98,14 @@ class UploadService:
             file_path = upload_dir / stored_filename
             with open(file_path, "wb") as f:
                 f.write(content)
-            url = f"{self.base_url}/storage/{tenant_id}/{stored_filename}"
+            # La URL canónica se arma DESPUÉS de crear la fila, cuando ya
+            # existe el id. Antes se guardaba "/storage/{tenant}/{archivo}",
+            # pero ese montaje se quitó de la app en producción por
+            # seguridad (2026-09-27): la URL daba 404 y ni la previsualiza-
+            # ción en el dashboard ni el hero de la landing cargaban.
+            # Ahora se guarda la ruta del endpoint que sí sirve el archivo
+            # (autenticada). El borde público la reescribe por slug.
+            url = ""
         else:
             # S3-compatible (placeholder)
             raise NotImplementedError(f"Storage backend '{self.backend}' no implementado todavía")
@@ -118,6 +125,8 @@ class UploadService:
             purpose=purpose,
         )
         self.db.add(upload)
+        self.db.flush()  # asigna el id
+        upload.url = f"/api/v1/tenants/{tenant_id}/uploads/{upload.id}/content"
         self.db.commit()
         self.db.refresh(upload)
         return upload

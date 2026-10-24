@@ -114,6 +114,9 @@ const slug = {{ slug | tojson }};
     const brand = profile.branding || {};
     if (brand.logo_url) {
       const img = document.getElementById("logo");
+      // FIX V2.012 — si la imagen no carga, se oculta y se deja el
+      // nombre del negocio (antes quedaba el ícono de imagen rota).
+      img.onerror = function () { this.style.display = "none"; };
       img.src = brand.logo_url; img.style.display = "block";
     }
     if (brand.brand_color) {
@@ -137,11 +140,21 @@ const slug = {{ slug | tojson }};
       if (landing.hero_cta_url) heroCta.href = landing.hero_cta_url;
       if (landing.hero_image_url) {
         const hero = document.getElementById("hero-section");
-        hero.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${landing.hero_image_url}')`;
-        hero.style.backgroundSize = "cover";
-        hero.style.backgroundPosition = "center";
-        hero.querySelector("h1").style.color = "white";
-        hero.querySelector(".lead").style.color = "rgba(255,255,255,0.9)";
+        // FIX V2.012 — se precarga la imagen antes de aplicarla: si no
+        // carga, el hero se queda con su fondo (gradiente) en vez de
+        // quedar con una imagen rota.
+        const probe = new Image();
+        probe.onload = function () {
+          hero.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('${landing.hero_image_url}')`;
+          hero.style.backgroundSize = "cover";
+          hero.style.backgroundPosition = "center";
+          hero.querySelector("h1").style.color = "white";
+          hero.querySelector(".lead").style.color = "rgba(255,255,255,0.9)";
+        };
+        probe.onerror = function () {
+          console.warn("[landing] no se pudo cargar el hero:", landing.hero_image_url);
+        };
+        probe.src = landing.hero_image_url;
       }
       if (landing.seo_title) document.title = landing.seo_title;
       if (landing.custom_css) document.getElementById("custom-css").textContent = landing.custom_css;

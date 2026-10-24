@@ -227,14 +227,37 @@ const ImagePicker = {
     const progressBar = host.querySelector(".ip-progress-bar");
     const errorEl = host.querySelector(".ip-error");
 
-    function setPreview(url) {
+    // FIX V2.012 — las imágenes del tenant se sirven por un endpoint
+    // AUTENTICADO (/api/v1/tenants/{tid}/uploads/{uid}/content). Un
+    // <img src> no puede mandar el header Authorization, así que el
+    // preview daba 401 y se veía "⚠ No se pudo cargar la imagen".
+    // Cuando la URL es de ese endpoint se descarga con fetch + Bearer y
+    // se pinta con un object URL. Las URLs públicas se dejan como están.
+    async function previewSrc(url) {
+      if (!/\/api\/v\d+\/tenants\/[^/]+\/uploads\/[^/]+\/content/.test(url)) {
+        return url;
+      }
+      const tk = TokenStore.access();
+      if (!tk) return url;
+      try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+        if (!res.ok) return url;
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      } catch (_) {
+        return url;
+      }
+    }
+
+    async function setPreview(url) {
       if (url) {
         preview.dataset.empty = "false";
+        const src = await previewSrc(url);
         // onerror: si la URL no carga (host no alcanzable, 404, CORS),
         // mostramos un mensaje claro en vez de un área vacía silenciosa.
         preview.innerHTML = `
           <div class="ip-preview-img-wrap">
-            <img src="${escapeAttr(url)}" alt="" referrerpolicy="no-referrer"
+            <img src="${escapeAttr(src)}" alt="" referrerpolicy="no-referrer"
                  style="max-width:100%;max-height:240px;display:block;border-radius:6px;"
                  onerror="this.parentNode.innerHTML = '<div class=&quot;ip-preview-broken&quot;>⚠ No se pudo cargar la imagen.<br><small>La URL puede haber cambiado o el archivo ya no existe.</small><br><code style=&quot;font-size:10px;word-break:break-all;&quot;></code></div>';">
           </div>`;

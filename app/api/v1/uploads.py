@@ -109,7 +109,11 @@ def get_upload_content(
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
 
     storage_dir = Path(get_settings().storage_dir)
-    candidate = (storage_dir / str(tenant_id) / Path(upload.filename).name).resolve()
+    # FIX V2.012 — el archivo en disco se llama ``stored_filename``
+    # ("<hex8>-<nombre><ext>"), NO ``filename`` (el nombre original que
+    # subió el usuario). Con ``filename`` la ruta nunca existía y el
+    # preview de la imagen cargada daba 404.
+    candidate = (storage_dir / str(tenant_id) / upload.stored_filename).resolve()
     try:
         # Path traversal: el archivo debe quedar dentro de storage/{tenant_id}/
         candidate.relative_to((storage_dir / str(tenant_id)).resolve())
