@@ -8,9 +8,9 @@ BUILD          : rama main (base baaa077)
 ALCANCE        : Corrección de 3 errores de producción reportados por el
                 usuario, más 3 defectos hermanos del mismo patrón y 1 error
                 de esquema adicional (ENUM) detectados durante la auditoría.
-ATOMICIDAD     : 18 commits independientes (15 de código y pruebas, 3 de
-                documentación), cada uno revertible por separado sin
-                arrastrar a los demás.
+ATOMICIDAD     : 19 commits independientes (15 de código y pruebas, 4 de
+                documentación y verificación), cada uno revertible por
+                separado sin arrastrar a los demás.
 RIESGO         : BAJO. Todos los cambios son ADITIVOS. No hay DROP de tablas
                 ni de columnas. No hay cambios de comportamiento de negocio.
 VERIFICACIÓN   : Online contra Railway (wowhub-api-production.up.railway.app)
@@ -243,7 +243,7 @@ IMPACTO:
 2. CAMBIO ÚNICO (qué se hizo)
 --------------------------------------------------------------------------------
 
-El release se compone de 18 commits atómicos. Cada uno es revertible por
+El release se compone de 19 commits atómicos. Cada uno es revertible por
 separado.
 
 ═══ 2.1) commit 391ba30 — fix(db): hace idempotente la migración HU_50-HU_65 ═══
@@ -541,6 +541,34 @@ POR QUÉ:
     las migraciones no avanzan. Es instrumentación de diagnóstico: NO
     cambia el comportamiento de la reconciliación.
 
+═══ 2.16) commit (este) — test(prod): verificación automática de producción ═══
+
+ARCHIVO NUEVO: scripts/verify_production.py
+
+FUNCIÓNES INTERVENIDAS:
+    get(base, path, follow=True)  → NUEVA. GET simple con manejo de
+        redirecciones (permite comprobar el 307 y su Location).
+    unguarded(js)                 → NUEVA. Detecta usos de WH.<algo> que no
+        estén protegidos por un guard.
+    main()                        → NUEVA. Ejecuta las comprobaciones de
+        producción y devuelve 0 si todo pasa, 1 si hay fallos.
+    __main__                      → Punto de entrada:
+        python -m scripts.verify_production
+
+QUÉ HACE:
+    Ejecuta comprobaciones HTTP REALES contra el sitio desplegado y cubre
+    los 4 errores corregidos, las 6 rutas restauradas, el orden de carga
+    de scripts del Mesero, la recuperación de scripts de Pedidos, los
+    catálogos públicos (ENUM), el Hero Showcase y /health + /openapi.json.
+    Sólo hace GETs: no modifica nada.
+
+POR QUÉ:
+    El "Procedimiento de prueba" de este release era una lista de curl
+    que había que ejecutar a mano. Con este script, la verificación
+    post-deploy es reproducible por cualquier persona y devuelve un código
+    de salida utilizable en un pipeline. Es la forma más barata de
+    detectar que una regresión de este tipo vuelve a aparecer.
+
 
 --------------------------------------------------------------------------------
 3. QUÉ NO SE MODIFICÓ
@@ -643,9 +671,10 @@ POR QUÉ:
 4.5) Rollback
     · git revert <commit> + push normal a main. El orden de revert es el
       inverso al de aplicación:
-        6a06c36 → e3d25b5 → 5a5d43a → 3236178 → f9b8258 → b8b4313 →
-        845b468 → 55a324f → 9857d1d → d902dc7 → 9fbf363 → bff9602 →
-        e926605 → 70a76b0 → eab765b → 5879fb9 → 391ba30
+        (este) → (este) → 6a06c36 → e3d25b5 → 5a5d43a → 3236178 →
+        f9b8258 → b8b4313 → 845b468 → 55a324f → 9857d1d → d902dc7 →
+        9fbf363 → bff9602 → e926605 → 70a76b0 → eab765b → 5879fb9 →
+        391ba30
     · Importante: revertir 5879fb9 y 391ba30 NO elimina las columnas ya
       agregadas en la DB (el downgrade de la migración es explícito y la
       operación de producción es aditiva). La DB quedaría con columnas extra
@@ -659,6 +688,25 @@ POR QUÉ:
 --------------------------------------------------------------------------------
 5. PROCEDIMIENTO DE PRUEBA (post-deploy en Railway)
 --------------------------------------------------------------------------------
+
+VERIFICACIÓN AUTOMÁTICA (una sola orden, cubre todo lo de esta sección):
+  $ python -m scripts.verify_production
+  Devuelve 0 e imprime "OK - validacion online completa sin fallos" si
+  todo esta bien; devuelve 1 y lista los fallos si algo se rompio.
+  Solo hace GETs: no modifica nada.
+  (--base https://otro-host para apuntar a otro entorno)
+
+Lo que cubre:
+  A) las 6 rutas restauradas y sus codigos / redirecciones
+  B) el contenido de /dashboard/templates (4 plantillas, rutas literales,
+     sin el mensaje "negocio inexistente")
+  C) el orden de carga de scripts del Mesero Virtual
+  D) la recuperacion de scripts de /dashboard/orders
+  E) /api/v1/tenants/{id}/products y los catalogos publicos (ENUM)
+  F) el Hero Showcase (8 tabs, autoplay 3000 ms, 8 imagenes)
+  G) /health y /openapi.json
+
+Comprobaciones manuales equivalentes:
 
 5.1) Health check
   $ curl -s https://wowhub-api-production.up.railway.app/health
@@ -770,6 +818,8 @@ POR QUÉ:
 6. ROLLBACK
 --------------------------------------------------------------------------------
 
+  $ git revert <este>   # test(prod) verify_production.py
+  $ git revert <este>   # docs(release) actualizacion final del README
   $ git revert 6a06c36   # chore(db) reporte de alembic_version
   $ git revert e3d25b5   # fix(db) reconciliador repara ENUM
   $ git revert 5a5d43a   # test(db) cadena Alembic sin nombre fijo de head
@@ -795,6 +845,9 @@ al más antiguo), que es el orden más seguro.
 Notas de rollback:
   · Revertir 3236178 / 5a5d43a / d902dc7 / eab765b (tests) no tiene efecto
     funcional.
+  · Revertir los 2 commits de este bloque (README + verify_production.py) no
+    tiene efecto funcional: sólo retira documentación y la herramienta de
+    verificación.
   · Revertir 6a06c36 sólo quita la línea de diagnóstico del log.
   · Revertir f9b8258 o e3d25b5 NO elimina los labels agregados al TYPE: PG no
     permite DROP VALUE. El catálogo público volvería a fallar, así que estos
@@ -843,8 +896,10 @@ Revertir en ese orden (inverso) es seguro.
              alembic_version
   · (este)   docs(release): actualizacion final del README V2.011 con los
              resultados de la validacion online
+  · (este)   test(prod): verificacion automatica de produccion en una orden
+             (scripts/verify_production.py)
 
-7.2) Archivos modificados (20 archivos, +3204 / -80)
+7.2) Archivos modificados (21 archivos)
   · alembic/versions/2026_10_16_hu50_65_produccion.py   +160 / -58
   · alembic/versions/2026_10_21_fix_schema_drift.py      +168  (nuevo)
   · alembic/versions/2026_10_23_fix_enum_labels.py        +157  (nuevo)
@@ -861,11 +916,12 @@ Revertir en ese orden (inverso) es seguro.
   · scripts/bootstrap_migrate.py                          +60 / -3
   · scripts/entrypoint.sh                                 +13
   · scripts/reconcile_schema.py                          +576  (nuevo)
+  · scripts/verify_production.py                          +226  (nuevo)
   · tests/test_dashboard_routes_and_scripts.py          +182  (nuevo)
   · tests/test_enum_labels_consistency.py                +317  (nuevo)
   · tests/test_schema_drift_reconciliation.py            +345  (nuevo)
   · docs/releases/README_V2.011_FIX_SCHEMA_MESERO_TEMPLATES_2026-10-23.txt
-                                                +1051  (nuevo)
+                                                (nuevo, este documento)
 
 7.3) Trazabilidad error -> commit -> prueba
   · products.product_type    -> 391ba30 + 5879fb9 + 9857d1d
@@ -980,9 +1036,9 @@ SUITE DE TESTS (pytest, conjunto crítico)
     de 600 s, por lo que se validó por chunks.
 
 ONLINE (Railway) — VERIFICADO en producción, sin fallos
-  Script: _verify_online.py (comprobaciones HTTP reales sobre el sitio
-  desplegado). Resultado final:
-  "OK — validacion online completa sin fallos".
+  Script: scripts/verify_production.py (comprobaciones HTTP reales sobre el
+  sitio desplegado). Resultado final:
+  "OK - validacion online completa sin fallos".
 
   · /health 200 {"status":"ok","version":"0.2.0","env":"production",...}
   · /openapi.json -> 258 paths (sin cambios)
