@@ -754,7 +754,60 @@ LOCAL
     (orders.html): listener en la línea 968, declaración de la función en
     la 1179 → ReferenceError confirmado.
 
-ONLINE (Railway) — verificado tras el deploy, sin fallos.
+ONLINE (Railway) — verificado tras el deploy, sin fallos
+
+  A) CSS desplegado (la evidencia de que el deploy ya lleva el código nuevo):
+     - /static/css/templates/dashboard.css 200 (18.173 b)
+       · la regla oscura ya NO aplica a [role="dialog"]
+       · existe la regla de panel blanco con texto oscuro
+     - /static/css/app.css 200 (65.763 b)
+       · existe la regla .dash-content > :not([data-widget-type]) con
+         grid-column: 1 / -1
+
+  B) Páginas del dashboard: 200
+     /dashboard/products, /dashboard/inventory, /dashboard/quotes,
+     /dashboard/ai, /dashboard/orders, /dashboard/customers,
+     /dashboard/templates, /dashboard/webhooks, /dashboard/landing
+     (/dashboard/marketplace/ y /dashboard/mi-sitio-web exigen token:
+      sin sesión responden 302 a /dashboard/login, que es lo correcto)
+
+  C) Navegación (HTML desplegado):
+     · KDS existe y SIN target="_blank
+     · el menú NO tiene el item "Pipeline"
+     · el menú SÍ tiene "Pedidos"
+
+  D) Marketplace desplegado (con token):
+     · 200 (56.856 b), contiene "Mis Plugins Instalados"
+     · NO lee el token de document.cookie
+     · usa WH.TokenStore
+     · el script va DESPUÉS de app.js (app.js@24.206, marketplace@46.057)
+     · el panel del modal es blanco
+     · apiHeaders sólo manda Bearer si hay token
+
+  E) Webhooks: explica su utilidad, lista los 4 eventos reales y el
+     placeholder ya no anuncia eventos inexistentes
+     ("on_order_created, on_payment_received, *")
+
+  F) Cotizaciones: saveQuote() abre la previsualización
+
+  G) Media:
+     · /api/v1/public/t/{tenant}/media/{id} inexistente -> 404 (no 500)
+     · /api/v1/public/t/cafe-norte/catalog -> 200 (6.576 b), sin error de ENUM
+     · /api/v1/public/t/bicifix/catalog -> 200 (1.226 b)
+     · /api/v1/public/t/cafe-norte/landing -> 200
+
+  H) Órdenes de scripts en el HTML RENDERIZADO:
+     · /dashboard/orders: el listener de "+ Crear pedido" usa arrow function
+     · /dashboard/marketplace: el primer script inline va después de app.js
+     · app.js presente en orders, customers, quotes, inventory, ai,
+       templates
+
+  I) Sin regresiones:
+     · home 200 (36.436 b), 8 tabs role="tab"
+     · hero_showcase.js 200 con AUTOPLAY_MS = 3000
+     · las 8 imágenes de /static/img/hero/ responden 200
+     · /health 200 {"status":"ok","version":"0.2.0","env":"production",...}
+     · /openapi.json 200
 
 ================================================================================
 FIN README_V2.012_UI_PERMISOS_MEDIA_2026-10-24.txt
